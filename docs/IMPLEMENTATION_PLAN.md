@@ -17,7 +17,7 @@ flowchart LR
   K[worker: BullMQ<br/>dispatcher + processors] --> R
   K --> PG
   K --> X[API eksternal<br/>Frankfurter, CMC, BYOK, LLM, Gmail, SMTP]
-  W --> S[(Blob terenkripsi<br/>lampiran, PDF)]
+  W --> S[(SeaweedFS S3<br/>gambar & file terenkripsi<br/>jaringan internal)]
   K --> S
   KMS[[Master key / KEK<br/>file rahasia di luar DB]] -.-> W
   KMS -.-> K
@@ -50,6 +50,7 @@ flowchart LR
 | PDF / Excel / CSV | Playwright-Chromium di worker; `exceljs`; `papaparse` + `xlsx` di browser | D4/D5 |
 | LLM | Vercel AI SDK + provider OpenAI-compatible | OpenRouter/ZenMux/custom; tool calling hanya menghasilkan draft |
 | Email | Nodemailer (SMTP) atau Resend | Abstraksi `Mailer` |
+| Object storage | **SeaweedFS** (S3 API) + `@aws-sdk/client-s3`; `sharp` untuk re-encode/thumbnail | D25; bisa diganti S3 lain lewat `.env`. MinIO tidak dipakai (archived) |
 | Observability | pino (redaksi rahasia) + Bull Board (admin, 2FA) + GlitchTip opsional | Scrubber sebelum kirim error |
 | Test | Vitest, Playwright, Testcontainers Postgres | — |
 
@@ -65,13 +66,13 @@ packages/
   crypto/              envelope encryption (KEK/DEK), hashing, redaksi log
   jobs/                nama queue, payload Zod (hanya ID, tidak pernah rahasia), helper enqueue + jobId
   ui/                  token (generated), komponen shadcn, <Money/>, <Delta/>, <Percent/>, Rail
-  integrations/        adapter: fx, market/<provider>, llm, gmail, mailer, blobstore
+  integrations/        adapter: fx, market/<provider>, llm, gmail, mailer, objectstore (S3: SeaweedFS default, D25)
   entitlements/        plans + can(user, feature) (D17)
   config/              tsconfig, eslint (+ aturan lint kustom), env schema Zod
 tools/tokens-from-pen/ baca variables file desain → packages/ui/src/tokens.css (hasilnya di-commit; file .pen privat, tidak ada di repo)
 deploy/
   docker/              Dockerfile multi-stage (satu image: web | worker | migrate via argumen)
-  compose/             docker-compose.yml self-host (app, worker, postgres, redis, caddy) + .env.example
+  compose/             docker-compose.yml self-host (app, worker, postgres, redis, seaweedfs, caddy) + .env.example
   cloud/               konfigurasi instance write.financial (tanpa rahasia)
 design/                digest (di git) + html export (di .gitignore)
 docs/                  PRD, rencana, riset; docs/self-host/ (instalasi, upgrade, cadangan, Gmail, sumber data)
@@ -104,7 +105,7 @@ Konvensi: `id uuid v7`; `user_id uuid not null` di setiap tabel milik user denga
 | `transactions` | type enum(expense, income, transfer, dividend, adjustment, investment, receivable_out, receivable_in, writeoff), occurred_at, local_date, period_id, description, merchant, `note_enc`, category_id, source enum(manual, quick, assistant, receipt, import, gmail, recurring, period_close), recurrence_id, split_parent_id, duplicated_from_id, import_batch_id, external_hash, goal_id, paid_from_goal_id, receivable_id, client_id, confirmed_by_user_at, deleted_at | unique `(user_id, client_id)`; unique `(user_id, import_batch_id, external_hash)`; **check `confirmed_by_user_at is not null`**: hanya transaksi terkonfirmasi yang ada di tabel ini; kandidat berada di `review_items` |
 | `postings` | transaction_id, account_id, amount_minor (±), currency, fx_rate_to_base, amount_base_minor, role enum(principal, fee, fx_diff, tax) | Saldo = opening + Σ postings dari transaksi yang tidak dihapus. Transfer: 2 posting |
 | `transfer_meta` | transaction_id, sent/received minor+currency, reference_rate, rate_source, rate_as_of | — |
-| `attachments` | transaction_id, blob_key, mime, size, kind, `ocr_enc` | Blob dienkripsi dengan DEK user sebelum ditulis ke disk |
+| `attachments` | transaction_id, bucket, object_key (`u/{userId}/{uuid}`), mime, size, sha256 (dari plaintext, untuk dedupe & integritas), kind, `ocr_enc` | Isi file dienkripsi AES-256-GCM dengan DEK user **sebelum** dikirim ke SeaweedFS; nama file asli disimpan terenkripsi |
 | `balance_adjustments`, `activity_log` | — | `activity_log` per entitas untuk timeline |
 
 ### 4.2 Periode, anggaran
@@ -193,8 +194,8 @@ Indeks pencarian: `pg_trgm` GIN pada `transactions(merchant, description)`, `sub
 | `ocr` | upload struk | LLM vision → `review_items` / isi form draft | `ocr:{attachmentId}` |
 | `gmail` | webhook + polling 10 menit + renew watch 6 hari | Filter → ekstrak → aturan (saran) → **selalu `review_items`**; dedupe manual; log | `gm:{messageId}` |
 | `rules-backfill`, `recalc-period`, `tag-merge` | aksi user | `rules-backfill` hanya menyusun daftar perubahan untuk dikonfirmasi; `recalc-period` dan `tag-merge` dijalankan setelah konfirmasi user (lewat server function di web) | `{kind}:{requestId}` |
-| `backup` | 03.00 WIB | `pg_dump` → `age` encrypt → lokal + off-site; retensi 30 | `bk:{date}` |
-| `account-deletion` | 7 hari setelah permintaan | Hapus data user + DEK (crypto-shredding) + blob | `del:{user}` |
+| `backup` | 03.00 WIB | `pg_dump` + salinan bucket SeaweedFS (objek sudah terenkripsi) → `age` encrypt → lokal + off-site; retensi 30 | `bk:{date}` |
+| `account-deletion` | 7 hari setelah permintaan | Hapus data user + DEK (crypto-shredding) + semua objek `u/{userId}/` di object storage | `del:{user}` |
 | `maintenance` | harian | Purge soft-delete > 30 hari, notifikasi > 90 hari, log > 30 hari, token kedaluwarsa | `mt:{date}` |
 
 Prinsip worker: processor transaksional; retry 5× eksponensial; payload job hanya berisi ID (tidak pernah rahasia atau data keuangan); status yang terlihat user di `job_status`.
@@ -218,11 +219,12 @@ Setiap milestone bisa di-deploy ke staging dan didemokan. **Exit** wajib lulus.
 - Better Auth: Google + email/password, Argon2id, cek kata sandi bocor, lockout/rate limit, **2FA TOTP + kode cadangan + passkey**, daftar perangkat, `security_events` (FR-A1–A3, A5, A8, A10).
 - Token, tema, font, app shell **desktop + rail tablet**, komponen fondasi §7, `<Money>` + mode privasi.
 - `domain`: `money`, `period`, `ledger` + golden tests. Worker skeleton (dispatcher, Bull Board di balik admin + 2FA, `maintenance`).
-- **Distribusi sejak awal:** satu image Docker (`web`/`worker`/`migrate`), `docker-compose.yml` self-host, `.env.example`, entrypoint yang membuat KEK otomatis bila belum ada (dan meminta pengguna mencadangkannya), migrasi otomatis saat start, wizard setup pertama (FR-OP1), mode `DEPLOYMENT_MODE` (D22).
+- **Distribusi sejak awal:** satu image Docker (`web`/`worker`/`migrate`), `docker-compose.yml` self-host (termasuk **SeaweedFS** single-node dengan S3 di jaringan internal + pembuatan bucket otomatis saat start), `.env.example`, entrypoint yang membuat KEK otomatis bila belum ada (dan meminta pengguna mencadangkannya), migrasi otomatis saat start, wizard setup pertama (FR-OP1), mode `DEPLOYMENT_MODE` (D22).
+- `integrations/objectstore`: `put(userId, bytes, mime) → key` (enkripsi → S3 PutObject), `get(userId, key)` (GetObject → dekripsi, cek kepemilikan + sha256), `delete`, `deletePrefix(userId)`; route unduh streaming dengan header aman. Upload gambar: cek magic bytes, batas 2 MB, re-encode via `sharp` (buang EXIF/GPS), thumbnail 320 px untuk lightbox.
 - Repo publik: `LICENSE` AGPL-3.0-only (sudah ada), header `SPDX-License-Identifier: AGPL-3.0-only` di setiap file sumber (dicek lint), SECURITY.md, CONTRIBUTING.md dengan **DCO** (`git commit -s`, dicek CI), TRADEMARK.md, pemindaian rahasia (CI + pre-commit), rilis image ke GHCR dengan SBOM.
 - Staging cloud: Caddy (TLS, HSTS, CSP), volume terenkripsi, cadangan `age` + off-site.
 
-**Exit:** di mesin kosong, `docker compose up` → wizard setup → login admin + 2FA dalam ≤ 15 menit (G5); **tes isolasi tenant** (user B tidak bisa membaca data A, baik lewat API maupun query langsung tanpa `app.user_id`); dump DB tidak mengandung rahasia plaintext; restore cadangan terenkripsi teruji; golden tests lulus; CI menolak commit berisi rahasia.
+**Exit:** di mesin kosong, `docker compose up` → wizard setup → login admin + 2FA dalam ≤ 15 menit (G5); **tes isolasi tenant** (user B tidak bisa membaca data A, baik lewat API maupun query langsung tanpa `app.user_id`, termasuk mengunduh objek milik A dengan menebak key); dump DB dan isi bucket SeaweedFS tidak mengandung rahasia/gambar plaintext; restore cadangan terenkripsi (DB + objek) teruji; golden tests lulus; CI menolak commit berisi rahasia.
 
 ### M1 — Buku kas
 - Onboarding 5 langkah (FR-A4); rekening + rekonsiliasi (FR-R1–R6); kategori + tag (FR-K1–K3).
@@ -311,11 +313,12 @@ flowchart LR
 
 ## 10. Deploy di VPS
 
-- **Self-host (resmi):** `docker compose up -d` dari `deploy/compose/`: `app` (web), `worker`, `postgres`, `redis`, `caddy` (TLS otomatis). Data di volume bernama; panduan menyarankan disk terenkripsi dan cadangan off-site. Pengelola yang sudah punya Postgres/Redis bisa menunjuk ke sana lewat `.env`.
-- **Cloud write.financial:** image yang sama. Di VPS saat ini memakai Postgres/Redis yang sudah ada; `web` (2 instance) + `worker` sebagai container (atau PM2 untuk build non-container), Caddy di depan. Postgres/Redis hanya listen di `127.0.0.1`/jaringan privat.
-- **Penyimpanan:** data Postgres, Redis AOF, dan direktori blob di volume **LUKS**. Swap dinonaktifkan atau terenkripsi.
-- **Rahasia:** KEK di file `0400` milik user service (di luar repo dan luar `.env` yang dibaca proses lain), dimuat sekali saat start; `.env` `0600`. Rotasi KEK = re-wrap `user_keys.dek_wrapped`, versi kunci disimpan di ciphertext.
-- **Postgres:** role terpisah (§4.0), `pg_trgm`, `log_statement` tanpa parameter, `pg_dump` harian → `age` → off-site (rclone S3/Backblaze), uji restore bulanan.
+- **Self-host (resmi):** `docker compose up -d` dari `deploy/compose/`: `app` (web), `worker`, `postgres`, `redis`, `seaweedfs` (master + volume + filer + S3 dalam satu proses, port S3 hanya di jaringan Docker internal), `caddy` (TLS otomatis). Data di volume bernama; panduan menyarankan disk terenkripsi dan cadangan off-site. Pengelola yang sudah punya Postgres/Redis/S3 bisa menunjuk ke sana lewat `.env`.
+- **Cloud write.financial:** image yang sama + SeaweedFS di VPS (listen `127.0.0.1`). Di VPS saat ini memakai Postgres/Redis yang sudah ada; `web` (2 instance) + `worker` sebagai container (atau PM2 untuk build non-container), Caddy di depan. Postgres/Redis/SeaweedFS hanya listen di `127.0.0.1`/jaringan privat.
+- **Penyimpanan:** data Postgres, Redis AOF, dan volume SeaweedFS di volume **LUKS**. Swap dinonaktifkan atau terenkripsi.
+- **SeaweedFS:** kredensial S3 khusus aplikasi (akses hanya ke bucket `wf-*`), replikasi `000` di single-node (cadangan yang melindungi data, bukan replikasi), filer metadata di disk lokal; versi image di-pin dan diperbarui lewat rilis write.financial.
+- **Rahasia:** KEK di file `0400` milik user service (di luar repo dan luar `.env` yang dibaca proses lain), dimuat sekali saat start; `.env` `0600`. Rotasi KEK = re-wrap `user_keys.dek_wrapped`, versi kunci disimpan di ciphertext (objek tidak perlu dienkripsi ulang).
+- **Postgres & objek:** role terpisah (§4.0), `pg_trgm`, `log_statement` tanpa parameter. Cadangan harian: `pg_dump` + sinkron bucket SeaweedFS (`weed` / rclone, objek sudah terenkripsi per user) → `age` → off-site, uji restore bulanan. Restore harus memulihkan DB dan objek dari titik waktu yang sama.
 - **Redis:** `noeviction`, AOF `everysec`, `requirepass`, DB index terpisah untuk antrean & cache; payload job tanpa rahasia.
 - **Jaringan:** firewall 80/443 + SSH (kunci saja, non-root), fail2ban, update keamanan otomatis; egress worker ke API eksternal lewat allowlist domain di adapter.
 - **Rilis:** CI build → artefak → `drizzle-kit migrate` (role migrate) → reload `web` → restart `worker` graceful.
@@ -337,7 +340,6 @@ flowchart LR
 
 ## 12. Langkah berikutnya
 
-1. Simpan `dompetku.pen` di aplikasi Pencil (⌘S): Section 19–20 dan perubahan nama masih di memori aplikasi.
-2. Buat repo publik (mis. `github.com/<akun>/write.financial`) dengan `LICENSE` yang sudah ada, SECURITY.md, dan pemindaian rahasia aktif sebelum commit pertama berisi kode.
+1. ~~Simpan file desain~~ (selesai) · ~~Buat repo publik~~ (selesai: `github.com/avtara/write.financial`, commit awal lokal).
 3. Siapkan domain `write.financial`: DNS, SPF/DKIM/DMARC untuk `no-reply@write.financial` (D18). Badan usaha + PSE baru dibutuhkan menjelang M9b.
-4. Mulai M0: scaffold monorepo + image Docker + compose self-host, RLS + `packages/crypto`, auth + 2FA, wizard setup, token dari `dompetku.pen`, `<Money>`, golden test domain.
+4. Mulai M0: scaffold monorepo + image Docker + compose self-host (dengan SeaweedFS), RLS + `packages/crypto`, auth + 2FA, wizard setup, token dari file desain, `<Money>`, golden test domain.
