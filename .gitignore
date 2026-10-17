@@ -1,0 +1,17 @@
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+.output/
+.turbo/
+.DS_Store
+
+# Export HTML Pencil (163 MB), regenerasi dari file desain
+design/html/
+
+# File desain sumber Pencil tidak dipublikasikan (berisi fileToken akun pen.dev)
+*.pen
+
+# Konfigurasi agent lokal (path mesin pribadi)
+.omp/
