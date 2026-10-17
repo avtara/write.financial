@@ -341,5 +341,5 @@ flowchart LR
 ## 12. Langkah berikutnya
 
 1. ~~Simpan file desain~~ (selesai) · ~~Buat repo publik~~ (selesai: `github.com/avtara/write.financial`, commit awal lokal).
-3. Siapkan domain `write.financial`: DNS, SPF/DKIM/DMARC untuk `no-reply@write.financial` (D18). Badan usaha + PSE baru dibutuhkan menjelang M9b.
-4. Mulai M0: scaffold monorepo + image Docker + compose self-host (dengan SeaweedFS), RLS + `packages/crypto`, auth + 2FA, wizard setup, token dari file desain, `<Money>`, golden test domain.
+2. Siapkan domain `write.financial`: DNS, SPF/DKIM/DMARC untuk `no-reply@write.financial` (D18). Badan usaha + PSE baru dibutuhkan menjelang M9b.
+3. Mulai M0: scaffold monorepo + image Docker + compose self-host (dengan SeaweedFS), RLS + `packages/crypto`, auth + 2FA, wizard setup, token dari file desain, `<Money>`, golden test domain.
