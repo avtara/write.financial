@@ -1,0 +1,363 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+/**
+ * Tenant isolation against a real PostgreSQL 18.6 (Testcontainers), with every role logging in with its own password:
+ * bootstrap → migrate → two users → cross-tenant reads/writes, raw queries without a user context, append-only
+ * security events, ciphertext at rest, and KEK rotation. The user-owned tables are discovered from the catalog
+ * (foreign keys to `users`), so a new table is covered without touching this file.
+ */
+import { decryptText, encrypt } from '@wf/crypto/cipher';
+import { UnknownKeyVersionError, unwrapDek } from '@wf/crypto/envelope';
+import { addKeyVersion, parseKeyring } from '@wf/crypto/keyring';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { sql } from 'drizzle-orm';
+import postgres from 'postgres';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { keyFileText } from '../test/keys.ts';
+import { createDb, firstRow, withUser, type Database } from './db.ts';
+import { createInstanceSettings } from './instance-settings.ts';
+import { migrate } from './migrate.ts';
+import { createPreferences } from './preferences.ts';
+import { bootstrapRoles, ROLES, type RoleName } from './roles.ts';
+import { accountsAuth, passkeys, sessions, twoFactors, users, verifications } from './schema.ts';
+import { createSecurityEvents } from './security-events.ts';
+import { createUserKeys, KeyRotationRoleError } from './user-keys.ts';
+
+/** Tables without Row-Level Security: global catalog, read-only grants. */
+const GLOBAL_TABLES = ['entitlements', 'plans'];
+const INSUFFICIENT_PRIVILEGE = '42501';
+const READ_ONLY_TRANSACTION = '25006';
+
+/** Built at runtime so no fixture looks like a committed secret. */
+const password = (role: string) => `${role}-${Date.now().toString(36)}-pw`;
+const PASSWORDS = {
+  app: password('app'),
+  worker: password('worker'),
+  migrate: password('migrate'),
+  auth: password('auth'),
+  readonlyOps: password('ops'),
+};
+const SMTP_PASSWORD = password('smtp');
+
+const v1Text = keyFileText();
+const v1 = parseKeyring(v1Text);
+const v2 = parseKeyring(addKeyVersion(v1Text));
+
+type Dbs = Readonly<Record<'app' | 'worker' | 'auth' | 'migrate' | 'ops', Database>>;
+
+let container: StartedPostgreSqlContainer;
+let superuser: postgres.Sql;
+let dbs: Dbs;
+let alice: string;
+let bob: string;
+let owned: { table: string; column: string }[];
+
+function urlAs(role: RoleName, rolePassword: string): string {
+  const url = new URL(container.getConnectionUri());
+  url.username = role;
+  url.password = rolePassword;
+  return url.href;
+}
+
+/** SQLSTATE of the Postgres error behind a (Drizzle) query error; `undefined` if the query succeeded. */
+async function pgErrorCode(promise: Promise<unknown>): Promise<string | undefined> {
+  try {
+    await promise;
+    return undefined;
+  } catch (error) {
+    const cause = error instanceof Error && error.cause instanceof postgres.PostgresError ? error.cause : error;
+    return cause instanceof postgres.PostgresError ? cause.code : String(error);
+  }
+}
+
+beforeAll(async () => {
+  container = await new PostgreSqlContainer('postgres:18.6').start();
+  superuser = postgres(container.getConnectionUri(), { max: 1, onnotice: () => undefined });
+
+  await bootstrapRoles(container.getConnectionUri(), PASSWORDS);
+  // Two instances starting at once: the advisory lock makes the second one a no-op.
+  const migrateUrl = urlAs(ROLES.migrate, PASSWORDS.migrate);
+  await Promise.all([migrate(migrateUrl), migrate(migrateUrl)]);
+
+  dbs = {
+    app: createDb(urlAs(ROLES.app, PASSWORDS.app)),
+    worker: createDb(urlAs(ROLES.worker, PASSWORDS.worker)),
+    auth: createDb(urlAs(ROLES.auth, PASSWORDS.auth)),
+    migrate: createDb(migrateUrl),
+    ops: createDb(urlAs(ROLES.readonlyOps, PASSWORDS.readonlyOps)),
+  };
+
+  // The auth module creates users and their Better Auth rows without a user context.
+  const [a, b] = await dbs.auth
+    .insert(users)
+    .values([
+      { name: 'Alice', email: 'alice@example.test', role: 'admin' },
+      { name: 'Bob', email: 'bob@example.test' },
+    ])
+    .returning({ id: users.id });
+  if (a === undefined || b === undefined) throw new Error('users were not created');
+  alice = a.id;
+  bob = b.id;
+  const expiresAt = new Date(Date.now() + 86_400_000);
+  for (const userId of [alice, bob]) {
+    await dbs.auth.insert(sessions).values({ userId, token: `token-${userId}`, expiresAt });
+    await dbs.auth.insert(accountsAuth).values({ userId, accountId: userId, providerId: 'credential' });
+    await dbs.auth.insert(twoFactors).values({ userId, secret: 'enc-secret', backupCodes: 'hashed-codes' });
+    await dbs.auth.insert(passkeys).values({
+      userId,
+      publicKey: 'pk',
+      credentialID: `cred-${userId}`,
+      counter: 0,
+      deviceType: 'singleDevice',
+      backedUp: false,
+    });
+  }
+  await dbs.auth.insert(verifications).values({ identifier: 'alice@example.test', value: 'v', expiresAt });
+
+  // The app writes every user-owned table it can, each user in their own context.
+  const keys = createUserKeys(dbs.app, v1);
+  const events = createSecurityEvents(dbs.app);
+  const preferences = createPreferences(dbs.app);
+  for (const userId of [alice, bob]) {
+    await keys.getOrCreateDek(userId);
+    await events.append(userId, { type: 'sign_in', ipHash: null, userAgent: 'vitest' });
+    await preferences.update(userId, { theme: 'light' });
+    await superuser`INSERT INTO user_plans (user_id, plan_code) VALUES (${userId}, 'personal')`;
+  }
+  await withUser(dbs.app, alice, (tx) =>
+    tx.execute(sql`INSERT INTO invitations (email, token_hash, expires_at, invited_by)
+                   VALUES ('carol@example.test', ${'a'.repeat(64)}, now() + interval '7 days', ${alice})`),
+  );
+  await createInstanceSettings(dbs.app, v1).updateSetup(alice, {
+    instanceName: 'Isolation',
+    publicUrl: 'https://isolation.example.test/',
+    defaultLocale: 'id',
+    defaultTimezone: 'Asia/Jakarta',
+    registrationMode: 'closed',
+    smtp: {
+      host: 'smtp.example.test',
+      port: 587,
+      secure: false,
+      username: 'u',
+      from: 'a@example.test',
+      password: SMTP_PASSWORD,
+    },
+  });
+
+  owned = [
+    { table: 'users', column: 'id' },
+    ...(await superuser<{ table: string; column: string }[]>`
+      SELECT c.conrelid::regclass::text AS table, a.attname AS column
+      FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+      WHERE c.contype = 'f' AND c.confrelid = 'public.users'::regclass
+      ORDER BY 1`),
+  ];
+});
+
+afterAll(async () => {
+  await Promise.all(Object.values(dbs).map((db) => db.$client.end()));
+  await superuser.end();
+  await container.stop();
+});
+
+describe('roles', () => {
+  it('logs every role in with its own password, none superuser or BYPASSRLS', async () => {
+    const rows = await superuser<{ rolname: string; rolsuper: boolean; rolbypassrls: boolean }[]>`
+      SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname LIKE 'wf\\_%' ORDER BY rolname`;
+    expect(rows.map((row) => row.rolname)).toEqual(Object.values(ROLES).toSorted());
+    expect(rows.every((row) => !row.rolsuper && !row.rolbypassrls)).toBe(true);
+    for (const db of Object.values(dbs)) expect(await db.execute(sql`select 1 as ok`)).toEqual([{ ok: 1 }]);
+  });
+
+  it('configures pool sessions with a statement timeout', async () => {
+    expect(await dbs.app.execute(sql`show statement_timeout`)).toEqual([{ statement_timeout: '30s' }]);
+  });
+});
+
+describe('Row-Level Security', () => {
+  it('protects every user-owned table (found via foreign keys to users) and every non-global table', async () => {
+    expect(owned.map((o) => o.table)).toEqual(
+      expect.arrayContaining(['users', 'sessions', 'user_keys', 'security_events', 'user_preferences']) as string[],
+    );
+    const unprotected = await superuser<{ name: string }[]>`
+      SELECT relname AS name FROM pg_class
+      WHERE relnamespace = 'public'::regnamespace AND relkind = 'r' AND NOT (relrowsecurity AND relforcerowsecurity)
+      ORDER BY relname`;
+    expect(unprotected.map((row) => row.name)).toEqual(GLOBAL_TABLES);
+  });
+
+  it('has rows of both users in every user-owned table, so the checks below are not vacuous', async () => {
+    for (const { table, column } of owned) {
+      const [row] = await superuser<{ n: number }[]>`
+        SELECT count(DISTINCT ${superuser(column)})::int AS n FROM ${superuser(table)}`;
+      // Only admins invite: Alice's invitation is the one row there.
+      expect({ table, owners: row?.n }).toEqual({ table, owners: table === 'invitations' ? 1 : 2 });
+    }
+  });
+
+  it.each([
+    [ROLES.app, PASSWORDS.app],
+    [ROLES.worker, PASSWORDS.worker],
+  ])('a raw query as %s without app.user_id returns no rows from any user-owned table', async (role, rolePassword) => {
+    const raw = postgres(urlAs(role, rolePassword), { max: 1 });
+    try {
+      for (const { table } of owned) {
+        const [privilege] = await raw<{ allowed: boolean }[]>`
+          SELECT has_table_privilege(current_user, ${table}, 'SELECT') AS allowed`;
+        const query = raw`SELECT * FROM ${raw(table)}`;
+        if (privilege?.allowed) expect({ table, rows: (await query).length }).toEqual({ table, rows: 0 });
+        else expect({ table, code: await pgErrorCode(query) }).toEqual({ table, code: INSUFFICIENT_PRIVILEGE });
+      }
+    } finally {
+      await raw.end();
+    }
+  });
+
+  it('user B can neither read, update, nor delete user A’s rows through withUser', async () => {
+    for (const { table, column } of owned) {
+      const t = sql.identifier(table);
+      const owner = sql`${t}.${sql.identifier(column)} = ${alice}`;
+      const privileges = firstRow(
+        await superuser<{ select: boolean; delete: boolean; update_column: string | null }[]>`
+          SELECT has_table_privilege('wf_app', ${table}, 'SELECT') AS select,
+                 has_table_privilege('wf_app', ${table}, 'DELETE') AS delete,
+                 (SELECT attname FROM pg_attribute
+                  WHERE attrelid = ${table}::regclass AND attnum > 0 AND NOT attisdropped
+                    AND has_column_privilege('wf_app', ${table}, attname, 'UPDATE')
+                  ORDER BY attnum LIMIT 1) AS update_column`,
+        table,
+      );
+
+      const read = withUser(dbs.app, bob, (tx) => tx.execute(sql`SELECT 1 FROM ${t} WHERE ${owner}`));
+      if (privileges.select) expect({ table, rows: (await read).length }).toEqual({ table, rows: 0 });
+      else expect({ table, code: await pgErrorCode(read) }).toEqual({ table, code: INSUFFICIENT_PRIVILEGE });
+
+      // Update a column wf_app may update, so a 0 comes from RLS rather than from a missing privilege.
+      const target = sql.identifier(privileges.update_column ?? column);
+      const update = withUser(dbs.app, bob, (tx) =>
+        tx.execute(sql`UPDATE ${t} SET ${target} = ${target} WHERE ${owner}`),
+      );
+      if (privileges.update_column !== null)
+        expect({ table, updated: (await update).count }).toEqual({ table, updated: 0 });
+      else expect({ table, code: await pgErrorCode(update) }).toEqual({ table, code: INSUFFICIENT_PRIVILEGE });
+
+      const remove = withUser(dbs.app, bob, (tx) => tx.execute(sql`DELETE FROM ${t} WHERE ${owner}`));
+      if (privileges.delete) expect({ table, deleted: (await remove).count }).toEqual({ table, deleted: 0 });
+      else expect({ table, code: await pgErrorCode(remove) }).toEqual({ table, code: INSUFFICIENT_PRIVILEGE });
+
+      // Positive control: wherever wf_app may read, the owner does see the row.
+      if (privileges.select) {
+        const own = await withUser(dbs.app, alice, (tx) => tx.execute(sql`SELECT 1 FROM ${t} WHERE ${owner}`));
+        expect({ table, visible: own.length > 0 }).toEqual({ table, visible: true });
+      }
+    }
+  });
+
+  it('does not leak app.user_id to the next use of a pooled connection', async () => {
+    const app = createDb(urlAs(ROLES.app, PASSWORDS.app), { max: 1 });
+    try {
+      await withUser(app, alice, (tx) => tx.execute(sql`SELECT 1`));
+      expect(await app.execute(sql`SELECT count(*)::int AS n FROM user_preferences`)).toEqual([{ n: 0 }]);
+    } finally {
+      await app.$client.end();
+    }
+  });
+
+  it('keeps sessions and 2FA secrets away from wf_app and wf_worker, even with a user context', async () => {
+    for (const db of [dbs.app, dbs.worker]) {
+      for (const table of ['sessions', 'two_factors', 'accounts_auth', 'passkeys', 'verifications']) {
+        const read = withUser(db, alice, (tx) => tx.execute(sql`SELECT * FROM ${sql.identifier(table)}`));
+        expect({ table, code: await pgErrorCode(read) }).toEqual({ table, code: INSUFFICIENT_PRIVILEGE });
+      }
+    }
+  });
+
+  it('lets wf_auth find sessions without a user context', async () => {
+    expect(await dbs.auth.execute(sql`SELECT count(*)::int AS n FROM sessions`)).toEqual([{ n: 2 }]);
+  });
+
+  it('gives operators read-only access without secrets', async () => {
+    expect(await dbs.ops.execute(sql`SELECT count(*)::int AS n FROM security_events`)).toEqual([{ n: 2 }]);
+    expect(await pgErrorCode(dbs.ops.execute(sql`SELECT smtp_password_enc FROM instance_settings`))).toBe(
+      INSUFFICIENT_PRIVILEGE,
+    );
+    expect(await pgErrorCode(dbs.ops.execute(sql`SELECT * FROM user_keys`))).toBe(INSUFFICIENT_PRIVILEGE);
+    expect(await pgErrorCode(dbs.ops.execute(sql`CREATE TEMP TABLE t (x int)`))).toBe(READ_ONLY_TRANSACTION);
+  });
+});
+
+describe('security_events', () => {
+  it('rejects UPDATE and DELETE for the app (no privilege) and the superuser (trigger)', async () => {
+    for (const statement of [sql`UPDATE security_events SET user_agent = 'x'`, sql`DELETE FROM security_events`]) {
+      expect(await pgErrorCode(withUser(dbs.app, alice, (tx) => tx.execute(statement)))).toBe(INSUFFICIENT_PRIVILEGE);
+    }
+    for (const statement of ['UPDATE security_events SET user_agent = NULL', 'DELETE FROM security_events']) {
+      await expect(superuser.unsafe(statement)).rejects.toThrow(/security_events is append-only/);
+    }
+  });
+});
+
+describe('encryption at rest', () => {
+  it('a dump of user_keys and instance_settings contains neither the SMTP password nor the KEK', async () => {
+    const lines = await superuser<{ line: string }[]>`
+      SELECT row_to_json(k)::text AS line FROM user_keys k
+      UNION ALL SELECT row_to_json(s)::text FROM instance_settings s`;
+    const dump = lines.map((row) => row.line).join('\n');
+    expect(dump).toContain('dek_wrapped');
+    expect(dump).toContain('smtp_password_enc');
+    expect(dump).not.toContain(SMTP_PASSWORD);
+    expect(dump).not.toContain(Buffer.from(SMTP_PASSWORD).toString('hex'));
+    const kek = Buffer.from(v1Text.trim().slice('v1:'.length), 'base64');
+    expect(dump).not.toContain(kek.toString('hex'));
+    expect(dump).not.toContain(kek.toString('base64'));
+  });
+
+  it('wrapped DEKs are useless without the KEK', async () => {
+    const { dek_wrapped: wrapped } = firstRow(
+      await superuser<{ dek_wrapped: Uint8Array }[]>`SELECT dek_wrapped FROM user_keys WHERE user_id = ${alice}`,
+      'user_keys',
+    );
+    expect(() => unwrapDek(wrapped, parseKeyring(keyFileText()), alice)).toThrow();
+    expect(() => unwrapDek(wrapped, v1, bob)).toThrow();
+    expect(() => unwrapDek(wrapped, v1, alice)).not.toThrow();
+  });
+});
+
+describe('userKeys', () => {
+  it('creates exactly one DEK under concurrent first use', async () => {
+    const { id: carol } = firstRow(
+      await dbs.auth.insert(users).values({ name: 'Carol', email: 'carol@example.test' }).returning({ id: users.id }),
+      'users',
+    );
+    const keys = createUserKeys(dbs.app, v1);
+    const [first, ...rest] = await Promise.all(Array.from({ length: 8 }, () => keys.getOrCreateDek(carol)));
+    const aad = { userId: carol, purpose: 'race' };
+    if (first === undefined) throw new Error('no DEK');
+    const ciphertext = encrypt(first, 'same key', aad);
+    for (const dek of rest) expect(decryptText(dek, ciphertext, aad)).toBe('same key');
+    expect(await superuser`SELECT 1 FROM user_keys WHERE user_id = ${carol}`).toHaveLength(1);
+  });
+
+  it('KEK rotation re-wraps every DEK and keeps the data readable', async () => {
+    const before = createUserKeys(dbs.app, v1);
+    const notes = await Promise.all(
+      [alice, bob].map(async (userId) => ({
+        userId,
+        ciphertext: encrypt(await before.getOrCreateDek(userId), `note of ${userId}`, { userId, purpose: 'n' }),
+      })),
+    );
+
+    await expect(createUserKeys(dbs.app, v2).rewrapAll()).rejects.toThrow(new KeyRotationRoleError('wf_app'));
+    // Alice, Bob, Carol (previous test) and the instance DEK of the SMTP password.
+    expect(await createUserKeys(dbs.migrate, v2).rewrapAll()).toEqual({ users: 3, instance: true });
+    expect(await superuser`SELECT DISTINCT kek_version FROM user_keys`).toEqual([{ kek_version: 2 }]);
+
+    const after = createUserKeys(dbs.app, v2);
+    for (const { userId, ciphertext } of notes) {
+      const dek = await after.getOrCreateDek(userId);
+      expect(decryptText(dek, ciphertext, { userId, purpose: 'n' })).toBe(`note of ${userId}`);
+    }
+    expect(await createInstanceSettings(dbs.worker, v2).smtpPassword()).toBe(SMTP_PASSWORD);
+    // A keyring without v2 cannot open the re-wrapped keys.
+    await expect(createUserKeys(dbs.app, v1).getOrCreateDek(alice)).rejects.toBeInstanceOf(UnknownKeyVersionError);
+  });
+});
