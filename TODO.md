@@ -32,7 +32,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Design tokens, dark/light theme, desktop app shell + tablet rail, `<Money>` + privacy mode
 - [x] i18n: Paraglide, Bahasa Indonesia + English messages, language switcher, locale-aware number/date formatting, missing-key check in CI
 - [x] Domain `money`, `period`, `ledger` + golden tests
-- [ ] Worker skeleton (dispatcher, Bull Board, maintenance)
+- [x] Worker skeleton (job schedulers, Bull Board, maintenance, D14 guard)
 - [x] Docker image + self-host compose + first-run setup wizard
 - [x] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
 - [ ] Cloud staging with encrypted backups
@@ -56,7 +56,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M3 — Scheduling, Review queue, subscriptions, calendar, notifications
 
-- [ ] Recurring transactions + scheduling engine in the worker
+- [ ] Recurring transactions + scheduling engine in the worker (incl. the per-minute `dispatch` scanner)
 - [ ] Review queue page
 - [ ] Automatic period close + confirmed proposals
 - [ ] Subscriptions, calendar, notifications (popover, page, email)

@@ -230,7 +230,7 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 - Better Auth: Google + email/password, Argon2id, breached-password check, lockout/rate limit, **TOTP 2FA + backup codes + passkey**, device list, `security_events` (FR-A1–A3, A5, A8, A10).
 - Tokens, theme, fonts, **desktop + tablet rail** app shell, §7 foundation components, `<Money>` + Privacy mode.
 - **i18n foundation:** `packages/i18n` with Paraglide, `id` + `en` message files, locale resolver and switcher (sign-in page + Settings › Profile), locale-aware `formatMoney/formatDate/plural`, ESLint rule against hard-coded JSX text, CI check for missing/unused keys in either locale.
-- `domain`: `money`, `period`, `ledger` + golden tests. Worker skeleton (dispatcher, Bull Board behind admin + 2FA, `maintenance`).
+- `domain`: `money`, `period`, `ledger` + golden tests. Worker skeleton (BullMQ job schedulers, Bull Board behind admin + 2FA, `maintenance`, D14 architecture test). The per-minute `dispatch` scanner ships in M3 together with `scheduled_occurrences`, the first table it scans.
 - **Distribution from day one:** single Docker image (`web`/`worker`/`migrate`), self-host `docker-compose.yml` (including single-node **SeaweedFS** with S3 on the internal network + automatic bucket creation on start), `.env.example`, an entrypoint that generates the KEK automatically if missing (and asks the user to back it up), automatic migrations on start, first-run setup wizard (FR-OP1), `DEPLOYMENT_MODE` mode (D22).
 - `integrations/objectstore`: `put(userId, bytes, mime) → key` (encrypt → S3 PutObject), `get(userId, key)` (GetObject → decrypt, ownership + sha256 check), `delete`, `deletePrefix(userId)`; streaming download route with safe headers. Image upload: magic-byte check, 2 MB limit, re-encode via `sharp` (strip EXIF/GPS), 320 px thumbnail for the lightbox.
 - Public repo: `LICENSE` AGPL-3.0-only (already present), `SPDX-License-Identifier: AGPL-3.0-only` header in every source file (lint-checked), SECURITY.md, CONTRIBUTING.md with **DCO** (`git commit -s`, CI-checked), TRADEMARK.md, secret scanning (CI + pre-commit), image releases to GHCR with SBOM.
@@ -251,7 +251,7 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 **Exit:** 88% / 48% / Rp140.000 / 87% / 90% / 36,5%; transition 1–24 Nov = Rp15.000.000; September read-only; range 14 Sep–13 Okt shows "30 hari · melintasi 2 periode" (30 days · spans 2 periods).
 
 ### M3 — Schedules, Review queue, subscriptions, calendar, notifications
-- Recurrence (FR-T6, L8); `scheduled_occurrences` + worker; **`/review` page** with all reasons (FR-L7) + `confirmReview`; automatic Period close + proposals (FR-P4).
+- Recurrence (FR-T6, L8); `scheduled_occurrences` + worker `dispatch` scanner (§1, §6); **`/review` page** with all reasons (FR-L7) + `confirmReview`; automatic Period close + proposals (FR-P4).
 - Subscriptions (FR-SUB1–SUB6); Calendar (FR-C1–C3); notification popover + **page** + email (FR-S5, FR-ST3).
 
 **Exit:** Netflix on the 18th → D-1 reminder at 09.00 WIB exactly once → `/review` on the due date → balance changes only after "Sudah dibayar" (already paid); **architecture test: the worker cannot import transaction/budget repositories**; September Period close produces the proposal "pindah sisa Rp1.150.000 ke Dana Darurat" (move leftover to Emergency Fund) which does not take effect before confirmation; worker restart causes no duplicates.
