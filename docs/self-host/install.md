@@ -55,7 +55,7 @@ Set at least:
 SMTP and Google sign-in are optional; mail can also be configured later in the setup wizard.
 
 You do not set any other password or key. On first start `init` generates them into the `secrets` Docker volume:
-the key-encryption key (KEK), the auth secret, one password per database role (`wf_app`, `wf_worker`, `wf_auth`,
+the key-encryption key (KEK), the auth secret, the setup token, one password per database role (`wf_app`, `wf_worker`, `wf_auth`,
 `wf_migrate`, `wf_readonly_ops`), the Valkey password, and the S3 credentials. They are random 256-bit values in
 files with mode 0600, owned by the app user (uid 10001). Existing files are never overwritten. `web` and `worker`
 mount the volume read-only; Valkey and SeaweedFS only see their own subdirectory.
@@ -67,16 +67,26 @@ docker compose up -d --wait
 docker compose logs init
 ```
 
-`--wait` returns once every service is healthy. The `init` log lists the generated secrets and ends with
-`Migrations are up to date. init is done.` On the very first start it also prints a notice about the KEK. Back it
-up now (next step).
+`--wait` returns once every service is healthy. The `init` log lists the generated secrets, then
+`Migrations are up to date.`, and ends with `init is done.` On the very first start it also prints a notice about
+the KEK. Back it up before you continue (step 4).
 
-Then open your `PUBLIC_URL`. The first-run setup wizard creates the admin account (with two-factor authentication)
-and the instance settings. Registration is closed by default: after setup, new users need an invitation or an
-admin who opens registration.
+While setup is pending, the `init` log also shows the setup URL with a one-time token:
 
-For a local trial with `WF_DOMAIN=localhost`, open <https://localhost>. Caddy uses its own certificate authority,
-so the browser warns about the certificate.
+```text
+First-run setup is pending. Open this URL to create the admin account and configure the instance:
+
+  https://finance.example.com/setup?token=…
+```
+
+Open that URL. The setup wizard creates the admin account (with two-factor authentication) and the instance
+settings; it refuses `/setup` without the token. Keep the URL private until setup is done: whoever opens it first
+sets up the instance. `init` prints it again on every start until setup is complete, so
+`docker compose logs init` shows it later too; afterwards it prints nothing about it. Registration is closed by
+default: after setup, new users need an invitation or an admin who opens registration.
+
+For a local trial with `WF_DOMAIN=localhost`, the URL starts with `https://localhost/setup`. Caddy uses its own
+certificate authority, so the browser warns about the certificate.
 
 ## 4. Back up the key-encryption key (KEK)
 

@@ -34,10 +34,11 @@ const contents = async (): Promise<Record<string, string>> =>
   );
 
 describe('SECRETS', () => {
-  it('lists the KEK, the auth secret, one password per database role, Valkey, and the S3 identity', () => {
+  it('lists the KEK, the auth secret, the setup token, one password per database role, Valkey, and the S3 identity', () => {
     expect(SECRETS).toEqual([
       KEK,
       AUTH_SECRET,
+      'setup-token',
       'postgres/wf_app',
       'postgres/wf_worker',
       'postgres/wf_migrate',

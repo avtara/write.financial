@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { RolePasswords } from '@wf/db/roles';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DB_WAIT, kekNotice, runInit, type InitDeps } from './init.ts';
+import { DB_WAIT, kekNotice, runInit, setupNotice, type InitDeps } from './init.ts';
 import { SECRETS } from './secrets.ts';
 
 let dir: string;
@@ -32,8 +32,9 @@ function fakeDeps(bootstrapRoles: InitDeps['bootstrapRoles'] = () => Promise.res
   const errors: string[] = [];
   const deps = {
     bootstrapRoles: vi.fn(bootstrapRoles),
-    migrate: vi.fn(() => Promise.resolve()),
+    migrate: vi.fn<InitDeps['migrate']>(() => Promise.resolve()),
     sleep: vi.fn(() => Promise.resolve()),
+    setupPending: vi.fn<InitDeps['setupPending']>(() => Promise.resolve(true)),
     output: { log: (message: string) => log.push(message), error: (message: string) => errors.push(message) },
   };
   return { deps, log, errors };
@@ -46,7 +47,7 @@ function codeError(code: string): Error {
 }
 
 describe('runInit', () => {
-  it('generates the secrets, shows the KEK notice once, bootstraps the roles, and migrates', async () => {
+  it('generates the secrets, shows the KEK notice once, bootstraps the roles, migrates, and shows the setup URL', async () => {
     const { deps, log, errors } = fakeDeps();
     expect(await runInit(baseEnv(), deps)).toBe(0);
     expect(errors).toEqual([]);
@@ -54,7 +55,9 @@ describe('runInit', () => {
       `Secrets: generated ${SECRETS.join(', ')}.`,
       kekNotice(path.join(dir, 'kek')),
       'Database roles wf_app, wf_worker, wf_migrate, wf_auth, wf_readonly_ops are up to date.',
-      'Migrations are up to date. init is done.',
+      'Migrations are up to date.',
+      setupNotice(`https://localhost/setup?token=${await secret('setup-token')}`),
+      'init is done.',
     ]);
     const passwords: RolePasswords = {
       app: await secret('postgres/wf_app'),
@@ -70,13 +73,29 @@ describe('runInit', () => {
     expect(deps.migrate).toHaveBeenCalledExactlyOnceWith(
       `postgres://wf_migrate:${passwords.migrate}@postgres:5432/write_financial`,
     );
+    expect(deps.setupPending).toHaveBeenCalledExactlyOnceWith(deps.migrate.mock.calls[0]?.[0]);
     expect(deps.sleep).not.toHaveBeenCalled();
 
     const output = log.join('\n');
-    for (const name of SECRETS) {
+    for (const name of SECRETS.filter((secretName) => secretName !== 'setup-token')) {
       const value = await secret(name);
       expect(output, name).not.toContain(name === 'kek' ? (value.split('v1:')[1] ?? '') : value);
     }
+  });
+
+  it('shows the setup URL on every start while setup is pending, and never once it is complete', async () => {
+    await runInit(baseEnv(), fakeDeps().deps);
+    const token = await secret('setup-token');
+    const pending = fakeDeps();
+    expect(await runInit({ ...baseEnv(), PUBLIC_URL: 'https://example.test/finance/' }, pending.deps)).toBe(0);
+    expect(pending.log).toContain(setupNotice(`https://example.test/finance/setup?token=${token}`));
+
+    const done = fakeDeps();
+    done.deps.setupPending.mockResolvedValueOnce(false);
+    expect(await runInit(baseEnv(), done.deps)).toBe(0);
+    expect(done.log.join('\n')).not.toContain('setup');
+    expect(done.log.join('\n')).not.toContain(token);
+    expect(done.log.at(-1)).toBe('init is done.');
   });
 
   it('reuses the secrets on the next start without the KEK notice', async () => {
@@ -85,6 +104,7 @@ describe('runInit', () => {
     expect(await runInit({ ...baseEnv(), POSTGRES_USER: 'admin' }, deps)).toBe(0);
     expect(log[0]).toBe(`Secrets: using the existing ones in ${dir}.`);
     expect(log.join('\n')).not.toContain('KEK');
+    expect(await secret('setup-token')).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(deps.bootstrapRoles.mock.calls[0]?.[0]).toMatch(/^postgres:\/\/admin:/);
   });
 

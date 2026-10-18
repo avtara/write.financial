@@ -55,6 +55,10 @@ services:
   web:
     <<: *app
     command: ['web']
+    environment:
+      <<: *app-env
+      # Only web needs it: the setup wizard checks it (init prints the URL while setup is pending).
+      SETUP_TOKEN_FILE: /run/wf-secrets/setup-token
     depends_on: &app-deps
       init:
         condition: service_completed_successfully

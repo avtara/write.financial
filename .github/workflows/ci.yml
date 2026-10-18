@@ -155,6 +155,8 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/healthz)" = 308
           test "$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q worker)")" = healthy
           test "$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$(docker compose ps -a -q init)")" = 'exited 0'
+          # Setup is pending on a fresh instance, so init printed the setup URL (grep -q keeps the token out of the log).
+          docker compose logs init | grep -q 'https://localhost/setup?token='
           published="$(docker compose ps -a --format json | jq -rs '[.[] | select([.Publishers[]? | select(.PublishedPort > 0)] | length > 0) | .Service] | unique | join(",")')"
           test "$published" = caddy
       - name: Second start reuses the secrets

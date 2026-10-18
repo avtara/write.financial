@@ -68,6 +68,7 @@ describe('loadConfig', () => {
       },
       crypto: { kekFile: '/run/secrets/kek' },
       auth: { secret: SECRET },
+      setup: { token: null },
       mail: null,
       google: null,
       market: { cmcApiKey: null },
@@ -184,6 +185,7 @@ describe('loadConfig', () => {
     ['S3_BUCKET_REPORTS', 'Has_Upper', 'must be a valid S3 bucket name'],
     ['S3_BUCKET_EXPORTS', 'ab', 'must be a valid S3 bucket name'],
     ['AUTH_SECRET', 'x'.repeat(31), 'must be at least 32 characters'],
+    ['SETUP_TOKEN', 'x'.repeat(21), 'must be at least 22 characters'],
     ['SMTP_URL', 'http://mail', 'must be a URL with protocol smtp: or smtps:'],
     ['LOG_LEVEL', 'verbose', 'must be fatal, error, warn, info, debug, trace, or silent'],
   ])('rejects %s=%s', (key, value, message) => {
@@ -337,6 +339,19 @@ describe('loadConfig', () => {
       } finally {
         rmSync(dir, { recursive: true });
       }
+    });
+
+    it('reads the setup token from SETUP_TOKEN_FILE', () => {
+      const token = 't'.repeat(22);
+      const files: Record<string, string> = { '/run/wf-secrets/setup-token': token };
+      const config = loadConfig(
+        { ...BASE, SETUP_TOKEN_FILE: '/run/wf-secrets/setup-token' },
+        (path) => files[path] ?? '',
+      );
+      expect(config.setup).toEqual({ token });
+      expect(issuesOf({ ...BASE, SETUP_TOKEN: token, SETUP_TOKEN_FILE: '/x' }, readFile)).toEqual([
+        { key: 'SETUP_TOKEN', message: 'set either SETUP_TOKEN or SETUP_TOKEN_FILE, not both' },
+      ]);
     });
   });
 });
