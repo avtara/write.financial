@@ -20,3 +20,9 @@ design/html/
 coverage/
 reports/
 .stryker-tmp/
+
+# Paraglide output, compiled from packages/i18n/messages by the package's `prepare` script on install
+packages/i18n/src/paraglide/
+# inlang writes its own cache/metadata next to settings.json
+packages/i18n/project.inlang/*
+!packages/i18n/project.inlang/settings.json

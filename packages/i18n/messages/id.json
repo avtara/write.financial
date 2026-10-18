@@ -1,0 +1,11 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "app_name": "write.financial",
+  "error_network": "Koneksi terputus. Coba lagi.",
+  "error_unknown": "Ada yang salah. Coba lagi sebentar.",
+  "error_validation": "Cek lagi isian yang ditandai.",
+  "language_name_en": "English",
+  "language_name_id": "Bahasa Indonesia",
+  "locale_switcher_label": "Bahasa",
+  "transactions_count": "{count: number} transaksi"
+}
