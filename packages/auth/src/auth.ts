@@ -184,8 +184,10 @@ function authOptions({ deps, now, publicUrl, basePath, lockout, isBreached, regi
     telemetry: { enabled: false },
     logger: {
       level: 'warn',
+      // Called as methods: pino's level functions read `this`.
       log: (level, message, ...args) => {
-        (level === 'error' ? logger.error : logger.warn)({ args }, message);
+        if (level === 'error') logger.error({ args }, message);
+        else logger.warn({ args }, message);
       },
     },
     database: drizzleAdapter(db, {

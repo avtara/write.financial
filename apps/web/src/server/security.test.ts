@@ -49,6 +49,17 @@ describe('contentSecurityPolicy', () => {
     const policy = contentSecurityPolicy({ nonce: NONCE, publicUrl: 'https://write.financial/', dev: false });
     expect(policy.endsWith('; upgrade-insecure-requests')).toBe(true);
   });
+
+  it('relaxes only <base> and inline styles for Bull Board, keeping the rest of the policy', () => {
+    const options = { nonce: NONCE, publicUrl: 'http://localhost:3000/', dev: false } as const;
+    const board = directives(contentSecurityPolicy({ ...options, queueBoard: true }));
+    expect(board['base-uri']).toBe("'self'");
+    expect(board['style-src']).toBe("'self' 'unsafe-inline'");
+    expect(board['script-src']).toBe(`'nonce-${NONCE}' 'strict-dynamic'`);
+    expect({ ...board, 'base-uri': "'none'", 'style-src': `'self' 'nonce-${NONCE}'` }).toEqual(
+      directives(contentSecurityPolicy(options)),
+    );
+  });
 });
 
 describe('securityHeaders', () => {

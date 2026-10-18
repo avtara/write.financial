@@ -20,13 +20,18 @@ export interface ResolvedPreferences {
 }
 
 /**
- * Resolves the request's display preferences. Locale order (D26): user preference (none until accounts
- * exist) → `wf_locale` cookie → `Accept-Language` → `instanceDefault`.
+ * Resolves the request's display preferences. Locale order (D26, FR-S8): the signed-in user's `users.locale`
+ * (`userLocale`) → `wf_locale` cookie → `Accept-Language` → `instanceDefault` (`instance_settings.default_locale`).
  */
-export function resolvePreferences(headers: Headers, instanceDefault: Locale): ResolvedPreferences {
+export function resolvePreferences(
+  headers: Headers,
+  instanceDefault: Locale,
+  userLocale: Locale | null = null,
+): ResolvedPreferences {
   const cookies = parseCookies(headers.get('cookie') ?? '');
   const cookie = cookies.get(LOCALE_COOKIE_NAME);
   const locale = resolveLocale({
+    userPreference: userLocale,
     cookie: cookie ?? null,
     acceptLanguage: headers.get('accept-language'),
     instanceDefault,

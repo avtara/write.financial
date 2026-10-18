@@ -79,11 +79,13 @@ First-run setup is pending. Open this URL to create the admin account and config
   https://finance.example.com/setup?token=…
 ```
 
-Open that URL. The setup wizard creates the admin account (with two-factor authentication) and the instance
-settings; it refuses `/setup` without the token. Keep the URL private until setup is done: whoever opens it first
-sets up the instance. `init` prints it again on every start until setup is complete, so
-`docker compose logs init` shows it later too; afterwards it prints nothing about it. Registration is closed by
-default: after setup, new users need an invitation or an admin who opens registration.
+Open that URL. The setup wizard creates the admin account, makes you turn on two-step verification (an authenticator
+app, plus 10 backup codes to keep), then asks for the instance name, public URL, default language and time zone,
+optional SMTP settings (with a test email), and the registration mode. It refuses `/setup` without the token, and for
+good once setup is complete. Keep the URL private until setup is done: whoever opens it first sets up the instance.
+`init` prints it again on every start until setup is complete, so `docker compose logs init` shows it later too;
+afterwards it prints nothing about it. Registration is closed by default: after setup, new users need an invitation
+(Settings › Instans, with the registration mode "Dengan undangan") or an admin who opens registration.
 
 For a local trial with `WF_DOMAIN=localhost`, the URL starts with `https://localhost/setup`. Caddy uses its own
 certificate authority, so the browser warns about the certificate.
@@ -104,6 +106,14 @@ your database backups, then delete `./write-financial-kek.backup` from the serve
 
 To restore onto a new server, start once so the volume exists, stop the stack, put the file back into the
 `secrets` volume as `kek` (mode 0600, owner 10001), and start again.
+
+## Monitoring the job queues
+
+Admins can open Bull Board at `https://<your domain>/admin/queues`. It needs an admin account with two-step
+verification that signed in within the last 15 minutes (otherwise it asks you to sign in again), and it is read-only:
+jobs cannot be retried, removed, or added from it. Its page is served with two Content Security Policy exceptions that
+apply to `/admin/queues` only: `base-uri 'self'` and inline styles (`style-src 'self' 'unsafe-inline'`), which Bull
+Board's interface needs; scripts still run only with the per-request nonce.
 
 ## Upgrading
 

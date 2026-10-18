@@ -17,6 +17,7 @@
     "./maintenance": "./src/maintenance.ts",
     "./invitations": "./src/invitations.ts",
     "./setup-status": "./src/setup-status.ts",
+    "./profiles": "./src/profiles.ts",
     "./testing": "./test/pglite.ts"
   },
   "scripts": {

@@ -32,7 +32,9 @@ export type EmailTemplate =
       readonly inviterName: string;
       readonly expiresAt: Date;
       readonly timeZone: string;
-    };
+    }
+  /** "Kirim email uji" in the setup wizard (FR-OP1): proves the SMTP settings work; links to the instance. */
+  | { readonly kind: 'smtp_test'; readonly url: string };
 
 export interface EmailContext {
   readonly locale: Locale;
@@ -118,6 +120,13 @@ function content(template: EmailTemplate, { locale, instanceName }: EmailContext
         ],
         action: { label: m.email_invitation_action({}, o), url: template.url },
         hint: m.email_ignore_hint({}, o),
+      };
+    case 'smtp_test':
+      return {
+        subject: m.email_smtp_test_subject({ instance: instanceName }, o),
+        paragraphs: [m.email_smtp_test_body({ instance: instanceName }, o)],
+        action: { label: m.email_smtp_test_action({}, o), url: template.url },
+        hint: m.email_smtp_test_hint({}, o),
       };
   }
 }

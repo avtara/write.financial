@@ -10,7 +10,8 @@
     "./first-admin": "./src/first-admin.ts",
     "./registration": "./src/registration.ts",
     "./invitations": "./src/invitations.ts",
-    "./lockout": "./src/lockout.ts"
+    "./lockout": "./src/lockout.ts",
+    "./device": "./src/device.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

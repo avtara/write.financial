@@ -10,11 +10,27 @@
 
 import { Route as rootRouteImport } from './../routes/__root.tsx';
 import { Route as AppRouteImport } from './../routes/_app.tsx';
+import { Route as AuthRouteImport } from './../routes/_auth.tsx';
 import { Route as HealthzRouteImport } from './../routes/healthz.ts';
+import { Route as SetupRouteImport } from './../routes/setup.tsx';
+import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup.tsx';
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
+import { Route as Auth2faRouteImport } from './../routes/_auth/2fa.tsx';
+import { Route as AuthForgotRouteImport } from './../routes/_auth/forgot.tsx';
+import { Route as AuthResetPasswordRouteImport } from './../routes/_auth/reset-password.tsx';
+import { Route as AuthSignInRouteImport } from './../routes/_auth/sign-in.tsx';
+import { Route as AuthSignUpRouteImport } from './../routes/_auth/sign-up.tsx';
+import { Route as AdminQueuesRouteImport } from './../routes/admin/queues.ts';
+import { Route as AppSettingsSectionRouteImport } from './../routes/_app/settings.$section.tsx';
+import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$.ts';
+import { Route as ApiAuthSplatRouteImport } from './../routes/api/auth/$.ts';
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any);
 const HealthzRoute = HealthzRouteImport.update({
@@ -22,37 +38,173 @@ const HealthzRoute = HealthzRouteImport.update({
   path: '/healthz',
   getParentRoute: () => rootRouteImport,
 } as any);
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const TwoFactorSetupRoute = TwoFactorSetupRouteImport.update({
+  id: '/two-factor-setup',
+  path: '/two-factor-setup',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
 } as any);
+const Auth2faRoute = Auth2faRouteImport.update({
+  id: '/2fa',
+  path: '/2fa',
+  getParentRoute: () => AuthRoute,
+} as any);
+const AuthForgotRoute = AuthForgotRouteImport.update({
+  id: '/forgot',
+  path: '/forgot',
+  getParentRoute: () => AuthRoute,
+} as any);
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
+} as any);
+const AuthSignInRoute = AuthSignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => AuthRoute,
+} as any);
+const AuthSignUpRoute = AuthSignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => AuthRoute,
+} as any);
+const AdminQueuesRoute = AdminQueuesRouteImport.update({
+  id: '/admin/queues',
+  path: '/admin/queues',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AppSettingsSectionRoute = AppSettingsSectionRouteImport.update({
+  id: '/settings/$section',
+  path: '/settings/$section',
+  getParentRoute: () => AppRoute,
+} as any);
+const AdminQueuesSplatRoute = AdminQueuesSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => AdminQueuesRoute,
+} as any);
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute;
   '/healthz': typeof HealthzRoute;
+  '/setup': typeof SetupRoute;
+  '/two-factor-setup': typeof TwoFactorSetupRoute;
+  '/2fa': typeof Auth2faRoute;
+  '/forgot': typeof AuthForgotRoute;
+  '/reset-password': typeof AuthResetPasswordRoute;
+  '/sign-in': typeof AuthSignInRoute;
+  '/sign-up': typeof AuthSignUpRoute;
+  '/admin/queues': typeof AdminQueuesRouteWithChildren;
+  '/settings/$section': typeof AppSettingsSectionRoute;
+  '/admin/queues/$': typeof AdminQueuesSplatRoute;
+  '/api/auth/$': typeof ApiAuthSplatRoute;
 }
 export interface FileRoutesByTo {
-  '/healthz': typeof HealthzRoute;
   '/': typeof AppIndexRoute;
+  '/healthz': typeof HealthzRoute;
+  '/setup': typeof SetupRoute;
+  '/two-factor-setup': typeof TwoFactorSetupRoute;
+  '/2fa': typeof Auth2faRoute;
+  '/forgot': typeof AuthForgotRoute;
+  '/reset-password': typeof AuthResetPasswordRoute;
+  '/sign-in': typeof AuthSignInRoute;
+  '/sign-up': typeof AuthSignUpRoute;
+  '/admin/queues': typeof AdminQueuesRouteWithChildren;
+  '/settings/$section': typeof AppSettingsSectionRoute;
+  '/admin/queues/$': typeof AdminQueuesSplatRoute;
+  '/api/auth/$': typeof ApiAuthSplatRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/_app': typeof AppRouteWithChildren;
+  '/_auth': typeof AuthRouteWithChildren;
   '/healthz': typeof HealthzRoute;
+  '/setup': typeof SetupRoute;
+  '/two-factor-setup': typeof TwoFactorSetupRoute;
+  '/_auth/2fa': typeof Auth2faRoute;
+  '/_auth/forgot': typeof AuthForgotRoute;
+  '/_auth/reset-password': typeof AuthResetPasswordRoute;
+  '/_auth/sign-in': typeof AuthSignInRoute;
+  '/_auth/sign-up': typeof AuthSignUpRoute;
+  '/admin/queues': typeof AdminQueuesRouteWithChildren;
   '/_app/': typeof AppIndexRoute;
+  '/_app/settings/$section': typeof AppSettingsSectionRoute;
+  '/admin/queues/$': typeof AdminQueuesSplatRoute;
+  '/api/auth/$': typeof ApiAuthSplatRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: '/' | '/healthz';
+  fullPaths:
+    | '/'
+    | '/healthz'
+    | '/setup'
+    | '/two-factor-setup'
+    | '/2fa'
+    | '/forgot'
+    | '/reset-password'
+    | '/sign-in'
+    | '/sign-up'
+    | '/admin/queues'
+    | '/settings/$section'
+    | '/admin/queues/$'
+    | '/api/auth/$';
   fileRoutesByTo: FileRoutesByTo;
-  to: '/healthz' | '/';
-  id: '__root__' | '/_app' | '/healthz' | '/_app/';
+  to:
+    | '/'
+    | '/healthz'
+    | '/setup'
+    | '/two-factor-setup'
+    | '/2fa'
+    | '/forgot'
+    | '/reset-password'
+    | '/sign-in'
+    | '/sign-up'
+    | '/admin/queues'
+    | '/settings/$section'
+    | '/admin/queues/$'
+    | '/api/auth/$';
+  id:
+    | '__root__'
+    | '/_app'
+    | '/_auth'
+    | '/healthz'
+    | '/setup'
+    | '/two-factor-setup'
+    | '/_auth/2fa'
+    | '/_auth/forgot'
+    | '/_auth/reset-password'
+    | '/_auth/sign-in'
+    | '/_auth/sign-up'
+    | '/admin/queues'
+    | '/_app/'
+    | '/_app/settings/$section'
+    | '/admin/queues/$'
+    | '/api/auth/$';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren;
+  AuthRoute: typeof AuthRouteWithChildren;
   HealthzRoute: typeof HealthzRoute;
+  SetupRoute: typeof SetupRoute;
+  TwoFactorSetupRoute: typeof TwoFactorSetupRoute;
+  AdminQueuesRoute: typeof AdminQueuesRouteWithChildren;
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -64,11 +216,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/_auth': {
+      id: '/_auth';
+      path: '';
+      fullPath: '/';
+      preLoaderRoute: typeof AuthRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/healthz': {
       id: '/healthz';
       path: '/healthz';
       fullPath: '/healthz';
       preLoaderRoute: typeof HealthzRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/setup': {
+      id: '/setup';
+      path: '/setup';
+      fullPath: '/setup';
+      preLoaderRoute: typeof SetupRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/two-factor-setup': {
+      id: '/two-factor-setup';
+      path: '/two-factor-setup';
+      fullPath: '/two-factor-setup';
+      preLoaderRoute: typeof TwoFactorSetupRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/_app/': {
@@ -78,22 +251,122 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport;
       parentRoute: typeof AppRoute;
     };
+    '/_auth/2fa': {
+      id: '/_auth/2fa';
+      path: '/2fa';
+      fullPath: '/2fa';
+      preLoaderRoute: typeof Auth2faRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
+    '/_auth/forgot': {
+      id: '/_auth/forgot';
+      path: '/forgot';
+      fullPath: '/forgot';
+      preLoaderRoute: typeof AuthForgotRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
+    '/_auth/reset-password': {
+      id: '/_auth/reset-password';
+      path: '/reset-password';
+      fullPath: '/reset-password';
+      preLoaderRoute: typeof AuthResetPasswordRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
+    '/_auth/sign-in': {
+      id: '/_auth/sign-in';
+      path: '/sign-in';
+      fullPath: '/sign-in';
+      preLoaderRoute: typeof AuthSignInRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
+    '/_auth/sign-up': {
+      id: '/_auth/sign-up';
+      path: '/sign-up';
+      fullPath: '/sign-up';
+      preLoaderRoute: typeof AuthSignUpRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
+    '/admin/queues': {
+      id: '/admin/queues';
+      path: '/admin/queues';
+      fullPath: '/admin/queues';
+      preLoaderRoute: typeof AdminQueuesRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/_app/settings/$section': {
+      id: '/_app/settings/$section';
+      path: '/settings/$section';
+      fullPath: '/settings/$section';
+      preLoaderRoute: typeof AppSettingsSectionRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/admin/queues/$': {
+      id: '/admin/queues/$';
+      path: '/$';
+      fullPath: '/admin/queues/$';
+      preLoaderRoute: typeof AdminQueuesSplatRouteImport;
+      parentRoute: typeof AdminQueuesRoute;
+    };
+    '/api/auth/$': {
+      id: '/api/auth/$';
+      path: '/api/auth/$';
+      fullPath: '/api/auth/$';
+      preLoaderRoute: typeof ApiAuthSplatRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute;
+  AppSettingsSectionRoute: typeof AppSettingsSectionRoute;
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
+  AppSettingsSectionRoute: AppSettingsSectionRoute,
 };
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren);
 
+interface AuthRouteChildren {
+  Auth2faRoute: typeof Auth2faRoute;
+  AuthForgotRoute: typeof AuthForgotRoute;
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute;
+  AuthSignInRoute: typeof AuthSignInRoute;
+  AuthSignUpRoute: typeof AuthSignUpRoute;
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  Auth2faRoute: Auth2faRoute,
+  AuthForgotRoute: AuthForgotRoute,
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
+  AuthSignInRoute: AuthSignInRoute,
+  AuthSignUpRoute: AuthSignUpRoute,
+};
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren);
+
+interface AdminQueuesRouteChildren {
+  AdminQueuesSplatRoute: typeof AdminQueuesSplatRoute;
+}
+
+const AdminQueuesRouteChildren: AdminQueuesRouteChildren = {
+  AdminQueuesSplatRoute: AdminQueuesSplatRoute,
+};
+
+const AdminQueuesRouteWithChildren = AdminQueuesRoute._addFileChildren(
+  AdminQueuesRouteChildren,
+);
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  AuthRoute: AuthRouteWithChildren,
   HealthzRoute: HealthzRoute,
+  SetupRoute: SetupRoute,
+  TwoFactorSetupRoute: TwoFactorSetupRoute,
+  AdminQueuesRoute: AdminQueuesRouteWithChildren,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

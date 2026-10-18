@@ -3,7 +3,7 @@ import { m } from '@wf/i18n/messages';
 import type { Locale } from '@wf/i18n/locale';
 import { setLocale as setRuntimeLocale } from '@wf/i18n/runtime';
 import { PrivacyProvider } from '@wf/ui/privacy';
-import { createContext, use, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, use, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   preferenceCookie,
   PRIVACY_COOKIE_NAME,
@@ -42,11 +42,25 @@ function writeCookie(name: string, value: string) {
  * Owns the display preferences after the first render. `initial` is what the server resolved for this
  * request; every change is applied immediately and persisted to its cookie, so the next server render
  * matches without a flash. Also provides privacy mode to `<Money>` (through `PrivacyProvider`).
+ * `onLocaleChange` runs after a language switch, e.g. to save it to the signed-in account (FR-S8).
  */
-export function PreferencesProvider({ initial, children }: { initial: Preferences; children: ReactNode }) {
+export function PreferencesProvider({
+  initial,
+  onLocaleChange,
+  children,
+}: {
+  initial: Preferences;
+  onLocaleChange?: (locale: Locale) => void;
+  children: ReactNode;
+}) {
   const [preferences, setPreferences] = useState(initial);
   const [peekSecondsLeft, setPeekSecondsLeft] = useState<number | null>(null);
   const { theme, balancesHidden } = preferences;
+  // A ref, so the memoized actions below stay stable while the callback changes (sign-in, sign-out).
+  const localeListener = useRef(onLocaleChange);
+  useEffect(() => {
+    localeListener.current = onLocaleChange;
+  }, [onLocaleChange]);
 
   // `system` follows the OS setting live; the inline head script already applied it before the first paint.
   useLayoutEffect(() => {
@@ -79,6 +93,7 @@ export function PreferencesProvider({ initial, children }: { initial: Preference
         // Writes the `wf_locale` cookie and switches the Paraglide runtime without a reload.
         void setRuntimeLocale(locale, { reload: false });
         setPreferences((current) => ({ ...current, locale }));
+        localeListener.current?.(locale);
       },
       setTheme: (theme: Theme) => {
         writeCookie(THEME_COOKIE_NAME, theme);

@@ -23,21 +23,31 @@ export interface SecurityHeaderOptions {
    * over a WebSocket, so dev allows inline styles and `ws:`. Production never sets this.
    */
   readonly dev: boolean;
+  /**
+   * Bull Board's page (`queue-board.ts`), the only exception to the policy, and only on {@link QUEUE_BOARD_PATH}:
+   * - `base-uri 'self'`: its client reads its API base from a same-origin `<base href>`;
+   * - `style-src 'self' 'unsafe-inline'`: its bundled React UI inserts `<style>` elements and `style` attributes
+   *   without the nonce. Styles cannot run script; scripts still need the nonce.
+   */
+  readonly queueBoard?: boolean;
 }
+
+/** Bull Board (admin, read-only); the only path served with {@link SecurityHeaderOptions.queueBoard}. */
+export const QUEUE_BOARD_PATH = '/admin/queues';
 
 /** Two years, the HSTS preload list minimum. */
 const HSTS_MAX_AGE = 63_072_000;
 
-export function contentSecurityPolicy({ nonce, publicUrl, dev }: SecurityHeaderOptions): string {
+export function contentSecurityPolicy({ nonce, publicUrl, dev, queueBoard = false }: SecurityHeaderOptions): string {
   const directives = [
     "default-src 'self'",
     `script-src 'nonce-${nonce}' 'strict-dynamic'`,
-    dev ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
+    dev || queueBoard ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
     "img-src 'self' data:",
     "font-src 'self'",
     dev ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
     "object-src 'none'",
-    "base-uri 'none'",
+    queueBoard ? "base-uri 'self'" : "base-uri 'none'",
     "form-action 'self'",
     "frame-ancestors 'none'",
   ];
