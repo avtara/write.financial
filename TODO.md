@@ -35,7 +35,9 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Worker skeleton (job schedulers, Bull Board, maintenance, D14 guard)
 - [x] Docker image + self-host compose + first-run setup wizard
 - [x] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
-- [ ] Cloud staging with encrypted backups
+- [x] Encrypted backup + restore of DB and objects (age), restore proven in CI
+- [ ] Cloud staging: VPS, Caddy TLS, encrypted volumes, off-site backup copy (needs VPS, DNS and off-site bucket details)
+- [x] M0 unit tests: 100% per-file coverage gate green
 
 ## M1 — Ledger
 
