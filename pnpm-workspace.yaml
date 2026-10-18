@@ -2,3 +2,10 @@ packages:
   - apps/*
   - packages/*
   - tools/*
+
+# Build scripts of transitive dev dependencies (testcontainers → ssh2/dockerode). None is needed: ssh2 falls back to
+# pure JS without cpu-features, and protobufjs's postinstall only prints a version notice.
+allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
