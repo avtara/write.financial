@@ -3,11 +3,20 @@ import { Linter } from 'eslint';
 import { expect, it } from 'vitest';
 import { plugin } from './index.ts';
 
-it('reports unjustified coverage ignores through the wf plugin prefix', () => {
+it('registers every rule under the wf plugin prefix', () => {
   const linter = new Linter();
-  const messages = linter.verify('/* v8 ignore next */\nconst a = 1;', {
+  const messages = linter.verify('/* v8 ignore next */\nconst a = <p title={balanceMinor}>Halo</p>;', {
     plugins: { wf: plugin },
-    rules: { 'wf/no-unjustified-coverage-ignore': 'error' },
+    languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } },
+    rules: {
+      'wf/no-unjustified-coverage-ignore': 'error',
+      'wf/no-hardcoded-jsx-text': 'error',
+      'wf/money-via-component': 'error',
+    },
   });
-  expect(messages.map((m) => m.ruleId)).toEqual(['wf/no-unjustified-coverage-ignore']);
+  expect(messages.map((m) => m.ruleId).sort()).toEqual([
+    'wf/money-via-component',
+    'wf/no-hardcoded-jsx-text',
+    'wf/no-unjustified-coverage-ignore',
+  ]);
 });
