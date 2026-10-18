@@ -14,7 +14,7 @@ Conventions: **FR-xx** = functional requirement, **P0/P1/P2** = priority, `[node
 
 ## 1. Product overview
 
-write.financial is an Indonesian-language personal finance tracking web app with IDR as the primary currency. All data is entered manually: the user does not need to log in to their bank and the app does not read bank statements. To speed up entry, there is the Quick Add bar (`N`), receipt photos (OCR), CSV/XLSX statement import, an AI Assistant (BYOK), and reading transaction emails from Gmail.
+write.financial is a personal finance tracking web app available in Bahasa Indonesia and English (D26), with IDR as the primary currency. All data is entered manually: the user does not need to log in to their bank and the app does not read bank statements. To speed up entry, there is the Quick Add bar (`N`), receipt photos (OCR), CSV/XLSX statement import, an AI Assistant (BYOK), and reading transaction emails from Gmail.
 
 **Distribution.** Open source code (AGPL-3.0, D21). One codebase runs in two modes (D22): **self-host** (anyone runs their own instance via Docker Compose; the data belongs entirely to the instance operator) and **cloud** (a managed instance at `write.financial` for those who don't have time to host it themselves). No feature is locked to cloud; what is paid for in cloud is the hosting service, backups, and updates.
 
@@ -245,7 +245,7 @@ Navigation: Account (Profile & account) · Preferences (Currency & exchange rate
 - **FR-TB4** Touch input: touch targets ≥ 40 px in the rail and table rows, every hover action also available via long-press or the ⋯ menu, keyboard shortcuts still work with an external keyboard.
 
 ### 6.19 Instance, self-host, and admin (D22)
-- **FR-OP1** First-run setup wizard (only shown when the instance has no admin yet): create admin account + mandatory 2FA, instance name, public URL, default time zone, SMTP (optional, with a send-test button), and registration choice: **closed** (self-host default; invite only), **open**, or **by invitation**.
+- **FR-OP1** First-run setup wizard (only shown when the instance has no admin yet; shown in the browser's language with a switcher): create admin account + mandatory 2FA, instance name, public URL, default language (Bahasa Indonesia / English), default time zone, SMTP (optional, with a send-test button), and registration choice: **closed** (self-host default; invite only), **open**, or **by invitation**.
 - **FR-OP2** Instance settings (admin only, requires 2FA): Google OAuth client (sign-in and Gmail, optional), operator key for built-in sources (CoinMarketCap Basic, optional; without a key, crypto falls back to BYOK/manual), upload limit, log retention, feature flags (Gmail, Assistant), maintenance banner.
 - **FR-OP3** Admins only manage the instance and accounts (invite, deactivate, reset 2FA with email verification, delete). **Admins cannot view other users' financial data** from the UI, and `_enc` data cannot be read without the user's session (the DEK is only unwrapped in the context of a session/job belonging to that user).
 - **FR-OP4** Instance status page: version, last migration, worker/dispatcher status, queues, built-in source quotas, age of the last backup, and new-version notice (checks GitHub releases, can be disabled; sends no data other than the version).

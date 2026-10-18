@@ -1,6 +1,6 @@
 # write.financial
 
-An open-source web app for **tracking personal finances and assets**, with an Indonesian-language interface and IDR as the primary currency. Run it yourself (self-host) or use the managed service at [write.financial](https://write.financial) if you don't have time to maintain a server.
+An open-source web app for **tracking personal finances and assets**, available in **Bahasa Indonesia and English**, with IDR as the primary currency. Run it yourself (self-host) or use the managed service at [write.financial](https://write.financial) if you don't have time to maintain a server.
 
 > **Status: planning.** The PRD, design, and implementation plan are done; there is no application code yet. Progress is tracked in [TODO.md](TODO.md).
 
