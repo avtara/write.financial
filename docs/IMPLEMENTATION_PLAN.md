@@ -319,7 +319,7 @@ flowchart LR
 **Rule for every step (D27):** no task, PR, or milestone item is done without unit tests, and every package stays at **100% unit coverage per file** (lines, branches, functions, statements). This is part of every milestone's exit criteria, in addition to the criteria listed in §8.
 
 ### 9.1 Unit tests (100% gate)
-- **Runner:** Vitest 5 with two `test.projects` in the root `vitest.config.ts` (`unit`, `integration`); `@vitest/coverage-v8`; `coverage.thresholds: { 100: true, perFile: true }`; `coverage.include` lists every `{apps,packages,tools}/*/src/**` file, so an untested file counts as 0%.
+- **Runner:** Vitest 5 with three `test.projects` in the root `vitest.config.ts`: `unit` (`*.test.ts`, Node), `unit-browser` (`*.test.tsx`, browser mode with Playwright Chromium + `vitest-browser-react`), and `integration`; `@vitest/coverage-v8`; `coverage.thresholds: { 100: true, perFile: true }` over both unit projects; `coverage.include` lists every `{apps,packages,tools}/*/src/**` file, so an untested file counts as 0%.
 - **Per layer:**
   - `packages/domain`, `packages/crypto`, `packages/i18n` formatters: pure unit tests + golden tests from the seed and Section 19 + property tests (`fast-check`) for `money`, `period`, `debt`, `receivables` (Σ payments ≤ principal).
   - `packages/db` repositories and `apps/worker` processors: unit tests against fakes of their ports (repository interfaces, clock, queue, object store, HTTP); the real Postgres/Valkey/SeaweedFS paths are covered by integration tests (§9.2).
@@ -330,7 +330,7 @@ flowchart LR
 - **Exclusions (single shared list in `vitest.config.ts`, reviewed in PRs):** generated Paraglide runtime, generated code, `*.d.ts`; tool config files sit outside `src/`. The `wf/no-unjustified-coverage-ignore` ESLint rule rejects `v8`/`c8`/`istanbul ignore` comments unless they carry `-- <reason>` and an issue reference (`#123`).
 - **Meaningful tests:** mutation testing with Stryker (`pnpm test:mutation`) on `packages/domain` and `packages/crypto`, score ≥ 90%, on every CI run. It uses Stryker's command runner with `vitest.mutation.config.ts`, because `@stryker-mutator/vitest-runner` 10.0.0 never activates runtime mutants under Vitest 5 (every mutant "survives"). Assertions target behavior, not implementation details or snapshots of whole components.
 - **Local loop:** `pnpm test` (watch), `pnpm test:unit` (same gate as CI), `pnpm test:integration`, `pnpm check` (every static check plus the unit gate).
-- **File naming:** `foo.test.ts(x)` = unit test (Vitest project `unit`, counts toward the gate); `foo.integration.test.ts` = integration test against real services (project `integration`, Testcontainers, CI job "Integration tests"). An integration test never replaces the co-located unit test.
+- **File naming:** `foo.test.ts` / `Foo.test.tsx` = unit test (projects `unit` / `unit-browser`, count toward the gate); `foo.integration.test.ts` = integration test against real services (project `integration`, Testcontainers, CI job "Integration tests"). An integration test never replaces the co-located unit test.
 
 ### 9.2 Integration, E2E, and other tests (in addition to unit tests)
 - **Server (Vitest + Testcontainers):** generic tenant isolation tests across all server functions **and** raw queries without `app.user_id` (must return 0 rows); mandatory-2FA tests for sensitive actions (FR-A9); tests that API responses never include `_enc` fields or full keys.

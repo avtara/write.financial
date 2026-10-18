@@ -32,6 +32,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm check:spdx
       - run: pnpm check:test-files
+      - run: pnpm check:tokens
+      - run: pnpm check:i18n
 
   unit:
     name: Unit tests (100% per-file coverage, D27)

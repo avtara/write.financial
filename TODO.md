@@ -24,14 +24,14 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] CI: lint, typecheck, unit tests with the **100% per-file coverage gate** + test-file existence check, mutation tests (domain/crypto), integration, E2E, gitleaks, DCO check
 - [ ] Vitest workspace + `@vitest/coverage-v8` thresholds `100` per file, browser mode for components, `msw`, `fast-check`, Stryker; ESLint rule blocking unjustified `v8 ignore`
 - [x] Branch protection on `main` (PR required + CI passing)
-- [ ] Dev `docker-compose`: Postgres 18, Valkey 9, SeaweedFS, Mailpit
+- [x] Dev `docker-compose`: Postgres 18, Valkey 9, SeaweedFS, Mailpit
 - [ ] Drizzle + initial migrations with RLS and separate DB roles
-- [ ] `packages/crypto`: per-user KEK/DEK, log redaction
+- [x] `packages/crypto`: per-user KEK/DEK, log redaction
 - [ ] Better Auth: email/password, Google, 2FA (TOTP, backup codes, passkey), lockout, device list
 - [ ] Encrypted object storage (`integrations/objectstore`) + safe image upload
 - [ ] Design tokens, dark/light theme, desktop app shell + tablet rail, `<Money>` + privacy mode
 - [ ] i18n: Paraglide, Bahasa Indonesia + English messages, language switcher, locale-aware number/date formatting, missing-key check in CI
-- [ ] Domain `money`, `period`, `ledger` + golden tests
+- [x] Domain `money`, `period`, `ledger` + golden tests
 - [ ] Worker skeleton (dispatcher, Bull Board, maintenance)
 - [ ] Docker image + self-host compose + first-run setup wizard
 - [x] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
