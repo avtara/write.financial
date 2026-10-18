@@ -28,6 +28,7 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./user-keys`                                   | `createUserKeys(db, keyring)` → `getOrCreateDek(userId)`, `rewrapAll()`                                 |
 | `./security-events`                             | `createSecurityEvents(db)` → `append(userId, event)`, `list(userId, { limit, before? })`, `signInHistory(userId, device)`                |
 | `./preferences`                                 | `createPreferences(db)` → `get(userId)`, `update(userId, patch)`                                        |
+| `./profiles`                                    | `createProfiles(db)` → `get(userId)`, `update(userId, { name?, nickname?, locale?, timezone? })`, `isTimeZone` |
 | `./instance-settings`                           | `createInstanceSettings(db, keyring)` → `get()`, `updateSetup(adminUserId, input)`, `smtpPassword()`    |
 | `./entitlements`                                | `createEntitlements(db)` → `can(userId, feature)`                                                       |
 | `./invitations` | `createInvitations(db)` → `create(adminUserId, …)` (`wf_app`), `isUsable`, `claim`, `claimForEmail` (`wf_auth`) |

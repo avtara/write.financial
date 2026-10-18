@@ -30,6 +30,12 @@ describe('resolvePreferences', () => {
     expect(resolved.localeCookieStale).toBe(true);
   });
 
+  it('puts the signed-in user’s language first and refreshes a cookie that disagrees', () => {
+    const resolved = resolvePreferences(new Headers({ cookie: 'wf_locale=id', 'accept-language': 'id' }), 'id', 'en');
+    expect(resolved.preferences.locale).toBe('en');
+    expect(resolved.localeCookieStale).toBe(true);
+  });
+
   it('reads theme, privacy mode, and platform', () => {
     const { preferences } = resolve({
       cookie: 'wf_theme=system; wf_privacy=hidden',

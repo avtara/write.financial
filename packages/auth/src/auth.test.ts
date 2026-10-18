@@ -285,6 +285,8 @@ describe('registration (FR-OP1)', () => {
       .request('/sign-up/email', { name: 'B', email: 'b@example.test', password: PASSWORD });
     expect(response.status).toBe(500);
     expect(h.logger.error).toHaveBeenCalled();
+    // Called as a method, so pino's `this` is the logger.
+    expect(h.logger.error.mock.contexts[0]).toBe(h.logger);
   });
 });
 
@@ -340,6 +342,7 @@ describe('password reset (FR-A3)', () => {
     });
     expect(h.sent).toEqual([]);
     expect(h.logger.warn).toHaveBeenCalled();
+    expect(h.logger.warn.mock.contexts[0]).toBe(h.logger);
   });
 
   it('sends a set-password link to an account without a password (Google only)', async () => {

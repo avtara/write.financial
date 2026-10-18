@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from '@tanstack/react-router';
+import { Link, useRouteContext } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
 import { LogoTile } from './logo-mark.tsx';
 import { NAV_GROUPS } from './nav.ts';
@@ -19,6 +19,8 @@ function Wordmark() {
 
 /** Desktop sidebar (≥ 1280 px, design `qjLGK`): 248 px, brand, navigation groups, user menu at the bottom. */
 export function Sidebar() {
+  // The signed-in user, from the `_app` route context (absent outside it).
+  const { viewer } = useRouteContext({ strict: false });
   return (
     <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-6 border-r border-border px-4 py-5 xl:flex">
       <div className="flex items-center gap-2.5 px-2">
@@ -47,7 +49,7 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="mt-auto">
-        <UserMenu variant="sidebar" />
+        <UserMenu variant="sidebar" viewer={viewer} />
       </div>
     </aside>
   );

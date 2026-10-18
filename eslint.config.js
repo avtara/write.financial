@@ -19,6 +19,11 @@ export default tseslint.config(
       'wf/no-unjustified-coverage-ignore': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+      // TanStack Router guards and loaders end navigation by throwing `redirect()` / `notFound()`.
+      '@typescript-eslint/only-throw-error': [
+        'error',
+        { allow: [{ from: 'package', package: '@tanstack/router-core', name: ['Redirect', 'NotFoundError'] }] },
+      ],
     },
   },
   {

@@ -1,21 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { expect, test as base, type Page } from '@playwright/test';
+/** The app shell, signed in as the user the `m0` project invited (no 2FA needed for users). */
+import type { Page } from '@playwright/test';
+import { expect, test, USER_STATE } from './support.ts';
 
-/** Every test fails on console errors; Chromium reports CSP violations ("Refused to …") there. */
-const test = base.extend<{ failOnConsoleErrors: undefined }>({
-  failOnConsoleErrors: [
-    async ({ page }, use) => {
-      const errors: string[] = [];
-      page.on('console', (message) => {
-        if (message.type() === 'error') errors.push(message.text());
-      });
-      page.on('pageerror', (error) => errors.push(error.message));
-      await use(undefined);
-      expect(errors).toEqual([]);
-    },
-    { auto: true },
-  ],
-});
+test.use({ storageState: USER_STATE });
 
 async function openUserMenu(page: Page) {
   await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();

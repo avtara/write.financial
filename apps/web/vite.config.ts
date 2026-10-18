@@ -7,6 +7,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   server: { port: 3000 },
+  // Native addons cannot be bundled: they stay `node_modules` imports, and Nitro copies them into the output.
+  ssr: { external: ['@node-rs/argon2'] },
   plugins: [
     tailwindcss(),
     tanstackStart({
@@ -20,8 +22,9 @@ export default defineConfig({
         routeFileIgnorePattern: '\\.test\\.tsx?$',
       },
     }),
-    // Node server output: `node .output/server/index.mjs` (Start's documented Node/Docker target).
-    nitro(),
+    // Node server output: `node .output/server/index.mjs` (Start's documented Node/Docker target). Bull Board's UI is
+    // read from disk at runtime (`src/server/queue-board.ts`), so its whole package is copied into the output.
+    nitro({ traceDeps: ['@bull-board/ui*', '@node-rs/argon2*'] }),
     viteReact(),
   ],
 });

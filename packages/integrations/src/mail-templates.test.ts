@@ -14,6 +14,7 @@ const TEMPLATES: readonly EmailTemplate[] = [
   { kind: 'set_password', url: URL_, expiresInMinutes: 30 },
   { kind: 'new_device_sign_in', url: URL_, device: 'Firefox on Linux', at, timeZone: 'Asia/Jakarta' },
   { kind: 'invitation', url: URL_, inviterName: 'Sari', expiresAt: at, timeZone: 'Asia/Jakarta' },
+  { kind: 'smtp_test', url: URL_ },
 ];
 
 describe('renderEmail', () => {
@@ -28,6 +29,12 @@ describe('renderEmail', () => {
       expect(email.text).not.toMatch(/<[a-z]/i);
     },
   );
+
+  it('confirms a working SMTP setup and names the instance', async () => {
+    const email = await renderEmail({ kind: 'smtp_test', url: 'https://wf.example/' }, id);
+    expect(email.subject).toBe('Email uji dari Keuangan Keluarga');
+    expect(email.text).toContain('Pengaturan SMTP Keuangan Keluarga sudah benar');
+  });
 
   it('writes the verification email in the recipient language', async () => {
     const idEmail = await renderEmail({ kind: 'verify_email', url: URL_ }, id);

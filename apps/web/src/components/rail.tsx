@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from '@tanstack/react-router';
+import { Link, useRouteContext } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
 import { Tooltip } from 'radix-ui';
 import type { ReactElement } from 'react';
@@ -30,6 +30,8 @@ function RailTooltip({ label, children }: { label: string; children: ReactElemen
  * the same navigation as the sidebar, and the user menu at the bottom.
  */
 export function Rail() {
+  // The signed-in user, from the `_app` route context (absent outside it).
+  const { viewer } = useRouteContext({ strict: false });
   return (
     <Tooltip.Provider delayDuration={300}>
       <aside className="sticky top-0 hidden h-dvh w-16 shrink-0 flex-col items-center gap-1 border-r border-border py-3.5 md:flex xl:hidden">
@@ -54,7 +56,7 @@ export function Rail() {
           </ul>
         </nav>
         <div className="mt-auto">
-          <UserMenu variant="rail" />
+          <UserMenu variant="rail" viewer={viewer} />
         </div>
       </aside>
     </Tooltip.Provider>

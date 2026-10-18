@@ -27,13 +27,13 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Dev `docker-compose`: Postgres 18, Valkey 9, SeaweedFS, Mailpit
 - [x] Drizzle + initial migrations with RLS and separate DB roles
 - [x] `packages/crypto`: per-user KEK/DEK, log redaction
-- [ ] Better Auth: email/password, Google, 2FA (TOTP, backup codes, passkey), lockout, device list
+- [x] Better Auth: email/password, Google, 2FA (TOTP, backup codes, passkey), lockout, device list
 - [x] Encrypted object storage (`integrations/objectstore`) + safe image upload
 - [x] Design tokens, dark/light theme, desktop app shell + tablet rail, `<Money>` + privacy mode
-- [ ] i18n: Paraglide, Bahasa Indonesia + English messages, language switcher, locale-aware number/date formatting, missing-key check in CI
+- [x] i18n: Paraglide, Bahasa Indonesia + English messages, language switcher, locale-aware number/date formatting, missing-key check in CI
 - [x] Domain `money`, `period`, `ledger` + golden tests
 - [ ] Worker skeleton (dispatcher, Bull Board, maintenance)
-- [ ] Docker image + self-host compose + first-run setup wizard
+- [x] Docker image + self-host compose + first-run setup wizard
 - [x] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
 - [ ] Cloud staging with encrypted backups
 
