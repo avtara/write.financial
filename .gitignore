@@ -26,3 +26,6 @@ packages/i18n/src/paraglide/
 # inlang writes its own cache/metadata next to settings.json
 packages/i18n/project.inlang/*
 !packages/i18n/project.inlang/settings.json
+
+# Vitest browser-mode failure screenshots
+.vitest/
