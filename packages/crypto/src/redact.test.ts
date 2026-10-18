@@ -3,7 +3,7 @@ import { Writable } from 'node:stream';
 import fc from 'fast-check';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
-import { REDACTED, REDACT_PATHS, redactText } from './redact.ts';
+import { REDACTED, REDACT_PATHS, SECRET_KEYS as EXPORTED_SECRET_KEYS, redactText } from './redact.ts';
 
 const SENTINEL = 'sentinel-value-must-not-be-logged';
 
@@ -96,6 +96,11 @@ describe('REDACT_PATHS', () => {
     );
     expect(REDACT_PATHS).toContain('*.*["set-cookie"]');
     expect(Object.isFrozen(REDACT_PATHS)).toBe(true);
+  });
+
+  it('exports exactly the secret keys, frozen', () => {
+    expect(EXPORTED_SECRET_KEYS).toEqual(SECRET_KEYS);
+    expect(Object.isFrozen(EXPORTED_SECRET_KEYS)).toBe(true);
   });
 
   it.each([0, 1, 2, 3])('makes pino censor every secret key at depth %i', (depth) => {

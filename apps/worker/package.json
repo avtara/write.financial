@@ -1,0 +1,30 @@
+{
+  "name": "@wf/worker",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=../../.env src/main.ts",
+    "healthcheck": "node --env-file-if-exists=../../.env src/main.ts --healthcheck",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wf/config": "workspace:*",
+    "@wf/crypto": "workspace:*",
+    "@wf/db": "workspace:*",
+    "@wf/jobs": "workspace:*",
+    "bullmq": "^6.3.16",
+    "ioredis": "^6.0.0",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.1",
+    "@testcontainers/valkey": "^12.2.1",
+    "@wf/domain": "workspace:*",
+    "postgres": "^3.4.9",
+    "testcontainers": "^12.2.1",
+    "typescript": "~6.0.3"
+  }
+}

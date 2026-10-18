@@ -30,6 +30,7 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./preferences`                                 | `createPreferences(db)` → `get(userId)`, `update(userId, patch)`                                        |
 | `./instance-settings`                           | `createInstanceSettings(db, keyring)` → `get()`, `updateSetup(adminUserId, input)`, `smtpPassword()`    |
 | `./entitlements`                                | `createEntitlements(db)` → `can(userId, feature)`                                                       |
+| `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)` (worker only, via `wf_maintenance_purge_auth`)       |
 
 Repositories take `userId` from the caller's session or job, never from request input, and run every query through
 `withUser`, which sets `app.user_id` with `set_config(…, true)` (transaction-local) and rejects non-UUID ids. Methods are
@@ -68,6 +69,12 @@ Database level: CONNECT for every role; CREATE on the database and on schema `pu
 `wf_readonly_ops` has `default_transaction_read_only = on` and `log_statement = 'all'`, and cannot log in unless
 `DATABASE_URL_READONLY_OPS` gives it a password. `bootstrapRoles` sends SCRAM-SHA-256 verifiers, never plaintext
 passwords. Any change to this matrix must update `src/migrate.test.ts` (it asserts the exact grants).
+
+Functions: the only SECURITY DEFINER function is `wf_maintenance_purge_auth(timestamptz) → jsonb` (owner
+`wf_migrate`, `search_path = pg_catalog, public`, EXECUTE for `wf_worker` only, not PUBLIC). It deletes expired
+`verifications` and `sessions` and `invitations` that expired or were used more than 30 days ago, as of the given time
+capped at the server's `now()`, and returns the counts per table. `wf_migrate` has SELECT and DELETE policies on those
+three tables that match only such dead rows, so even the function cannot remove a live session.
 
 ## Tests
 

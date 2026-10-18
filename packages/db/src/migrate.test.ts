@@ -103,6 +103,24 @@ describe('migrate', () => {
     expect(actual).toEqual(GRANTS);
   });
 
+  it('has one SECURITY DEFINER function: owned by wf_migrate, pinned search_path, executable by wf_worker only', async () => {
+    expect(
+      await test.query(
+        `SELECT p.proname AS name, pg_get_userbyid(p.proowner) AS owner, p.proconfig AS config,
+                (SELECT string_agg(a.grantee::regrole::text, ',' ORDER BY a.grantee::regrole::text)
+                 FROM aclexplode(p.proacl) a WHERE a.privilege_type = 'EXECUTE' AND a.grantee <> p.proowner) AS execute
+         FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef ORDER BY p.proname`,
+      ),
+    ).toEqual([
+      {
+        name: 'wf_maintenance_purge_auth',
+        owner: 'wf_migrate',
+        config: ['search_path=pg_catalog, public'],
+        execute: 'wf_worker',
+      },
+    ]);
+  });
+
   it('seeds the instance settings row and the personal plan with every feature', async () => {
     expect(
       await test.query('SELECT registration_mode, setup_completed_at, default_locale FROM instance_settings'),
