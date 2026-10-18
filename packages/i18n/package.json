@@ -1,0 +1,27 @@
+{
+  "name": "@wf/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    "./locale": "./src/locale.ts",
+    "./format": "./src/format.ts",
+    "./check": "./src/check.ts",
+    "./messages": "./src/paraglide/messages.js",
+    "./runtime": "./src/paraglide/runtime.js",
+    "./server": "./src/paraglide/server.js"
+  },
+  "scripts": {
+    "prepare": "node scripts/compile.ts",
+    "compile": "node scripts/compile.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wf/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@inlang/paraglide-js": "2.29.0",
+    "@inlang/plugin-message-format": "4.5.4"
+  }
+}

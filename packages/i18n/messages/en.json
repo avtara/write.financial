@@ -1,0 +1,20 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "app_name": "write.financial",
+  "error_network": "Connection lost. Try again.",
+  "error_unknown": "Something went wrong. Try again in a moment.",
+  "error_validation": "Check the highlighted fields.",
+  "language_name_en": "English",
+  "language_name_id": "Bahasa Indonesia",
+  "locale_switcher_label": "Language",
+  "transactions_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count: number} transaction",
+        "countPlural=*": "{count: number} transactions"
+      }
+    }
+  ]
+}

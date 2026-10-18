@@ -19,7 +19,8 @@
     "test:mutation": "stryker run",
     "check:test-files": "node tools/repo-checks/src/cli.ts test-files",
     "check:spdx": "node tools/repo-checks/src/cli.ts spdx",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:spdx && pnpm check:test-files && pnpm test:unit"
+    "check:i18n": "node packages/i18n/src/check-cli.ts",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:spdx && pnpm check:test-files && pnpm test:unit && pnpm check:i18n"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
