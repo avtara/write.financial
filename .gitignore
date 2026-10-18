@@ -7,11 +7,11 @@ dist/
 .turbo/
 .DS_Store
 
-# Export HTML Pencil (163 MB), regenerasi dari file desain
+# Pencil HTML export (163 MB), regenerated from the design file
 design/html/
 
-# File desain sumber Pencil tidak dipublikasikan (berisi fileToken akun pen.dev)
+# Pencil design source is not published (contains a pen.dev fileToken)
 *.pen
 
-# Konfigurasi agent lokal (path mesin pribadi)
+# Local agent configuration (machine-specific paths)
 .omp/

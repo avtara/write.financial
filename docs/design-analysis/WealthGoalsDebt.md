@@ -1,286 +1,286 @@
-# Analisis: Investasi (09), Tabungan (13), Utang & Cicilan (18)
+# Analysis: Investments (09), Savings goals (13), Debts & installments (18)
 
-Sumber: `/tmp/digest/09-investasi.md`, `13-tabungan.md`, `18-utang-cicilan.md`. Angka contoh diambil dari desain. Persona: "Avtara K.", tanggal acuan 15–17 Okt 2026.
+Sources: `/tmp/digest/09-investasi.md`, `13-tabungan.md`, `18-utang-cicilan.md`. Example figures are taken from the design. Persona: "Avtara K.", reference dates 15–17 Oct 2026.
 
 ---
 
-# A. Investasi (Section 09, [yEYn8])
+# A. Investments (Section 09, [yEYn8])
 
-## 1. Ringkasan & tujuan user
-Pengguna mencatat portofolio di banyak platform (Gotrade, Indodax, Stockbit, Bibit, Pluang) **secara manual**, yaitu unit dan harga beli. Harga pasar dan kurs USD diperbarui otomatis lewat API ("Harga diambil dari penyedia data · transaksi tetap manual"; "Tidak menghubungkan akun broker"). Tujuannya: melihat nilai portofolio dalam IDR atau USD, modal, untung/rugi (belum terealisasi dan terealisasi), dividen, alokasi per kelas aset vs target (drift dan rebalancing), serta mengalokasikan aset ke tujuan tabungan.
+## 1. Overview & user goals
+The user records a portfolio across many platforms (Gotrade, Indodax, Stockbit, Bibit, Pluang) **manually**, i.e. units and purchase price. Market prices and the USD exchange rate are updated automatically via API ("Harga diambil dari penyedia data · transaksi tetap manual" (prices come from a data provider · transactions stay manual); "Tidak menghubungkan akun broker" (does not connect broker accounts)). Goal: see portfolio value in IDR or USD, cost basis, profit/loss (unrealized and realized), dividends, allocation per asset class vs target (drift and rebalancing), and allocate assets to savings goals.
 
-## 2. Daftar layar & state
-| Layar | Node | Isi/tujuan | State |
+## 2. Screens & states
+| Screen | Node | Content/purpose | State |
 |---|---|---|---|
-| write.financial — Investasi | bgmSP | Header (11 posisi · 5 platform · kurs USD Rp16.350 · harga 16.42 WIB), KPI, grafik pertumbuhan, alokasi aset, tabel Kepemilikan, kalkulator rebalancing, dividen, "Tempat aset disimpan" | default (IDR) |
-| Mode USD | JBGq7 | Semua nilai dalam USD ("ditampilkan dalam USD · kurs Rp16.350", US$3.757 ≈ Rp61.420.000), rebalancing "Acuan USD" | toggle |
-| Menyinkronkan harga | SNpaj | "Sinkron 3/5…", "Memperbarui harga pasar" | memuat (sync) |
-| Gagal sinkron | TZxs4 | "1 platform gagal · Harga Stockbit belum diperbarui · BBCA, BBRI, TLKM memakai harga 16.15", "Coba lagi" | error parsial |
-| Hover grafik | XZruO | Tooltip "Akhir September 2026 · Rp57.700.000 · Modal disetor Rp50.900.000 · +Rp6.800.000 +13,4% · Setoran bulan ini +Rp3.000.000 · vs Agustus +Rp4.200.000 (+7,9%)" | hover |
-| Cari: yield | T9yDX | "5 hasil untuk “yield”", total hasil Rp3.100.000 −9,3% | pencarian |
-| Kelompok: kelas aset | n6Wcnt | Tabel per kelas: "4 posisi · Rp31.220.000 · 51% · target 51%" | grouping |
-| Kelompok: platform | p9ExJx | Per platform: "8 posisi · USD · 74% portofolio" | grouping |
-| US individual dibuka | YNG6S | Kategori dibuka: NVDA, MSFT, AAPL, GOOGL, AMZN. Insight YieldMax "total return +6,2%" | expanded |
-| Menu ⋮ aset | zxtp9 | Beli lagi, Jual, Catat dividen, Sesuaikan kepemilikan…, Ubah target alokasi (25%), Pindah ke kategori…, Atur alokasi ke tujuan…, Ubah detail aset…, Lihat detail, Hapus aset | menu |
-| Detail aset: SPY | CtiSh / DZkbW | Unit, harga sekarang/rata-rata, modal, P/L, porsi vs target, alokasi ke tujuan, riwayat beli DCA, dividen | panel |
-| Detail SPY — ubah alokasi | Oi44y | Mode edit alokasi ke tujuan | edit |
-| Catat beli | KDF13 | Form Beli/Jual/Dividen/Top-up kas, pratinjau dampak | dialog |
-| Catat jual | JejMv | Jual senilai Rp, cepat 25%/50%, hasil ke saldo IDR atau tarik ke bank, untung terealisasi | dialog |
-| Atur target alokasi | w1jn3J | Target % per kelas, validasi total 101% | dialog + error validasi |
-| Klik platform: Gotrade | CWLga | Filter "8 posisi di Gotrade · termasuk kas US$52 · Kas & detail di Rekening" | filter |
-| Skeleton | wnYAv | "Memuat portofolio…" | memuat |
-| Memperbarui data | FKPat | "Memperbarui portofolio…" | refresh |
-| Harga pasar gagal diambil | KR0zN | "Yahoo Finance & CoinGecko tidak merespons… harga terakhir 16.42", "Buka log API · 429 · CoinGecko · retry-after 30 dtk" | error total |
-| Pindah QQQ ke kategori | hP70H | Picker kategori "Daftar saya" | dialog |
-| QQQ sudah dipindah | ZeE7F | Toast "QQQ dipindah ke US individual… Urungkan" | sukses + undo |
-| Kelola kategori | MeRlb | Urutkan (drag), daftar kategori + aset tunggal | dialog |
-| Ubah kategori YieldMax | OgLFo | Nama, kelas aset, pilih aset (maks. 1 kategori per aset) | dialog |
-| Hapus kategori | C2WmM | "Kategorinya saja yang dihapus…" | konfirmasi |
-| Sesuaikan kepemilikan (lebih) | j2SH8r | Unit tercatat 1,197 vs di Gotrade 1,215, pilih sebab | dialog |
-| Sesuaikan kepemilikan (kurang) | oExkI | 1,150 → catat jual / koreksi | dialog |
-| Ubah detail aset SGOV | aW8Nv | Ticker, nama, mata uang, kelas aset + pratinjau drift | dialog |
-| Kosong | avPzM | "Belum ada portofolio", CTA "Tambah aset", "Atur API harga" | kosong |
-| Jual SPY dipakai 2 tujuan | LcuPZ (sec 13) | Jual aset yang dialokasikan ke tujuan | dialog |
+| write.financial — Investments | bgmSP | Header (11 positions · 5 platforms · USD rate Rp16.350 · prices 16.42 WIB), KPIs, growth chart, asset allocation, Holdings table, rebalancing calculator, dividends, "Tempat aset disimpan" (where assets are held) | default (IDR) |
+| USD mode | JBGq7 | All values in USD ("ditampilkan dalam USD · kurs Rp16.350", US$3.757 ≈ Rp61.420.000), rebalancing "Acuan USD" (USD basis) | toggle |
+| Syncing prices | SNpaj | "Sinkron 3/5…", "Memperbarui harga pasar" (updating market prices) | loading (sync) |
+| Sync failed | TZxs4 | "1 platform gagal · Harga Stockbit belum diperbarui · BBCA, BBRI, TLKM memakai harga 16.15", "Coba lagi" (try again) | partial error |
+| Chart hover | XZruO | Tooltip "Akhir September 2026 · Rp57.700.000 · Modal disetor Rp50.900.000 · +Rp6.800.000 +13,4% · Setoran bulan ini +Rp3.000.000 · vs Agustus +Rp4.200.000 (+7,9%)" | hover |
+| Search: yield | T9yDX | "5 hasil untuk “yield”", total result Rp3.100.000 −9,3% | search |
+| Group: asset class | n6Wcnt | Table per class: "4 posisi · Rp31.220.000 · 51% · target 51%" | grouping |
+| Group: platform | p9ExJx | Per platform: "8 posisi · USD · 74% portofolio" | grouping |
+| US individual expanded | YNG6S | Category expanded: NVDA, MSFT, AAPL, GOOGL, AMZN. YieldMax insight "total return +6,2%" | expanded |
+| Asset ⋮ menu | zxtp9 | Beli lagi (buy more), Jual (sell), Catat dividen (record dividend), Sesuaikan kepemilikan… (adjust holding), Ubah target alokasi (25%) (change allocation target), Pindah ke kategori… (move to category), Atur alokasi ke tujuan… (set allocation to goals), Ubah detail aset… (edit asset details), Lihat detail (view details), Hapus aset (delete asset) | menu |
+| Asset detail: SPY | CtiSh / DZkbW | Units, current/average price, cost basis, P/L, share vs target, allocation to goals, DCA purchase history, dividends | panel |
+| SPY detail — edit allocation | Oi44y | Edit mode for allocation to goals | edit |
+| Record buy | KDF13 | Buy/Sell/Dividend/Cash top-up form, impact preview | dialog |
+| Record sell | JejMv | Sell by Rp amount, quick 25%/50%, proceeds to IDR balance or withdraw to bank, realized gain | dialog |
+| Set allocation targets | w1jn3J | Target % per class, total validation 101% | dialog + validation error |
+| Platform click: Gotrade | CWLga | Filter "8 posisi di Gotrade · termasuk kas US$52 · Kas & detail di Rekening" | filter |
+| Skeleton | wnYAv | "Memuat portofolio…" (loading portfolio) | loading |
+| Refreshing data | FKPat | "Memperbarui portofolio…" (refreshing portfolio) | refresh |
+| Market prices failed to load | KR0zN | "Yahoo Finance & CoinGecko tidak merespons… harga terakhir 16.42", "Buka log API · 429 · CoinGecko · retry-after 30 dtk" | total error |
+| Move QQQ to category | hP70H | Category picker "Daftar saya" (my lists) | dialog |
+| QQQ moved | ZeE7F | Toast "QQQ dipindah ke US individual… Urungkan" (undo) | success + undo |
+| Manage categories | MeRlb | Reorder (drag), list of categories + standalone assets | dialog |
+| Edit YieldMax category | OgLFo | Name, asset class, asset selection (max. 1 category per asset) | dialog |
+| Delete category | C2WmM | "Kategorinya saja yang dihapus…" (only the category is deleted) | confirmation |
+| Adjust holding (more) | j2SH8r | Recorded units 1,197 vs at Gotrade 1,215, choose cause | dialog |
+| Adjust holding (fewer) | oExkI | 1,150 → record sale / correction | dialog |
+| Edit SGOV asset details | aW8Nv | Ticker, name, currency, asset class + drift preview | dialog |
+| Empty | avPzM | "Belum ada portofolio" (no portfolio yet), CTA "Tambah aset" (add asset), "Atur API harga" (configure price API) | empty |
+| Sell SPY used by 2 goals | LcuPZ (sec 13) | Sell an asset allocated to goals | dialog |
 
-## 3. Alur user
-- **Header & grafik**: toggle IDR↔USD → klik "Sinkronkan" → progres per platform (3/5) → bisa gagal sebagian (Stockbit tetap memakai harga 16.15) → "Coba lagi". Hover grafik menampilkan nilai akhir bulan, modal, untung, setoran bulan itu, dan selisih vs bulan lalu. Rentang: 1B · 3B · YTD · 1T · Semua.
-- **Kepemilikan**: cari ticker/nama → ganti pengelompokan (Daftar saya / Kelas aset / Platform) → buka kategori → menu ⋮ → Lihat detail.
-- **Aksi**: Catat Transaksi Investasi (Beli: pilih aset, jumlah US$ atau unit, bayar dari kas platform, biaya admin, pajak, kurs → pratinjau porsi dan sisa kas → Simpan beli). Jual: nilai atau % posisi → hasil ke saldo IDR platform atau tarik ke rekening bank → untung terealisasi. Atur target per kelas. Klik platform untuk memfilter.
-- **Komposisi (1)**: Detail SPY → "DIALOKASIKAN KE TUJUAN · Ubah" → ubah %. Menu ⋮ → Pindah ke kategori → toast + Urungkan.
-- **Komposisi (2)**: Kelola kategori (urutkan) → Ubah kategori (nama, kelas aset, anggota) → Hapus kategori (aset jadi aset tunggal).
-- **Komposisi (3)**: Sesuaikan kepemilikan. Jika unit **lebih**, pilih sebab: pembelian belum dicatat (membuat transaksi Beli, modal naik), DRIP (dicatat dividen, modal tetap), atau koreksi tanpa modal. Jika unit **kurang**: "Catat sebagai penjualan" (lanjut ke Catat jual) atau "Koreksi salah input" (modal dikurangi proporsional). Lalu Ubah kelas aset dengan pratinjau dampak drift.
-- **Kosong**: Tambah aset / Atur API harga (di Pengaturan).
+## 3. User flows
+- **Header & chart**: toggle IDR↔USD → click "Sinkronkan" (sync) → per-platform progress (3/5) → may partially fail (Stockbit keeps using the 16.15 price) → "Coba lagi". Chart hover shows month-end value, cost basis, gain, that month's contributions, and the change vs the previous month. Ranges: 1B · 3B · YTD · 1T · Semua (1M · 3M · YTD · 1Y · All).
+- **Holdings**: search ticker/name → change grouping (Daftar saya / Kelas aset / Platform) → expand category → ⋮ menu → Lihat detail.
+- **Actions**: Record Investment Transaction (Buy: pick asset, amount in US$ or units, pay from platform cash, admin fee, tax, exchange rate → preview of share and remaining cash → "Simpan beli" (save buy)). Sell: value or % of position → proceeds to the platform IDR balance or withdraw to a bank account → realized gain. Set per-class targets. Click a platform to filter.
+- **Composition (1)**: SPY detail → "DIALOKASIKAN KE TUJUAN · Ubah" (allocated to goals · edit) → change %. ⋮ menu → Pindah ke kategori → toast + Urungkan.
+- **Composition (2)**: Manage categories (reorder) → Edit category (name, asset class, members) → Delete category (assets become standalone assets).
+- **Composition (3)**: Adjust holding. If units are **more**, choose a cause: unrecorded purchase (creates a Buy transaction, cost basis rises), DRIP (recorded as dividend, cost basis unchanged), or correction without cost basis. If units are **fewer**: "Catat sebagai penjualan" (record as sale; continues to Record sell) or "Koreksi salah input" (correct input error; cost basis reduced proportionally). Then change asset class with a drift impact preview.
+- **Empty**: Tambah aset / Atur API harga (in Settings).
 
-## 4. Entitas data & field
-- **InvestmentPlatform**: nama (Gotrade, Indodax, Stockbit, Bibit, Pluang), mata uang (USD/IDR), saldo kas (Kas USD US$52 / Saldo IDR Indodax), `lastSyncedAt` per platform ("sinkron 16.40", "16.15"), status sinkron. [INFERENCE] Platform adalah tipe *Rekening* (lihat "12 rekening · … 5 platform investasi"; "Kas & detail di Rekening").
-- **Asset/Holding**: ticker (SPY, QQQ, VEA, SCHD, VWO, SGOV, BTC, XAU, BBCA, BBRI, TLKM, IDX30, ORI026, MSTY, NVDY, TSLY, CONY, NVDA, MSFT, AAPL, GOOGL, AMZN), nama, platformId, mata uang kuotasi (enum USD/IDR), kelas aset (enum: Saham AS, Internasional, Indonesia, Kripto, Kas & SGOV, Emas, Income), kategoriId nullable, unit (desimal presisi tinggi, mis. 0,0725 atau 1,197; kripto lebih banyak), harga rata-rata (US$582,45, desimal di mata uang asli), modal IDR (Rp11.400.000, bigint), metadata kupon (ORI "kupon 6,3%"), jadwal dividen ("tiap kuartal (Mar, Jun, Sep, Des) · berikutnya ±19 Des"), DCA ("DCA tiap tgl 1").
-- **AssetCategory** ("Daftar saya"): nama, kelas aset (dipakai untuk target), urutan, anggota (satu aset hanya boleh di satu kategori).
-- **InvestmentTransaction**: tipe enum (Beli, Jual, Dividen, Top-up kas, Penyesuaian/koreksi, DRIP), tanggal-waktu ("15 Okt, 19.50"), unit, harga per unit (mata uang asli), jumlah, biaya admin, pajak, kurs (Rp16.350), total keluar/diterima, sumber/tujuan kas (kas platform atau rekening bank), label DCA, untung terealisasi (hasil turunan). Juga membuat entri buku kas platform: "Pembelian SPY −US$50,00 · Biaya keuangan −US$0,15 · −US$0,02".
-- **Dividend**: tanggal, aset, jumlah bersih, pajak ("pajak Rp20.000", "pajak final"), disposisi enum (Dibelikan aset (manual) / Masih di kas / Masuk ke BCA).
-- **AllocationTarget**: kelas aset → target % (51/12/7/8/5/5…). Per aset ada juga target (SPY "target 25%", skala 0–40%).
-- **GoalAllocation** (aset→tujuan): assetId, goalId, persentase (DP Rumah 60%, Dana Pensiun 40%), unit turunan (0,718 / 0,479), flag "ikut DCA". Lihat bagian Tabungan.
-- **PriceQuote**: assetId/symbol, harga, mata uang, sumber (Yahoo Finance, CoinGecko, + IDX/reksa dana [INFERENCE]), fetchedAt, perubahan harian (+0,60%).
+## 4. Data entities & fields
+- **InvestmentPlatform**: name (Gotrade, Indodax, Stockbit, Bibit, Pluang), currency (USD/IDR), cash balance (USD cash US$52 / Indodax IDR balance), per-platform `lastSyncedAt` ("sinkron 16.40", "16.15"), sync status. [INFERENCE] A platform is an *Account* type (see "12 rekening · … 5 platform investasi"; "Kas & detail di Rekening").
+- **Asset/Holding**: ticker (SPY, QQQ, VEA, SCHD, VWO, SGOV, BTC, XAU, BBCA, BBRI, TLKM, IDX30, ORI026, MSTY, NVDY, TSLY, CONY, NVDA, MSFT, AAPL, GOOGL, AMZN), name, platformId, quote currency (enum USD/IDR), asset class (enum: Saham AS (US equities), Internasional (international), Indonesia, Kripto (crypto), Kas & SGOV (cash & SGOV), Emas (gold), Income), nullable categoryId, units (high-precision decimal, e.g. 0,0725 or 1,197; crypto needs more), average price (US$582,45, decimal in the original currency), IDR cost basis (Rp11.400.000, bigint), coupon metadata (ORI "kupon 6,3%"), dividend schedule ("tiap kuartal (Mar, Jun, Sep, Des) · berikutnya ±19 Des"), DCA ("DCA tiap tgl 1").
+- **AssetCategory** ("Daftar saya"): name, asset class (used for targets), order, members (an asset may belong to only one category).
+- **InvestmentTransaction**: type enum (Beli (buy), Jual (sell), Dividen (dividend), Top-up kas (cash top-up), Penyesuaian/koreksi (adjustment/correction), DRIP), date-time ("15 Okt, 19.50"), units, price per unit (original currency), amount, admin fee, tax, exchange rate (Rp16.350), total paid/received, cash source/destination (platform cash or bank account), DCA label, realized gain (derived). Also creates platform cash-ledger entries: "Pembelian SPY −US$50,00 · Biaya keuangan −US$0,15 · −US$0,02".
+- **Dividend**: date, asset, net amount, tax ("pajak Rp20.000", "pajak final"), disposition enum (Dibelikan aset (manual) (reinvested in assets, manual) / Masih di kas (still in cash) / Masuk ke BCA (deposited to BCA)).
+- **AllocationTarget**: asset class → target % (51/12/7/8/5/5…). There is also a per-asset target (SPY "target 25%", scale 0–40%).
+- **GoalAllocation** (asset→goal): assetId, goalId, percentage (DP Rumah 60%, Dana Pensiun 40%), derived units (0,718 / 0,479), "ikut DCA" (follows DCA) flag. See the Savings goals section.
+- **PriceQuote**: assetId/symbol, price, currency, source (Yahoo Finance, CoinGecko, + IDX/mutual funds [INFERENCE]), fetchedAt, daily change (+0,60%).
 - **FxRate**: USD/IDR 16.350, fetchedAt.
-- **PortfolioSnapshot** (bulanan, untuk grafik): nilai akhir bulan (28,5 … 61,4 juta), modal disetor, setoran bulan itu.
-- **HoldingAdjustment** (riwayat koreksi): unit sebelum/sesudah, sebab, dampak modal ("Riwayat koreksi tersimpan di Detail aset").
-- **ApiLog**: provider, kode HTTP (429), retry-after ("Buka log API").
+- **PortfolioSnapshot** (monthly, for the chart): month-end value (28,5 … 61,4 million), contributed capital, that month's contributions.
+- **HoldingAdjustment** (correction history): units before/after, cause, cost-basis impact ("Riwayat koreksi tersimpan di Detail aset").
+- **ApiLog**: provider, HTTP code (429), retry-after ("Buka log API").
 
-Uang IDR disimpan sebagai bigint rupiah. USD sebagai bigint sen. Unit dan harga sebagai numeric presisi tinggi.
+IDR money is stored as bigint rupiah. USD as bigint cents. Units and prices as high-precision numeric.
 
-## 5. Aturan bisnis & perhitungan
-- **Nilai posisi** = unit × harga terakhir (mata uang asli) × kurs → IDR. SPY: 1,197 × US$690,10 = US$826,05 (≈ US$825,69 di tabel) × 16.350 ≈ Rp13.500.000.
-- **Modal** = Σ biaya beli (IDR pada kurs saat transaksi) − bagian yang dijual. SPY: 1,197 × US$582,45 ≈ US$697 → Rp11.400.000. Total modal Rp53.931.000.
-- **Untung belum terealisasi** = nilai − modal. Portofolio: 61.420.000 − 53.931.000 = +Rp7.489.000 (+13,9% = 7,489/53,931). SPY +Rp2.100.000 (+18,4%) atau +US$128,44.
-- **Untung terealisasi** dari Jual: BTC jual Rp1.200.000 → "Untung terealisasi +Rp352.000" (hasil − modal proporsional; metode biaya rata-rata [INFERENCE], karena yang ditampilkan "Harga rata-rata"). Kolom Realized total +Rp1.476.700.
-- **Diterima** = jual − biaya admin − pajak: 1.200.000 − 3.500 − 1.200 = Rp1.195.300.
-- **Beli**: unit = jumlah ÷ harga: 50 / 690,10 = 0,0725. Total keluar = 50 + 0,15 + 0,02 = US$50,17 × 16.350 = Rp820.280. Kas US$52,00 → US$1,83 (52 − 50,17).
-- **Hari ini** = Σ unit × (harga sekarang − penutupan kemarin): +Rp312.000 (+0,51%).
-- **Dividen 12 bulan** bersih Rp2.640.000. **Yield** = 2,64 / 61,42 = 4,3%. Yield per aset: SPY US$5,10 · yield 1,2%.
-- **Total return** = untung harga + distribusi diterima: YieldMax "Harga turun −9,3%, tapi dengan distribusi Rp530.000… total return +6,2%".
-- **Porsi** = nilai aset / total portofolio (SPY 22,0%). **Drift portofolio** = Σ|porsi − target| / 2. Contoh: (0,8+1,0+0,6+2,0+0,4+0,3+1,1)/2 = 3,1% ✓.
-- **Rebalancing** (kalkulator, "tidak membuat transaksi"): kekurangan per aset = target% × (total + dana tambahan) − nilai. SPY: 25% × US$3.756,57 ≈ US$939 − 825,69 ≈ "+US$113,76". Hasil total "Beli Rp3.650.000 · jual Rp3.650.000 · Drift jadi 0%". Bisa memakai acuan Rupiah atau USD.
-- **Validasi target**: total harus 100%. Jika "Total 101%", tampil "Total target lebih 1% · Ambil 1% dari Saham AS".
-- **Kategori** hanya untuk pengelompokan: "Nilai & transaksi tidak berubah". Kelas aset kategori dipakai untuk target. Mengubah kelas aset satu aset menggeser porsi dan drift (SGOV ke Income: 7,0%→1,4%, 5,0%→10,6%, drift 3,1%→6,6%).
-- **Sesuaikan kepemilikan**: selisih unit × harga × kurs = 0,018 × 690,10 × 16.350 ≈ Rp203.000. Dampak dibagi ke tujuan sesuai alokasi (DP 60% +Rp122.000, Pensiun 40% +Rp81.000). Untuk unit kurang yang dipakai 2 tujuan, user harus memilih tujuan yang berkurang (default proporsional −Rp318.000/−Rp212.000).
-- **DCA** ke aset yang teralokasi: unit baru otomatis dibagi sesuai % tujuan ("ikut DCA"; "Pembelian SPY baru (DCA) otomatis dibagi 60/40").
-- **Grafik**: nilai akhir bulan vs modal disetor. Return YTD dibandingkan dengan benchmark (Portofolio +11,2% · SPY +14,8% · IHSG +3,1%), jadi butuh harga indeks benchmark.
-- **Peringatan konsentrasi**: "74% aset ada di satu platform. Pertimbangkan batas perlindungan dan risiko akun." [INFERENCE] dipicu ambang tertentu (>50%?).
-- **Harga basi**: kalau sinkron gagal, valuasi memakai harga terakhir beserta cap waktunya (16.15 / 16.42) dan tetap tampil.
+## 5. Business rules & calculations
+- **Position value** = units × latest price (original currency) × exchange rate → IDR. SPY: 1,197 × US$690,10 = US$826,05 (≈ US$825,69 in the table) × 16.350 ≈ Rp13.500.000.
+- **Cost basis** = Σ purchase cost (IDR at the transaction-time exchange rate) − the portion sold. SPY: 1,197 × US$582,45 ≈ US$697 → Rp11.400.000. Total cost basis Rp53.931.000.
+- **Unrealized gain** = value − cost basis. Portfolio: 61.420.000 − 53.931.000 = +Rp7.489.000 (+13,9% = 7,489/53,931). SPY +Rp2.100.000 (+18,4%) or +US$128,44.
+- **Realized gain** from Sell: BTC sold for Rp1.200.000 → "Untung terealisasi +Rp352.000" (proceeds − proportional cost basis; average-cost method [INFERENCE], since "Harga rata-rata" (average price) is shown). Realized column total +Rp1.476.700.
+- **Received** = sale − admin fee − tax: 1.200.000 − 3.500 − 1.200 = Rp1.195.300.
+- **Buy**: units = amount ÷ price: 50 / 690,10 = 0,0725. Total paid = 50 + 0,15 + 0,02 = US$50,17 × 16.350 = Rp820.280. Cash US$52,00 → US$1,83 (52 − 50,17).
+- **Today** ("Hari ini") = Σ units × (current price − yesterday's close): +Rp312.000 (+0,51%).
+- **12-month dividends** net Rp2.640.000. **Yield** = 2,64 / 61,42 = 4,3%. Per-asset yield: SPY US$5,10 · yield 1,2%.
+- **Total return** = price gain + distributions received: YieldMax "Harga turun −9,3%, tapi dengan distribusi Rp530.000… total return +6,2%".
+- **Share** = asset value / total portfolio (SPY 22,0%). **Portfolio drift** = Σ|share − target| / 2. Example: (0,8+1,0+0,6+2,0+0,4+0,3+1,1)/2 = 3,1% ✓.
+- **Rebalancing** (calculator, "tidak membuat transaksi" (does not create transactions)): shortfall per asset = target% × (total + additional funds) − value. SPY: 25% × US$3.756,57 ≈ US$939 − 825,69 ≈ "+US$113,76". Total result "Beli Rp3.650.000 · jual Rp3.650.000 · Drift jadi 0%". Can use a Rupiah or USD basis.
+- **Target validation**: total must be 100%. If "Total 101%", show "Total target lebih 1% · Ambil 1% dari Saham AS".
+- **Categories** are for grouping only: "Nilai & transaksi tidak berubah" (values & transactions unchanged). The category's asset class is used for targets. Changing one asset's class shifts shares and drift (SGOV to Income: 7,0%→1,4%, 5,0%→10,6%, drift 3,1%→6,6%).
+- **Adjust holding**: unit difference × price × exchange rate = 0,018 × 690,10 × 16.350 ≈ Rp203.000. The impact is split across goals per allocation (DP 60% +Rp122.000, Pensiun 40% +Rp81.000). For a unit shortfall on an asset used by 2 goals, the user must choose which goal is reduced (default proportional −Rp318.000/−Rp212.000).
+- **DCA** into an allocated asset: new units are automatically split per goal % ("ikut DCA"; "Pembelian SPY baru (DCA) otomatis dibagi 60/40").
+- **Chart**: month-end value vs contributed capital. YTD return is compared with benchmarks (Portofolio +11,2% · SPY +14,8% · IHSG +3,1%), so benchmark index prices are needed.
+- **Concentration warning**: "74% aset ada di satu platform. Pertimbangkan batas perlindungan dan risiko akun." [INFERENCE] triggered by some threshold (>50%?).
+- **Stale prices**: if sync fails, valuation uses the last price with its timestamp (16.15 / 16.42) and is still displayed.
 
-## 6. Job latar/scheduler & integrasi
-- **Sinkronisasi harga pasar** (manual lewat "Sinkronkan" + periodik [INFERENCE]): per provider/platform. Yahoo Finance (saham/ETF AS dan IDX), CoinGecko (BTC), plus sumber untuk emas (XAU Pluang), NAB reksa dana (Bibit IDX30/RDPU "NAB 16 Okt") dan SBN. Progres per platform (3/5), status per platform, penanganan 429 dengan retry-after (30 dtk), log API. Antrean BullMQ dengan backoff per provider.
-- **Sinkronisasi kurs USD/IDR** (Rp16.350). Dipakai untuk valuasi, mode USD, dan kurs default di form ("harga & kurs terisi dari data pasar terakhir").
-- **Snapshot portofolio akhir bulan** untuk grafik (nilai, modal, setoran) dan snapshot harian untuk "Hari ini" dan YTD.
-- **Benchmark** SPY dan IHSG untuk return YTD.
-- **DCA terjadwal** "tiap tgl 1": [INFERENCE] membuat transaksi/pengingat untuk dikonfirmasi (Tabungan menampilkan "Top-up Gotrade — DCA · BCA · SPY Rp4.000.000 & SCHD Rp2.000.000 · Rp6.000.000" sebagai setoran). Riwayat menunjukkan DCA tercatat dengan harga hari itu (0,356 unit @ US$686,20).
-- **Perkiraan dividen** ("berikutnya ±19 Des"): [INFERENCE] pengingat atau kalender, tanpa pencatatan otomatis.
-- API key harga dikonfigurasi di Pengaturan ("Atur API harga").
+## 6. Background jobs/scheduler & integrations
+- **Market price sync** (manual via "Sinkronkan" + periodic [INFERENCE]): per provider/platform. Yahoo Finance (US and IDX equities/ETFs), CoinGecko (BTC), plus sources for gold (XAU Pluang), mutual fund NAV (Bibit IDX30/RDPU "NAB 16 Okt") and SBN (government bonds). Per-platform progress (3/5), per-platform status, 429 handling with retry-after (30 s), API log. BullMQ queue with per-provider backoff.
+- **USD/IDR exchange rate sync** (Rp16.350). Used for valuation, USD mode, and the default rate in forms ("harga & kurs terisi dari data pasar terakhir").
+- **Month-end portfolio snapshot** for the chart (value, cost basis, contributions) and a daily snapshot for "Hari ini" and YTD.
+- **Benchmarks** SPY and IHSG for YTD return.
+- **Scheduled DCA** "tiap tgl 1" (every 1st): [INFERENCE] creates a transaction/reminder to confirm (Savings goals shows "Top-up Gotrade — DCA · BCA · SPY Rp4.000.000 & SCHD Rp2.000.000 · Rp6.000.000" as a contribution). History shows DCA recorded at that day's price (0,356 units @ US$686,20).
+- **Dividend forecast** ("berikutnya ±19 Des"): [INFERENCE] reminder or Calendar entry, no automatic recording.
+- Price API keys are configured in Settings ("Atur API harga").
 
-## 7. Komponen UI
-App shell (sidebar MENU, ⌘K, ⌘J), segmented toggle IDR/USD, tombol Sinkronkan dengan status, KPI card, area chart bertumpuk (modal vs keuntungan) dengan range tabs dan tooltip, bar drift alokasi (±poin), tabel kepemilikan grup/expandable dengan badge tujuan ("DP Rumah 60% · Pensiun 40%"), search, segmented grouping, menu ⋮, side panel detail aset, slider/skala porsi vs target, dialog form transaksi dengan tab (Beli/Jual/Dividen/Top-up kas) dan pratinjau "SETELAH DISIMPAN", chip cepat 25%/50%, picker rekening, input % dengan validasi total, list drag-to-reorder, toast dengan Urungkan, banner error dengan "Coba lagi"/"Buka log API", skeleton, empty state.
+## 7. UI components
+App shell (MENU sidebar, ⌘K, ⌘J), IDR/USD segmented toggle, Sinkronkan button with status, KPI cards, stacked area chart (cost basis vs gain) with range tabs and tooltip, allocation drift bars (±points), grouped/expandable holdings table with goal badges ("DP Rumah 60% · Pensiun 40%"), search, grouping segmented control, ⋮ menu, asset detail side panel, share-vs-target slider/scale, transaction form dialog with tabs (Beli/Jual/Dividen/Top-up kas) and "SETELAH DISIMPAN" (after saving) preview, quick chips 25%/50%, account picker, % inputs with total validation, drag-to-reorder list, toast with Urungkan, error banner with "Coba lagi"/"Buka log API", skeleton, empty state.
 
-## 8. Pertanyaan terbuka
-- Metode biaya: rata-rata atau FIFO? (desain hanya memperlihatkan "Harga rata-rata").
-- Modal IDR untuk aset USD: memakai kurs historis per transaksi atau kurs saat ini? P/L kurs dipisah? (Tabungan menampilkan "Perubahan harga & kurs" terpisah.)
-- Frekuensi sinkron otomatis dan provider untuk IDX, reksa dana, emas, dan SBN tidak dijelaskan (hanya Yahoo Finance & CoinGecko yang disebut).
-- "data tetap di perangkatmu" bertentangan dengan arsitektur server (Postgres di VPS). Perlu klarifikasi copy.
-- Jumlah aset tidak konsisten: "3 kategori berisi 14 aset" vs "15 aset" setelah QQQ dipindah, dan header "11 posisi" vs ±22 ticker.
-- Apakah DCA otomatis membuat transaksi Beli, atau hanya transfer Top-up yang dikonfirmasi lalu Beli dicatat manual?
-- Apakah ada target per aset (SPY 25%) selain target per kelas, dan bagaimana keduanya berinteraksi?
+## 8. Open questions
+- Cost method: average or FIFO? (the design only shows "Harga rata-rata").
+- IDR cost basis for USD assets: historical per-transaction rate or current rate? Is FX P/L separated? (Savings goals shows "Perubahan harga & kurs" (price & FX change) separately.)
+- Auto-sync frequency and providers for IDX, mutual funds, gold, and SBN are not specified (only Yahoo Finance & CoinGecko are named).
+- "data tetap di perangkatmu" (data stays on your device) contradicts the server architecture (Postgres on a VPS). Copy needs clarification.
+- Asset counts are inconsistent: "3 kategori berisi 14 aset" vs "15 aset" after QQQ is moved, and the header "11 posisi" vs ±22 tickers.
+- Does DCA automatically create a Buy transaction, or only a confirmed Top-up transfer with the Buy recorded manually?
+- Is there a per-asset target (SPY 25%) in addition to per-class targets, and how do the two interact?
 
 ---
 
-# B. Tabungan / Tujuan (Section 13, [EICCD])
+# B. Savings goals (Section 13, [EICCD])
 
-## 1. Ringkasan & tujuan user
-Pengguna membuat tujuan tabungan (target, tenggat, rekening penyimpanan, setoran rutin) yang **terhubung ke transaksi**. Setoran dan penarikan dicatat sebagai Transfer berlabel (#dana-darurat), bukan pengeluaran. Progres dihitung dari saldo rekening, transaksi berlabel, dan alokasi aset investasi pada nilai pasar. Uang tidak dipindah, hanya dialokasikan.
+## 1. Overview & user goals
+The user creates savings goals (target, deadline, holding account, recurring contribution) that are **linked to transactions**. Contributions and withdrawals are recorded as labeled Transfers (#dana-darurat), not expenses. Progress is computed from account balances, labeled transactions, and investment asset allocations at market value. Money is not moved, only allocated.
 
-## 2. Daftar layar & state
-| Layar | Node | Isi/tujuan | State |
+## 2. Screens & states
+| Screen | Node | Content/purpose | State |
 |---|---|---|---|
-| write.financial — Tabungan | qm7zi | KPI (Total terkumpul Rp39.725.000 · Rp22.400.000 di investasi; Setoran Oktober Rp3.500.000 dari rencana Rp4.650.000; Dana darurat 0,6 bulan), kartu 6 tujuan, timeline setoran rutin Okt, grafik "Ditabung per bulan" | default |
-| Urutkan | JdZkw | Progres tertinggi/Sisa terbesar/Nama A–Z; Tampilkan dana tidak rutin; Kelompokkan per rekening | dropdown |
-| Menu ⋮ Dana Darurat | D3nEd | Lihat detail, Setor manual (S), Tarik dana, Ubah setoran rutin, Jeda setoran rutin, Tandai selesai, Hapus tujuan | menu |
-| Pilih bulan | WlXzb | Month picker 2026, "Angka = total ditabung per bulan" | popover |
-| Tooltip grafik Okt | K53KpY | "Total Rp9.500.000 · 36,5% dari pemasukan" | hover |
-| Tujuan baru | q0jRa | Form: nama, ikon & warna, target, tenggat, rekening, setoran rutin | dialog |
-| Tujuan baru: pilih rekening | IsSRI | Daftar rekening (Bank/E-wallet) dan saldonya | dropdown |
-| Setor manual | PCgK1 | Jumlah (chip 500.000/3.500.000 "Sisa bulan ini"), dari/ke, tanggal, catatan, pratinjau progres & estimasi | dialog |
-| Setoran tercatat | vvQtO | Toast "Transfer BCA Tahapan → Bank Jago dibuat di Transaksi · Lihat" | sukses |
-| Tarik dana | nVb1Q | Konfirmasi: progres 21%→17%, ketahanan 0,6→0,5, estimasi Nov→Des 2027 | konfirmasi |
-| Detail Dana Darurat | q9T3oQ | Disimpan di (Kantong darurat 73% + RDPU "Diproses · NAB 16 Okt"), setoran rutin, riwayat dari transaksi | panel |
-| Tab Selesai | QI76x | "Terbaru selesai" | tab |
-| Setor terakhir STNK | biM3a | Chip "Pas target 170.000", "Tercapai setelah setoran ini" | dialog |
-| STNK tercapai | rbvBr | "4 bulan lebih cepat", Hentikan setoran rutin / Lanjutkan sebagai cadangan, "Nanti saja / Tandai selesai" | dialog |
-| Tab Selesai: STNK | JJuvW | Toast "setoran rutin Rp43.000 dihentikan · Urungkan", Aktif 5 · Selesai 2 | sukses |
-| Bayar dari tujuan | itVPf | Catat pengeluaran Rp812.000 dengan toggle "Bayar dari tujuan Perpanjang STNK" | dialog |
-| Terpakai, ada sisa | O4YIh2 | Kartu tujuan berstatus terpakai dengan sisa | state |
-| Pindahkan sisa Rp38.000 | m535GI | Pilih tujuan lain (Servis motor 60%→63%, Liburan 35%→35%) atau "Lepas jadi saldo bebas" | dialog |
-| Sisa dipindah | NsuNu | Toast + Urungkan | sukses |
-| Kosong | a2uUH | Empty + template (Dana darurat ±Rp54.000.000, Liburan, Jangka panjang, Gadget), "Impor dari Anggaran" | kosong |
-| Skeleton | f33cdP | "Memuat tabungan…" | memuat |
-| Memperbarui (September) | OT6vQ | "Memuat data September 2026…" | refresh |
-| Saldo disembunyikan | uYQwR | Rp•••••• , "Intip saldo ⌘ ." | privasi |
-| Mode terang | hsxsB | Tema terang | tema |
-| Gagal memuat | Dr2U1 | "harga investasi (SPY, SCHD, IDX30) belum tersedia… 502 · GET /goals?valuation=market", "Lihat saldo rekening saja" | error |
-| Catat Transfer — pilih tujuan | aPqfw | Quick-add di Ringkasan: transfer ke tujuan | dialog |
-| Terhubung ke Dana Darurat | Iia40 | Transfer tertaut ke tujuan | sukses |
-| Transaksi — transfer ke tabungan | UEi5W | Halaman Transaksi terfilter (dari "Buka") | navigasi |
-| Detail DP Rumah (campuran) | DeE0u | 3 sumber: SPY 60% Rp8.100.000, Bibit IDX30 Rp1.000.000, BCA nominal tetap Rp5.000.000; atribusi Oktober | panel |
-| Atur sumber dana | UpO8Q / B2aDS7 / kcC3y | Mode alokasi: Persentase / Seluruh aset / Nominal tetap; Tambah sumber | dialog |
-| Melebihi 100% | QCbeZ | "Melebihi 100% — Dana Pensiun sudah memakai 40%. Maks. 60%" | error validasi |
-| Jual SPY dipakai 2 tujuan | LcuPZ | Jual aset yang teralokasi, pilih tujuan yang dikurangi | dialog |
-| Saldo rekening terpakai & harga turun | F6SPeB | Banner "Belanja dari Bank Jago mengurangi Dana Darurat" (Servis AC Rp450.000 → Rp10.675.000), "SPY turun 3,1%: DP Rumah −Rp251.000, Dana Pensiun −Rp167.000" | peringatan |
-| Catat Pengeluaran — rekening dialokasikan | BGCD8 | Peringatan saat memilih rekening yang terkunci untuk tujuan | peringatan |
+| write.financial — Savings goals | qm7zi | KPIs (Total terkumpul (total saved) Rp39.725.000 · Rp22.400.000 in investments; Setoran Oktober (October contributions) Rp3.500.000 of planned Rp4.650.000; Dana darurat (emergency fund) 0,6 months), 6 goal cards, October recurring-contribution timeline, "Ditabung per bulan" (saved per month) chart | default |
+| Sort | JdZkw | Progres tertinggi/Sisa terbesar/Nama A–Z (highest progress/largest remaining/name A–Z); Tampilkan dana tidak rutin (show sinking funds); Kelompokkan per rekening (group by account) | dropdown |
+| Emergency Fund ⋮ menu | D3nEd | Lihat detail (view details), Setor manual (S) (manual deposit), Tarik dana (withdraw), Ubah setoran rutin (edit recurring contribution), Jeda setoran rutin (pause recurring contribution), Tandai selesai (mark done), Hapus tujuan (delete goal) | menu |
+| Pick month | WlXzb | 2026 month picker, "Angka = total ditabung per bulan" | popover |
+| Oct chart tooltip | K53KpY | "Total Rp9.500.000 · 36,5% dari pemasukan" | hover |
+| New goal | q0jRa | Form: name, icon & color, target, deadline, account, recurring contribution | dialog |
+| New goal: pick account | IsSRI | List of accounts (Bank/E-wallet) and their balances | dropdown |
+| Manual deposit | PCgK1 | Amount (chips 500.000/3.500.000 "Sisa bulan ini" (remaining this month)), from/to, date, note, progress & estimate preview | dialog |
+| Deposit recorded | vvQtO | Toast "Transfer BCA Tahapan → Bank Jago dibuat di Transaksi · Lihat" | success |
+| Withdraw | nVb1Q | Confirmation: progress 21%→17%, resilience 0,6→0,5, estimate Nov→Dec 2027 | confirmation |
+| Emergency Fund detail | q9T3oQ | Held in (Kantong darurat 73% + RDPU "Diproses · NAB 16 Okt"), recurring contribution, history from Transactions | panel |
+| Done tab | QI76x | "Terbaru selesai" (recently completed) | tab |
+| Final STNK deposit | biM3a | Chip "Pas target 170.000" (exactly to target), "Tercapai setelah setoran ini" (reached after this deposit) | dialog |
+| STNK reached | rbvBr | "4 bulan lebih cepat" (4 months early), Hentikan setoran rutin (stop recurring contribution) / Lanjutkan sebagai cadangan (continue as reserve), "Nanti saja / Tandai selesai" (later / mark done) | dialog |
+| Done tab: STNK | JJuvW | Toast "setoran rutin Rp43.000 dihentikan · Urungkan", Aktif 5 · Selesai 2 | success |
+| Pay from goal | itVPf | Record expense Rp812.000 with toggle "Bayar dari tujuan Perpanjang STNK" (pay from the STNK renewal goal) | dialog |
+| Used, with remainder | O4YIh2 | Goal card in used status with a remainder | state |
+| Move remainder Rp38.000 | m535GI | Pick another goal (Servis motor 60%→63%, Liburan 35%→35%) or "Lepas jadi saldo bebas" (release as free balance) | dialog |
+| Remainder moved | NsuNu | Toast + Urungkan | success |
+| Empty | a2uUH | Empty + templates (Dana darurat ±Rp54.000.000, Liburan, Jangka panjang, Gadget), "Impor dari Anggaran" (import from Budget) | empty |
+| Skeleton | f33cdP | "Memuat tabungan…" (loading savings) | loading |
+| Refreshing (September) | OT6vQ | "Memuat data September 2026…" | refresh |
+| Balances hidden | uYQwR | Rp•••••• , "Intip saldo ⌘ ." (Peek balance) | privacy |
+| Light mode | hsxsB | Light theme | theme |
+| Failed to load | Dr2U1 | "harga investasi (SPY, SCHD, IDX30) belum tersedia… 502 · GET /goals?valuation=market", "Lihat saldo rekening saja" (view account balances only) | error |
+| Record Transfer — pick goal | aPqfw | Quick add on Overview: transfer to a goal | dialog |
+| Linked to Emergency Fund | Iia40 | Transfer linked to the goal | success |
+| Transactions — transfers to savings | UEi5W | Filtered Transactions page (from "Buka" (open)) | navigation |
+| DP Rumah detail (mixed) | DeE0u | 3 sources: SPY 60% Rp8.100.000, Bibit IDX30 Rp1.000.000, BCA fixed amount Rp5.000.000; October attribution | panel |
+| Set funding sources | UpO8Q / B2aDS7 / kcC3y | Allocation mode: Persentase / Seluruh aset / Nominal tetap (percentage / entire asset / fixed amount); Tambah sumber (add source) | dialog |
+| Exceeds 100% | QCbeZ | "Melebihi 100% — Dana Pensiun sudah memakai 40%. Maks. 60%" | validation error |
+| Sell SPY used by 2 goals | LcuPZ | Sell an allocated asset, choose which goal is reduced | dialog |
+| Account balance spent & price drop | F6SPeB | Banner "Belanja dari Bank Jago mengurangi Dana Darurat" (spending from Bank Jago reduces the Emergency Fund) (Servis AC Rp450.000 → Rp10.675.000), "SPY turun 3,1%: DP Rumah −Rp251.000, Dana Pensiun −Rp167.000" | warning |
+| Record Expense — allocated account | BGCD8 | Warning when picking an account locked to a goal | warning |
 
-## 3. Alur user
-- **Dropdown & menu**: urutkan atau atur tampilan → menu ⋮ tujuan → pilih bulan (memuat ulang periode) → tooltip grafik.
-- **Tujuan baru & setoran**: Tujuan baru → isi (Laptop kerja baru, Rp18.000.000, Juni 2027, rekening, setoran Rp2.250.000 tiap tgl 25 dari BCA Tahapan → "8× setoran (Nov 2026 – Jun 2027) · label #laptop-kerja") → pilih rekening → Buat. Setor manual → toast + transfer dibuat. Tarik dana → konfirmasi → Transfer balik.
-- **Detail tujuan**: panel Dana Darurat → riwayat setoran dari Transaksi ("Buka di Transaksi") → tab Selesai.
-- **Tujuan tercapai**: setor terakhir "Pas target" → dialog tercapai (hentikan setoran rutin atau lanjutkan sebagai cadangan) → Tandai selesai → pindah ke tab Selesai + Urungkan.
-- **Pakai untuk tujuan**: Catat Pengeluaran Rp812.000 dari Bank Jago dengan toggle "Bayar dari tujuan" → tujuan berstatus *Terpakai* → Pindahkan sisa Rp38.000 ke tujuan lain atau lepas jadi saldo bebas → toast.
-- **Terhubung ke transaksi**: Catat Transfer di Ringkasan → pilih tujuan → tertaut (label otomatis).
-- **Sumber dana campuran**: Detail DP Rumah → Atur sumber → pilih mode (Persentase/Seluruh aset/Nominal tetap) → Tambah sumber → validasi >100% → menjual SPY meminta pilihan tujuan → transaksi belanja dari rekening teralokasi memunculkan banner "Ganti rekening transaksi / Tetap kurangi".
-- **State**: kosong (template / Impor dari Anggaran), skeleton, memperbarui, saldo disembunyikan, mode terang, gagal memuat (502 valuasi pasar).
+## 3. User flows
+- **Dropdown & menu**: sort or set view → goal ⋮ menu → pick month (reloads the period) → chart tooltip.
+- **New goal & contributions**: New goal → fill in (Laptop kerja baru, Rp18.000.000, June 2027, account, contribution Rp2.250.000 every 25th from BCA Tahapan → "8× setoran (Nov 2026 – Jun 2027) · label #laptop-kerja") → pick account → Create. Manual deposit → toast + transfer created. Withdraw → confirmation → reverse Transfer.
+- **Goal detail**: Emergency Fund panel → contribution history from Transactions ("Buka di Transaksi" (open in Transactions)) → Done tab.
+- **Goal reached**: final deposit "Pas target" → reached dialog (stop recurring contribution or continue as reserve) → Tandai selesai → moves to the Done tab + Urungkan.
+- **Use for the goal**: Record Expense Rp812.000 from Bank Jago with the "Bayar dari tujuan" (pay from goal) toggle → goal gets status *Terpakai* (used) → move the Rp38.000 remainder to another goal or release it as free balance → toast.
+- **Linked to transactions**: Record Transfer on Overview → pick goal → linked (automatic label).
+- **Mixed funding sources**: DP Rumah detail → Set sources → pick mode (Persentase/Seluruh aset/Nominal tetap) → Tambah sumber → >100% validation → selling SPY prompts a goal choice → a spending transaction from an allocated account shows the banner "Ganti rekening transaksi / Tetap kurangi" (change transaction account / reduce anyway).
+- **States**: empty (templates / Impor dari Anggaran), skeleton, refreshing, balances hidden, light mode, failed to load (502 market valuation).
 
-## 4. Entitas data & field
-- **Goal**: nama, ikon, warna, target (bigint IDR), tenggat (bulan-tahun: "Juni 2027", "2030"), jenis/target dinamis ("Target 3× pengeluaran bulanan" untuk Dana Darurat), label/tag (#dana-darurat), status enum (aktif, selesai/tercapai, terpakai, dijeda [INFERENCE dari "Jeda setoran rutin"]), dibuat ("dibuat Agu 2026"), flag "dana tidak rutin" (grup Liburan/Servis/STNK), mode valuasi (tetap vs "Nilai pasar"), flag "Lanjutkan sebagai cadangan" (boleh melebihi target).
-- **GoalFundingSource**: goalId, tipe enum (rekening | aset investasi), refId, mode enum (Persentase | Seluruh aset | Nominal tetap), nilai (% atau bigint), "ikut DCA". Batasan: Σ% per aset ≤ 100% lintas tujuan. Nominal tetap rekening ≤ saldo bebas ("Rp4.200.000 dipakai dana tidak rutin · bebas Rp33.610.000").
-- **Sub-kantong/penyimpanan**: "Kantong darurat" (sub-rekening Bank Jago), "Bibit RDPU". [INFERENCE] Pocket adalah rekening anak atau aset.
-- **RecurringContribution**: goalId, jumlah/bulan, tanggal (tgl 1, 14, 25), dari rekening → ke rekening/pocket, butuh konfirmasi ("perlu konfirmasi"; "masuk Perlu ditinjau tiap jatuh tempo, lalu tercatat sebagai Transfer"), status aktif/jeda/berhenti. Satu tujuan bisa punya beberapa setoran (Dana Darurat: Rp500.000 tgl 1 + Rp3.000.000 tgl 14). Bisa digabung ("Sisihkan dana tidak rutin · Liburan, Servis motor, STNK · Rp1.150.000").
-- **Transaction** (milik Transaksi) dengan field `goalId`/tag; tipe Transfer ("Tidak dihitung pengeluaran"), catatan, tanggal. Pengeluaran bisa memiliki `paidFromGoalId` ("Pakai dana tujuan").
-- **GoalEvent/riwayat**: saldo awal ("Saldo awal Rp5.125.000 (Agu) + 4 setoran"), setoran, tarik, pindah sisa, tandai selesai (dengan undo).
-- **MonthlySavingsAggregate**: total ditabung per bulan (6,3/5,4/3,9/8,0/7,5/9,5 juta), persen dari pemasukan.
+## 4. Data entities & fields
+- **Goal**: name, icon, color, target (bigint IDR), deadline (month-year: "Juni 2027", "2030"), dynamic type/target ("Target 3× pengeluaran bulanan" (target 3× monthly expenses) for the Emergency Fund), label/tag (#dana-darurat), status enum (aktif (active), selesai/tercapai (done/reached), terpakai (used), dijeda (paused) [INFERENCE from "Jeda setoran rutin"]), created ("dibuat Agu 2026"), sinking-fund flag ("dana tidak rutin"; Liburan/Servis/STNK group), valuation mode (fixed vs "Nilai pasar" (market value)), "Lanjutkan sebagai cadangan" flag (may exceed target).
+- **GoalFundingSource**: goalId, type enum (rekening (account) | aset investasi (investment asset)), refId, mode enum (Persentase | Seluruh aset | Nominal tetap), value (% or bigint), "ikut DCA". Constraint: Σ% per asset ≤ 100% across goals. Account fixed amount ≤ free balance ("Rp4.200.000 dipakai dana tidak rutin · bebas Rp33.610.000").
+- **Sub-pocket/storage**: "Kantong darurat" (emergency pocket; Bank Jago sub-account), "Bibit RDPU". [INFERENCE] A pocket is a child account or an asset.
+- **RecurringContribution**: goalId, amount/month, day (1st, 14th, 25th), from account → to account/pocket, requires confirmation ("perlu konfirmasi"; "masuk Perlu ditinjau tiap jatuh tempo, lalu tercatat sebagai Transfer" — enters the Review queue on each due date, then recorded as a Transfer), status active/paused/stopped. One goal can have several contributions (Emergency Fund: Rp500.000 on the 1st + Rp3.000.000 on the 14th). Can be combined ("Sisihkan dana tidak rutin · Liburan, Servis motor, STNK · Rp1.150.000").
+- **Transaction** (owned by Transactions) with a `goalId`/tag field; Transfer type ("Tidak dihitung pengeluaran" (not counted as expense)), note, date. An expense can have `paidFromGoalId` ("Pakai dana tujuan" (use goal funds)).
+- **GoalEvent/history**: opening balance ("Saldo awal Rp5.125.000 (Agu) + 4 setoran"), deposit, withdrawal, remainder move, mark done (with undo).
+- **MonthlySavingsAggregate**: total saved per month (6,3/5,4/3,9/8,0/7,5/9,5 million), percent of income.
 
-## 5. Aturan bisnis & perhitungan
-- **Progres** = terkumpul / target. Dana Darurat 11.125.000 / 54.000.000 = 21%. Terkumpul = porsi saldo rekening yang dialokasikan + aset (8.125.000 Kantong + 3.000.000 RDPU).
-- **Total terkumpul** = Σ tujuan: 11,125 + 2,8 + 0,72 + 0,68 + 14,1 + 10,3 = Rp39.725.000 ✓. Bagian investasi Rp22.400.000 = SPY 8,1 + IDX30 1,0 + SPY 5,4 + SCHD 4,9 + RDPU 3,0 ✓.
-- **Tujuan berbasis investasi** = Σ (unit teralokasi × harga × kurs) + nominal tetap. DP Rumah = 8.100.000 + 1.000.000 + 5.000.000 = Rp14.100.000. Dana Pensiun = 5.400.000 + 4.900.000 = Rp10.300.000. Nilainya berubah ikut pasar (SPY −3,1% → DP −Rp251.000, Pensiun −Rp167.000).
-- **Atribusi bulanan** (DP Rumah Okt): setoran (60% × DCA Rp4.000.000 = +Rp2.400.000) + perubahan harga & kurs (+Rp186.000). Untung belum terealisasi bagian tujuan +Rp1.260.000 (= 60% × 2.100.000 ✓).
-- **Dana darurat (bulan)** = terkumpul / pengeluaran bulanan. Target 3× ≈ Rp54.000.000, jadi pengeluaran ≈ Rp18.000.000/bulan; 11,125/18 = 0,6. Setelah setor +1jt menjadi 12,125/18 ≈ 0,67 (desain: "0,5 bulan"/"selesai" pada layar setoran tercatat; lihat pertanyaan). Tarik 2jt: 9,125/18 = 0,5 ✓.
-- **Setoran/bulan dari target** = (target − terkumpul) / sisa bulan sampai tenggat: 18.000.000 / 8 = Rp2.250.000 (Nov 2026–Jun 2027).
-- **Estimasi tercapai** = sekarang + ceil(sisa / setoran rutin per bulan). Setor 1jt menggeser Nov 2027 → Okt 2027; tarik 2jt menggeser ke Des 2027. Status "Sesuai rencana / Hampir tercapai / 2 bulan lagi".
-- **Setoran Oktober vs rencana**: Rp3.500.000 dari Rp4.650.000 (500.000 + 3.000.000 + 1.150.000 ✓); sisa tgl 25.
-- **Ditabung per bulan** = Σ transfer ke tujuan + investasi. Okt Rp9.500.000 = 36,5% dari pemasukan Rp26.000.000 (sama dengan saving rate).
-- **Tercapai lebih cepat**: "4 bulan lebih cepat dari rencana Feb 2027" (Okt vs Feb). Hentikan setoran menurunkan rencana bulanan Rp43.000.
-- **Bayar dari tujuan**: tujuan ditandai *Terpakai* (bukan dihitung mundur). Sisa = 850.000 − 812.000 = Rp38.000, bisa dipindah ke tujuan lain atau dilepas.
-- **Rekening yang dialokasikan**: pengeluaran dari rekening yang seluruhnya teralokasi mengurangi tujuan (Servis AC Rp450.000: 11.125.000 → 10.675.000). Pengguna bisa ganti rekening atau tetap mengurangi.
-- **Saldo bebas rekening** = saldo − Σ alokasi nominal tujuan (Saldo tersedia Rp55.023.000, "Rp17.300.000 dialokasikan ke tabungan · bebas Rp37.700.000").
-- **Validasi alokasi aset**: Σ% semua tujuan per aset ≤ 100% ("Maks. 60%"). Jual aset teralokasi → user memilih tujuan yang dikurangi. DCA baru dibagi otomatis sesuai %.
-- **Template Dana darurat** = 3× pengeluaran bulanan ("±Rp54.000.000").
+## 5. Business rules & calculations
+- **Progress** = saved / target. Emergency Fund 11.125.000 / 54.000.000 = 21%. Saved = allocated share of account balances + assets (8.125.000 Kantong + 3.000.000 RDPU).
+- **Total saved** = Σ goals: 11,125 + 2,8 + 0,72 + 0,68 + 14,1 + 10,3 = Rp39.725.000 ✓. Investment portion Rp22.400.000 = SPY 8,1 + IDX30 1,0 + SPY 5,4 + SCHD 4,9 + RDPU 3,0 ✓.
+- **Investment-backed goal** = Σ (allocated units × price × exchange rate) + fixed amounts. DP Rumah = 8.100.000 + 1.000.000 + 5.000.000 = Rp14.100.000. Dana Pensiun = 5.400.000 + 4.900.000 = Rp10.300.000. Values move with the market (SPY −3,1% → DP −Rp251.000, Pensiun −Rp167.000).
+- **Monthly attribution** (DP Rumah Oct): contributions (60% × DCA Rp4.000.000 = +Rp2.400.000) + price & FX change (+Rp186.000). The goal's share of unrealized gain +Rp1.260.000 (= 60% × 2.100.000 ✓).
+- **Emergency fund (months)** = saved / monthly expenses. Target 3× ≈ Rp54.000.000, so expenses ≈ Rp18.000.000/month; 11,125/18 = 0,6. After depositing +Rp1.000.000 it becomes 12,125/18 ≈ 0,67 (design: "0,5 bulan"/"selesai" on the deposit-recorded screen; see open questions). Withdrawing Rp2.000.000: 9,125/18 = 0,5 ✓.
+- **Contribution/month from target** = (target − saved) / months remaining until deadline: 18.000.000 / 8 = Rp2.250.000 (Nov 2026–Jun 2027).
+- **Estimated completion** = now + ceil(remaining / monthly recurring contribution). Depositing Rp1.000.000 shifts Nov 2027 → Oct 2027; withdrawing Rp2.000.000 shifts it to Dec 2027. Status "Sesuai rencana / Hampir tercapai / 2 bulan lagi" (on track / almost reached / 2 months to go).
+- **October contributions vs plan**: Rp3.500.000 of Rp4.650.000 (500.000 + 3.000.000 + 1.150.000 ✓); the rest on the 25th.
+- **Saved per month** = Σ transfers to goals + investments. Oct Rp9.500.000 = 36,5% of income Rp26.000.000 (same as the saving rate).
+- **Reached early**: "4 bulan lebih cepat dari rencana Feb 2027" (Oct vs Feb). Stopping the contribution lowers the monthly plan by Rp43.000.
+- **Pay from goal**: the goal is marked *Terpakai* (not counted down). Remainder = 850.000 − 812.000 = Rp38.000, can be moved to another goal or released.
+- **Allocated accounts**: an expense from a fully allocated account reduces the goal (Servis AC Rp450.000: 11.125.000 → 10.675.000). The user can change the account or reduce anyway.
+- **Account free balance** = balance − Σ goal fixed-amount allocations (Available balance Rp55.023.000, "Rp17.300.000 dialokasikan ke tabungan · bebas Rp37.700.000").
+- **Asset allocation validation**: Σ% of all goals per asset ≤ 100% ("Maks. 60%"). Selling an allocated asset → user chooses which goal is reduced. New DCA is split automatically per %.
+- **Emergency fund template** = 3× monthly expenses ("±Rp54.000.000").
 
-## 6. Job latar/scheduler & integrasi
-- **Setoran rutin jatuh tempo** (tgl 1/14/25): job harian membuat item "Perlu ditinjau" (transaksi terjadwal menunggu konfirmasi), lalu dicatat sebagai Transfer setelah dikonfirmasi. Tampil di timeline ("terjadwal" vs "Tercatat") dan Kalender ("Setoran tabungan", "Dana tdk rutin" di tgl 24/25).
-- **Valuasi pasar tujuan** bergantung pada job harga/kurs Investasi. Kalau harga belum tersedia → error 502 `GET /goals?valuation=market` dengan fallback "Lihat saldo rekening saja".
-- **Notifikasi/banner** penurunan harga ("SPY turun 3,1% hari ini") dan tujuan hampir/sudah tercapai [INFERENCE untuk push].
-- **Status RDPU "Diproses · NAB 16 Okt"**: menunggu NAB reksa dana (sinkron harga NAB).
-- **Agregat bulanan** "Ditabung per bulan" (bisa dihitung on-the-fly atau sebagai rollup periode).
-- Basis pengeluaran bulanan untuk target dana darurat (dari data Transaksi).
+## 6. Background jobs/scheduler & integrations
+- **Recurring contribution due** (1st/14th/25th): a daily job creates a Review queue item ("Perlu ditinjau"; a scheduled transaction awaiting confirmation), then it is recorded as a Transfer once confirmed. Shown on the timeline ("terjadwal" (scheduled) vs "Tercatat" (recorded)) and the Calendar ("Setoran tabungan", "Dana tdk rutin" on the 24th/25th).
+- **Goal market valuation** depends on the Investments price/FX jobs. If prices are not available yet → error 502 `GET /goals?valuation=market` with the fallback "Lihat saldo rekening saja".
+- **Notifications/banners** for price drops ("SPY turun 3,1% hari ini") and goals almost/already reached [INFERENCE for push].
+- **RDPU status "Diproses · NAB 16 Okt"**: waiting for the mutual fund NAV (NAV price sync).
+- **Monthly aggregate** "Ditabung per bulan" (computed on the fly or as a period rollup).
+- Monthly expense basis for the emergency fund target (from Transactions data).
 
-## 7. Komponen UI
-KPI card, kartu tujuan dengan progress bar, badge status, chip sumber ("SPY 60% · IDX30 · BCA Rp5.000.000"), tab Aktif/Selesai dengan counter, dropdown urutkan dengan toggle tampilan, menu ⋮ dengan shortcut (S), month picker, bar chart dengan tooltip, timeline setoran rutin, dialog setor/tarik dengan chip nominal cepat dan pratinjau before→after, picker rekening, icon & color picker, side panel detail, input mode alokasi (segmented), toast dengan Undo/"Lihat", banner peringatan, empty state + kartu template, skeleton, privacy mask (⌘ .), tema terang/gelap, shortcut "⌘ ↵ untuk menyimpan".
+## 7. UI components
+KPI cards, goal cards with progress bar, status badges, source chips ("SPY 60% · IDX30 · BCA Rp5.000.000"), Aktif/Selesai (active/done) tabs with counters, sort dropdown with view toggles, ⋮ menu with shortcut (S), month picker, bar chart with tooltip, recurring-contribution timeline, deposit/withdraw dialog with quick-amount chips and before→after preview, account picker, icon & color picker, detail side panel, allocation-mode input (segmented), toast with Undo/"Lihat" (view), warning banners, empty state + template cards, skeleton, privacy mask (⌘ .), light/dark theme, shortcut "⌘ ↵ untuk menyimpan" (to save).
 
-## 8. Pertanyaan terbuka
-- Inkonsistensi angka setelah setor: layar vvQtO memperlihatkan Rp16.325.000 dan "0,5 bulan", padahal setor +1jt seharusnya ≈0,67 bulan. Kemungkinan cuplikan berasal dari state lain; perlu konfirmasi.
-- Target dinamis Dana Darurat (3× pengeluaran): dihitung ulang tiap bulan atau dikunci saat dibuat?
-- Apakah "Kantong darurat" memerlukan entitas sub-rekening sendiri?
-- Status "Terpakai" vs "Selesai": apakah keduanya masuk tab Selesai?
-- Untuk mode "Seluruh aset" (Bibit IDX30): apakah unit hasil DCA baru otomatis ikut?
-- "Impor dari Anggaran" belum dijelaskan perilakunya.
+## 8. Open questions
+- Figure inconsistency after a deposit: screen vvQtO shows Rp16.325.000 and "0,5 bulan", whereas a +Rp1.000.000 deposit should give ≈0,67 months. The snippet may come from a different state; needs confirmation.
+- Dynamic Emergency Fund target (3× expenses): recalculated monthly or locked at creation?
+- Does "Kantong darurat" need its own sub-account entity?
+- "Terpakai" (used) vs "Selesai" (done) status: do both go to the Done tab?
+- For "Seluruh aset" (entire asset) mode (Bibit IDX30): are units from new DCA automatically included?
+- The behavior of "Impor dari Anggaran" is not yet specified.
 
 ---
 
-# C. Utang & Cicilan (Section 18, [ucFim])
+# C. Debts & installments (Section 18, [ucFim])
 
-## 1. Ringkasan & tujuan user
-Pengguna melacak kewajiban: tagihan kartu kredit berjalan, cicilan (kartu, paylater, 0%), KPR/KPM, pinjaman pribadi, dan **piutang**. Fokus desain adalah kartu kredit: transaksi kartu bisa dipecah jadi cicilan, pembayaran ke kartu dialokasikan berdasarkan prioritas, dan jadwal cicilan dihitung ulang saat ada pelunasan dipercepat. Saat menambah utang ditampilkan simulasi dampak ke rasio cicilan, saving rate, dan kekayaan bersih.
+## 1. Overview & user goals
+The user tracks liabilities: current credit card bills, installments (card, paylater, 0%), mortgages/vehicle loans (KPR/KPM), personal loans, and **receivables**. The design focuses on credit cards: card transactions can be split into installments, payments to the card are allocated by priority, and the installment schedule is recalculated on early repayment. When adding a debt, a simulation of its impact on the installment ratio, saving rate, and net worth is shown.
 
-## 2. Daftar layar & state
-| Layar | Node | Isi/tujuan | State |
+## 2. Screens & states
+| Screen | Node | Content/purpose | State |
 |---|---|---|---|
-| write.financial — Utang & cicilan | exCE7 | KPI (Sisa utang Rp0, Harus dibayar, Jatuh tempo terdekat, Piutang), "Kamu bebas utang", jenis: Cicilan kartu kredit, Paylater, Cicilan 0%, KPR/KPM, Pinjaman pribadi; CTA Catat piutang, Tambah utang / cicilan | kosong |
-| Tagihan kartu kredit (belum dicicil) | rHTMd | BCA Visa •• 7710: tagihan berjalan Rp1.250.000 (3 transaksi), sisa limit Rp13.750.000 dari Rp15.000.000, tagihan tgl 20 / bayar tgl 5, "21 hari lagi", Bayar tagihan / Ubah jadi cicilan, Prioritas pembayaran kartu | ada tagihan |
-| Hasil: cicilan A sisa Rp1jt | A7ttc | Cicilan A Kulkas: sisa Rp1.000.000 dari Rp3.000.000 (67% lunas), jadwal dihitung ulang 10 Nov, riwayat | ada cicilan |
-| Tambah cicilan (draf) | v3Igd | Form + SIMULASI DAMPAK | dialog draf |
-| Ubah transaksi jadi cicilan (belum ada transaksi) | OEZIG | Halaman Akun/Rekening (konteks kartu kredit, belum ada transaksi) | kosong |
-| Catat pakai kartu → pecah 3× | hNvip | Form transaksi dengan "Pecah jadi cicilan" (3/6/12/24 bulan, bunga, biaya admin, jadwal) | dialog |
-| Catat pakai kartu → tanpa cicilan | x20Gf | Toggle mati → masuk tagihan berjalan | dialog |
-| Transfer Rp2jt ke kartu → alokasi | qrRRV | Tabel alokasi prioritas (sebelum/dibayar/sisa), pilihan "Kurangi nominal" / "Persingkat tenor" | dialog |
+| write.financial — Debts & installments | exCE7 | KPIs (Sisa utang (remaining debt) Rp0, Harus dibayar (due), Jatuh tempo terdekat (next due date), Piutang (receivables)), "Kamu bebas utang" (you're debt-free), types: Cicilan kartu kredit (credit card installment), Paylater, Cicilan 0% (0% installment), KPR/KPM, Pinjaman pribadi (personal loan); CTAs Catat piutang (record receivable), Tambah utang / cicilan (add debt / installment) | empty |
+| Credit card bill (not yet in installments) | rHTMd | BCA Visa •• 7710: current bill Rp1.250.000 (3 transactions), remaining limit Rp13.750.000 of Rp15.000.000, statement on the 20th / pay by the 5th, "21 hari lagi" (21 days left), Bayar tagihan (pay bill) / Ubah jadi cicilan (convert to installment), card payment priority | has bill |
+| Result: installment A remaining Rp1M | A7ttc | Installment A Kulkas (fridge): remaining Rp1.000.000 of Rp3.000.000 (67% paid), schedule recalculated 10 Nov, history | has installment |
+| Add installment (draft) | v3Igd | Form + "SIMULASI DAMPAK" (impact simulation) | draft dialog |
+| Convert transaction to installment (no transactions yet) | OEZIG | Account page (credit card context, no transactions yet) | empty |
+| Record card spend → split 3× | hNvip | Transaction form with "Pecah jadi cicilan" (split into installments) (3/6/12/24 months, interest, admin fee, schedule) | dialog |
+| Record card spend → no installment | x20Gf | Toggle off → goes into the current bill | dialog |
+| Transfer Rp2M to card → allocation | qrRRV | Priority allocation table (before/paid/remaining), options "Kurangi nominal" (reduce amount) / "Persingkat tenor" (shorten tenor) | dialog |
 
-## 3. Alur user
-- **Halaman → bebas utang → tagihan kartu → ada cicilan**: kosong → tagihan berjalan muncul otomatis dari transaksi kartu ("tagihan dicatat sebagai utang") → setelah pecah dan pelunasan sebagian, tampil kartu Cicilan A dengan jadwal.
-- **Tambah utang/cicilan**: pilih jenis (Cicilan kartu/KPR/Pinjaman) → nama (MacBook Air M4 — iBox), pokok Rp18.999.000, penyedia Kredivo, tenor 12, bunga 0%/bulan, cicilan pertama 25 Nov 2026, bayar dari BCA Tahapan → simulasi → Simpan cicilan. Alternatif: ubah transaksi kartu yang sudah ada jadi cicilan.
-- **Catat pakai kartu kredit**: transaksi A Rp3.000.000 Tokopedia 2 Nov → "Pecah jadi cicilan" (muncul karena rekeningnya kartu kredit) → 3 bulan, bunga 0 → jadwal 20 Nov/20 Des/20 Jan @1.000.000 → Simpan. Transaksi B Rp1.000.000 Superindo 6 Nov tanpa cicilan → masuk tagihan berjalan. Transfer Rp2.000.000 BCA Tahapan → BCA Visa 10 Nov → alokasi prioritas: cicilan A menyerap 2.000.000 (sisa 1.000.000), tagihan B 0 → pilih "Kurangi nominal (3× Rp333.334, tenor tetap)" atau "Persingkat tenor (1× Rp1.000.000, lunas 20 Nov)".
-- **Catat piutang**: CTA ada ("Pinjaman pribadi · teman / keluarga · uang ditalangi"), tetapi alurnya tidak didesain.
+## 3. User flows
+- **Page → debt-free → card bill → has installments**: empty → current bill appears automatically from card transactions ("tagihan dicatat sebagai utang" (the bill is recorded as debt)) → after splitting and a partial repayment, the Installment A card is shown with its schedule.
+- **Add debt/installment**: pick type (card installment/KPR/loan) → name (MacBook Air M4 — iBox), principal Rp18.999.000, provider Kredivo, tenor 12, interest 0%/month, first installment 25 Nov 2026, pay from BCA Tahapan → simulation → "Simpan cicilan" (save installment). Alternative: convert an existing card transaction into an installment.
+- **Record credit card spend**: transaction A Rp3.000.000 Tokopedia 2 Nov → "Pecah jadi cicilan" (appears because the account is a credit card) → 3 months, interest 0 → schedule 20 Nov/20 Dec/20 Jan @1.000.000 → Save. Transaction B Rp1.000.000 Superindo 6 Nov without installment → goes into the current bill. Transfer Rp2.000.000 BCA Tahapan → BCA Visa 10 Nov → priority allocation: installment A absorbs 2.000.000 (remaining 1.000.000), bill B 0 → choose "Kurangi nominal (3× Rp333.334, tenor tetap)" (reduce amount, same tenor) or "Persingkat tenor (1× Rp1.000.000, lunas 20 Nov)" (shorten tenor, paid off 20 Nov).
+- **Record receivable**: the CTA exists ("Pinjaman pribadi · teman / keluarga · uang ditalangi" (personal loan · friends / family · money fronted)), but the flow is not designed.
 
-## 4. Entitas data & field
-- **CreditCardAccount** (tipe Rekening): nama "BCA Visa", 4 digit (7710), limit (Rp15.000.000), tanggal cetak tagihan (tgl 20), tanggal jatuh tempo (tgl 5), urutan prioritas pembayaran, saldo kredit (lebih bayar).
-- **CardStatement/siklus**: periode, tanggal rekening koran (20 Nov), tempo (5 Des), total (Rp1.333.334 = cicilan 333.334 + B 1.000.000), daftar transaksi, status.
-- **Debt/Installment**: jenis enum (cicilan_kartu, paylater, cicilan_0, kpr, kpm, pinjaman_pribadi), nama, penyedia (Kredivo, BCA Visa), sumber transaksi (transactionId nullable: "dari transaksi 2 Nov"), pokok (bigint), tenor bulan (3/6/12/24), bunga % per bulan (desimal), biaya admin (bigint), tanggal cicilan pertama, rekening pembayar, sisa pokok, % lunas, status, mode rekalkulasi terakhir.
-- **InstallmentSchedule**: debtId, ke-n (1/3), tanggal tagih (20 Nov), tanggal tempo (5 Des), nominal (333.334), status enum (Terjadwal, Tertagih di rekening koran, Lunas).
-- **DebtPayment/Allocation**: transferId (BCA Tahapan → BCA Visa Rp2.000.000), alokasi per kewajiban (Cicilan A 2.000.000, Tagihan B 0, Lebih bayar 0).
-- **DebtEvent/riwayat**: "Dibuat dari transaksi A", "Dilunasi sebagian Rp2.000.000 · 10 Nov", "Sebelumnya 3× Rp1.000.000 · pilihan: kurangi nominal, tenor tetap".
-- **Receivable (Piutang)**: [INFERENCE] pihak, jumlah, tanggal, status. Hanya CTA dan KPI yang terlihat.
+## 4. Data entities & fields
+- **CreditCardAccount** (Account type): name "BCA Visa", last 4 digits (7710), limit (Rp15.000.000), statement date (the 20th), due date (the 5th), payment priority order, credit balance (overpayment).
+- **CardStatement/cycle**: period, statement date (20 Nov), due date (5 Dec), total (Rp1.333.334 = installment 333.334 + B 1.000.000), transaction list, status.
+- **Debt/Installment**: type enum (cicilan_kartu, paylater, cicilan_0, kpr, kpm, pinjaman_pribadi), name, provider (Kredivo, BCA Visa), source transaction (nullable transactionId: "dari transaksi 2 Nov"), principal (bigint), tenor in months (3/6/12/24), interest % per month (decimal), admin fee (bigint), first installment date, paying account, remaining principal, % paid, status, last recalculation mode.
+- **InstallmentSchedule**: debtId, n-th (1/3), billing date (20 Nov), due date (5 Dec), amount (333.334), status enum (Terjadwal (scheduled), Tertagih di rekening koran (billed on statement), Lunas (paid)).
+- **DebtPayment/Allocation**: transferId (BCA Tahapan → BCA Visa Rp2.000.000), allocation per liability (Installment A 2.000.000, Bill B 0, Overpayment 0).
+- **DebtEvent/history**: "Dibuat dari transaksi A" (created from transaction A), "Dilunasi sebagian Rp2.000.000 · 10 Nov" (partially repaid), "Sebelumnya 3× Rp1.000.000 · pilihan: kurangi nominal, tenor tetap" (previously 3× Rp1.000.000 · choice: reduce amount, same tenor).
+- **Receivable**: [INFERENCE] counterparty, amount, date, status. Only the CTA and KPI are visible.
 
-## 5. Aturan bisnis & perhitungan
-- **Cicilan 0%** = pokok ÷ tenor: 18.999.000 / 12 = Rp1.583.250; 3.000.000 / 3 = 1.000.000. Pembulatan sisa ditaruh di cicilan pertama: 1.000.000 / 3 → 333.334 + 333.333 + 333.333.
-- **Berbunga** (KPR/pinjaman): input "% per bulan". Rumus tidak didesain; [INFERENCE] anuitas (flat untuk paylater/kartu, efektif untuk KPR).
-- **Pengeluaran tetap tercatat pada tanggal transaksi** (budget bulan transaksi), sedangkan cicilan adalah pembayaran utang: "Pengeluaran Rp3.000.000 tetap tercatat 2 Nov — masuk anggaran November". Nama di buku kas "Cicilan MacBook Air M4 (1/12)".
-- **Cicilan tidak ikut tagihan berjalan**: masuk Utang & cicilan. Limit terpakai senilai pokok dan pulih tiap cicilan dibayar ("Cicilan ditahan di limit · sisa pokok A").
-- **Sisa limit** = limit − tagihan berjalan − sisa pokok cicilan: 15.000.000 − 1.000.000 − 1.000.000 = 13.000.000 ✓. Sebelumnya 15.000.000 − 1.250.000 = 13.750.000 ✓ (8% terpakai).
-- **Total kewajiban kartu** = sisa pokok cicilan + tagihan berjalan (3.000.000 + 1.000.000 = 4.000.000).
-- **Prioritas pembayaran kartu** (bisa diubah, drag): 1 Utang cicilan (pelunasan dipercepat), 2 belanja non-cicilan, 3 lebih bayar → saldo kredit. "Kalau cicilan sudah lunas semua, sisa transfer otomatis ke prioritas berikutnya."
-- **Rekalkulasi setelah pelunasan sebagian**: "Kurangi nominal" (tenor tetap) atau "Persingkat tenor". Catatan "bank menentukan; catat sesuai konfirmasi bank".
-- **Bisa diubah** biasa↔cicilan "selama belum tertagih".
-- **Hari menuju jatuh tempo** ("21 hari lagi" dari 15 Okt ke 5 Nov).
-- **Simulasi**: rasio cicilan/pemasukan = 1.583.250 / 26.000.000 = 6,1% (batas sehat ≤ 30%). Saving rate 36,5% → 30,4% (dikurangi 6,1 poin; "masih di atas target 30%, sisa ruang 0,4 poin"). Kekayaan bersih Rp116.440.000 → Rp97.440.000 (−pokok 18.999.000 ≈ 19jt; "barang tidak dihitung sebagai aset").
-- **Kekayaan bersih** = total aset − sisa utang (saat tanpa utang = total aset Rp116.443.000).
-- **Header** "Sisa utang", "Harus dibayar" (bulan ini), "Jatuh tempo terdekat", "Piutang".
+## 5. Business rules & calculations
+- **0% installment** = principal ÷ tenor: 18.999.000 / 12 = Rp1.583.250; 3.000.000 / 3 = 1.000.000. The rounding remainder goes to the first installment: 1.000.000 / 3 → 333.334 + 333.333 + 333.333.
+- **Interest-bearing** (KPR/loans): input "% per bulan" (% per month). Formula not designed; [INFERENCE] annuity (flat for paylater/cards, effective for KPR).
+- **The expense stays recorded on the transaction date** (budget of the transaction month), while installments are debt payments: "Pengeluaran Rp3.000.000 tetap tercatat 2 Nov — masuk anggaran November". Ledger name "Cicilan MacBook Air M4 (1/12)".
+- **Installments are not part of the current bill**: they go to Debts & installments. The limit is used up by the principal and restored as each installment is paid ("Cicilan ditahan di limit · sisa pokok A" (installment held against the limit · remaining principal A)).
+- **Remaining limit** = limit − current bill − remaining installment principal: 15.000.000 − 1.000.000 − 1.000.000 = 13.000.000 ✓. Previously 15.000.000 − 1.250.000 = 13.750.000 ✓ (8% used).
+- **Total card liability** = remaining installment principal + current bill (3.000.000 + 1.000.000 = 4.000.000).
+- **Card payment priority** (editable, drag): 1 installment debt (early repayment), 2 non-installment spending, 3 overpayment → credit balance. "Kalau cicilan sudah lunas semua, sisa transfer otomatis ke prioritas berikutnya." (Once all installments are paid off, the remaining transfer automatically goes to the next priority.)
+- **Recalculation after partial repayment**: "Kurangi nominal" (same tenor) or "Persingkat tenor". Note "bank menentukan; catat sesuai konfirmasi bank" (the bank decides; record per bank confirmation).
+- **Convertible** regular↔installment "selama belum tertagih" (as long as not yet billed).
+- **Days until due** ("21 hari lagi" from 15 Oct to 5 Nov).
+- **Simulation**: installment/income ratio = 1.583.250 / 26.000.000 = 6,1% (healthy limit ≤ 30%). Saving rate 36,5% → 30,4% (minus 6,1 points; "masih di atas target 30%, sisa ruang 0,4 poin" (still above the 30% target, 0,4 points of headroom)). Net worth Rp116.440.000 → Rp97.440.000 (−principal 18.999.000 ≈ 19 million; "barang tidak dihitung sebagai aset" (goods are not counted as assets)).
+- **Net worth** = total assets − remaining debt (with no debt = total assets Rp116.443.000).
+- **Header** "Sisa utang", "Harus dibayar" (this month), "Jatuh tempo terdekat", "Piutang".
 
-## 6. Job latar/scheduler & integrasi
-- **Penutupan siklus kartu** (tgl cetak 20): pindahkan tagihan berjalan + cicilan ke-n ke status "Tertagih di rekening koran", buat statement.
-- **Pengingat jatuh tempo** (tgl 5 / tempo cicilan pertama 25 Nov), dan tampil di Kalender ("Tagihan terjadwal").
-- **Cicilan non-kartu** (Kredivo bayar dari BCA Tahapan): [INFERENCE] membuat transaksi terjadwal "Perlu ditinjau" tiap tanggal, seperti setoran rutin.
-- **Rekalkulasi jadwal** saat pembayaran dicatat (sinkron dalam request; tidak perlu worker).
-- Tidak ada integrasi bank. Semua dicatat manual dan disesuaikan dengan "konfirmasi bank".
+## 6. Background jobs/scheduler & integrations
+- **Card cycle close** (statement date the 20th): move the current bill + n-th installment to status "Tertagih di rekening koran", create the statement.
+- **Due-date reminders** (the 5th / first installment due 25 Nov), also shown in the Calendar ("Tagihan terjadwal" (scheduled bill)).
+- **Non-card installments** (Kredivo paid from BCA Tahapan): [INFERENCE] create a scheduled Review queue transaction ("Perlu ditinjau") on each date, like recurring contributions.
+- **Schedule recalculation** when a payment is recorded (synchronous within the request; no worker needed).
+- No bank integration. Everything is recorded manually and adjusted per "konfirmasi bank" (bank confirmation).
 
-## 7. Komponen UI
-KPI card, empty state dengan chip jenis utang, kartu kartu kredit (limit bar, tagihan berjalan, tanggal), daftar transaksi tagihan, kartu cicilan (progress % lunas), tabel jadwal cicilan dengan badge status, timeline riwayat, list prioritas drag-to-reorder, form dialog dengan segmented jenis dan pilihan tenor (3/6/12/24), toggle "Pecah jadi cicilan", panel "SIMULASI DAMPAK" (before→after), tabel alokasi pembayaran (prioritas/sebelum/dibayar/sisa), pilihan radio rekalkulasi, banner "Draf belum disimpan".
+## 7. UI components
+KPI cards, empty state with debt-type chips, credit card card (limit bar, current bill, dates), bill transaction list, installment card (progress % paid), installment schedule table with status badges, history timeline, drag-to-reorder priority list, form dialog with type segmented control and tenor options (3/6/12/24), "Pecah jadi cicilan" toggle, "SIMULASI DAMPAK" panel (before→after), payment allocation table (priority/before/paid/remaining), recalculation radio options, "Draf belum disimpan" (draft not saved) banner.
 
-## 8. Pertanyaan terbuka
-- Rumus bunga KPR/pinjaman (flat vs efektif/anuitas), biaya admin (sekali atau per bulan?), denda keterlambatan: tidak didesain.
-- Alur Piutang tidak didesain (hanya CTA dan KPI).
-- Paylater non-kartu (Kredivo): apakah dicatat sebagai rekening kewajiban terpisah dengan limit?
-- Apakah utang barang (MacBook) membuat transaksi pengeluaran penuh di awal (seperti kartu), atau pengeluaran per cicilan? Simulasi menurunkan saving rate per bulan sebesar cicilan, yang mengisyaratkan cicilan dihitung sebagai pengeluaran bulanan, bertentangan dengan alur kartu (pengeluaran penuh di tanggal transaksi).
-- Pembulatan: kekayaan bersih Rp116.440.000 vs Rp116.443.000.
-- Layar OEZIG berlabel "Ubah transaksi jadi cicilan (belum ada transaksi)" tetapi isinya halaman Akun. Titik masuk ke fitur ini belum jelas.
+## 8. Open questions
+- KPR/loan interest formula (flat vs effective/annuity), admin fee (one-time or monthly?), late fees: not designed.
+- Receivables flow not designed (only CTA and KPI).
+- Non-card paylater (Kredivo): recorded as a separate liability account with a limit?
+- Does a goods debt (MacBook) create a full expense transaction up front (like cards), or an expense per installment? The simulation lowers the monthly saving rate by the installment amount, implying installments count as monthly expenses, which contradicts the card flow (full expense on the transaction date).
+- Rounding: net worth Rp116.440.000 vs Rp116.443.000.
+- Screen OEZIG is labeled "Ubah transaksi jadi cicilan (belum ada transaksi)" but shows the Account page. The entry point for this feature is unclear.
 
 ---
 
-# D. Kebutuhan lintas fitur: data harga/kurs eksternal & valuasi
-1. **Tabel `price_quotes`** (symbol, provider, harga, mata uang, as_of) dan **`fx_rates`** (USD/IDR). Simpan riwayat untuk perubahan harian, snapshot bulanan, dan YTD.
-2. **Provider**: Yahoo Finance (ETF/saham AS, IDX, indeks SPY/IHSG), CoinGecko (BTC). Emas, NAB reksa dana, dan SBN butuh sumber yang belum disebut. API key di Pengaturan.
-3. **Worker BullMQ**: job sync per platform/provider (progres "3/5"), rate limit dan backoff (429 retry-after), status per platform, log API yang dapat dibuka user. Sinkron manual memicu job dan UI melakukan polling status.
-4. **Harga basi** tetap dipakai dengan cap waktu, ditampilkan per platform ("sinkron 16.15"). Error total tidak boleh memblokir halaman Investasi. Tabungan memiliki fallback "Lihat saldo rekening saja".
-5. **Valuasi terpusat** (dipakai Investasi, Tabungan, Ringkasan, Akun "≈ Rp61.420.000", kekayaan bersih): nilai = unit × harga × kurs; alokasi tujuan = % × nilai aset + nominal tetap rekening.
-6. **Snapshot**: nilai akhir bulan + modal + setoran (grafik pertumbuhan), harian (Hari ini).
+# D. Cross-feature requirement: external price/FX data & valuation
+1. **`price_quotes` table** (symbol, provider, price, currency, as_of) and **`fx_rates`** (USD/IDR). Keep history for daily change, monthly snapshots, and YTD.
+2. **Providers**: Yahoo Finance (US ETFs/equities, IDX, SPY/IHSG indices), CoinGecko (BTC). Gold, mutual fund NAV, and SBN need sources not yet named. API keys in Settings.
+3. **BullMQ worker**: sync job per platform/provider (progress "3/5"), rate limiting and backoff (429 retry-after), per-platform status, user-viewable API log. Manual sync triggers a job and the UI polls its status.
+4. **Stale prices** are still used with a timestamp, shown per platform ("sinkron 16.15"). A total error must not block the Investments page. Savings goals has the fallback "Lihat saldo rekening saja".
+5. **Centralized valuation** (used by Investments, Savings goals, Overview, Accounts "≈ Rp61.420.000", net worth): value = units × price × exchange rate; goal allocation = % × asset value + account fixed amounts.
+6. **Snapshots**: month-end value + cost basis + contributions (growth chart), daily (Today).

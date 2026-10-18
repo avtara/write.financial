@@ -1,99 +1,99 @@
 # TODO
 
-Rincian dan syarat lulus tiap milestone ada di [rencana implementasi](docs/IMPLEMENTATION_PLAN.md) §8. Nomor FR/D merujuk ke [PRD](docs/PRD.md).
+Details and exit criteria for each milestone are in the [implementation plan](docs/IMPLEMENTATION_PLAN.md) §8. FR/D numbers refer to the [PRD](docs/PRD.md).
 
-## Persiapan
+## Preparation
 
-- [x] PRD v1.1 dan rencana implementasi
-- [x] Desain lengkap, termasuk layar tambahan (Section 19) dan brand write.financial (Section 20)
-- [x] Riset sumber data pasar gratis + BYOK
-- [x] Repo publik, lisensi AGPL-3.0, secret scanning + push protection, Dependabot
+- [x] PRD v1.1 and implementation plan
+- [x] Complete design, including additional screens (Section 19) and write.financial brand (Section 20)
+- [x] Free + BYOK market data research
+- [x] Public repo, AGPL-3.0 license, secret scanning + push protection, Dependabot
 - [x] Google Cloud project `write-financial`: OAuth client, Gmail API, Pub/Sub topic `gmail-push`
-- [ ] Konfirmasi versi runtime: Node 22 + pnpm 10
-- [ ] Info VPS: spesifikasi, versi Postgres, Redis khusus atau bersama, Docker, enkripsi disk
-- [ ] DNS `write.financial` dan penyedia email (SPF/DKIM/DMARC) — sebelum staging
-- [ ] Bucket cadangan off-site (Backblaze B2 / Cloudflare R2)
-- [ ] Tempat cadangan offline untuk kunci enkripsi utama (KEK)
-- [ ] Export logo ke `images/brand/`
+- [ ] Confirm runtime versions: Node 22 + pnpm 10
+- [ ] VPS details: specs, Postgres version, dedicated or shared Redis, Docker, disk encryption
+- [ ] DNS for `write.financial` and email provider (SPF/DKIM/DMARC) — before staging
+- [ ] Off-site backup bucket (Backblaze B2 / Cloudflare R2)
+- [ ] Offline backup location for the master encryption key (KEK)
+- [ ] Export logo to `images/brand/`
 
-## M0 — Fondasi aman
+## M0 — Secure foundation
 
-- [ ] Monorepo pnpm + Turborepo, header SPDX, `.nvmrc`, `.env.example`
-- [ ] CI: lint, typecheck, test, gitleaks, pengecekan DCO
-- [ ] Branch protection `main` (wajib PR + lulus CI)
-- [ ] `docker-compose` dev: Postgres, Redis, SeaweedFS, Mailpit
-- [ ] Drizzle + migrasi awal dengan RLS dan role DB terpisah
-- [ ] `packages/crypto`: KEK/DEK per user, redaksi log
-- [ ] Better Auth: email/password, Google, 2FA (TOTP, kode cadangan, passkey), lockout, daftar perangkat
-- [ ] Object storage terenkripsi (`integrations/objectstore`) + upload gambar aman
-- [ ] Token desain, tema gelap/terang, app shell desktop + rail tablet, `<Money>` + mode privasi
-- [ ] Domain `money`, `period`, `ledger` + golden test
+- [ ] pnpm + Turborepo monorepo, SPDX headers, `.nvmrc`, `.env.example`
+- [ ] CI: lint, typecheck, test, gitleaks, DCO check
+- [ ] Branch protection on `main` (PR required + CI passing)
+- [ ] Dev `docker-compose`: Postgres, Redis, SeaweedFS, Mailpit
+- [ ] Drizzle + initial migrations with RLS and separate DB roles
+- [ ] `packages/crypto`: per-user KEK/DEK, log redaction
+- [ ] Better Auth: email/password, Google, 2FA (TOTP, backup codes, passkey), lockout, device list
+- [ ] Encrypted object storage (`integrations/objectstore`) + safe image upload
+- [ ] Design tokens, dark/light theme, desktop app shell + tablet rail, `<Money>` + privacy mode
+- [ ] Domain `money`, `period`, `ledger` + golden tests
 - [ ] Worker skeleton (dispatcher, Bull Board, maintenance)
-- [ ] Image Docker + compose self-host + wizard setup pertama
+- [ ] Docker image + self-host compose + first-run setup wizard
 - [ ] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
-- [ ] Staging cloud dengan cadangan terenkripsi
+- [ ] Cloud staging with encrypted backups
 
-## M1 — Buku kas
+## M1 — Ledger
 
-- [ ] Onboarding 5 langkah
-- [ ] Rekening + rekonsiliasi saldo
-- [ ] Kategori + tag
-- [ ] Catat Transaksi (sheet + bar Catat Cepat), transfer dengan kurs
-- [ ] Halaman Transaksi: filter, tampilan, aksi massal, detail, pisah, hapus + urungkan
-- [ ] Command palette ⌘K
+- [ ] 5-step onboarding
+- [ ] Accounts + balance reconciliation
+- [ ] Categories + tags
+- [ ] Record Transaction (sheet + Quick Add bar), transfers with exchange rates
+- [ ] Transactions page: filters, views, bulk actions, detail, split, delete + undo
+- [ ] ⌘K command palette
 
-## M2 — Periode, anggaran, dashboard
+## M2 — Periods, budget, dashboard
 
-- [ ] Periode gajian 1–28, periode transisi, hitung ulang
-- [ ] Anggaran berversi, pindah sisa, rollover, peringatan
-- [ ] Dashboard Minggu/Bulan/Tahun + rentang khusus
+- [ ] Payday periods 1–28, transition periods, recalculation
+- [ ] Versioned budgets, moving leftovers, rollover, alerts
+- [ ] Week/Month/Year dashboard + custom range
 
-## M3 — Jadwal, Perlu ditinjau, langganan, kalender, notifikasi
+## M3 — Scheduling, Review queue, subscriptions, calendar, notifications
 
-- [ ] Transaksi berulang + mesin jadwal di worker
-- [ ] Halaman Perlu ditinjau
-- [ ] Tutup buku otomatis + usulan yang dikonfirmasi
-- [ ] Langganan, kalender, notifikasi (popover, halaman, email)
+- [ ] Recurring transactions + scheduling engine in the worker
+- [ ] Review queue page
+- [ ] Automatic period close + confirmed proposals
+- [ ] Subscriptions, calendar, notifications (popover, page, email)
 
-## M4 — Tabungan, utang, kartu kredit, piutang
+## M4 — Savings goals, debts, credit cards, receivables
 
-- [ ] Tujuan tabungan + dana tidak rutin
-- [ ] Kartu kredit, cicilan, prioritas pembayaran
-- [ ] Piutang: catat, terima pembayaran, hapuskan
+- [ ] Savings goals + sinking funds
+- [ ] Credit cards, installments, payment priority
+- [ ] Receivables: record, receive payments, write off
 
-## M5 — Investasi & data pasar
+## M5 — Investments & market data
 
-- [ ] Aset, transaksi investasi, valuasi, alokasi, rebalancing
-- [ ] Sumber harga bawaan, BYOK, manual + layar API kurs & pasar
+- [ ] Assets, investment transactions, valuation, allocation, rebalancing
+- [ ] Built-in, BYOK, and manual price sources + exchange rate & market API screen
 
-## M6 — Laporan, ekspor, impor
+## M6 — Reports, export, import
 
-- [ ] Laporan bulanan final + kuartal/tahunan/kustom
-- [ ] Ekspor PDF/Excel/CSV, impor CSV/XLSX
-- [ ] Ekspor semua data + hapus akun
+- [ ] Final monthly reports + quarterly/yearly/custom
+- [ ] PDF/Excel/CSV export, CSV/XLSX import
+- [ ] Full data export + account deletion
 
-## M7 — Otomasi & AI
+## M7 — Automation & AI
 
-- [ ] Aturan otomatis (saran)
-- [ ] Asisten AI + baca struk (BYOK)
-- [ ] Gmail (feature flag) + log Gmail
+- [ ] Auto rules (suggestions)
+- [ ] AI Assistant + receipt reading (BYOK)
+- [ ] Gmail (feature flag) + Gmail log
 
-## M8 — Tablet & kualitas
+## M8 — Tablet & quality
 
-- [ ] Penyempurnaan tablet semua halaman
-- [ ] Atur dashboard, PIN kunci aplikasi
-- [ ] Audit aksesibilitas dan performa
+- [ ] Tablet polish on every page
+- [ ] Dashboard customization, app lock PIN
+- [ ] Accessibility and performance audit
 
-## M9a — Rilis open source v1.0
+## M9a — Open-source v1.0 release
 
-- [ ] Panduan self-host lengkap
-- [ ] Halaman admin & status instance
-- [ ] Uji upgrade antar versi di CI
-- [ ] Audit keamanan kode
+- [ ] Complete self-host guide
+- [ ] Admin & instance status pages
+- [ ] Cross-version upgrade tests in CI
+- [ ] Code security audit
 
-## M9b — Peluncuran cloud
+## M9b — Cloud launch
 
-- [ ] PT Perorangan + NIB + PSE
-- [ ] Kebijakan privasi & syarat layanan
-- [ ] Uji penetrasi
-- [ ] Verifikasi Google (login; Gmail menyusul)
+- [ ] PT Perorangan + NIB + PSE registration
+- [ ] Privacy policy & terms of service
+- [ ] Penetration test
+- [ ] Google verification (login; Gmail later)

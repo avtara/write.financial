@@ -1,60 +1,60 @@
 # write.financial
 
-Aplikasi web open source untuk **mencatat keuangan dan aset pribadi**, berbahasa Indonesia dengan mata uang utama IDR. Bisa di-host sendiri (self-host) atau dipakai lewat layanan terkelola di [write.financial](https://write.financial) bagi yang tidak sempat mengurus server.
+An open-source web app for **tracking personal finances and assets**, with an Indonesian-language interface and IDR as the primary currency. Run it yourself (self-host) or use the managed service at [write.financial](https://write.financial) if you don't have time to maintain a server.
 
-> **Status: tahap perencanaan.** PRD, desain, dan rencana implementasi sudah selesai; kode aplikasi belum ada. Progres ada di [TODO.md](TODO.md).
+> **Status: planning.** The PRD, design, and implementation plan are done; there is no application code yet. Progress is tracked in [TODO.md](TODO.md).
 
-## Prinsip
+## Principles
 
-- **Dicatat manual, tanpa login bank.** Tidak ada koneksi ke bank, broker, atau open banking.
-- **Tidak ada yang otomatis mengubah data keuanganmu tanpa konfirmasi.** Langganan jatuh tempo, setoran rutin, hasil AI, email dari Gmail, impor mutasi, dan usulan tutup buku masuk antrean **Perlu ditinjau** dulu.
-- **Data milikmu.** Data keuangan tiap user terisolasi (Row-Level Security), rahasia dan file dienkripsi per user, tanpa telemetri.
-- **Satu kode untuk semua.** Tidak ada fitur yang dikunci khusus versi cloud.
+- **Manual entry, no bank login.** No connections to banks, brokers, or open banking.
+- **Nothing changes your financial data automatically without confirmation.** Due subscriptions, recurring contributions, AI results, Gmail emails, statement imports, and period-close proposals all land in a **Review queue** first.
+- **Your data is yours.** Each user's financial data is isolated (Row-Level Security), secrets and files are encrypted per user, and there is no telemetry.
+- **One codebase for everyone.** No features are locked to the cloud version.
 
-## Fitur (rencana v1)
+## Features (planned for v1)
 
-- **Buku kas:** rekening (bank, e-wallet, tunai, kartu kredit, platform investasi, multi-mata uang), transaksi, transfer dengan biaya dan selisih kurs, pisah transaksi, tag, lampiran struk, rekonsiliasi saldo.
-- **Periode gajian:** tanggal mulai periode 1–28, laporan bulanan final yang tidak berubah.
-- **Anggaran:** batas per kategori (Kebutuhan/Keinginan), batas aman harian, proyeksi, pindah sisa, dana tidak rutin.
-- **Langganan & kalender:** pengingat tagihan, deteksi langganan dari transaksi, kalender pengeluaran dan jadwal.
-- **Tabungan:** tujuan yang terhubung ke saldo rekening dan porsi unit investasi.
-- **Utang, cicilan, piutang:** kartu kredit, pecah cicilan, prioritas pembayaran, piutang dari pisah tagihan.
-- **Investasi:** holding multi-platform IDR/USD, untung/rugi, alokasi vs target. Harga dari sumber gratis, API key milikmu (BYOK), atau diisi manual.
-- **Laporan:** PDF/Excel/CSV, impor mutasi CSV/XLSX.
-- **Opsional:** Asisten AI dan baca struk (BYOK: OpenRouter/OpenAI-compatible), baca email transaksi dari Gmail.
-- **Keamanan:** verifikasi dua langkah (TOTP, passkey, kode cadangan), mode privasi untuk menyembunyikan nominal.
-- **Perangkat:** desktop dan tablet. Ponsel menyusul.
+- **Ledger:** accounts (bank, e-wallet, cash, credit card, investment platform; multi-currency), transactions, transfers with fees and FX differences, split transactions, tags, receipt attachments, balance reconciliation.
+- **Payday periods:** period start day 1–28, immutable final monthly reports.
+- **Budget:** per-category limits (Needs/Wants), safe daily limit, projection, moving leftovers, sinking funds.
+- **Subscriptions & calendar:** bill reminders, subscription detection from transactions, spending and schedule calendar.
+- **Savings goals:** goals linked to account balances and shares of investment units.
+- **Debts, installments, receivables:** credit cards, installment splits, payment priority, receivables from split bills.
+- **Investments:** multi-platform IDR/USD holdings, gains/losses, allocation vs target. Prices from free sources, your own API keys (BYOK), or manual entry.
+- **Reports:** PDF/Excel/CSV, CSV/XLSX statement import.
+- **Optional:** AI Assistant and receipt reading (BYOK: OpenRouter/OpenAI-compatible), reading transaction emails from Gmail.
+- **Security:** two-step verification (TOTP, passkey, backup codes), privacy mode to hide amounts.
+- **Devices:** desktop and tablet. Phones come later.
 
 ## Stack
 
-| Bagian | Teknologi |
+| Part | Technology |
 |---|---|
 | Web | TanStack Start (React), TanStack Router/Query/Form/Table, Tailwind CSS v4, shadcn/ui |
 | Data | PostgreSQL (Drizzle ORM, RLS), Redis |
-| Worker & jadwal | BullMQ (proses terpisah) |
-| File & gambar | SeaweedFS (API S3, bisa diganti S3 lain) |
+| Worker & scheduling | BullMQ (separate process) |
+| Files & images | SeaweedFS (S3 API, replaceable with any S3) |
 | Auth | Better Auth (Google, email/password, 2FA, passkey) |
-| Deploy | Docker Compose (self-host), satu image untuk self-host dan cloud |
+| Deploy | Docker Compose (self-host); one image for both self-host and cloud |
 
 ## Self-host
 
-Belum tersedia. Target rilis open source v1.0 (milestone M9a): cukup `docker compose up` lalu ikuti wizard setup, dalam waktu kurang dari 15 menit. Panduan lengkapnya akan ada di `docs/self-host/`.
+Not available yet. Target for the open-source v1.0 release (milestone M9a): run `docker compose up` and follow the setup wizard, in under 15 minutes. The full guide will live in `docs/self-host/`.
 
-## Dokumentasi
+## Documentation
 
-- [PRD](docs/PRD.md): kebutuhan produk, aturan perhitungan, keamanan, dan keputusan (D1–D25)
-- [Rencana implementasi](docs/IMPLEMENTATION_PLAN.md): arsitektur, model data, worker, milestone M0–M9b
-- [Riset sumber data pasar](docs/research/market-data.md): API gratis, BYOK, dan yang dilarang
-- [Analisis desain](docs/design-analysis/) dan [digest layar](design/digest/)
+- [PRD](docs/PRD.md): product requirements, calculation rules, security, and decisions (D1–D25)
+- [Implementation plan](docs/IMPLEMENTATION_PLAN.md): architecture, data model, worker, milestones M0–M9b
+- [Market data research](docs/research/market-data.md): free APIs, BYOK, and what is not allowed
+- [Design analysis](docs/design-analysis/) and [screen digests](design/digest/) (the digests contain the original Indonesian UI copy)
 
-## Kontribusi
+## Contributing
 
-Kontribusi diterima setelah fondasi (M0) selesai. Setiap commit wajib ditandatangani dengan DCO (`git commit -s`).
+Contributions are welcome once the foundation (M0) is in place. Every commit must be signed off under the DCO (`git commit -s`).
 
-## Keamanan
+## Security
 
-Laporkan kerentanan secara privat ke **security@write.financial**. Jangan buka issue publik untuk masalah keamanan.
+Report vulnerabilities privately to **security@write.financial**. Please do not open public issues for security problems.
 
-## Lisensi
+## License
 
-[AGPL-3.0-only](LICENSE). Nama dan logo write.financial tidak termasuk dalam lisensi kode. Logo bank, e-wallet, dan aset di `images/logos/` adalah merek milik pemiliknya masing-masing dan hanya dipakai sebagai penanda rekening.
+[AGPL-3.0-only](LICENSE). The write.financial name and logo are not covered by the code license. Bank, e-wallet, and asset logos in `images/logos/` are trademarks of their respective owners and are used only to identify accounts.
