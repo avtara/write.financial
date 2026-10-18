@@ -12,8 +12,8 @@
 import path from 'node:path';
 import { loadConfig } from '@wf/config';
 import { ROLES, type RolePasswords } from '@wf/db/roles';
-import { postgresUrl, secretsEnv, setting, LaunchConfigError, type Env } from './env.ts';
-import { dbPassword, ensureSecrets, KEK, readSecret, SETUP_TOKEN } from './secrets.ts';
+import { postgresUrl, requiredSetting, secretsEnv, superuserLogin, type Env } from './env.ts';
+import { AUTH_SECRET, ensureSecrets, KEK, readRolePasswords, readSecret, SETUP_TOKEN } from './secrets.ts';
 
 export interface Output {
   log(message: string): void;
@@ -54,11 +54,14 @@ export function kekNotice(kekFile: string): string {
     '',
     `It is stored in ${kekFile} in the secrets volume. Every encrypted value (2FA secrets, notes,`,
     'attachments, connected-account tokens) depends on it: if the volume is lost and you have no copy of',
-    'the KEK, that data is gone for good and nobody can recover it. Copy it to two safe offline places:',
+    'the KEK, that data is gone for good and nobody can recover it. Copy it, and the auth secret next to it',
+    '(without it, two-step sign-in fails after a restore), to two safe offline places:',
     '',
     `  docker compose cp web:${kekFile} ./write-financial-kek.backup && chmod 600 ./write-financial-kek.backup`,
+    `  docker compose cp web:${path.join(path.dirname(kekFile), AUTH_SECRET)} ./write-financial-auth-secret.backup && chmod 600 ./write-financial-auth-secret.backup`,
     '',
-    'Do not store the backup next to your database backups. This notice is shown only once.',
+    'Neither is part of the backups (docs/self-host/backup.md); do not store them next to the backups. This notice is',
+    'shown only once.',
     rule,
   ].join('\n');
 }
@@ -81,14 +84,8 @@ export function setupNotice(setupUrl: string): string {
 export async function runInit(env: Env, deps: InitDeps): Promise<number> {
   const { output } = deps;
   try {
-    const dir = setting(env, 'WF_SECRETS_DIR');
-    if (dir === undefined) throw new LaunchConfigError('WF_SECRETS_DIR is required for init');
-    const superuserPassword = setting(env, 'POSTGRES_PASSWORD');
-    if (superuserPassword === undefined) {
-      throw new LaunchConfigError(
-        'POSTGRES_PASSWORD (the PostgreSQL superuser password from .env) is required for init',
-      );
-    }
+    const dir = requiredSetting(env, 'WF_SECRETS_DIR', 'init');
+    const superuser = superuserLogin(env, 'init');
 
     const created = await ensureSecrets(dir);
     output.log(
@@ -100,15 +97,8 @@ export async function runInit(env: Env, deps: InitDeps): Promise<number> {
 
     const config = loadConfig({ ...env, ...(await secretsEnv(env)) });
 
-    const password = (role: keyof typeof ROLES) => readSecret(path.join(dir, dbPassword(ROLES[role])));
-    const passwords: RolePasswords = {
-      app: await password('app'),
-      worker: await password('worker'),
-      auth: await password('auth'),
-      migrate: await password('migrate'),
-      readonlyOps: await password('readonlyOps'),
-    };
-    const superuserUrl = postgresUrl(env, setting(env, 'POSTGRES_USER') ?? 'postgres', superuserPassword);
+    const passwords = await readRolePasswords(dir);
+    const superuserUrl = postgresUrl(env, superuser.user, superuser.password);
     for (let attempt = 1; ; attempt++) {
       try {
         await deps.bootstrapRoles(superuserUrl, passwords);

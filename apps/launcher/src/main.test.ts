@@ -3,9 +3,11 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ENTRIES, importEntry, main, USAGE, type LaunchDeps, type LaunchProcess } from './main.ts';
+import { RESTORE_USAGE } from './restore.ts';
 import { ensureSecrets } from './secrets.ts';
 
 let dir: string;
@@ -29,6 +31,16 @@ function fakeDeps(overrides: Partial<LaunchDeps> = {}) {
     migrate: vi.fn(() => Promise.resolve()),
     sleep: vi.fn(() => Promise.resolve()),
     setupPending: vi.fn(() => Promise.resolve(true)),
+    runCommand: vi.fn<LaunchDeps['runCommand']>(() => Promise.resolve(Buffer.alloc(0))),
+    createS3: vi.fn<LaunchDeps['createS3']>(() => {
+      throw new Error('not used');
+    }),
+    migrationLevel: vi.fn(() => Promise.resolve({ applied: 0, latest: null })),
+    inspectRestoreTarget: vi.fn(() => Promise.resolve({ users: 0, appSessions: 0 })),
+    resetAppSchema: vi.fn(() => Promise.resolve()),
+    migrations: [],
+    stdin: Readable.from([]),
+    now: () => 0,
     output: { log: vi.fn(), error: (message: string) => errors.push(message) },
     ...overrides,
   };
@@ -65,6 +77,23 @@ describe('main', () => {
     const { deps, errors } = fakeDeps();
     expect(await main(['init'], proc({ WF_SECRETS_DIR: dir, POSTGRES_PASSWORD: 'x' }), deps)).toBe(1);
     expect(errors[0]).toMatch(/^init failed: ConfigError: Invalid configuration/);
+  });
+
+  it('runs backup, which refuses to write without an age recipient', async () => {
+    const { deps, errors } = fakeDeps();
+    expect(await main(['backup'], proc(), deps)).toBe(1);
+    expect(errors[0]).toMatch(/^backup failed: LaunchConfigError: No age recipient is configured/);
+    expect(deps.runCommand).not.toHaveBeenCalled();
+  });
+
+  it('runs restore with its arguments', async () => {
+    const { deps, errors } = fakeDeps();
+    expect(await main(['restore'], proc(), deps)).toBe(2);
+    expect(await main(['restore', 'wf-20261018T200000Z.tar.age', '--force'], proc(), deps)).toBe(1);
+    expect(errors).toEqual([
+      RESTORE_USAGE,
+      'restore failed: LaunchConfigError: WF_SECRETS_DIR is required for restore',
+    ]);
   });
 
   describe('web', () => {

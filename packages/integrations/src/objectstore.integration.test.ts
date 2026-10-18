@@ -15,7 +15,7 @@ import {
   createObjectStore,
   type ObjectStore,
 } from './objectstore.ts';
-import { createS3Port, type S3Port } from './s3.ts';
+import { createS3Port, type S3Port } from '@wf/s3';
 
 /** Same image, entrypoint, and S3 identities as the dev stack (`deploy/dev/compose.yaml`). */
 const SEAWEEDFS = fileURLToPath(new URL('../../../deploy/dev/seaweedfs/', import.meta.url));

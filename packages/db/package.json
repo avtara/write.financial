@@ -18,6 +18,7 @@
     "./invitations": "./src/invitations.ts",
     "./setup-status": "./src/setup-status.ts",
     "./profiles": "./src/profiles.ts",
+    "./backup": "./src/backup.ts",
     "./testing": "./test/pglite.ts"
   },
   "scripts": {

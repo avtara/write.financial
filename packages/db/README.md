@@ -34,6 +34,7 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./invitations` | `createInvitations(db)` → `create(adminUserId, …)` (`wf_app`), `isUsable`, `claim`, `claimForEmail` (`wf_auth`) |
 | `./testing` | Test-only: PGlite helpers (`startMigrated`, `insertUser`, …) for other packages' unit tests |
 | `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)` (worker only, via `wf_maintenance_purge_auth`)       |
+| `./backup`                                      | Self-host backup/restore: `bundledMigrations()`, `migrationLevel(url)`, `inspectRestoreTarget(superuserUrl)`, `resetAppSchema(superuserUrl, passwords)` |
 
 Repositories take `userId` from the caller's session or job, never from request input, and run every query through
 `withUser`, which sets `app.user_id` with `set_config(…, true)` (transaction-local) and rejects non-UUID ids. Methods are

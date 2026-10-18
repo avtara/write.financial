@@ -15,7 +15,7 @@ import {
   type ObjectStoreOptions,
   type S3Port,
 } from './objectstore.ts';
-import type { ObjectPage } from './s3.ts';
+import type { ObjectPage } from '@wf/s3';
 
 const ALICE = '0192f0c1-7c1e-7000-8000-00000000000a';
 const BOB = '0192f0c1-7c1e-7000-8000-00000000000b';

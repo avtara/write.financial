@@ -9,6 +9,7 @@ import {
   dbPassword,
   ensureSecrets,
   KEK,
+  readRolePasswords,
   readSecret,
   S3_ACCESS_KEY_ID,
   S3_SECRET_ACCESS_KEY,
@@ -133,5 +134,19 @@ describe('readSecret', () => {
     const file = path.join(dir, 'secret');
     await writeFile(file, '\n');
     await expect(readSecret(file)).rejects.toThrow(SecretFileError);
+  });
+});
+
+describe('readRolePasswords', () => {
+  it('reads the password of every database role', async () => {
+    await ensureSecrets(dir);
+    const password = (role: string) => readFile(path.join(dir, 'postgres', role), 'utf8');
+    expect(await readRolePasswords(dir)).toEqual({
+      app: await password('wf_app'),
+      worker: await password('wf_worker'),
+      auth: await password('wf_auth'),
+      migrate: await password('wf_migrate'),
+      readonlyOps: await password('wf_readonly_ops'),
+    });
   });
 });

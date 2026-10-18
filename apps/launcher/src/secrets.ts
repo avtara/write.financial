@@ -10,12 +10,14 @@
  *   valkey/password           Valkey `requirepass`; the valkey container mounts only `valkey/`
  *   s3/access_key_id          SeaweedFS S3 identity of the app; the seaweedfs container mounts only `s3/`
  *   s3/secret_access_key
+ *
+ * The backup container mounts only `postgres/` and `s3/`: backups never see the KEK or the auth secret.
  */
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createKeyFile, loadKeyring } from '@wf/crypto/keyring';
-import { ROLES, type RoleName } from '@wf/db/roles';
+import { ROLES, type RoleName, type RolePasswords } from '@wf/db/roles';
 
 export const KEK = 'kek';
 export const AUTH_SECRET = 'auth_secret';
@@ -84,4 +86,16 @@ export async function readSecret(file: string): Promise<string> {
   const value = (await readFile(file, 'utf8')).replace(/\r?\n$/, '');
   if (value === '') throw new SecretFileError(`Secret file ${file} is empty; delete it and run init again`);
   return value;
+}
+
+/** The password of every database role in `dir`, for `bootstrapRoles`. */
+export async function readRolePasswords(dir: string): Promise<RolePasswords> {
+  const password = (role: RoleName) => readSecret(path.join(dir, dbPassword(role)));
+  return {
+    app: await password(ROLES.app),
+    worker: await password(ROLES.worker),
+    auth: await password(ROLES.auth),
+    migrate: await password(ROLES.migrate),
+    readonlyOps: await password(ROLES.readonlyOps),
+  };
 }

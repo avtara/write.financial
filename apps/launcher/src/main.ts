@@ -4,11 +4,15 @@
  * - `web`, `worker`: merges the variables derived from the secrets volume (src/env.ts) into `process.env`, then loads
  *   the web server or the worker in this process, so signals from tini reach it directly.
  * - `init`: one-shot setup before web and worker (src/init.ts).
+ * - `backup`: one encrypted archive of the database and the objects (src/backup.ts).
+ * - `restore <archive> [--force] [--identity <file>]`: replaces the data with an archive's (src/restore.ts).
  * - `healthcheck web`: GET /healthz on the local web server. `healthcheck worker`: the worker's heartbeat check.
  */
 import { fileURLToPath } from 'node:url';
+import { runBackup, type BackupDeps } from './backup.ts';
 import { secretsEnv } from './env.ts';
 import { runInit, type InitDeps } from './init.ts';
+import { runRestore, type RestoreDeps } from './restore.ts';
 
 /** Where the launcher finds the apps in the image (and in the repo): `/app/apps/{launcher,web,worker}`. */
 export const ENTRIES = {
@@ -16,7 +20,9 @@ export const ENTRIES = {
   worker: new URL('../../worker/src/main.ts', import.meta.url).href,
 };
 
-export const USAGE = 'Usage: wf-launcher <web | worker | init | healthcheck web | healthcheck worker>';
+export const USAGE =
+  'Usage: wf-launcher <web | worker | init | backup | restore <archive> [--force] [--identity <file>] | ' +
+  'healthcheck web | healthcheck worker>';
 
 /** The parts of `process` the launcher changes before loading an app. */
 export interface LaunchProcess {
@@ -24,7 +30,7 @@ export interface LaunchProcess {
   readonly env: Record<string, string | undefined>;
 }
 
-export interface LaunchDeps extends InitDeps {
+export interface LaunchDeps extends InitDeps, BackupDeps, RestoreDeps {
   readonly importEntry: (url: string) => Promise<unknown>;
   readonly fetch: (url: string, init: { signal: AbortSignal }) => Promise<Response>;
 }
@@ -38,11 +44,14 @@ const HEALTHCHECK_TIMEOUT_MS = 5_000;
 
 /** Runs the command in `args` and returns the exit code (0 ok, 1 failure, 2 usage). `web`/`worker` keep running. */
 export async function main(args: readonly string[], proc: LaunchProcess, deps: LaunchDeps): Promise<number> {
+  if (args[0] === 'restore') return runRestore(args.slice(1), proc.env, deps);
   const command = args.join(' ');
   try {
     switch (command) {
       case 'init':
         return await runInit(proc.env, deps);
+      case 'backup':
+        return await runBackup(proc.env, deps);
       case 'healthcheck web': {
         // The Nitro server listens on `PORT` too.
         const port = proc.env.PORT ?? '3000';

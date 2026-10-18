@@ -7,6 +7,8 @@
 # Start order: postgres → init (generates missing secrets into the `secrets` volume, creates the database roles, runs
 # migrations, exits) → valkey + seaweedfs → web + worker → caddy. Only caddy publishes ports (80/443). PostgreSQL,
 # Valkey, and SeaweedFS sit on the `internal` network, which has no route to the outside world.
+# Backups (docs/self-host/backup.md): `docker compose run --rm backup`, daily from a host timer; `backup` is not
+# started by `up`.
 # Requires Docker Engine 26+ and Compose 2.26+ (volume subpaths).
 
 name: write-financial
@@ -107,6 +109,42 @@ services:
       - secrets:/run/wf-secrets
     networks: [internal]
 
+  # Encrypted backups and restores (docs/self-host/backup.md), on demand only (profile): a host timer runs
+  # `docker compose run --rm backup` daily; `docker compose run --rm -T backup restore <archive> < backup.key` restores.
+  # Of the secrets volume it mounts only the database passwords and the S3 identity, never the KEK or the auth secret.
+  backup:
+    <<: *app
+    profiles: [backup]
+    command: ['backup']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    environment:
+      WF_SECRETS_DIR: /run/wf-secrets
+      # pg_dump reads every row as the superuser: FORCE ROW LEVEL SECURITY hides them from the tables' owner.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      S3_ENDPOINT: http://seaweedfs:8333
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - backups:/backups
+      - type: volume
+        source: secrets
+        target: /run/wf-secrets/postgres
+        read_only: true
+        volume:
+          subpath: postgres
+      - type: volume
+        source: secrets
+        target: /run/wf-secrets/s3
+        read_only: true
+        volume:
+          subpath: s3
+    networks: [internal]
+
   postgres:
     image: postgres:18.6
     restart: unless-stopped
@@ -194,8 +232,11 @@ networks:
     internal: true
 
 volumes:
-  # Generated secrets (KEK, passwords, keys). Back up the KEK from here; see docs/self-host/install.md.
+  # Generated secrets (KEK, passwords, keys). Back up the KEK and the auth secret from here; see
+  # docs/self-host/backup.md.
   secrets:
+  # Encrypted backup archives (wf-<UTC time>.tar.age), written by the `backup` service.
+  backups:
   postgres-data:
   valkey-data:
   seaweedfs-data:
