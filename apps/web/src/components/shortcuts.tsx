@@ -5,8 +5,9 @@
  * (FR-TB4). Bindings use the same key names as `<KbdHint>`:
  * - a chord contains a modifier and fires on its last key: `['mod', '.']` is ⌘. on Apple platforms, Ctrl+.
  *   elsewhere;
- * - otherwise the keys are a sequence typed within {@link SEQUENCE_TIMEOUT_MS}: `['G', 'R']`. Sequences are
- *   ignored while typing in a field.
+ * - otherwise the keys are a sequence typed within {@link SEQUENCE_TIMEOUT_MS} of each other: `['G', 'R']`.
+ *   Sequences are ignored while typing in a field. The gap is measured with `performance.now()` when the
+ *   handler runs, the clock tests can control.
  */
 import type { KbdKey, Platform } from '@wf/ui/kbd-hint';
 import { createContext, use, useEffect, useState, type ReactNode } from 'react';
@@ -67,8 +68,9 @@ export function ShortcutProvider({ platform, children }: { platform: Platform; c
         typed = [];
         return;
       }
-      if (event.timeStamp - lastKeyAt > SEQUENCE_TIMEOUT_MS) typed = [];
-      lastKeyAt = event.timeStamp;
+      const now = performance.now();
+      if (now - lastKeyAt > SEQUENCE_TIMEOUT_MS) typed = [];
+      lastKeyAt = now;
       typed.push(event.key.toLowerCase());
       // Compare against the tail of what was typed; indexes before the start read `undefined` and never match.
       const sequence = bindings.find(({ keys }) =>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { Platform } from '@wf/ui/kbd-hint';
 import { Component, useMemo, useState, type ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { render } from 'vitest-browser-react';
 import {
@@ -59,6 +59,15 @@ function keydown(key: string, init: KeyboardEventInit = {}, target: EventTarget 
 }
 
 describe('ShortcutProvider', () => {
+  // The sequence window is measured with `performance.now()`. Frozen here, so real keystrokes count as
+  // instantaneous however slowly the browser delivers them under load, and pauses are advanced explicitly.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['performance'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('fires a ⌘ chord on Apple platforms and swallows the browser default', async () => {
     const { peek } = await setup('mac');
     expect(keydown('.', { ctrlKey: true }).defaultPrevented).toBe(false);
@@ -93,10 +102,18 @@ describe('ShortcutProvider', () => {
     expect(overview).not.toHaveBeenCalled();
   });
 
+  it('accepts a pause of up to the timeout between the keys of a sequence', async () => {
+    const { overview } = await setup();
+    keydown('g');
+    vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS);
+    keydown('r');
+    expect(overview).toHaveBeenCalledOnce();
+  });
+
   it('forgets a pending sequence after the timeout', async () => {
     const { overview } = await setup();
     keydown('g');
-    await new Promise((resolve) => setTimeout(resolve, SEQUENCE_TIMEOUT_MS + 50));
+    vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS + 1);
     keydown('r');
     expect(overview).not.toHaveBeenCalled();
   });

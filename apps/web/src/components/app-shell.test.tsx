@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
 import { AppShell } from './app-shell.tsx';
@@ -41,7 +41,13 @@ describe('AppShell', () => {
   it('navigates with the G-letter shortcuts', async () => {
     await page.viewport(1440, 900);
     const { router } = await renderApp(shell, { path: '/other' });
-    await userEvent.keyboard('gr');
+    // Freeze the sequence clock (`performance.now()`) so slow key delivery cannot break `G R` apart.
+    vi.useFakeTimers({ toFake: ['performance'] });
+    try {
+      await userEvent.keyboard('gr');
+    } finally {
+      vi.useRealTimers();
+    }
     await expect.poll(() => router.state.location.pathname).toBe('/');
   });
 });
