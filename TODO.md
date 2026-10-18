@@ -9,7 +9,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Free + BYOK market data research
 - [x] Public repo, AGPL-3.0 license, secret scanning + push protection, Dependabot
 - [x] Google Cloud project `write-financial`: OAuth client, Gmail API, Pub/Sub topic `gmail-push`
-- [ ] Confirm runtime versions: Node 22 + pnpm 10
+- [ ] Confirm runtime versions: Node 24 LTS + pnpm 12 + TypeScript 6.0 (see implementation plan §2)
 - [ ] VPS details: specs, Postgres version, dedicated or shared Redis, Docker, disk encryption
 - [ ] DNS for `write.financial` and email provider (SPF/DKIM/DMARC) — before staging
 - [ ] Off-site backup bucket (Backblaze B2 / Cloudflare R2)
@@ -21,7 +21,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] pnpm + Turborepo monorepo, SPDX headers, `.nvmrc`, `.env.example`
 - [ ] CI: lint, typecheck, test, gitleaks, DCO check
 - [ ] Branch protection on `main` (PR required + CI passing)
-- [ ] Dev `docker-compose`: Postgres, Redis, SeaweedFS, Mailpit
+- [ ] Dev `docker-compose`: Postgres 18, Valkey 9, SeaweedFS, Mailpit
 - [ ] Drizzle + initial migrations with RLS and separate DB roles
 - [ ] `packages/crypto`: per-user KEK/DEK, log redaction
 - [ ] Better Auth: email/password, Google, 2FA (TOTP, backup codes, passkey), lockout, device list

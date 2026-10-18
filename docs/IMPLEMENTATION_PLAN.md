@@ -12,8 +12,8 @@ Changes from v1: the project is **open source (AGPL-3.0)** with two deployment m
 flowchart LR
   B[Desktop/tablet browser] -->|HTTPS| C[Caddy]
   C --> W[web: TanStack Start<br/>SSR + server functions]
-  W --> PG[(PostgreSQL 16<br/>RLS, LUKS volume)]
-  W --> R[(Redis 7)]
+  W --> PG[(PostgreSQL 18<br/>RLS, LUKS volume)]
+  W --> R[(Valkey 9 / Redis)]
   K[worker: BullMQ<br/>dispatcher + processors] --> R
   K --> PG
   K --> X[External APIs<br/>Frankfurter, CMC, BYOK, LLM, Gmail, SMTP]
@@ -31,29 +31,37 @@ flowchart LR
 
 ## 2. Stack
 
-| Layer | Choice | Notes |
+Versions checked against the npm registry, nodejs.org, and Docker Hub on 18 Oct 2026. Exact versions are pinned in the lockfile/compose at M0; Renovate/Dependabot keeps them current.
+
+| Layer | Choice (version) | Notes |
 |---|---|---|
-| Framework | TanStack Start (React 19, Vite) | `createServerFn` for typed RPC; SSR for first paint |
-| Routing / data | TanStack Router + TanStack Query | Loader prefetch + invalidation after mutations |
-| Form | TanStack Form + Zod | Zod schemas shared client/server |
-| Table | TanStack Table + TanStack Virtual | Ledger with thousands of rows, groups, subtotals |
-| UI primitives | Radix UI via shadcn/ui (copied into the repo) | Design token naming is already shadcn-style |
-| Styling | Tailwind CSS v4 (`@theme`) | Pencil tokens generated into dark/light CSS vars |
-| Icons / font | lucide-react, Geist + Geist Mono | Per the design |
-| Charts | Recharts + `d3-sankey` + custom SVG heatmap | 2-level Sankey on tablet (FR-TB2) |
-| Command palette, DnD, toast | `cmdk`, `@dnd-kit`, `sonner` | — |
-| Dates | `date-fns` + `@date-fns/tz` | Day/period boundaries per user time zone |
-| ORM / migrations | Drizzle ORM + drizzle-kit | `bigint` in `bigint` mode; RLS policies written in SQL migrations |
-| Auth | Better Auth: Google, email/password, **two-factor plugin (TOTP + backup codes)**, **passkey plugin**, rate limit | Drizzle adapter |
-| Crypto | `node:crypto` AES-256-GCM (envelope), `@node-rs/argon2`, `age` for backups | No home-grown crypto beyond a thin wrapper |
-| Queue | BullMQ (Redis `noeviction`) | `upsertJobScheduler` for the dispatcher |
-| PDF / Excel / CSV | Playwright-Chromium in the worker; `exceljs`; `papaparse` + `xlsx` in the browser | D4/D5 |
-| LLM | Vercel AI SDK + OpenAI-compatible provider | OpenRouter/ZenMux/custom; tool calling only produces drafts |
-| Email | Nodemailer (SMTP) or Resend | `Mailer` abstraction |
-| i18n | **Paraglide JS** (`@inlang/paraglide-js`) + inlang message format; `Intl.NumberFormat` / `DateTimeFormat` / `PluralRules` / `RelativeTimeFormat` | D26; locales `id` (source) + `en`; locale from user preference/cookie, no URL prefix |
-| Object storage | **SeaweedFS** (S3 API) + `@aws-sdk/client-s3`; `sharp` for re-encode/thumbnails | D25; replaceable with another S3 via `.env`. MinIO not used (archived) |
-| Observability | pino (secret redaction) + Bull Board (admin, 2FA) + optional GlitchTip | Scrubber before sending errors |
-| Test | Vitest, Playwright, Testcontainers Postgres | — |
+| Runtime | **Node.js 24 LTS** (24.22) | Active LTS. Node 22 is already in maintenance; Node 26 becomes LTS later this month and is adopted after its first LTS patch. Image: `node:24-bookworm-slim` |
+| Package manager / monorepo | **pnpm 12** (12.14), Turborepo 2.11 | Pinned via `packageManager`; installed with `npm i -g pnpm@12` (Corepack is no longer bundled from Node 25) |
+| Language | **TypeScript 6.0** (6.0.3) | TS 7.0 (native Go compiler) is released, but `typescript-eslint` 8.71 only supports TS < 6.1, so type-aware linting would break. Move to 7.x once typescript-eslint supports it |
+| Framework | TanStack Start 1.169 (React 19.3, **Vite 8**) | Start requires Vite ≥ 8; `createServerFn` for typed RPC; SSR for first paint |
+| Routing / data | TanStack Router 1.170 + TanStack Query 5.104 | Loader prefetch + invalidation after mutations |
+| Form | TanStack Form 1.33 + **Zod 4** (4.6) | Zod schemas shared client/server |
+| Table | **TanStack Table 9** (9.3) + TanStack Virtual 3.14 | v9 is the current major; ledger with thousands of rows, groups, subtotals |
+| UI primitives | shadcn CLI 4 + `radix-ui` 1.8 (unified package) | Components copied into the repo; design token naming is already shadcn-style |
+| Styling | Tailwind CSS 4.3 (`@theme`) | Pencil tokens generated into dark/light CSS vars |
+| Icons / font | lucide-react 1.59, `geist` 1.8 | Per the design |
+| Charts | **Recharts 3** (3.10) + `d3-sankey` 0.12 + custom SVG heatmap | `d3-sankey` is unchanged since 2022 but it is a small, stable layout library |
+| Command palette, DnD, toast | `cmdk` 1.1, `@dnd-kit/core` 6.3 + `@dnd-kit/sortable` 10, `sonner` 2 | dnd-kit's stable line has had no release since Dec 2024; its successor `@dnd-kit/react` is still 0.x. Kept for built-in keyboard sorting and screen-reader announcements; switch to `@dnd-kit/react` at 1.0 |
+| Dates | `date-fns` 4.4 + `@date-fns/tz` 1.5 | Day/period boundaries per user time zone |
+| Database | **PostgreSQL 18** (18.6) | Native `uuidv7()` (no extension needed for UUID v7 IDs), RLS, `pg_trgm`. Driver `postgres` (postgres.js) 3.4 |
+| ORM / migrations | Drizzle ORM 0.45 + drizzle-kit 0.31 (stable) | 1.0 is at RC (rc.5). Stay on stable; Better Auth already supports both, so upgrade at 1.0 GA. RLS policies in SQL migrations |
+| Auth | Better Auth 1.7: Google, email/password, **two-factor plugin**, **`@better-auth/passkey`**, rate limit | Drizzle adapter |
+| Crypto | `node:crypto` AES-256-GCM (envelope), `@node-rs/argon2` 2.2, `age` for backups | No home-grown crypto beyond a thin wrapper |
+| Queue / cache | **BullMQ 6** (6.3) + ioredis 6 on **Valkey 9** (9.2) | Valkey is BSD-licensed and drop-in for Redis; the self-host compose ships Valkey. Any Redis ≥ 7 / Valkey works (the existing VPS Redis is fine if it can use `noeviction`) |
+| PDF / Excel / CSV | Playwright 1.64 Chromium in the worker; **SheetJS CE 0.20.3** (from `cdn.sheetjs.com`, not npm) for XLSX read + write; `papaparse` 5.7 for CSV | The npm `xlsx` package is stuck at 0.18.5 with known advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9). `exceljs` dropped: no release since Dec 2024 |
+| LLM | Vercel **AI SDK 7** (7.0) + OpenAI-compatible provider | OpenRouter/ZenMux/custom; tool calling only produces drafts |
+| Email | Nodemailer 10 (SMTP) or Resend 6; templates with React Email 1.0 | `Mailer` abstraction; templates rendered per user locale |
+| i18n | **Paraglide JS 2** (2.29) + inlang message format; `Intl.*` APIs | D26; locales `id` (source) + `en`; locale from user preference/cookie, no URL prefix |
+| Object storage | **SeaweedFS 4** (4.48, S3 API) + `@aws-sdk/client-s3` 3; `sharp` 0.35 for re-encode/thumbnails | D25; replaceable with another S3 via `.env`. MinIO not used (archived) |
+| Reverse proxy | Caddy 2.11 | Automatic TLS |
+| Observability | pino 10 (secret redaction) + Bull Board (admin, 2FA) + optional GlitchTip | Scrubber before sending errors |
+| Lint / format | ESLint 10 + typescript-eslint 8 (custom rules: no hard-coded UI text, `<Money>` only, import boundaries) + Prettier | Biome/oxlint are faster but cannot host the custom type-aware rules yet |
+| Test | **Vitest 5**, Playwright 1.64, Testcontainers 12 | — |
 
 ## 3. Repo structure (pnpm workspaces + Turborepo)
 
@@ -74,7 +82,7 @@ packages/
 tools/tokens-from-pen/ reads design file variables → packages/ui/src/tokens.css (output is committed; the .pen file is private, not in the repo)
 deploy/
   docker/              multi-stage Dockerfile (single image: web | worker | migrate via argument)
-  compose/             self-host docker-compose.yml (app, worker, postgres, redis, seaweedfs, caddy) + .env.example
+  compose/             self-host docker-compose.yml (app, worker, postgres:18, valkey:9, seaweedfs, caddy) + .env.example
   cloud/               write.financial instance configuration (no secrets)
 design/                digest (in git) + html export (in .gitignore)
 docs/                  PRD, plan, research; docs/self-host/ (installation, upgrade, backups, Gmail, data sources)
@@ -317,7 +325,7 @@ flowchart LR
 
 ## 10. Deploying on a VPS
 
-- **Self-host (official):** `docker compose up -d` from `deploy/compose/`: `app` (web), `worker`, `postgres`, `redis`, `seaweedfs` (master + volume + filer + S3 in one process, S3 port only on the internal Docker network), `caddy` (automatic TLS). Data in named volumes; the guide recommends encrypted disks and off-site backups. Operators who already run Postgres/Redis/S3 can point to them via `.env`.
+- **Self-host (official):** `docker compose up -d` from `deploy/compose/`: `app` (web), `worker`, `postgres` (18), `valkey` (9, Redis-compatible), `seaweedfs` (master + volume + filer + S3 in one process, S3 port only on the internal Docker network), `caddy` (automatic TLS). Data in named volumes; the guide recommends encrypted disks and off-site backups. Operators who already run Postgres/Redis/Valkey/S3 can point to them via `.env`.
 - **write.financial cloud:** same image + SeaweedFS on the VPS (listening on `127.0.0.1`). The current VPS uses the existing Postgres/Redis; `web` (2 instances) + `worker` as containers (or PM2 for non-container builds), Caddy in front. Postgres/Redis/SeaweedFS listen only on `127.0.0.1`/private network.
 - **Storage:** Postgres data, Redis AOF, and SeaweedFS volumes on **LUKS** volumes. Swap disabled or encrypted.
 - **SeaweedFS:** app-specific S3 credentials (access only to `wf-*` buckets), replication `000` on single-node (backups protect the data, not replication), filer metadata on local disk; image version pinned and updated through write.financial releases.

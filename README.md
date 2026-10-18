@@ -29,8 +29,9 @@ An open-source web app for **tracking personal finances and assets**, available 
 
 | Part | Technology |
 |---|---|
-| Web | TanStack Start (React), TanStack Router/Query/Form/Table, Tailwind CSS v4, shadcn/ui |
-| Data | PostgreSQL (Drizzle ORM, RLS), Redis |
+| Runtime | Node.js 24 LTS, pnpm 12, TypeScript 6 |
+| Web | TanStack Start (React 19, Vite 8), TanStack Router/Query/Form/Table, Tailwind CSS v4, shadcn/ui |
+| Data | PostgreSQL 18 (Drizzle ORM, RLS), Valkey (Redis-compatible) |
 | Worker & scheduling | BullMQ (separate process) |
 | Files & images | SeaweedFS (S3 API, replaceable with any S3) |
 | Auth | Better Auth (Google, email/password, 2FA, passkey) |
