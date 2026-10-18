@@ -9,6 +9,9 @@
   },
   "scripts": {
     "prepare": "[ -n \"${CI:-}\" ] || [ \"$(git rev-parse --is-inside-work-tree 2>/dev/null)\" != true ] || git config core.hooksPath .githooks",
+    "dev:up": "docker compose -f deploy/dev/compose.yaml up -d --wait",
+    "dev:down": "docker compose -f deploy/dev/compose.yaml down",
+    "dev:reset": "docker compose -f deploy/dev/compose.yaml down -v",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

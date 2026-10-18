@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "wf-dev",
+      "credentials": [
+        {
+          "accessKey": "wf-dev-only-access-key",
+          "secretKey": "wf-dev-only-secret-key-not-for-production"
+        }
+      ],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    }
+  ]
+}

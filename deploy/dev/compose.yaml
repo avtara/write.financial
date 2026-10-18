@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Local development services for write.financial. NOT for production or self-hosting
+# (that compose lives in deploy/compose/).
+#
+#   pnpm dev:up     start everything and wait until healthy
+#   pnpm dev:down   stop (keeps data)
+#   pnpm dev:reset  stop and delete all data volumes
+#
+# Every password and key in this file is a DEV-ONLY value, also used in .env.example.
+# Never reuse them anywhere reachable from a network. All ports are bound to 127.0.0.1;
+# override a host port with e.g. `WF_DEV_POSTGRES_PORT=55432 pnpm dev:up` if it is taken.
+
+name: wf-dev
+
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: wf-dev-only-postgres # DEV-ONLY
+      POSTGRES_DB: write_financial
+    ports:
+      - '127.0.0.1:${WF_DEV_POSTGRES_PORT:-5432}:5432'
+    volumes:
+      # Postgres 18 images keep PGDATA in a versioned subdirectory of /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d write_financial']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  valkey:
+    image: valkey/valkey:9.2
+    command:
+      - valkey-server
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - 'yes'
+      - --requirepass
+      - wf-dev-only-valkey # DEV-ONLY
+    environment:
+      REDISCLI_AUTH: wf-dev-only-valkey # DEV-ONLY, lets the healthcheck authenticate
+    ports:
+      - '127.0.0.1:${WF_DEV_VALKEY_PORT:-6379}:6379'
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'valkey-cli ping | grep -q PONG']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Single node: master + volume + filer + S3 gateway in one process (D25). start.sh also
+  # creates the app buckets on every start (idempotent); the container only reports healthy
+  # once they exist, so `pnpm dev:up` returns with the buckets ready.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    entrypoint: ['/bin/sh', '/init/start.sh']
+    ports:
+      # Only the S3 API is published; master/volume/filer stay on the compose network.
+      - '127.0.0.1:${WF_DEV_S3_PORT:-8333}:8333'
+    volumes:
+      - seaweedfs-data:/data
+      - ./seaweedfs/start.sh:/init/start.sh:ro
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro # DEV-ONLY credentials
+    healthcheck:
+      test: ['CMD-SHELL', 'test -f /tmp/wf-buckets-ready && wget -q -O /dev/null http://127.0.0.1:8333/healthz']
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    ports:
+      - '127.0.0.1:${WF_DEV_SMTP_PORT:-1025}:1025'
+      - '127.0.0.1:${WF_DEV_MAILPIT_UI_PORT:-8025}:8025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-data:
+  valkey-data:
+  seaweedfs-data:
