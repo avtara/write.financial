@@ -329,7 +329,8 @@ flowchart LR
 - **Existence check:** `pnpm check:test-files` (`tools/repo-checks`) fails if any `src/**/*.ts(x)` file has no co-located `*.test.ts(x)`.
 - **Exclusions (single shared list in `vitest.config.ts`, reviewed in PRs):** generated Paraglide runtime, generated code, `*.d.ts`; tool config files sit outside `src/`. The `wf/no-unjustified-coverage-ignore` ESLint rule rejects `v8`/`c8`/`istanbul ignore` comments unless they carry `-- <reason>` and an issue reference (`#123`).
 - **Meaningful tests:** mutation testing with Stryker (`pnpm test:mutation`) on `packages/domain` and `packages/crypto`, score ≥ 90%, on every CI run. It uses Stryker's command runner with `vitest.mutation.config.ts`, because `@stryker-mutator/vitest-runner` 10.0.0 never activates runtime mutants under Vitest 5 (every mutant "survives"). Assertions target behavior, not implementation details or snapshots of whole components.
-- **Local loop:** `pnpm test` (watch), `pnpm test:unit` (same gate as CI), `pnpm check` (every static check plus the unit gate).
+- **Local loop:** `pnpm test` (watch), `pnpm test:unit` (same gate as CI), `pnpm test:integration`, `pnpm check` (every static check plus the unit gate).
+- **File naming:** `foo.test.ts(x)` = unit test (Vitest project `unit`, counts toward the gate); `foo.integration.test.ts` = integration test against real services (project `integration`, Testcontainers, CI job "Integration tests"). An integration test never replaces the co-located unit test.
 
 ### 9.2 Integration, E2E, and other tests (in addition to unit tests)
 - **Server (Vitest + Testcontainers):** generic tenant isolation tests across all server functions **and** raw queries without `app.user_id` (must return 0 rows); mandatory-2FA tests for sensitive actions (FR-A9); tests that API responses never include `_enc` fields or full keys.
