@@ -1,0 +1,32 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Pre-commit secret scan (PRD §9.1 "Open source"): blocks a commit whose staged changes contain a
+# secret. Uses the same gitleaks version and config as the CI "Secret scan (gitleaks)" job.
+# Installed by `pnpm install` (root `prepare` script sets `core.hooksPath` to `.githooks`).
+# Runner order: local `gitleaks` binary → Docker image → warning (CI still scans every push).
+
+set -eu
+
+GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
+
+root=$(git rev-parse --show-toplevel)
+
+if command -v gitleaks >/dev/null 2>&1; then
+  exec gitleaks git --staged --config "$root/.gitleaks.toml" --redact --verbose "$root"
+fi
+
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  # Mount the work tree and the shared git directory at their host paths, so linked worktrees
+  # (whose `.git` file points into the main repository's `.git/worktrees/`) resolve inside the container.
+  common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
+  exec docker run --rm \
+    -v "$root:$root" \
+    -v "$common_dir:$common_dir" \
+    -w "$root" \
+    "$GITLEAKS_IMAGE" git --staged --config "$root/.gitleaks.toml" --redact --verbose "$root"
+fi
+
+echo "pre-commit: WARNING: secret scan skipped. Install gitleaks v8.30.1 or start Docker to scan staged changes locally." >&2
+echo "pre-commit: CI still runs gitleaks on every push and pull request." >&2
+exit 0
