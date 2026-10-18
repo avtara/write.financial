@@ -90,3 +90,23 @@ describe('list', () => {
     await expect(events.list(alice, { limit: 1, before: "' or 1=1" })).rejects.toThrow('before must be an event id');
   });
 });
+
+describe('signInHistory', () => {
+  const asAuth = <T>(fn: () => Promise<T>) => test.as('wf_auth', fn);
+
+  it('tells a first sign-in, a known device, and a new device apart, per user', async () => {
+    expect(await asAuth(() => events.signInHistory(alice, 'laptop'))).toEqual({
+      hasSignedIn: false,
+      knownDevice: false,
+    });
+    await asAuth(() =>
+      events.append(alice, { type: 'sign_in', ipHash: null, userAgent: null, meta: { device: 'laptop' } }),
+    );
+    await asAuth(() =>
+      events.append(alice, { type: 'sign_out', ipHash: null, userAgent: null, meta: { device: 'phone' } }),
+    );
+    expect(await asAuth(() => events.signInHistory(alice, 'laptop'))).toEqual({ hasSignedIn: true, knownDevice: true });
+    expect(await asAuth(() => events.signInHistory(alice, 'phone'))).toEqual({ hasSignedIn: true, knownDevice: false });
+    expect(await asAuth(() => events.signInHistory(bob, 'laptop'))).toEqual({ hasSignedIn: false, knownDevice: false });
+  });
+});

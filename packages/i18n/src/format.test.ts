@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import * as money from '@wf/domain/money';
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateRange, formatMoney, formatNumber, formatPercent, MINUS } from './format.ts';
+import {
+  formatDate,
+  formatDateRange,
+  formatDateTime,
+  formatMoney,
+  formatNumber,
+  formatPercent,
+  MINUS,
+} from './format.ts';
 
 /** Calendar date as the domain passes it: `LocalDate` at UTC midnight. */
 const day = (iso: string): Date => new Date(`${iso}T00:00:00Z`);
@@ -77,6 +85,16 @@ describe('formatDate', () => {
     const instant = new Date('2026-10-14T20:00:00Z');
     expect(formatDate(instant, 'id')).toBe('14 Okt 2026');
     expect(formatDate(instant, 'id', { timeZone: 'Asia/Jakarta' })).toBe('15 Okt 2026');
+  });
+});
+
+describe('formatDateTime', () => {
+  const instant = new Date('2026-10-14T20:05:00Z');
+
+  it('shows the instant in the given zone with a 24-hour clock and the zone name', () => {
+    expect(formatDateTime(instant, 'id', 'Asia/Jakarta')).toBe('15 Okt 2026, 03.05 WIB');
+    expect(formatDateTime(instant, 'id', 'Asia/Makassar')).toBe('15 Okt 2026, 04.05 WITA');
+    expect(formatDateTime(instant, 'en', 'UTC')).toBe('Oct 14, 2026, 20:05 UTC');
   });
 });
 

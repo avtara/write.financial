@@ -80,6 +80,23 @@ export function formatDate(date: Date, locale: Locale, options: FormatDateOption
 }
 
 /**
+ * An instant with its time and zone, e.g. in security emails: `15 Okt 2026, 03.05 WIB` (id) /
+ * `Oct 15, 2026, 03:05 GMT+7` (en). 24-hour clock in both locales.
+ */
+export function formatDateTime(date: Date, locale: Locale, timeZone: string): string {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone,
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+/**
  * Formats an inclusive date range the way the design writes it: `25 Sep – 24 Okt 2026`,
  * `1–31 Okt 2026`, `25 Nov 2026 – 25 Okt 2027` (id); `Sep 25 – Oct 24, 2026` (en).
  * ICU puts thin spaces around the dash; the design uses normal spaces.

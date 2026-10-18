@@ -26,10 +26,12 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./roles`                                       | `ROLES`, `bootstrapRoles(superuserUrl, passwords)`                                                      |
 | `./migrate`                                     | `migrate(migrateUrl)` (advisory-locked, one transaction)                                                |
 | `./user-keys`                                   | `createUserKeys(db, keyring)` → `getOrCreateDek(userId)`, `rewrapAll()`                                 |
-| `./security-events`                             | `createSecurityEvents(db)` → `append(userId, event)`, `list(userId, { limit, before? })`                |
+| `./security-events`                             | `createSecurityEvents(db)` → `append(userId, event)`, `list(userId, { limit, before? })`, `signInHistory(userId, device)`                |
 | `./preferences`                                 | `createPreferences(db)` → `get(userId)`, `update(userId, patch)`                                        |
 | `./instance-settings`                           | `createInstanceSettings(db, keyring)` → `get()`, `updateSetup(adminUserId, input)`, `smtpPassword()`    |
 | `./entitlements`                                | `createEntitlements(db)` → `can(userId, feature)`                                                       |
+| `./invitations` | `createInvitations(db)` → `create(adminUserId, …)` (`wf_app`), `isUsable`, `claim`, `claimForEmail` (`wf_auth`) |
+| `./testing` | Test-only: PGlite helpers (`startMigrated`, `insertUser`, …) for other packages' unit tests |
 | `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)` (worker only, via `wf_maintenance_purge_auth`)       |
 
 Repositories take `userId` from the caller's session or job, never from request input, and run every query through

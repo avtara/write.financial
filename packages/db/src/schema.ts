@@ -231,6 +231,10 @@ export const userKeys = pgTable(
 
 export const SECURITY_EVENT_TYPES = [
   'sign_in',
+  /** Wrong password or second factor for an existing account (FR-A2). */
+  'sign_in_failed',
+  /** Too many failed attempts; `meta.lockedUntil` says until when (FR-A2). */
+  'account_locked',
   'sign_out',
   'session_revoked',
   'password_changed',
