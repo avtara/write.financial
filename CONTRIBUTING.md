@@ -22,6 +22,8 @@ fnm use            # or: nvm use
 pnpm install       # also installs the git hooks (see "Secret scanning" below)
 cp .env.example .env
 pnpm dev:up        # Postgres, Valkey, SeaweedFS, and Mailpit in Docker (stop with pnpm dev:down, wipe with pnpm dev:reset)
+pnpm --filter @wf/db db:bootstrap   # database roles, once per database (uses DATABASE_URL_SUPERUSER from .env)
+pnpm --filter @wf/db db:migrate     # tables, Row-Level Security, seed rows
 pnpm check         # everything CI checks before the slower jobs
 ```
 

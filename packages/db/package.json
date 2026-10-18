@@ -1,0 +1,40 @@
+{
+  "name": "@wf/db",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    "./schema": "./src/schema.ts",
+    "./db": "./src/db.ts",
+    "./roles": "./src/roles.ts",
+    "./migrate": "./src/migrate.ts",
+    "./user-keys": "./src/user-keys.ts",
+    "./security-events": "./src/security-events.ts",
+    "./preferences": "./src/preferences.ts",
+    "./instance-settings": "./src/instance-settings.ts",
+    "./entitlements": "./src/entitlements.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "generate": "drizzle-kit generate",
+    "db:bootstrap": "node --env-file-if-exists=../../.env src/cli.ts bootstrap",
+    "db:migrate": "node --env-file-if-exists=../../.env src/cli.ts migrate",
+    "db:rewrap-keys": "node --env-file-if-exists=../../.env src/cli.ts rewrap-keys"
+  },
+  "dependencies": {
+    "@wf/config": "workspace:*",
+    "@wf/crypto": "workspace:*",
+    "@wf/domain": "workspace:*",
+    "@wf/i18n": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@electric-sql/pglite-socket": "^0.2.13",
+    "@testcontainers/postgresql": "^12.2.1",
+    "drizzle-kit": "^0.31.11",
+    "testcontainers": "^12.2.1"
+  }
+}

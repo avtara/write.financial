@@ -37,8 +37,14 @@ export interface Config {
     readonly appUrl: string;
     /** `wf_worker` role. */
     readonly workerUrl: string;
+    /** `wf_auth` role, used only by the auth module (Better Auth reads sessions before a user is known). */
+    readonly authUrl: string;
     /** `wf_migrate` role; only the migrate process needs it, so it is optional here. */
     readonly migrateUrl: string | null;
+    /** A superuser; only `wf-db bootstrap` needs it to create the roles above. */
+    readonly superuserUrl: string | null;
+    /** `wf_readonly_ops` role for operators; `wf-db bootstrap` takes its password from here (no login when unset). */
+    readonly readonlyOpsUrl: string | null;
   };
   readonly redis: { readonly url: string };
   readonly s3: {
@@ -119,7 +125,10 @@ const schema = z.object({
   PUBLIC_URL: url(HTTP),
   DATABASE_URL: url(POSTGRES),
   DATABASE_URL_WORKER: url(POSTGRES),
+  DATABASE_URL_AUTH: url(POSTGRES),
   DATABASE_URL_MIGRATE: url(POSTGRES).optional(),
+  DATABASE_URL_SUPERUSER: url(POSTGRES).optional(),
+  DATABASE_URL_READONLY_OPS: url(POSTGRES).optional(),
   REDIS_URL: url(['redis:', 'rediss:']),
   S3_ENDPOINT: url(HTTP),
   S3_REGION: required().default('us-east-1'),
@@ -154,7 +163,10 @@ const KEYS = Object.keys(schema.shape) as Key[];
 const SECRET_KEYS: Partial<Record<Key, true>> = {
   DATABASE_URL: true,
   DATABASE_URL_WORKER: true,
+  DATABASE_URL_AUTH: true,
   DATABASE_URL_MIGRATE: true,
+  DATABASE_URL_SUPERUSER: true,
+  DATABASE_URL_READONLY_OPS: true,
   REDIS_URL: true,
   S3_ACCESS_KEY_ID: true,
   S3_SECRET_ACCESS_KEY: true,
@@ -244,7 +256,10 @@ function toConfig(env: Env): Config {
     db: {
       appUrl: env.DATABASE_URL,
       workerUrl: env.DATABASE_URL_WORKER,
+      authUrl: env.DATABASE_URL_AUTH,
       migrateUrl: env.DATABASE_URL_MIGRATE ?? null,
+      superuserUrl: env.DATABASE_URL_SUPERUSER ?? null,
+      readonlyOpsUrl: env.DATABASE_URL_READONLY_OPS ?? null,
     },
     redis: { url: env.REDIS_URL },
     s3: {
