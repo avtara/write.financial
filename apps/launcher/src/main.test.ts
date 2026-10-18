@@ -28,6 +28,7 @@ function fakeDeps(overrides: Partial<LaunchDeps> = {}) {
     bootstrapRoles: vi.fn(() => Promise.resolve()),
     migrate: vi.fn(() => Promise.resolve()),
     sleep: vi.fn(() => Promise.resolve()),
+    setupPending: vi.fn(() => Promise.resolve(true)),
     output: { log: vi.fn(), error: (message: string) => errors.push(message) },
     ...overrides,
   };

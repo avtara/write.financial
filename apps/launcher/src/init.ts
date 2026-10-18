@@ -6,12 +6,14 @@
  * 2. Validates the web/worker configuration, so a bad `.env` fails here instead of in a restart loop.
  * 3. Waits for PostgreSQL, creates/updates the database roles as the superuser (`POSTGRES_USER`, default `postgres`,
  *    with `POSTGRES_PASSWORD`), and applies pending migrations as `wf_migrate`.
+ * 4. While the first-run setup is pending, prints the setup URL with the one-time setup token, on every run. This is
+ *    the one secret init shows: the operator needs it to open the setup wizard. Once setup is done, nothing is shown.
  */
 import path from 'node:path';
 import { loadConfig } from '@wf/config';
 import { ROLES, type RolePasswords } from '@wf/db/roles';
 import { postgresUrl, secretsEnv, setting, LaunchConfigError, type Env } from './env.ts';
-import { dbPassword, ensureSecrets, KEK, readSecret } from './secrets.ts';
+import { dbPassword, ensureSecrets, KEK, readSecret, SETUP_TOKEN } from './secrets.ts';
 
 export interface Output {
   log(message: string): void;
@@ -25,6 +27,8 @@ export interface InitDeps {
   readonly migrate: (migrateUrl: string) => Promise<void>;
   /** `setTimeout` from `node:timers/promises`. */
   readonly sleep: (ms: number) => Promise<unknown>;
+  /** `isSetupPending` from `@wf/db/setup-status`. */
+  readonly setupPending: (migrateUrl: string) => Promise<boolean>;
   readonly output: Output;
 }
 
@@ -59,6 +63,20 @@ export function kekNotice(kekFile: string): string {
   ].join('\n');
 }
 
+export function setupNotice(setupUrl: string): string {
+  const rule = '='.repeat(100);
+  return [
+    rule,
+    'First-run setup is pending. Open this URL to create the admin account and configure the instance:',
+    '',
+    `  ${setupUrl}`,
+    '',
+    'Keep it private: whoever opens it first can set up this instance. It is shown on every start until setup is',
+    'complete.',
+    rule,
+  ].join('\n');
+}
+
 /** Runs `init` and returns the process exit code: 0 done, 1 failed. */
 export async function runInit(env: Env, deps: InitDeps): Promise<number> {
   const { output } = deps;
@@ -80,7 +98,7 @@ export async function runInit(env: Env, deps: InitDeps): Promise<number> {
     );
     if (created.includes(KEK)) output.log(kekNotice(path.join(dir, KEK)));
 
-    loadConfig({ ...env, ...(await secretsEnv(env)) });
+    const config = loadConfig({ ...env, ...(await secretsEnv(env)) });
 
     const password = (role: keyof typeof ROLES) => readSecret(path.join(dir, dbPassword(ROLES[role])));
     const passwords: RolePasswords = {
@@ -103,8 +121,14 @@ export async function runInit(env: Env, deps: InitDeps): Promise<number> {
       }
     }
     output.log(`Database roles ${Object.values(ROLES).join(', ')} are up to date.`);
-    await deps.migrate(postgresUrl(env, ROLES.migrate, passwords.migrate));
-    output.log('Migrations are up to date. init is done.');
+    const migrateUrl = postgresUrl(env, ROLES.migrate, passwords.migrate);
+    await deps.migrate(migrateUrl);
+    output.log('Migrations are up to date.');
+    if (await deps.setupPending(migrateUrl)) {
+      const token = await readSecret(path.join(dir, SETUP_TOKEN));
+      output.log(setupNotice(`${config.publicUrl.replace(/\/$/, '')}/setup?token=${encodeURIComponent(token)}`));
+    }
+    output.log('init is done.');
     return 0;
   } catch (error) {
     output.error(`init failed: ${String(error)}`);

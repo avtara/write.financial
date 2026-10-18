@@ -64,6 +64,11 @@ export interface Config {
     readonly kekFile: string;
   };
   readonly auth: { readonly secret: string };
+  /**
+   * One-time token that unlocks the first-run setup wizard (FR-OP1) while setup is pending; `null` when not configured.
+   * The self-host `init` generates it and prints the setup URL; see apps/launcher/src/init.ts.
+   */
+  readonly setup: { readonly token: string | null };
   /** `null` when SMTP is not configured through the environment. */
   readonly mail: { readonly smtpUrl: string; readonly from: string } | null;
   /** `null` when Google sign-in is not configured through the environment. */
@@ -140,6 +145,7 @@ const schema = z.object({
   S3_BUCKET_EXPORTS: bucket('wf-exports'),
   KEK_FILE: required(),
   AUTH_SECRET: required().min(32, { error: 'must be at least 32 characters' }),
+  SETUP_TOKEN: required().min(22, { error: 'must be at least 22 characters' }).optional(),
   SMTP_URL: url(['smtp:', 'smtps:']).optional(),
   MAIL_FROM: mailbox.optional(),
   GOOGLE_CLIENT_ID: required().optional(),
@@ -171,6 +177,7 @@ const SECRET_KEYS: Partial<Record<Key, true>> = {
   S3_ACCESS_KEY_ID: true,
   S3_SECRET_ACCESS_KEY: true,
   AUTH_SECRET: true,
+  SETUP_TOKEN: true,
   SMTP_URL: true,
   GOOGLE_CLIENT_SECRET: true,
   CMC_API_KEY: true,
@@ -276,6 +283,7 @@ function toConfig(env: Env): Config {
     },
     crypto: { kekFile: env.KEK_FILE },
     auth: { secret: env.AUTH_SECRET },
+    setup: { token: env.SETUP_TOKEN ?? null },
     mail: env.SMTP_URL === undefined ? null : { smtpUrl: env.SMTP_URL, from: env.MAIL_FROM as string },
     google:
       env.GOOGLE_CLIENT_ID === undefined

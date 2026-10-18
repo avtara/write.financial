@@ -16,6 +16,7 @@
     "./entitlements": "./src/entitlements.ts",
     "./maintenance": "./src/maintenance.ts",
     "./invitations": "./src/invitations.ts",
+    "./setup-status": "./src/setup-status.ts",
     "./testing": "./test/pglite.ts"
   },
   "scripts": {

@@ -5,6 +5,7 @@
  *
  *   kek                       key-encryption key (`@wf/crypto/keyring` format)
  *   auth_secret               AUTH_SECRET
+ *   setup-token               SETUP_TOKEN: unlocks the first-run setup wizard; init prints it while setup is pending
  *   postgres/<role>           password of each database role (`ROLES` in `@wf/db/roles`)
  *   valkey/password           Valkey `requirepass`; the valkey container mounts only `valkey/`
  *   s3/access_key_id          SeaweedFS S3 identity of the app; the seaweedfs container mounts only `s3/`
@@ -18,6 +19,7 @@ import { ROLES, type RoleName } from '@wf/db/roles';
 
 export const KEK = 'kek';
 export const AUTH_SECRET = 'auth_secret';
+export const SETUP_TOKEN = 'setup-token';
 export const VALKEY_PASSWORD = 'valkey/password';
 export const S3_ACCESS_KEY_ID = 's3/access_key_id';
 export const S3_SECRET_ACCESS_KEY = 's3/secret_access_key';
@@ -30,6 +32,7 @@ export function dbPassword(role: RoleName): string {
 export const SECRETS: readonly string[] = [
   KEK,
   AUTH_SECRET,
+  SETUP_TOKEN,
   ...Object.values(ROLES).map(dbPassword),
   VALKEY_PASSWORD,
   S3_ACCESS_KEY_ID,
