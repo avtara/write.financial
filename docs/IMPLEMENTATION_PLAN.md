@@ -61,7 +61,7 @@ Versions checked against the npm registry, nodejs.org, and Docker Hub on 18 Oct 
 | Reverse proxy | Caddy 2.11 | Automatic TLS |
 | Observability | pino 10 (secret redaction) + Bull Board (admin, 2FA) + optional GlitchTip | Scrubber before sending errors |
 | Lint / format | ESLint 10 + typescript-eslint 8 (custom rules: no hard-coded UI text, `<Money>` only, import boundaries) + Prettier | Biome/oxlint are faster but cannot host the custom type-aware rules yet |
-| Test | **Vitest 5**, Playwright 1.64, Testcontainers 12 | — |
+| Test | **Vitest 5** + `@vitest/coverage-v8` 5 (100% per-file gate, D27), Vitest browser mode + `vitest-browser-react` 2 / Testing Library 16, `msw` 3, `fast-check` 4, **Stryker** 10 (mutation, domain/crypto), Playwright 1.64, Testcontainers 12 | Unit tests are mandatory for every step; see §9 |
 
 ## 3. Repo structure (pnpm workspaces + Turborepo)
 
@@ -222,7 +222,7 @@ Worker principles: transactional processors; 5× exponential retry; job payloads
 
 ## 8. Milestones
 
-Each milestone can be deployed to staging and demoed. **Exit** criteria must pass.
+Each milestone can be deployed to staging and demoed. **Exit** criteria must pass, and **every milestone (and every PR inside it) also requires the D27 unit test gate: tests for all new/changed code and 100% per-file coverage in every package** (§9.1).
 
 ### M0 — Secure foundation
 - Monorepo, CI (typecheck, lint + custom rules, Vitest, Playwright smoke, dependency & secret scanning), env schema.
@@ -236,7 +236,7 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 - Public repo: `LICENSE` AGPL-3.0-only (already present), `SPDX-License-Identifier: AGPL-3.0-only` header in every source file (lint-checked), SECURITY.md, CONTRIBUTING.md with **DCO** (`git commit -s`, CI-checked), TRADEMARK.md, secret scanning (CI + pre-commit), image releases to GHCR with SBOM.
 - Cloud staging: Caddy (TLS, HSTS, CSP), encrypted volume, `age` backups + off-site.
 
-**Exit:** on a clean machine, `docker compose up` → setup wizard → admin login + 2FA in ≤ 15 minutes (G5); **tenant isolation test** (user B cannot read A's data, either via the API or via direct queries without `app.user_id`, including downloading A's objects by guessing keys); DB dumps and SeaweedFS bucket contents contain no plaintext secrets/images; encrypted backup restore (DB + objects) tested; golden tests pass; CI rejects commits containing secrets.
+**Exit:** on a clean machine, `docker compose up` → setup wizard → admin login + 2FA in ≤ 15 minutes (G5); **tenant isolation test** (user B cannot read A's data, either via the API or via direct queries without `app.user_id`, including downloading A's objects by guessing keys); DB dumps and SeaweedFS bucket contents contain no plaintext secrets/images; encrypted backup restore (DB + objects) tested; golden tests pass; CI rejects commits containing secrets; **the 100% unit coverage gate (D27) is active in CI and green for every package, including the scaffold itself**.
 
 ### M1 — Ledger
 - 5-step onboarding (FR-A4); accounts + reconciliation (FR-R1–R6); categories + tags (FR-K1–K3).
@@ -316,12 +316,30 @@ flowchart LR
 
 ## 9. Testing strategy
 
-- **Domain (Vitest):** golden tests from the seed + Section 19; property tests for `money`, `period`, `debt`, `receivables` (Σ payments ≤ principal).
+**Rule for every step (D27):** no task, PR, or milestone item is done without unit tests, and every package stays at **100% unit coverage per file** (lines, branches, functions, statements). This is part of every milestone's exit criteria, in addition to the criteria listed in §8.
+
+### 9.1 Unit tests (100% gate)
+- **Runner:** Vitest 5 workspace (`vitest.workspace.ts`) with one project per package; `@vitest/coverage-v8`; `coverage.thresholds: { 100: true, perFile: true }`; `coverage.all: true` so untested files count as 0%.
+- **Per layer:**
+  - `packages/domain`, `packages/crypto`, `packages/i18n` formatters: pure unit tests + golden tests from the seed and Section 19 + property tests (`fast-check`) for `money`, `period`, `debt`, `receivables` (Σ payments ≤ principal).
+  - `packages/db` repositories and `apps/worker` processors: unit tests against fakes of their ports (repository interfaces, clock, queue, object store, HTTP); the real Postgres/Valkey/SeaweedFS paths are covered by integration tests (§9.2).
+  - `packages/integrations` adapters (market, fx, llm, gmail, mailer, objectstore): recorded HTTP fixtures via `msw`, including 401/403/429/5xx/timeout branches.
+  - `apps/web` components and routes: Vitest browser mode (Playwright provider) + Testing Library; every state (loading, refreshing, error, empty, offline), both locales (`id`, `en`), privacy mode on/off.
+  - Server functions: input validation, auth/2FA guards, and error branches tested with injected dependencies.
+- **Existence check:** a CI script fails if any `src/**/*.ts(x)` file has no co-located `*.test.ts(x)`.
+- **Exclusions (single shared list, reviewed in PRs):** generated Paraglide runtime, SQL migrations, `*.d.ts`, tool config files. `/* v8 ignore */` is blocked by an ESLint rule unless it includes `-- reason: … (#issue)`.
+- **Meaningful tests:** mutation testing with Stryker on `packages/domain` and `packages/crypto` (score ≥ 90%, nightly + on PRs touching them); assertions on behavior, not on implementation details or snapshots of whole components.
+- **Local loop:** `pnpm test` (watch), `pnpm test:coverage` (same gate as CI); a pre-push hook runs coverage for changed packages.
+
+### 9.2 Integration, E2E, and other tests (in addition to unit tests)
 - **Server (Vitest + Testcontainers):** generic tenant isolation tests across all server functions **and** raw queries without `app.user_id` (must return 0 rows); mandatory-2FA tests for sensitive actions (FR-A9); tests that API responses never include `_enc` fields or full keys.
 - **Worker:** fake clock; idempotency (2×); mid-run crash; WIB/WITA/WIT time zones; **D14 architecture test** (forbidden imports) + behavior test (no new `transactions` rows after running all processors).
 - **Security:** dependency and secret scanning in CI; header tests (CSP, HSTS, frame); upload fuzzing (fake MIME, size); log scrubber (key/token/card number patterns never printed).
-- **E2E (Playwright):** each milestone's exit criteria at 1440/1024/768 viewports; keyboard-only; Privacy mode (amount regex not visible).
+- **E2E (Playwright):** each milestone's exit criteria at 1440/1024/768 viewports, in both languages; keyboard-only; Privacy mode (amount regex not visible).
 - **Visual:** compared against Pencil PNG exports per milestone (manual review).
+
+### 9.3 CI order
+`lint` → `typecheck` → `test:unit` (100% gate + test-file existence check) → `test:mutation` (domain/crypto) → `test:integration` → `test:e2e` → build. Branch protection requires all of them.
 
 ## 10. Deploying on a VPS
 

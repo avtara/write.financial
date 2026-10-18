@@ -50,7 +50,10 @@ Not available yet. Target for the open-source v1.0 release (milestone M9a): run 
 
 ## Contributing
 
-Contributions are welcome once the foundation (M0) is in place. Every commit must be signed off under the DCO (`git commit -s`).
+Contributions are welcome once the foundation (M0) is in place. Rules:
+
+- Every change ships with unit tests. CI enforces **100% unit test coverage per file** (lines, branches, functions, statements) in every package, and every source file needs a co-located `*.test.ts(x)`. PRs that lower coverage cannot be merged.
+- Every commit must be signed off under the DCO (`git commit -s`).
 
 ## Security
 

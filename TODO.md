@@ -2,6 +2,8 @@
 
 Details and exit criteria for each milestone are in the [implementation plan](docs/IMPLEMENTATION_PLAN.md) §8. FR/D numbers refer to the [PRD](docs/PRD.md).
 
+**Definition of done for every item below (D27):** unit tests for all new/changed code, a co-located `*.test.ts(x)` for every source file, and **100% per-file unit coverage** (lines, branches, functions, statements) in every package, green in CI. An item is not checked off until that holds.
+
 ## Preparation
 
 - [x] PRD v1.1 and implementation plan
@@ -19,7 +21,8 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 ## M0 — Secure foundation
 
 - [ ] pnpm + Turborepo monorepo, SPDX headers, `.nvmrc`, `.env.example`
-- [ ] CI: lint, typecheck, test, gitleaks, DCO check
+- [ ] CI: lint, typecheck, unit tests with the **100% per-file coverage gate** + test-file existence check, mutation tests (domain/crypto), integration, E2E, gitleaks, DCO check
+- [ ] Vitest workspace + `@vitest/coverage-v8` thresholds `100` per file, browser mode for components, `msw`, `fast-check`, Stryker; ESLint rule blocking unjustified `v8 ignore`
 - [ ] Branch protection on `main` (PR required + CI passing)
 - [ ] Dev `docker-compose`: Postgres 18, Valkey 9, SeaweedFS, Mailpit
 - [ ] Drizzle + initial migrations with RLS and separate DB roles
@@ -42,12 +45,14 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] Record Transaction (sheet + Quick Add bar), transfers with exchange rates
 - [ ] Transactions page: filters, views, bulk actions, detail, split, delete + undo
 - [ ] ⌘K command palette
+- [ ] M1 unit tests: 100% per-file coverage gate green
 
 ## M2 — Periods, budget, dashboard
 
 - [ ] Payday periods 1–28, transition periods, recalculation
 - [ ] Versioned budgets, moving leftovers, rollover, alerts
 - [ ] Week/Month/Year dashboard + custom range
+- [ ] M2 unit tests: 100% per-file coverage gate green
 
 ## M3 — Scheduling, Review queue, subscriptions, calendar, notifications
 
@@ -55,35 +60,41 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] Review queue page
 - [ ] Automatic period close + confirmed proposals
 - [ ] Subscriptions, calendar, notifications (popover, page, email)
+- [ ] M3 unit tests: 100% per-file coverage gate green
 
 ## M4 — Savings goals, debts, credit cards, receivables
 
 - [ ] Savings goals + sinking funds
 - [ ] Credit cards, installments, payment priority
 - [ ] Receivables: record, receive payments, write off
+- [ ] M4 unit tests: 100% per-file coverage gate green
 
 ## M5 — Investments & market data
 
 - [ ] Assets, investment transactions, valuation, allocation, rebalancing
 - [ ] Built-in, BYOK, and manual price sources + exchange rate & market API screen
+- [ ] M5 unit tests: 100% per-file coverage gate green
 
 ## M6 — Reports, export, import
 
 - [ ] Final monthly reports + quarterly/yearly/custom
 - [ ] PDF/Excel/CSV export, CSV/XLSX import
 - [ ] Full data export + account deletion
+- [ ] M6 unit tests: 100% per-file coverage gate green
 
 ## M7 — Automation & AI
 
 - [ ] Auto rules (suggestions)
 - [ ] AI Assistant + receipt reading (BYOK)
 - [ ] Gmail (feature flag) + Gmail log
+- [ ] M7 unit tests: 100% per-file coverage gate green
 
 ## M8 — Tablet & quality
 
 - [ ] Tablet polish on every page
 - [ ] Dashboard customization, app lock PIN
 - [ ] Accessibility and performance audit
+- [ ] M8 unit tests: 100% per-file coverage gate green
 
 ## M9a — Open-source v1.0 release
 
@@ -91,6 +102,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] Admin & instance status pages
 - [ ] Cross-version upgrade tests in CI
 - [ ] Code security audit
+- [ ] M9a unit tests: 100% per-file coverage gate green
 
 ## M9b — Cloud launch
 
@@ -98,3 +110,4 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] Privacy policy & terms of service
 - [ ] Penetration test
 - [ ] Google verification (login; Gmail later)
+- [ ] M9b unit tests: 100% per-file coverage gate green
