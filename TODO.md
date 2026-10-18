@@ -34,7 +34,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] Domain `money`, `period`, `ledger` + golden tests
 - [ ] Worker skeleton (dispatcher, Bull Board, maintenance)
 - [ ] Docker image + self-host compose + first-run setup wizard
-- [ ] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
+- [x] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
 - [ ] Cloud staging with encrypted backups
 
 ## M1 — Ledger

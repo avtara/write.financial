@@ -50,15 +50,12 @@ Not available yet. Target for the open-source v1.0 release (milestone M9a): run 
 
 ## Contributing
 
-Contributions are welcome once the foundation (M0) is in place. Rules:
-
-- Every change ships with unit tests. CI enforces **100% unit test coverage per file** (lines, branches, functions, statements) in every package, and every source file needs a co-located `*.test.ts(x)`. PRs that lower coverage cannot be merged.
-- Every commit must be signed off under the DCO (`git commit -s`).
+Contributions are welcome once the foundation (M0) is in place. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every change ships with unit tests at 100% per-file coverage (D27), and every commit is signed off under the DCO (`git commit -s`).
 
 ## Security
 
-Report vulnerabilities privately to **security@write.financial**. Please do not open public issues for security problems.
+Report vulnerabilities privately to **security@write.financial** or through GitHub private vulnerability reporting, never in public issues. See [SECURITY.md](SECURITY.md) for the disclosure policy.
 
 ## License
 
-[AGPL-3.0-only](LICENSE). The write.financial name and logo are not covered by the code license. Bank, e-wallet, and asset logos in `images/logos/` are trademarks of their respective owners and are used only to identify accounts.
+[AGPL-3.0-only](LICENSE). The write.financial name and logo are not covered by the code license; see [TRADEMARK.md](TRADEMARK.md). Bank, e-wallet, and asset logos in `images/logos/` are trademarks of their respective owners and are used only to identify accounts.

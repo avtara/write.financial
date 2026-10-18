@@ -8,6 +8,7 @@
     "node": ">=24.0.0 <25"
   },
   "scripts": {
+    "prepare": "[ -n \"${CI:-}\" ] || [ \"$(git rev-parse --is-inside-work-tree 2>/dev/null)\" != true ] || git config core.hooksPath .githooks",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
