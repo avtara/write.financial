@@ -15,6 +15,13 @@
       "when": 1792314877288,
       "tag": "0001_security",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792317311577,
+      "tag": "0002_maintenance_purge_auth",
+      "breakpoints": true
     }
   ]
 }

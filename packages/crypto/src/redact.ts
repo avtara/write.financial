@@ -7,7 +7,7 @@ export const REDACTED = '[REDACTED]';
  * Object keys whose values never reach logs. pino paths cannot match key suffixes, so every `_enc` column
  * (and its camelCase Drizzle field) is listed explicitly: add new ones here.
  */
-const SECRET_KEYS = [
+const SECRET_FIELDS = [
   'password',
   'passwordHash',
   'password_hash',
@@ -66,13 +66,16 @@ const SECRET_KEYS = [
 /** Keys that are not JS identifiers (HTTP headers) need bracket notation in pino paths. */
 const SECRET_HEADERS = ['set-cookie', 'x-api-key', 'proxy-authorization'];
 
+/** Every key whose value never reaches logs; `@wf/jobs` also rejects job payloads containing any of them. */
+export const SECRET_KEYS: readonly string[] = Object.freeze([...SECRET_FIELDS, ...SECRET_HEADERS]);
+
 /** Top level plus three levels of nesting, e.g. `req.headers.cookie`, `err.config.headers.authorization`. */
 const DEPTHS = ['', '*.', '*.*.', '*.*.*.'];
 
 /** Paths for pino `redact: { paths: REDACT_PATHS, censor: REDACTED }`. */
 export const REDACT_PATHS: readonly string[] = Object.freeze(
   DEPTHS.flatMap((prefix) => [
-    ...SECRET_KEYS.map((key) => `${prefix}${key}`),
+    ...SECRET_FIELDS.map((key) => `${prefix}${key}`),
     ...SECRET_HEADERS.map((key) => `${prefix.slice(0, -1)}["${key}"]`),
   ]),
 );

@@ -13,7 +13,8 @@
     "./security-events": "./src/security-events.ts",
     "./preferences": "./src/preferences.ts",
     "./instance-settings": "./src/instance-settings.ts",
-    "./entitlements": "./src/entitlements.ts"
+    "./entitlements": "./src/entitlements.ts",
+    "./maintenance": "./src/maintenance.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
