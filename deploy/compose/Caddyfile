@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# TLS in front of the web app; the only service with published ports.
+#   WF_DOMAIN=finance.example.com  automatic certificate from Let's Encrypt/ZeroSSL (DNS must point here, 80/443 open)
+#   WF_DOMAIN=localhost            local trial with Caddy's own CA (the browser warns about the certificate)
+# HTTP is redirected to HTTPS automatically.
+{
+	# Caddy's local CA stays inside the container; nothing is added to a system trust store.
+	skip_install_trust
+}
+
+{$WF_DOMAIN:localhost} {
+	# Also on responses Caddy produces itself (e.g. 502 while web restarts); replaces the app's identical header.
+	header >Strict-Transport-Security "max-age=63072000; includeSubDomains"
+
+	reverse_proxy web:3000 {
+		# Exactly one hop: the address Caddy saw, never a client-supplied X-Forwarded-For.
+		header_up X-Forwarded-For {remote_host}
+	}
+}

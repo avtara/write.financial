@@ -1,0 +1,15 @@
+{
+  "name": "@wf/launcher",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wf/config": "workspace:*",
+    "@wf/crypto": "workspace:*",
+    "@wf/db": "workspace:*"
+  }
+}

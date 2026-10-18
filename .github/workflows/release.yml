@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Release image: on a `v*` tag, build deploy/docker/Dockerfile for linux/amd64 + linux/arm64, push it to GHCR with an
+# SBOM and max-mode provenance attestation, and sign the pushed digest with cosign keyless (GitHub OIDC → Fulcio,
+# recorded in Rekor). Verify a release (docs/self-host/install.md):
+#   cosign verify ghcr.io/avtara/write.financial:<version> \
+#     --certificate-identity-regexp '^https://github.com/avtara/write.financial/.github/workflows/release.yml@refs/tags/v' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: Image (GHCR, multi-arch, SBOM, provenance, cosign)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      # Keyless signing and provenance: the job's OIDC token is the signing identity.
+      id-token: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          # v1.2.3 → 1.2.3, 1.2, and latest (pre-releases such as v1.2.3-rc.1 get only their own tag).
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          # GitHub reports the repository license as AGPL-3.0; the project is AGPL-3.0-only.
+          labels: |
+            org.opencontainers.image.licenses=AGPL-3.0-only
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=release
+          cache-to: type=gha,mode=max,scope=release
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign the image digest (keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+      - name: Verify the signature
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          IDENTITY: https://github.com/${{ github.workflow_ref }}
+        run: |
+          cosign verify "${IMAGE}@${DIGEST}" \
+            --certificate-identity "${IDENTITY}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          echo "Signed ${IMAGE}@${DIGEST}" >> "$GITHUB_STEP_SUMMARY"

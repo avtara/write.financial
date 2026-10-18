@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+/**
+ * `init`: the one-shot container that runs before web and worker on every `docker compose up`.
+ * 1. Generates the missing secrets in `WF_SECRETS_DIR` (src/secrets.ts) and, the first time, tells the operator to
+ *    back up the KEK.
+ * 2. Validates the web/worker configuration, so a bad `.env` fails here instead of in a restart loop.
+ * 3. Waits for PostgreSQL, creates/updates the database roles as the superuser (`POSTGRES_USER`, default `postgres`,
+ *    with `POSTGRES_PASSWORD`), and applies pending migrations as `wf_migrate`.
+ */
+import path from 'node:path';
+import { loadConfig } from '@wf/config';
+import { ROLES, type RolePasswords } from '@wf/db/roles';
+import { postgresUrl, secretsEnv, setting, LaunchConfigError, type Env } from './env.ts';
+import { dbPassword, ensureSecrets, KEK, readSecret } from './secrets.ts';
+
+export interface Output {
+  log(message: string): void;
+  error(message: string): void;
+}
+
+export interface InitDeps {
+  /** `bootstrapRoles` from `@wf/db/roles`. */
+  readonly bootstrapRoles: (superuserUrl: string, passwords: RolePasswords) => Promise<void>;
+  /** `migrate` from `@wf/db/migrate`. */
+  readonly migrate: (migrateUrl: string) => Promise<void>;
+  /** `setTimeout` from `node:timers/promises`. */
+  readonly sleep: (ms: number) => Promise<unknown>;
+  readonly output: Output;
+}
+
+/** How long `init` waits for PostgreSQL to accept connections: attempts × delay = 2 minutes. */
+export const DB_WAIT = { attempts: 60, delayMs: 2_000 };
+
+/** Error codes that mean "PostgreSQL is not reachable yet" (container starting, DNS not ready, still in recovery). */
+const NOT_READY: Record<string, true> = {
+  ECONNREFUSED: true,
+  ECONNRESET: true,
+  ENOTFOUND: true,
+  EAI_AGAIN: true,
+  ETIMEDOUT: true,
+  CONNECT_TIMEOUT: true,
+  '57P03': true,
+};
+
+export function kekNotice(kekFile: string): string {
+  const rule = '='.repeat(100);
+  return [
+    rule,
+    'IMPORTANT: a new key-encryption key (KEK) was generated. Back it up NOW.',
+    '',
+    `It is stored in ${kekFile} in the secrets volume. Every encrypted value (2FA secrets, notes,`,
+    'attachments, connected-account tokens) depends on it: if the volume is lost and you have no copy of',
+    'the KEK, that data is gone for good and nobody can recover it. Copy it to two safe offline places:',
+    '',
+    `  docker compose cp web:${kekFile} ./write-financial-kek.backup && chmod 600 ./write-financial-kek.backup`,
+    '',
+    'Do not store the backup next to your database backups. This notice is shown only once.',
+    rule,
+  ].join('\n');
+}
+
+/** Runs `init` and returns the process exit code: 0 done, 1 failed. */
+export async function runInit(env: Env, deps: InitDeps): Promise<number> {
+  const { output } = deps;
+  try {
+    const dir = setting(env, 'WF_SECRETS_DIR');
+    if (dir === undefined) throw new LaunchConfigError('WF_SECRETS_DIR is required for init');
+    const superuserPassword = setting(env, 'POSTGRES_PASSWORD');
+    if (superuserPassword === undefined) {
+      throw new LaunchConfigError(
+        'POSTGRES_PASSWORD (the PostgreSQL superuser password from .env) is required for init',
+      );
+    }
+
+    const created = await ensureSecrets(dir);
+    output.log(
+      created.length === 0
+        ? `Secrets: using the existing ones in ${dir}.`
+        : `Secrets: generated ${created.join(', ')}.`,
+    );
+    if (created.includes(KEK)) output.log(kekNotice(path.join(dir, KEK)));
+
+    loadConfig({ ...env, ...(await secretsEnv(env)) });
+
+    const password = (role: keyof typeof ROLES) => readSecret(path.join(dir, dbPassword(ROLES[role])));
+    const passwords: RolePasswords = {
+      app: await password('app'),
+      worker: await password('worker'),
+      auth: await password('auth'),
+      migrate: await password('migrate'),
+      readonlyOps: await password('readonlyOps'),
+    };
+    const superuserUrl = postgresUrl(env, setting(env, 'POSTGRES_USER') ?? 'postgres', superuserPassword);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await deps.bootstrapRoles(superuserUrl, passwords);
+        break;
+      } catch (error) {
+        const notReady = error instanceof Error && 'code' in error && NOT_READY[String(error.code)] === true;
+        if (attempt === DB_WAIT.attempts || !notReady) throw error;
+        if (attempt === 1) output.log('Waiting for PostgreSQL…');
+        await deps.sleep(DB_WAIT.delayMs);
+      }
+    }
+    output.log(`Database roles ${Object.values(ROLES).join(', ')} are up to date.`);
+    await deps.migrate(postgresUrl(env, ROLES.migrate, passwords.migrate));
+    output.log('Migrations are up to date. init is done.');
+    return 0;
+  } catch (error) {
+    output.error(`init failed: ${String(error)}`);
+    return 1;
+  }
+}

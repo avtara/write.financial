@@ -115,6 +115,65 @@ jobs:
           path: reports/e2e/
           retention-days: 14
 
+  docker:
+    name: Docker image (build + boot)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the image (linux/amd64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: write-financial:ci
+          build-args: REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=docker-ci
+          cache-to: type=gha,mode=max,scope=docker-ci
+      - name: Image size
+        run: docker image inspect write-financial:ci --format 'linux/amd64 {{.Size}} bytes' | tee -a "$GITHUB_STEP_SUMMARY"
+      # The self-host compose file as shipped, in localhost mode (Caddy's local CA), on clean volumes.
+      - name: Boot the self-host stack
+        working-directory: deploy/compose
+        run: |
+          umask 077
+          {
+            echo WF_IMAGE=write-financial
+            echo WF_VERSION=ci
+            echo WF_DOMAIN=localhost
+            echo PUBLIC_URL=https://localhost
+            echo "POSTGRES_PASSWORD=$(openssl rand -base64 32)"
+          } > .env
+          docker compose up -d --wait --wait-timeout 300
+      - name: Web answers through Caddy, worker is healthy, init exited 0, only Caddy publishes ports
+        working-directory: deploy/compose
+        run: |
+          set -x
+          test "$(curl -fsSk https://localhost/healthz)" = '{"status":"ok"}'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/healthz)" = 308
+          test "$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q worker)")" = healthy
+          test "$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$(docker compose ps -a -q init)")" = 'exited 0'
+          published="$(docker compose ps -a --format json | jq -rs '[.[] | select([.Publishers[]? | select(.PublishedPort > 0)] | length > 0) | .Service] | unique | join(",")')"
+          test "$published" = caddy
+      - name: Second start reuses the secrets
+        working-directory: deploy/compose
+        run: |
+          digest() { docker compose exec -T web sh -c 'find /run/wf-secrets -type f | sort | xargs cat | sha256sum'; }
+          before="$(digest)"
+          docker compose up -d --wait --wait-timeout 300
+          test "$(digest)" = "$before"
+          docker compose logs init | grep -q 'Secrets: using the existing ones'
+      - name: Logs
+        if: failure()
+        working-directory: deploy/compose
+        run: docker compose logs --no-color
+      - name: Tear down
+        if: always()
+        working-directory: deploy/compose
+        run: docker compose down -v
+
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-24.04

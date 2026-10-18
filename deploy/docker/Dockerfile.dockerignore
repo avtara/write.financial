@@ -1,0 +1,23 @@
+# Build context = repository root. Host dependencies and build output never enter the image: everything is
+# installed and built inside the Linux build stages (native modules must match the image's platform).
+**/node_modules
+**/.output
+**/dist
+**/coverage
+**/.turbo
+**/.vitest
+**/*.pen
+.git
+.github
+.githooks
+.omp
+.env
+.env.*
+.stryker-tmp
+reports
+design
+docs
+images
+packages/i18n/src/paraglide
+deploy
+!deploy/docker/entrypoint
