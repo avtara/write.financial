@@ -61,7 +61,7 @@ Versions checked against the npm registry, nodejs.org, and Docker Hub on 18 Oct 
 | Reverse proxy | Caddy 2.11 | Automatic TLS |
 | Observability | pino 10 (secret redaction) + Bull Board (admin, 2FA) + optional GlitchTip | Scrubber before sending errors |
 | Lint / format | ESLint 10 + typescript-eslint 8 (custom rules: no hard-coded UI text, `<Money>` only, import boundaries) + Prettier | Biome/oxlint are faster but cannot host the custom type-aware rules yet |
-| Test | **Vitest 5** + `@vitest/coverage-v8` 5 (100% per-file gate, D27), Vitest browser mode + `vitest-browser-react` 2 / Testing Library 16, `msw` 3, `fast-check` 4, **Stryker** 10 (mutation, domain/crypto), Playwright 1.64, Testcontainers 12 | Unit tests are mandatory for every step; see §9 |
+| Test | **Vitest 5** + `@vitest/coverage-v8` 5 (100% per-file gate, D27), Vitest browser mode + `vitest-browser-react` 2 / Testing Library 16, `msw` 3, `fast-check` 4, **Stryker** 10 (mutation, domain/crypto, command runner), Playwright 1.64, Testcontainers 12 | Unit tests are mandatory for every step; see §9 |
 
 ## 3. Repo structure (pnpm workspaces + Turborepo)
 
@@ -319,17 +319,17 @@ flowchart LR
 **Rule for every step (D27):** no task, PR, or milestone item is done without unit tests, and every package stays at **100% unit coverage per file** (lines, branches, functions, statements). This is part of every milestone's exit criteria, in addition to the criteria listed in §8.
 
 ### 9.1 Unit tests (100% gate)
-- **Runner:** Vitest 5 workspace (`vitest.workspace.ts`) with one project per package; `@vitest/coverage-v8`; `coverage.thresholds: { 100: true, perFile: true }`; `coverage.all: true` so untested files count as 0%.
+- **Runner:** Vitest 5 with `test.projects` (one project per package) in the root `vitest.config.ts`; `@vitest/coverage-v8`; `coverage.thresholds: { 100: true, perFile: true }`; `coverage.include` lists every `{apps,packages,tools}/*/src/**` file, so an untested file counts as 0%.
 - **Per layer:**
   - `packages/domain`, `packages/crypto`, `packages/i18n` formatters: pure unit tests + golden tests from the seed and Section 19 + property tests (`fast-check`) for `money`, `period`, `debt`, `receivables` (Σ payments ≤ principal).
   - `packages/db` repositories and `apps/worker` processors: unit tests against fakes of their ports (repository interfaces, clock, queue, object store, HTTP); the real Postgres/Valkey/SeaweedFS paths are covered by integration tests (§9.2).
   - `packages/integrations` adapters (market, fx, llm, gmail, mailer, objectstore): recorded HTTP fixtures via `msw`, including 401/403/429/5xx/timeout branches.
   - `apps/web` components and routes: Vitest browser mode (Playwright provider) + Testing Library; every state (loading, refreshing, error, empty, offline), both locales (`id`, `en`), privacy mode on/off.
   - Server functions: input validation, auth/2FA guards, and error branches tested with injected dependencies.
-- **Existence check:** a CI script fails if any `src/**/*.ts(x)` file has no co-located `*.test.ts(x)`.
-- **Exclusions (single shared list, reviewed in PRs):** generated Paraglide runtime, SQL migrations, `*.d.ts`, tool config files. `/* v8 ignore */` is blocked by an ESLint rule unless it includes `-- reason: … (#issue)`.
-- **Meaningful tests:** mutation testing with Stryker on `packages/domain` and `packages/crypto` (score ≥ 90%, nightly + on PRs touching them); assertions on behavior, not on implementation details or snapshots of whole components.
-- **Local loop:** `pnpm test` (watch), `pnpm test:coverage` (same gate as CI); a pre-push hook runs coverage for changed packages.
+- **Existence check:** `pnpm check:test-files` (`tools/repo-checks`) fails if any `src/**/*.ts(x)` file has no co-located `*.test.ts(x)`.
+- **Exclusions (single shared list in `vitest.config.ts`, reviewed in PRs):** generated Paraglide runtime, generated code, `*.d.ts`; tool config files sit outside `src/`. The `wf/no-unjustified-coverage-ignore` ESLint rule rejects `v8`/`c8`/`istanbul ignore` comments unless they carry `-- <reason>` and an issue reference (`#123`).
+- **Meaningful tests:** mutation testing with Stryker (`pnpm test:mutation`) on `packages/domain` and `packages/crypto`, score ≥ 90%, on every CI run. It uses Stryker's command runner with `vitest.mutation.config.ts`, because `@stryker-mutator/vitest-runner` 10.0.0 never activates runtime mutants under Vitest 5 (every mutant "survives"). Assertions target behavior, not implementation details or snapshots of whole components.
+- **Local loop:** `pnpm test` (watch), `pnpm test:unit` (same gate as CI), `pnpm check` (every static check plus the unit gate).
 
 ### 9.2 Integration, E2E, and other tests (in addition to unit tests)
 - **Server (Vitest + Testcontainers):** generic tenant isolation tests across all server functions **and** raw queries without `app.user_id` (must return 0 rows); mandatory-2FA tests for sensitive actions (FR-A9); tests that API responses never include `_enc` fields or full keys.

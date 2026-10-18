@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "command",
+  "commandRunner": { "command": "vitest run --config vitest.mutation.config.ts --bail 1" },
+  "mutate": ["packages/domain/src/**/*.ts", "packages/crypto/src/**/*.ts", "!**/*.test.ts"],
+  "coverageAnalysis": "off",
+  "ignorePatterns": ["design", "docs", "images", "coverage", "reports", "*.pen"],
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "thresholds": { "high": 95, "low": 90, "break": 90 },
+  "tempDirName": ".stryker-tmp"
+}

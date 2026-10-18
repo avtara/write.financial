@@ -1,0 +1,36 @@
+{
+  "name": "write-financial",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json && turbo run typecheck",
+    "test": "vitest",
+    "test:unit": "vitest run --coverage",
+    "test:mutation": "stryker run",
+    "check:test-files": "node tools/repo-checks/src/cli.ts test-files",
+    "check:spdx": "node tools/repo-checks/src/cli.ts spdx",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:spdx && pnpm check:test-files && pnpm test:unit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stryker-mutator/core": "^10.0.0",
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^5.0.5",
+    "eslint": "^10.13.0",
+    "fast-check": "^4.10.2",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "turbo": "^2.11.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.5"
+  }
+}

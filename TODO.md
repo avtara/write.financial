@@ -20,7 +20,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M0 — Secure foundation
 
-- [ ] pnpm + Turborepo monorepo, SPDX headers, `.nvmrc`, `.env.example`
+- [x] pnpm + Turborepo monorepo, SPDX headers, `.nvmrc`, `.env.example`
 - [ ] CI: lint, typecheck, unit tests with the **100% per-file coverage gate** + test-file existence check, mutation tests (domain/crypto), integration, E2E, gitleaks, DCO check
 - [ ] Vitest workspace + `@vitest/coverage-v8` thresholds `100` per file, browser mode for components, `msw`, `fast-check`, Stryker; ESLint rule blocking unjustified `v8 ignore`
 - [ ] Branch protection on `main` (PR required + CI passing)

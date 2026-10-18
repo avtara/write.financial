@@ -1,0 +1,8 @@
+# Default gitleaks rules plus narrowly scoped allowlists for known non-secrets.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Deliberately invalid key used to test Alpha Vantage validation (docs/research/market-data.md)"
+paths = ['''^docs/research/market-data\.md$''']
+regexes = ['''^invalidkey123$''']
