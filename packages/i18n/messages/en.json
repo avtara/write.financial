@@ -1,12 +1,29 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "app_name": "write.financial",
+  "breadcrumb_finance": "Finance",
+  "breadcrumb_label": "Breadcrumb",
   "error_network": "Connection lost. Try again.",
   "error_unknown": "Something went wrong. Try again in a moment.",
   "error_validation": "Check the highlighted fields.",
   "language_name_en": "English",
   "language_name_id": "Bahasa Indonesia",
   "locale_switcher_label": "Language",
+  "nav_main_label": "Main navigation",
+  "nav_menu": "Menu",
+  "nav_overview": "Overview",
+  "overview_empty_description": "Add your first account to get started.",
+  "overview_empty_title": "No data yet",
+  "overview_greeting": "Welcome",
+  "privacy_hidden_amount": "amount hidden",
+  "privacy_hide_balances": "Hide balances",
+  "privacy_peek": "Peek at balances",
+  "privacy_peek_showing": "Showing · {seconds} s",
+  "skip_to_content": "Skip to content",
+  "theme_dark": "Dark",
+  "theme_label": "Theme",
+  "theme_light": "Light",
+  "theme_system": "System",
   "transactions_count": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -16,5 +33,10 @@
         "countPlural=*": "{count: number} transactions"
       }
     }
-  ]
+  ],
+  "unsupported_description": "write.financial is designed for screens 768 pixels wide or wider. Open it on a tablet or computer to continue.",
+  "unsupported_title": "Use a tablet or desktop",
+  "user_guest_name": "Guest",
+  "user_guest_status": "Not signed in",
+  "user_menu_label": "User menu"
 }
