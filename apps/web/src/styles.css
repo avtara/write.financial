@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+@import 'tailwindcss';
+@import '@wf/ui/tokens.css';
+@import '@wf/ui/styles.css';
+
+/* Utilities used by this app's components. */
+@source './';

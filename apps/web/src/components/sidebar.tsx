@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { Link } from '@tanstack/react-router';
+import { m } from '@wf/i18n/messages';
+import { LogoTile } from './logo-mark.tsx';
+import { NAV_GROUPS } from './nav.ts';
+import { UserMenu } from './user-menu.tsx';
+
+/** Product wordmark: Geist 600, "write" in `$fg` and ".financial" in `$muted-fg` (design Section 20). */
+function Wordmark() {
+  const name = m.app_name();
+  const dot = name.indexOf('.');
+  return (
+    <span className="text-[15px] font-semibold tracking-[-0.01em] text-fg">
+      {name.slice(0, dot)}
+      <span className="text-muted-fg">{name.slice(dot)}</span>
+    </span>
+  );
+}
+
+/** Desktop sidebar (≥ 1280 px, design `qjLGK`): 248 px, brand, navigation groups, user menu at the bottom. */
+export function Sidebar() {
+  return (
+    <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-6 border-r border-border px-4 py-5 xl:flex">
+      <div className="flex items-center gap-2.5 px-2">
+        <LogoTile variant="sidebar" />
+        <Wordmark />
+      </div>
+      <nav aria-label={m.nav_main_label()} className="flex flex-col gap-0.5">
+        {NAV_GROUPS.map((group) => (
+          <section key={group.label()} className="flex flex-col gap-0.5">
+            <h2 className="px-2.5 pb-1 text-[11px] font-medium text-subtle uppercase">{group.label()}</h2>
+            <ul className="flex flex-col gap-0.5">
+              {group.items.map((item) => (
+                <li key={item.to}>
+                  <Link
+                    to={item.to}
+                    activeOptions={{ exact: true }}
+                    className="flex h-[34px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13.5px] text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring data-[status=active]:bg-muted data-[status=active]:font-medium data-[status=active]:text-fg"
+                  >
+                    <item.icon aria-hidden="true" className="size-4 shrink-0" />
+                    {item.label()}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </nav>
+      <div className="mt-auto">
+        <UserMenu variant="sidebar" />
+      </div>
+    </aside>
+  );
+}
