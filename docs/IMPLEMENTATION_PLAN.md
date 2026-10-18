@@ -208,7 +208,7 @@ Search indexes: `pg_trgm` GIN on `transactions(merchant, description)`, `subscri
 | `account-deletion` | 7 days after request | Delete user data + DEK (crypto-shredding) + all `u/{userId}/` objects in object storage | `del:{user}` |
 | `maintenance` | daily | Purge soft-deletes > 30 days, notifications > 90 days, logs > 30 days, expired tokens | `mt:{date}` |
 
-Worker principles: transactional processors; 5× exponential retry; job payloads contain only IDs (never secrets or financial data); user-visible status in `job_status`.
+Worker principles: transactional processors; 5× exponential retry; job payloads contain only IDs (never secrets or financial data); user-visible status in `job_status`. BullMQ 6 rejects `:` in custom job IDs, so the implementation uses `.` as the separator (`mt.2026-10-18`, `occ.{source}.{id}.{date}`); the table above keeps the logical form.
 
 ## 7. Frontend architecture
 

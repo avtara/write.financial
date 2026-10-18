@@ -21,15 +21,15 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 ## M0 — Secure foundation
 
 - [x] pnpm + Turborepo monorepo, SPDX headers, `.nvmrc`, `.env.example`
-- [ ] CI: lint, typecheck, unit tests with the **100% per-file coverage gate** + test-file existence check, mutation tests (domain/crypto), integration, E2E, gitleaks, DCO check
-- [ ] Vitest workspace + `@vitest/coverage-v8` thresholds `100` per file, browser mode for components, `msw`, `fast-check`, Stryker; ESLint rule blocking unjustified `v8 ignore`
+- [x] CI: lint, typecheck, unit tests with the **100% per-file coverage gate** + test-file existence check, mutation tests (domain/crypto), integration, E2E, gitleaks, DCO check
+- [x] Vitest workspace + `@vitest/coverage-v8` thresholds `100` per file, browser mode for components, `msw`, `fast-check`, Stryker; ESLint rule blocking unjustified `v8 ignore`
 - [x] Branch protection on `main` (PR required + CI passing)
 - [x] Dev `docker-compose`: Postgres 18, Valkey 9, SeaweedFS, Mailpit
-- [ ] Drizzle + initial migrations with RLS and separate DB roles
+- [x] Drizzle + initial migrations with RLS and separate DB roles
 - [x] `packages/crypto`: per-user KEK/DEK, log redaction
 - [ ] Better Auth: email/password, Google, 2FA (TOTP, backup codes, passkey), lockout, device list
-- [ ] Encrypted object storage (`integrations/objectstore`) + safe image upload
-- [ ] Design tokens, dark/light theme, desktop app shell + tablet rail, `<Money>` + privacy mode
+- [x] Encrypted object storage (`integrations/objectstore`) + safe image upload
+- [x] Design tokens, dark/light theme, desktop app shell + tablet rail, `<Money>` + privacy mode
 - [ ] i18n: Paraglide, Bahasa Indonesia + English messages, language switcher, locale-aware number/date formatting, missing-key check in CI
 - [x] Domain `money`, `period`, `ledger` + golden tests
 - [ ] Worker skeleton (dispatcher, Bull Board, maintenance)
