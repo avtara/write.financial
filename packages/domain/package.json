@@ -5,7 +5,9 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
-    "./money": "./src/money.ts"
+    "./ledger": "./src/ledger.ts",
+    "./money": "./src/money.ts",
+    "./period": "./src/period.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
