@@ -74,8 +74,21 @@ describe('downloadHeaders', () => {
   });
 
   it('never emits header-breaking characters, and filename* decodes to the fallback for ASCII names', () => {
+    // Not `fc.string({ unit: 'binary' })`: its first use builds a reverse map over all 1.1M code points (~0.4 s idle,
+    // over the 5 s test timeout on a loaded `pnpm check`). Plain `.map` needs no reverse map; the mix keeps the
+    // characters the sanitizer cares about frequent: ASCII incl. controls and `"%\/`, C1 controls, bidi overrides,
+    // lone surrogates (`fromCodePoint` accepts them), and astral code points. `size: 'large'` reaches the 200 cap.
+    const codePoint = fc.oneof(
+      fc.integer({ min: 0, max: 0x7f }),
+      fc.constantFrom(0x85, 0x9f, 0xa0, 0x202a, 0x202e, 0x2066, 0x2069, 0x3000, 0xfeff, 0xd800, 0xdfff),
+      fc.integer({ min: 0x80, max: 0xffff }),
+      fc.integer({ min: 0x10000, max: 0x10ffff }),
+    );
+    const filenames = fc
+      .array(codePoint, { maxLength: 260, size: 'large' })
+      .map((points) => String.fromCodePoint(...points));
     fc.assert(
-      fc.property(fc.string({ unit: 'binary' }), (filename) => {
+      fc.property(filenames, (filename) => {
         const value = disposition(filename);
         expect(value).toMatch(
           /^attachment; filename="[\x20-\x21\x23-\x24\x26-\x5b\x5d-\x7e]+"; filename\*=UTF-8''[\w!#$&+.^`|~%-]+$/,
