@@ -42,7 +42,7 @@ Not available yet. Target for the open-source v1.0 release (milestone M9a): run 
 
 ## Documentation
 
-- [PRD](docs/PRD.md): product requirements, calculation rules, security, and decisions (D1–D25)
+- [PRD](docs/PRD.md): product requirements, calculation rules, security, and decisions (D1–D26)
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md): architecture, data model, worker, milestones M0–M9b
 - [Market data research](docs/research/market-data.md): free APIs, BYOK, and what is not allowed
 - [Design analysis](docs/design-analysis/) and [screen digests](design/digest/) (the digests contain the original Indonesian UI copy)

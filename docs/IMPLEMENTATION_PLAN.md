@@ -1,6 +1,6 @@
 # write.financial — Implementation Plan (v1.1)
 
-Companion to `docs/PRD.md`. FR numbers refer to the PRD, `[node]` to the Pencil design, decisions D1–D24 to PRD §12. Market data source research: `docs/research/market-data.md`.
+Companion to `docs/PRD.md`. FR numbers refer to the PRD, `[node]` to the Pencil design, decisions D1–D26 to PRD §12. Market data source research: `docs/research/market-data.md`.
 
 Changes from v1: the project is **open source (AGPL-3.0)** with two deployment modes from a single image (**self-host** by default, managed **cloud** at write.financial); storage security becomes an M0 requirement; **all automation goes through confirmation**; market data is **free + BYOK**; target is **desktop + tablet** (mobile/PWA removed); subscriber = cloud hosting customer; milestone M9 is split into an open source release and a cloud release.
 
@@ -50,6 +50,7 @@ flowchart LR
 | PDF / Excel / CSV | Playwright-Chromium in the worker; `exceljs`; `papaparse` + `xlsx` in the browser | D4/D5 |
 | LLM | Vercel AI SDK + OpenAI-compatible provider | OpenRouter/ZenMux/custom; tool calling only produces drafts |
 | Email | Nodemailer (SMTP) or Resend | `Mailer` abstraction |
+| i18n | **Paraglide JS** (`@inlang/paraglide-js`) + inlang message format; `Intl.NumberFormat` / `DateTimeFormat` / `PluralRules` / `RelativeTimeFormat` | D26; locales `id` (source) + `en`; locale from user preference/cookie, no URL prefix |
 | Object storage | **SeaweedFS** (S3 API) + `@aws-sdk/client-s3`; `sharp` for re-encode/thumbnails | D25; replaceable with another S3 via `.env`. MinIO not used (archived) |
 | Observability | pino (secret redaction) + Bull Board (admin, 2FA) + optional GlitchTip | Scrubber before sending errors |
 | Test | Vitest, Playwright, Testcontainers Postgres | — |
@@ -66,6 +67,7 @@ packages/
   crypto/              envelope encryption (KEK/DEK), hashing, log redaction
   jobs/                queue names, Zod payloads (IDs only, never secrets), enqueue helpers + jobId
   ui/                  tokens (generated), shadcn components, <Money/>, <Delta/>, <Percent/>, Rail
+  i18n/                messages/id.json + messages/en.json (inlang), compiled Paraglide runtime, locale resolver (user → cookie → Accept-Language → instance default), formatters (money/number/date/plural) shared by web and worker
   integrations/        adapters: fx, market/<provider>, llm, gmail, mailer, objectstore (S3: SeaweedFS default, D25)
   entitlements/        plans + can(user, feature) (D17)
   config/              tsconfig, eslint (+ custom lint rules), Zod env schema
@@ -92,13 +94,13 @@ Conventions: `id uuid v7`; `user_id uuid not null` on every user-owned table wit
 | RLS | `ALTER TABLE … ENABLE ROW LEVEL SECURITY; FORCE ROW LEVEL SECURITY;` + policy `user_id = current_setting('app.user_id')::uuid` on every user-owned table. Repositories open a transaction then `SET LOCAL app.user_id = $sessionUserId`. The worker sets `app.user_id` per job. Global tables (`market_quotes`, built-in `fx_rates`) have no `user_id` and are read-only for `wf_app`. |
 | `user_keys` | user_id, `dek_wrapped bytea`, `kek_version int`, created_at, rotated_at. Deleting the row = crypto-shredding all of that user's `_enc` columns and blobs. |
 | `security_events` | append-only (trigger rejects UPDATE/DELETE): type, ip_hash, user_agent, meta, at. |
-| `plans`, `entitlements` | `plans(code, name)`, `user_plans(user_id, plan_code, since)`, `entitlements(plan_code, feature, limit)`. v1: all users on `pribadi`. |
+| `plans`, `entitlements` | `plans(code, name)`, `user_plans(user_id, plan_code, since)`, `entitlements(plan_code, feature, limit)`. v1: all users on `personal`. |
 
 ### 4.1 Core
 | Table | Key columns | Constraints / notes |
 |---|---|---|
 | `users`, `sessions`, `accounts_auth`, `verifications`, `two_factors`, `passkeys` | managed by Better Auth | + `nickname`, `timezone`, `locale`, `base_currency`, `onboarding_completed_at`, `deletion_requested_at`. TOTP secret stored encrypted, backup codes hashed |
-| `user_preferences` | theme, number_format, date_format, week_start, hide_balances, period_start_day (1–28), period_mode, notif jsonb, dashboard_layout jsonb, table_prefs jsonb, cc_payment_priority jsonb | 1:1 with user |
+| `user_preferences` | locale enum(id, en), theme, number_format enum(locale, id, en), date_format, week_start, hide_balances, period_start_day (1–28), period_mode, notif jsonb, dashboard_layout jsonb, table_prefs jsonb, cc_payment_priority jsonb | 1:1 with user; `instance_settings.default_locale` set in the setup wizard |
 | `accounts` | type enum, provider_name, logo_key, display_name, last4, phone_masked, currency, opening_balance_minor, opening_date, color, include_in_available, show_as_card, is_default_quick_entry, sort_order, status, archived_at, low_balance_threshold_minor, last_reconciled_at, cc_limit_minor, cc_statement_day, cc_due_day, parent_account_id | partial unique `(user_id) where is_default_quick_entry` |
 | `categories` | kind enum(expense, income, fee), group enum, name varchar(24), icon, color, sort_order, is_fixed, archived_at, deleted_at, is_system | unique `(user_id, kind, lower(name))` where not deleted; system categories "Piutang tak tertagih" (bad receivables), "Selisih kurs" (FX difference) |
 | `tags`, `tag_aliases`, `transaction_tags` | slug, usage cache | max. 5 tags per transaction |
@@ -156,7 +158,7 @@ Search indexes: `pg_trgm` GIN on `transactions(merchant, description)`, `subscri
 
 | Module | Main functions | Golden test |
 |---|---|---|
-| `money` | parse ("25rb", "1,5jt"), format (table/headline/sentence/delta/privacy), minor↔major, U+2212 | `42.810.000`; `−2.277.000` |
+| `money` | parse ("25rb", "1,5jt", "25k", "1.5m"; both decimal separators per active format), format (table/headline/sentence/delta/privacy) per locale, minor↔major, U+2212 | `id`: `42.810.000`, `−2.277.000`; `en`: `42,810,000`, `−2,277,000` |
 | `fx` | convert, effective rate, FX difference, manual deviation | US$183,49; 16.474; −22.660 |
 | `period` | periodFor, label, transition + proration, recalculation mapping | "Oktober" = 25 Sep–24 Okt; 15.000.000 |
 | `budget` | pct, ideal, Safe daily limit (floor Rp1.000), projection (D8), will exceed, weekly, period close proposals | 88%, 48%, Rp140.000 |
@@ -202,7 +204,8 @@ Worker principles: transactional processors; 5× exponential retry; job payloads
 
 ## 7. Frontend architecture
 
-- **Routes:** `/_auth/masuk|daftar|lupa|2fa`, `/onboarding/$step`, `/_app/` (Overview), `/transaksi`, `/tinjau` (Review queue), `/anggaran`, `/langganan`, `/kalender`, `/investasi`, `/laporan/$periode?`, `/tabungan`, `/utang` (`?tab=piutang`), `/notifikasi`, `/pengaturan/$section`, `/print/report/$id`. Zod search params (`?period=2026-10`, `?range=2026-09-14..2026-10-13`).
+- **Routes (English, language-neutral):** `/_auth/sign-in|sign-up|forgot|2fa`, `/onboarding/$step`, `/_app/` (Overview), `/transactions`, `/review` (Review queue), `/budget`, `/subscriptions`, `/calendar`, `/investments`, `/reports/$period?`, `/goals`, `/debts` (`?tab=receivables`), `/notifications`, `/settings/$section`, `/print/report/$id`. Zod search params (`?period=2026-10`, `?range=2026-09-14..2026-10-13`).
+- **i18n (D26):** every user-facing string goes through Paraglide message functions (`m.transactions_title()`); keys are `snake_case` by area (`budget_safe_daily_limit`). Indonesian copy is taken verbatim from the design; English is written alongside in the same PR. Server functions, emails (React Email templates), PDFs, notifications, and Zod error messages render with the locale of the target user (worker jobs carry `userId` and resolve the locale themselves). Built-in categories are stored as keys (`system:food`) and rendered per locale; user-created names are stored as typed. The Assistant system prompt includes the user's locale.
 - **Responsive layout (FR-TB):** `≥1280` full sidebar; `768–1279` 64 px `<Rail>` + tooltips; detail panels become a `<Sheet>` at `<1280`; dashboard cards use a grid that reduces columns; `<768` shows a "Gunakan tablet atau desktop" (use a tablet or desktop) page + Record button. Breakpoints tested at 1440, 1024, 768.
 - **Global overlays** in the `_app` layout: Record Transaction sheet, ⌘K, Assistant ⌘J, Notifications, Settings ⌘,.
 - **Foundation components (M0):** `<Money>` (context + privacy + sign), `<Delta>`, `<Percent>`, `<DateLabel>`, `<PageState>`, `<KbdHint>`, `<UndoToast>`, `<ConfirmDialog impact>`, `<SecretInput>` (never receives the old value from the server), 6-digit `<CodeInput>`, `<RangePicker>`. Lint: no money amounts without `<Money>`; no `dangerouslySetInnerHTML`.
@@ -218,6 +221,7 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 - Drizzle + initial migration **with RLS + separate DB roles**; user-scoped repositories; `packages/crypto` (KEK from secret file, per-user DEK, log redaction).
 - Better Auth: Google + email/password, Argon2id, breached-password check, lockout/rate limit, **TOTP 2FA + backup codes + passkey**, device list, `security_events` (FR-A1–A3, A5, A8, A10).
 - Tokens, theme, fonts, **desktop + tablet rail** app shell, §7 foundation components, `<Money>` + Privacy mode.
+- **i18n foundation:** `packages/i18n` with Paraglide, `id` + `en` message files, locale resolver and switcher (sign-in page + Settings › Profile), locale-aware `formatMoney/formatDate/plural`, ESLint rule against hard-coded JSX text, CI check for missing/unused keys in either locale.
 - `domain`: `money`, `period`, `ledger` + golden tests. Worker skeleton (dispatcher, Bull Board behind admin + 2FA, `maintenance`).
 - **Distribution from day one:** single Docker image (`web`/`worker`/`migrate`), self-host `docker-compose.yml` (including single-node **SeaweedFS** with S3 on the internal network + automatic bucket creation on start), `.env.example`, an entrypoint that generates the KEK automatically if missing (and asks the user to back it up), automatic migrations on start, first-run setup wizard (FR-OP1), `DEPLOYMENT_MODE` mode (D22).
 - `integrations/objectstore`: `put(userId, bytes, mime) → key` (encrypt → S3 PutObject), `get(userId, key)` (GetObject → decrypt, ownership + sha256 check), `delete`, `deletePrefix(userId)`; streaming download route with safe headers. Image upload: magic-byte check, 2 MB limit, re-encode via `sharp` (strip EXIF/GPS), 320 px thumbnail for the lightbox.
@@ -239,10 +243,10 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 **Exit:** 88% / 48% / Rp140.000 / 87% / 90% / 36,5%; transition 1–24 Nov = Rp15.000.000; September read-only; range 14 Sep–13 Okt shows "30 hari · melintasi 2 periode" (30 days · spans 2 periods).
 
 ### M3 — Schedules, Review queue, subscriptions, calendar, notifications
-- Recurrence (FR-T6, L8); `scheduled_occurrences` + worker; **`/tinjau` page** with all reasons (FR-L7) + `confirmReview`; automatic Period close + proposals (FR-P4).
+- Recurrence (FR-T6, L8); `scheduled_occurrences` + worker; **`/review` page** with all reasons (FR-L7) + `confirmReview`; automatic Period close + proposals (FR-P4).
 - Subscriptions (FR-SUB1–SUB6); Calendar (FR-C1–C3); notification popover + **page** + email (FR-S5, FR-ST3).
 
-**Exit:** Netflix on the 18th → D-1 reminder at 09.00 WIB exactly once → `/tinjau` on the due date → balance changes only after "Sudah dibayar" (already paid); **architecture test: the worker cannot import transaction/budget repositories**; September Period close produces the proposal "pindah sisa Rp1.150.000 ke Dana Darurat" (move leftover to Emergency Fund) which does not take effect before confirmation; worker restart causes no duplicates.
+**Exit:** Netflix on the 18th → D-1 reminder at 09.00 WIB exactly once → `/review` on the due date → balance changes only after "Sudah dibayar" (already paid); **architecture test: the worker cannot import transaction/budget repositories**; September Period close produces the proposal "pindah sisa Rp1.150.000 ke Dana Darurat" (move leftover to Emergency Fund) which does not take effect before confirmation; worker restart causes no duplicates.
 
 ### M4 — Savings goals, debts, credit cards, receivables
 - Goals + Sinking funds (FR-G1, G3, G4, FR-B6); credit cards + installments (FR-R7, FR-U1–U6); full **Receivables**: list, record, receive partially/in full, write off, reminders, from Split bill (FR-U7, FR-L5).
@@ -261,7 +265,7 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 **Exit:** seed September report (25,8 / 18,3 / +7,5 jt / 29,1% / Rp112.200.000); 4-page PDF; BCA sample import 41/5/2; account deletion → after 7 days data + DEK are gone, blobs cannot be decrypted.
 
 ### M7 — Automation & AI
-- Rules (suggestions) + backfill with confirmation (FR-AI1); BYOK AI + logs + cost limit (FR-AI2); Assistant ⌘J draft → confirmation (FR-AI3); receipt OCR (FR-T7); **Gmail behind a feature flag**: everything → `/tinjau`, Gmail log, filter testing, permission revocation (FR-AI4).
+- Rules (suggestions) + backfill with confirmation (FR-AI1); BYOK AI + logs + cost limit (FR-AI2); Assistant ⌘J draft → confirmation (FR-AI3); receipt OCR (FR-T7); **Gmail behind a feature flag**: everything → `/review`, Gmail log, filter testing, permission revocation (FR-AI4).
 
 **Exit:** chat "45.000 GoPay" → draft 93% / Rp367.000 → confirm → `source=assistant`; negative test: without a confirm click there is no row in `transactions`; PLN email 97% → **review item**, not a transaction; duplicate webhook → one review item.
 

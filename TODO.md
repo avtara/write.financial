@@ -27,6 +27,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [ ] Better Auth: email/password, Google, 2FA (TOTP, backup codes, passkey), lockout, device list
 - [ ] Encrypted object storage (`integrations/objectstore`) + safe image upload
 - [ ] Design tokens, dark/light theme, desktop app shell + tablet rail, `<Money>` + privacy mode
+- [ ] i18n: Paraglide, Bahasa Indonesia + English messages, language switcher, locale-aware number/date formatting, missing-key check in CI
 - [ ] Domain `money`, `period`, `ledger` + golden tests
 - [ ] Worker skeleton (dispatcher, Bull Board, maintenance)
 - [ ] Docker image + self-host compose + first-run setup wizard

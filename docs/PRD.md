@@ -98,7 +98,7 @@ Product differentiators:
 - **FR-A9** 2FA is **required** before: saving API keys (AI, market), connecting Gmail, exporting all data, and deleting the account. Sensitive actions also require re-authentication if the session is > 15 minutes old.
 - **FR-A10** Security history: new sign-in, 2FA changed, password changed, key added/removed, Gmail connected/disconnected. Notification email for sign-ins from a new device.
 - **FR-A11** User data rights (UU PDP (Indonesian Personal Data Protection Law No. 27/2022)): export all data (JSON + CSV), delete account (7-day grace period, then permanent deletion including backups after the retention period), explicit consent for Gmail and AI.
-- **FR-A7** Profile: photo (≤ 2 MB), full name (used in PDFs), preferred name (used in the "Selamat sore, …" (good afternoon) greeting), language, IANA time zone.
+- **FR-A7** Profile: photo (≤ 2 MB), full name (used in PDFs), preferred name (used in the "Selamat sore, …" (good afternoon) greeting), language (Bahasa Indonesia / English, FR-S8), IANA time zone.
 
 ### 6.2 App shell & cross-module (Sections 01, 02, 11, 12, 15)
 - **FR-S1** Sidebar: Overview, Transactions (count badge), Budget, Subscriptions (badge), Calendar, Investments, Reports, Savings goals, Debts & installments, Ask Assistant `⌘J`, Search `⌘K`, user menu. Page header: greeting, period summary, Week/Month/Year segment, period picker, "Atur" (customize), "Catat Transaksi N".
@@ -108,6 +108,7 @@ Product differentiators:
 - **FR-S5** In-app notifications: sidebar popover (tabs "Anggaran & tagihan" (budget & bills) / "Sistem" (system), items grouped by day with action buttons, "Tandai dibaca" (mark as read), empty state showing "Pengingat berikutnya" (next reminder)) **and an All notifications page** (filters All / Unread / per type with counts, search, 30-day range, load older, 90-day retention). Notifications only prompt action; their buttons open the Review queue rather than recording directly. `[JdcJD, h5aPn2, dzA5V]`
 - **FR-S7** Custom range: popover with presets (last 7/30 days, this/last period, quarter, year, since start), start/end inputs, two month calendars, future dates disabled, summary "N hari · melintasi N periode" (N days · spans N periods), comparison = the same preceding range. Used in Dashboard, Transactions, and Custom Reports. `[WLyvf]`
 - **FR-S6** Toasts with actions (Urungkan/Tinjau/Coba lagi/Lihat — undo/review/retry/view), multi-line tooltips, destructive alert dialogs with an impact summary.
+- **FR-S8** **Language (D26):** the whole UI is available in **Bahasa Indonesia** and **English**. Initial language: user preference → otherwise the `Accept-Language` header at sign-up (Indonesian if it contains `id`, otherwise English) → instance default (set in the setup wizard). Switcher in Settings › Profile and on the sign-in page; the change applies immediately without reload and is synced to the account. Translated surfaces: all UI text, toasts, validation errors, emails, PDF/Excel reports, notifications, built-in category names, onboarding, and the Assistant's replies (the AI is told to answer in the user's language). User-entered data (category names they created, notes, merchants) is never translated.
 
 ### 6.3 Accounts & wallets (Section 05)
 - **FR-R1** Account types: Bank, E-Wallet (phone number in place of the last 4 digits), Cash, Investment (platform), Credit card (limit, statement date, due date). Fields: provider name (logo looked up automatically from a catalog, or upload PNG, or use an icon), display name, last 4 digits, currency (ISO), opening balance and its date, color. `[A4n8Tw, C016z, BSYfj, rmT6r, RcdFp, FkWkq]`
@@ -232,7 +233,7 @@ Product differentiators:
 ### 6.17 Settings (Section 02)
 Navigation: Account (Profile & account) · Preferences (Currency & exchange rates, Monthly period, Appearance, Notifications, Categories, Tags, Auto rules) · Data (Data & backup, Security) · Integrations (AI agent, Exchange-rate & market API, Gmail) · Other (Keyboard shortcuts, Help & about). A sticky "Simpan perubahan" (save changes) footer appears in the dirty state.
 - **FR-ST1** Primary currency (IDR; changing the primary currency once data exists = out of scope for v1), other currencies (detected from accounts), exchange-rate mode Automatic (Frankfurter, rate type shown: "kurs transaksi BI" (BI transaction rate), + "Perbarui sekarang" (update now)) / Manual (rate + effective from + difference vs reference).
-- **FR-ST2** Appearance: theme, number format (full/compact for non-table displays), date format, week start, hide balances.
+- **FR-ST2** Appearance: theme, number format (full/compact for non-table displays; separators follow the language by default: Indonesian `1.234.567,89`, English `1,234,567.89`, can be overridden), date format (localized month names), week start, hide balances.
 - **FR-ST3** Notifications: bill reminders (H-3/H-1/Hari H (same day) + time), budget thresholds (50/80/100%), low balance, weekly summary (Monday), channels (in-app always; email optional). Web push is postponed along with mobile.
 - **FR-ST4** Exchange-rate & market API: list of sources per asset class with mode (Built-in / BYOK / Manual) and status (Aktif · jam, Terhubung, Atur key, Estimasi, Kuota habis s.d. … — active · time, connected, set key, estimate, quota exhausted until …). BYOK row: provider, API key (masked, only the last 4 characters after saving), frequency capped to fit the free quota, quota meter, "Dapatkan key gratis" (get a free key) link, **Test connection** with per-symbol results, license notes ("key pribadi, data hanya untukmu" (personal key, data only for you), "tertunda, bukan real-time" (delayed, not real-time)). When the quota runs out: pause until reset and fall back to the next source. Requires 2FA enabled. Request log (30-day retention, keys masked). `[JtnsQ, PhHg9, iCbPR]`
 - **FR-ST5** Data & backup: export all data, import, automatic daily backups (retention 30), restore from backup, delete all transactions (accounts, categories, and budgets remain).
@@ -266,7 +267,7 @@ All modules use the same functions from the `domain` package. The example number
 | Foreign currency | With exchange rate | `US$690,10` · `Rp16.350 per US$1` |
 | Privacy | 6 dots | `Rp••••••` |
 
-Input accepts abbreviations ("25rb", "1,5jt").
+Input accepts abbreviations in both languages ("25rb", "1,5jt", "25k", "1.5m") and both decimal separators, interpreted according to the active number format. The examples above use the Indonesian format; with the English format the same values render as `42,810,000`, `Rp55,023,000`, `36.5%`, `−2,277,000`. The currency symbol stays `Rp` for IDR in both languages.
 
 ### 7.2 Formulas
 | Quantity | Formula | Seed example |
@@ -309,7 +310,7 @@ The detailed schema is in the implementation plan §4.
 - **Availability:** scheduled reminders are still sent even if the UI fails (worker separate from web).
 - **Time zone:** all day and period boundaries use the user's time zone (default Asia/Jakarta). Stored as `timestamptz` + local `date` for period keys.
 - **Accessibility:** WCAG 2.2 AA, full keyboard navigation, `prefers-reduced-motion`.
-- **i18n:** v1 is Indonesian only, but all strings are collected in a single catalog.
+- **i18n:** Bahasa Indonesia (source language, matches the design) and English at launch (D26). Every UI string comes from the message catalog; no hard-coded text in components (lint). Numbers, currency, dates, relative times, and plurals use `Intl` with the active locale. Adding a third language = adding one message file.
 - **Backups:** daily `pg_dump` at 03.00 WIB, **encrypted** (age, public key on the server, private key offline), 30-day retention, off-site copy. Restore tested every release. Data of deleted accounts disappears from backups once retention expires.
 
 ### 9.1 Data storage security (public app)
@@ -384,6 +385,7 @@ I made the following decisions so work can proceed. All of them can be changed b
 | D23 | Data sources per instance | Built-in sources are run by each instance with the instance operator's keys (CMC Basic optional). Cloud uses write.financial's operator keys. BYOK & manual are the same in both modes | Free licenses apply per product/key owner | **Decided** |
 | D24 | Gmail | **Self-host:** the operator creates their own Google Cloud project and installs the client ID in FR-OP2; for personal/family use the app is published without verification ("aplikasi belum diverifikasi" (unverified app) screen, max. 100 users) so refresh tokens don't expire every 7 days as in Testing status [to be tested in M7]. **Cloud:** Gmail stays disabled until verification + security assessment are complete | Makes Gmail usable earlier via self-host | **Decided** |
 | D25 | Image & file storage | **SeaweedFS** (Apache-2.0, `weed server -s3`) as S3-compatible object storage for receipts, attachments, profile photos, uploaded account/subscription logos, report PDF/Excel files, and exports. The app only speaks the standard S3 API (`@aws-sdk/client-s3`), so instance operators can swap it for another S3 (Garage, RustFS, AWS S3, Cloudflare R2, Backblaze B2) via `.env`. Buckets: `wf-attachments`, `wf-avatars`, `wf-reports`, `wf-exports`; object keys `u/{userId}/{uuid}` without the original file name. MinIO is **not used**: its community repo was archived (Apr 2026) and its official image has been pulled from Docker Hub, so there are no security patches | Product owner request (object storage) + MinIO status | **Decided** |
+| D26 | Internationalization | **Paraglide JS** (inlang) with TanStack Start: compile-time, type-safe message functions, tree-shaken per locale, works in SSR, server functions, and the worker (emails, PDFs, notifications). Locales `id` (source) and `en`. Locale is resolved from the user preference/cookie, **not** from a URL prefix (the app is behind login); route paths are English and language-neutral. CI fails if a key is missing in either locale or if a component contains a hard-coded user-facing string | Bilingual product for Indonesian and international self-hosters | **Decided** |
 
 All open questions have been answered.
 
