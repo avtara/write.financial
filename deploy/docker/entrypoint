@@ -1,0 +1,9 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
+# Image entrypoint, started by tini. The app commands go to the launcher (apps/launcher/src/main.ts); anything else
+# runs as given, e.g. `docker compose run --rm web sh`.
+set -eu
+case "${1:-}" in
+web | worker | init | healthcheck) exec node /app/apps/launcher/src/cli.ts "$@" ;;
+*) exec "$@" ;;
+esac

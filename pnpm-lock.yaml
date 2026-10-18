@@ -218,6 +218,18 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(@vitest/browser-playwright@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(msw@3.0.3(@types/node@24.19.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  apps/launcher:
+    dependencies:
+      '@wf/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@wf/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
+      '@wf/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+
   apps/web:
     dependencies:
       '@tanstack/react-router':

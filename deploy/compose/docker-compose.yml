@@ -1,0 +1,199 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# write.financial self-hosting (docs/self-host/install.md):
+#   cp .env.example .env    # then set WF_DOMAIN, PUBLIC_URL, POSTGRES_PASSWORD
+#   docker compose up -d --wait
+#
+# Start order: postgres → init (generates missing secrets into the `secrets` volume, creates the database roles, runs
+# migrations, exits) → valkey + seaweedfs → web + worker → caddy. Only caddy publishes ports (80/443). PostgreSQL,
+# Valkey, and SeaweedFS sit on the `internal` network, which has no route to the outside world.
+# Requires Docker Engine 26+ and Compose 2.26+ (volume subpaths).
+
+name: write-financial
+
+x-app: &app
+  image: ${WF_IMAGE:-ghcr.io/avtara/write.financial}:${WF_VERSION:-latest}
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  environment: &app-env
+    DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-selfhost}
+    PUBLIC_URL: ${PUBLIC_URL:-https://localhost}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    # Database, Valkey, S3 credentials, AUTH_SECRET, and the KEK come from here (apps/launcher/src/env.ts).
+    WF_SECRETS_DIR: /run/wf-secrets
+    S3_ENDPOINT: http://seaweedfs:8333
+    SMTP_URL: ${SMTP_URL:-}
+    MAIL_FROM: ${MAIL_FROM:-}
+    GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  volumes:
+    - secrets:/run/wf-secrets:ro
+
+services:
+  caddy:
+    image: caddy:2.11
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      WF_DOMAIN: ${WF_DOMAIN:-localhost}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+
+  web:
+    <<: *app
+    command: ['web']
+    depends_on: &app-deps
+      init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/wf-entrypoint', 'healthcheck', 'web']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+    networks: [edge, internal]
+
+  worker:
+    <<: *app
+    command: ['worker']
+    depends_on: *app-deps
+    # Above the worker's own 25 s shutdown timeout (apps/worker/src/run.ts).
+    stop_grace_period: 30s
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/wf-entrypoint', 'healthcheck', 'worker']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+    networks: [internal]
+
+  # One-shot: secrets, database roles, migrations. Runs again (idempotently) on every `up`, e.g. after an upgrade.
+  init:
+    <<: *app
+    command: ['init']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - secrets:/run/wf-secrets
+    networks: [internal]
+
+  postgres:
+    image: postgres:18.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      # Used only when the data volume is first created; init logs in with it to manage the app's roles.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: write_financial
+    volumes:
+      # Postgres 18 images keep PGDATA in a versioned subdirectory of /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d write_financial']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+      start_interval: 2s
+    networks: [internal]
+
+  valkey:
+    image: valkey/valkey:9.2
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    # The password is passed on stdin (`-`), so it shows up neither in the process list nor in the environment.
+    command:
+      - sh
+      - -c
+      - |
+        exec docker-entrypoint.sh valkey-server - --maxmemory-policy noeviction --appendonly yes --appendfsync everysec <<EOF
+        requirepass $$(cat /run/wf-secrets/password)
+        EOF
+    volumes:
+      - valkey-data:/data
+      - type: volume
+        source: secrets
+        target: /run/wf-secrets
+        read_only: true
+        volume:
+          subpath: valkey
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$$(cat /run/wf-secrets/password)" valkey-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 2s
+    networks: [internal]
+
+  # master + volume + filer + S3 in one process; creates the app buckets on start (seaweedfs/start.sh).
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    entrypoint: ['/bin/sh', '/init/start.sh']
+    volumes:
+      - seaweedfs-data:/data
+      - ./seaweedfs/start.sh:/init/start.sh:ro
+      - type: volume
+        source: secrets
+        target: /run/wf-secrets
+        read_only: true
+        volume:
+          subpath: s3
+    tmpfs:
+      - /run/wf-s3:mode=0700
+    healthcheck:
+      test: ['CMD-SHELL', 'test -f /tmp/wf-buckets-ready && wget -q -O /dev/null http://127.0.0.1:8333/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+      start_interval: 2s
+    networks: [internal]
+
+networks:
+  # caddy ↔ web. A regular bridge: Caddy needs the internet for certificates.
+  edge:
+  # Everything else. `internal`: no published ports, no route out.
+  internal:
+    internal: true
+
+volumes:
+  # Generated secrets (KEK, passwords, keys). Back up the KEK from here; see docs/self-host/install.md.
+  secrets:
+  postgres-data:
+  valkey-data:
+  seaweedfs-data:
+  caddy-data:
+  caddy-config:
