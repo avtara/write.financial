@@ -1,0 +1,36 @@
+{
+  "name": "@wf/ui",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./styles.css": "./src/styles.css",
+    "./privacy": "./src/privacy.tsx",
+    "./money": "./src/money.tsx",
+    "./delta": "./src/delta.tsx",
+    "./percent": "./src/percent.tsx",
+    "./kbd-hint": "./src/kbd-hint.tsx",
+    "./page-state": "./src/page-state.tsx",
+    "./secret-input": "./src/secret-input.tsx",
+    "./code-input": "./src/code-input.tsx",
+    "./confirm-dialog": "./src/confirm-dialog.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wf/domain": "workspace:*",
+    "geist": "^1.8.1",
+    "lucide-react": "^1.59.0",
+    "radix-ui": "^1.8.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "vitest-browser-react": "^2.3.0"
+  }
+}

@@ -1,0 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Loaded before every browser test (vitest.config.ts `unit-browser`), the same stack an app imports. */
+@import 'tailwindcss';
+@import './packages/ui/src/tokens.css';
+@import './packages/ui/src/styles.css';
