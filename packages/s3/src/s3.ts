@@ -11,8 +11,9 @@ import {
 import type { Config } from '@wf/config';
 
 /**
- * The few S3 operations the object store needs. Production uses `createS3Port` (AWS SDK v3, works with SeaweedFS
- * and any other S3 per D25); unit tests use an in-memory fake. Bodies are opaque ciphertext.
+ * The few S3 operations the object store (`@wf/integrations/objectstore`) and the self-host backup need. Production
+ * uses `createS3Port` (AWS SDK v3, works with SeaweedFS and any other S3 per D25); unit tests use an in-memory fake.
+ * Bodies are opaque ciphertext.
  */
 export interface S3Port {
   putObject(bucket: string, key: string, body: Uint8Array): Promise<void>;

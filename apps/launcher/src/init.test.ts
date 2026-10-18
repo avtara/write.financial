@@ -171,6 +171,8 @@ describe('kekNotice', () => {
     const notice = kekNotice('/run/wf-secrets/kek');
     expect(notice).toContain('IMPORTANT: a new key-encryption key (KEK) was generated. Back it up NOW.');
     expect(notice).toContain('docker compose cp web:/run/wf-secrets/kek ./write-financial-kek.backup');
+    expect(notice).toContain('docker compose cp web:/run/wf-secrets/auth_secret ./write-financial-auth-secret.backup');
+    expect(notice).toContain('Neither is part of the backups');
     expect(notice).toContain('that data is gone for good');
     expect(notice.split('\n')[0]).toMatch(/^=+$/);
   });

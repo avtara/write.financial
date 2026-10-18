@@ -37,6 +37,10 @@ describe('postgresUrl', () => {
       'postgres://wf_app:x@db.internal:6543/wf%20prod',
     );
   });
+
+  it('leaves the password out for the client tools', () => {
+    expect(postgresUrl({}, 'wf_migrate')).toBe('postgres://wf_migrate@postgres:5432/write_financial');
+  });
 });
 
 describe('secretsEnv', () => {

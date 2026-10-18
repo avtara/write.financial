@@ -12,6 +12,7 @@ file in [`deploy/compose/`](../../deploy/compose/):
 | `postgres`  | PostgreSQL 18                                                                                      | `internal`         |
 | `valkey`    | Valkey 9 (Redis-compatible) for queues and cache                                                   | `internal`         |
 | `seaweedfs` | S3-compatible object storage for attachments (already encrypted by the app before upload)         | `internal`         |
+| `backup`    | on demand: encrypted backups and restores ([backup.md](backup.md)), not started by `up`           | `internal`         |
 
 Only Caddy publishes ports. The `internal` network has no route to the outside world, so PostgreSQL, Valkey, and
 SeaweedFS are unreachable from other machines.
@@ -90,22 +91,30 @@ afterwards it prints nothing about it. Registration is closed by default: after 
 For a local trial with `WF_DOMAIN=localhost`, the URL starts with `https://localhost/setup`. Caddy uses its own
 certificate authority, so the browser warns about the certificate.
 
-## 4. Back up the key-encryption key (KEK)
+## 4. Back up the key-encryption key (KEK) and the auth secret
 
 Secrets inside the database (2FA secrets, notes, connected-account tokens) and every uploaded file are encrypted
 with keys that are themselves encrypted with the KEK. **If you lose the KEK, that data cannot be recovered by anyone,
-including from database backups.** Copy it right after the first start:
+including from database backups.** The auth secret encrypts the two-step verification secrets and keys the backup
+codes: without it, nobody can sign in with two-step verification after a restore. Neither is part of the backups
+(by design, see [backup.md](backup.md)). Copy both right after the first start:
 
 ```sh
 docker compose cp web:/run/wf-secrets/kek ./write-financial-kek.backup
-chmod 600 ./write-financial-kek.backup
+docker compose cp web:/run/wf-secrets/auth_secret ./write-financial-auth-secret.backup
+chmod 600 ./write-financial-kek.backup ./write-financial-auth-secret.backup
 ```
 
-Store the copy offline in two separate places (e.g. a password manager and an encrypted USB drive), not next to
-your database backups, then delete `./write-financial-kek.backup` from the server. The KEK never appears in logs.
+Store the copies offline in two separate places (e.g. a password manager and an encrypted USB drive), not next to
+your database backups, then delete them from the server. The KEK never appears in logs.
 
-To restore onto a new server, start once so the volume exists, stop the stack, put the file back into the
-`secrets` volume as `kek` (mode 0600, owner 10001), and start again.
+To restore onto a new server, put both files into the new `secrets` volume before its first start; the restore
+runbook in [backup.md](backup.md#4-restore) shows the commands.
+
+## 5. Set up backups
+
+Configure the daily encrypted backup, its off-site copy, and the monthly restore test as described in
+[backup.md](backup.md).
 
 ## Monitoring the job queues
 
@@ -117,7 +126,7 @@ Board's interface needs; scripts still run only with the per-request nonce.
 
 ## Upgrading
 
-Read the release notes, back up, then set the new `WF_VERSION` in `.env` (or keep `latest`) and run:
+Read the release notes, make a backup (`docker compose run --rm backup`, [backup.md](backup.md)), then set the new `WF_VERSION` in `.env` (or keep `latest`) and run:
 
 ```sh
 docker compose pull

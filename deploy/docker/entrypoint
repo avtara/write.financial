@@ -4,6 +4,6 @@
 # runs as given, e.g. `docker compose run --rm web sh`.
 set -eu
 case "${1:-}" in
-web | worker | init | healthcheck) exec node /app/apps/launcher/src/cli.ts "$@" ;;
+web | worker | init | backup | restore | healthcheck) exec node /app/apps/launcher/src/cli.ts "$@" ;;
 *) exec "$@" ;;
 esac

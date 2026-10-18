@@ -33,11 +33,33 @@ export function setting(env: Env, key: string): string | undefined {
   return value === '' ? undefined : value;
 }
 
-/** `postgres://user:password@WF_DATABASE_HOST/WF_DATABASE_NAME`, with user and password percent-encoded. */
-export function postgresUrl(env: Env, user: string, password: string): string {
+/** `setting(env, key)`, or a `LaunchConfigError` naming the command that needs it. */
+export function requiredSetting(env: Env, key: string, command: string): string {
+  const value = setting(env, key);
+  if (value === undefined) throw new LaunchConfigError(`${key} is required for ${command}`);
+  return value;
+}
+
+/** The PostgreSQL superuser: `POSTGRES_USER` (default `postgres`) with `POSTGRES_PASSWORD` from `.env`. */
+export function superuserLogin(env: Env, command: string): { user: string; password: string } {
+  const password = setting(env, 'POSTGRES_PASSWORD');
+  if (password === undefined) {
+    throw new LaunchConfigError(
+      `POSTGRES_PASSWORD (the PostgreSQL superuser password from .env) is required for ${command}`,
+    );
+  }
+  return { user: setting(env, 'POSTGRES_USER') ?? 'postgres', password };
+}
+
+/**
+ * `postgres://user:password@WF_DATABASE_HOST/WF_DATABASE_NAME`, with user and password percent-encoded. Without a
+ * password, `postgres://user@…`: the form for the PostgreSQL client tools, which get the password as `PGPASSWORD`.
+ */
+export function postgresUrl(env: Env, user: string, password?: string): string {
   const host = setting(env, 'WF_DATABASE_HOST') ?? 'postgres:5432';
   const database = setting(env, 'WF_DATABASE_NAME') ?? 'write_financial';
-  return `postgres://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}/${encodeURIComponent(database)}`;
+  const login = encodeURIComponent(user) + (password === undefined ? '' : `:${encodeURIComponent(password)}`);
+  return `postgres://${login}@${host}/${encodeURIComponent(database)}`;
 }
 
 /** The runtime database logins every process needs (`@wf/config` requires all three). */

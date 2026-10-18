@@ -5,7 +5,7 @@ import type { Dek } from '@wf/crypto/envelope';
 import { sha256Hex } from '@wf/crypto/hash';
 import { v7 as uuidv7 } from 'uuid';
 import { MEDIA_TYPE } from './mime.ts';
-import { createS3Port, type S3Port } from './s3.ts';
+import { createS3Port, type S3Port } from '@wf/s3';
 
 /**
  * Per-user encrypted object storage (PRD §9.1, D25). Every object is encrypted with its owner's DEK before it
@@ -18,7 +18,7 @@ import { createS3Port, type S3Port } from './s3.ts';
  */
 
 export type { S3Port };
-export { S3BatchDeleteError } from './s3.ts';
+export { S3BatchDeleteError } from '@wf/s3';
 
 /** Logical bucket; the actual name comes from `Config['s3'].buckets`. */
 export type BucketKind = keyof Config['s3']['buckets'];
