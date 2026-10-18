@@ -1,0 +1,41 @@
+{
+  "name": "@wf/auth",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    "./auth": "./src/auth.ts",
+    "./session": "./src/session.ts",
+    "./first-admin": "./src/first-admin.ts",
+    "./registration": "./src/registration.ts",
+    "./invitations": "./src/invitations.ts",
+    "./lockout": "./src/lockout.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@better-auth/core": "1.7.10",
+    "@better-auth/passkey": "^1.7.10",
+    "@node-rs/argon2": "^2.2.2",
+    "@wf/config": "workspace:*",
+    "@wf/crypto": "workspace:*",
+    "@wf/db": "workspace:*",
+    "@wf/i18n": "workspace:*",
+    "@wf/integrations": "workspace:*",
+    "better-auth": "^1.7.10",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@electric-sql/pglite-socket": "^0.2.13",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/ioredis-mock": "^8.2.8",
+    "ioredis": "^6.0.0",
+    "ioredis-mock": "^8.13.1",
+    "msw": "^3.0.3",
+    "otpauth": "^9.5.2",
+    "testcontainers": "^12.2.1"
+  }
+}

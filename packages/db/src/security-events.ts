@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { and, desc, eq, lt } from 'drizzle-orm';
-import { isUuid, withUser, type Database } from './db.ts';
+import { and, desc, eq, lt, sql } from 'drizzle-orm';
+import { firstRow, isUuid, withUser, type Database } from './db.ts';
 import { securityEvents, type JsonObject, type SECURITY_EVENT_TYPES } from './schema.ts';
 
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
@@ -42,6 +42,16 @@ export interface SecurityEvents {
   append: (userId: string, event: NewSecurityEvent) => Promise<void>;
   /** The user's events, newest first (UUID v7 ids are time-ordered). */
   list: (userId: string, page: SecurityEventPage) => Promise<SecurityEventList>;
+  /**
+   * Whether the user has signed in before, and whether from the device with this fingerprint (`meta.device` of a
+   * `sign_in` event), for new-device notifications (FR-A10).
+   */
+  signInHistory: (userId: string, device: string) => Promise<SignInHistory>;
+}
+
+export interface SignInHistory {
+  readonly hasSignedIn: boolean;
+  readonly knownDevice: boolean;
 }
 
 export function createSecurityEvents(db: Database): SecurityEvents {
@@ -87,5 +97,19 @@ export function createSecurityEvents(db: Database): SecurityEvents {
         return { events, nextBefore: last?.id ?? null };
       });
     },
+
+    signInHistory: (userId, device) =>
+      withUser(db, userId, async (tx) =>
+        firstRow(
+          await tx
+            .select({
+              hasSignedIn: sql<boolean>`count(*) > 0`,
+              knownDevice: sql<boolean>`coalesce(bool_or(${securityEvents.meta} ->> 'device' = ${device}), false)`,
+            })
+            .from(securityEvents)
+            .where(and(eq(securityEvents.userId, userId), eq(securityEvents.type, 'sign_in'))),
+          'security_events',
+        ),
+      ),
   };
 }

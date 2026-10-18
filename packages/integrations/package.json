@@ -7,20 +7,34 @@
   "exports": {
     "./objectstore": "./src/objectstore.ts",
     "./image": "./src/image.ts",
-    "./download": "./src/download.ts"
+    "./download": "./src/download.ts",
+    "./mailer": "./src/mailer.ts",
+    "./mail-templates": "./src/mail-templates.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
+    "@react-email/components": "^1.0.12",
     "@wf/config": "workspace:*",
     "@wf/crypto": "workspace:*",
+    "@wf/i18n": "workspace:*",
+    "nodemailer": "^10.1.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "sharp": "^0.35.5",
     "uuid": "^14.0.3"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.9.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/smtp-server": "^3.5.13",
+    "mailparser": "^3.9.40",
     "msw": "^3.0.3",
+    "smtp-server": "^3.19.23",
     "testcontainers": "^12.2.1"
   }
 }

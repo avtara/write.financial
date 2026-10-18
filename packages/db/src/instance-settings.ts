@@ -44,12 +44,12 @@ export interface SetupInput {
   readonly smtp: (SmtpSettings & { readonly password?: string | null }) | null;
 }
 
-/** The caller is not an admin: Row-Level Security lets only admins update instance settings. */
+/** The caller is not an admin: Row-Level Security lets only admins update instance settings or invite users. */
 export class NotAdminError extends Error {
   override readonly name = 'NotAdminError';
 
-  constructor() {
-    super('Only an admin can change instance settings');
+  constructor(action = 'change instance settings') {
+    super(`Only an admin can ${action}`);
   }
 }
 

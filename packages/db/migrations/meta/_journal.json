@@ -22,6 +22,13 @@
       "when": 1792317311577,
       "tag": "0002_maintenance_purge_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792320431580,
+      "tag": "0003_auth_security_events",
+      "breakpoints": true
     }
   ]
 }
