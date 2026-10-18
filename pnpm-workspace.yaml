@@ -3,11 +3,13 @@ packages:
   - packages/*
   - tools/*
 
-# Build scripts of transitive dev dependencies (testcontainers → ssh2/dockerode, drizzle-kit → esbuild). None is needed:
-# ssh2 falls back to pure JS without cpu-features, protobufjs's postinstall only prints a version notice, and esbuild
-# loads its platform binary from the @esbuild/<platform> optional dependency.
+# Build scripts of transitive dependencies (testcontainers → ssh2/dockerode, drizzle-kit → esbuild, bullmq → msgpackr).
+# None is needed: ssh2 falls back to pure JS without cpu-features, protobufjs's postinstall only prints a version
+# notice, esbuild loads its platform binary from the @esbuild/<platform> optional dependency, and msgpackr-extract
+# loads its prebuilt binary from @msgpackr-extract/<platform> (msgpackr falls back to pure JS without it).
 allowBuilds:
   cpu-features: false
   esbuild: false
+  msgpackr-extract: false
   protobufjs: false
   ssh2: false
