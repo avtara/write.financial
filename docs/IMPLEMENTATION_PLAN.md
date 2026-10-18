@@ -319,7 +319,7 @@ flowchart LR
 **Rule for every step (D27):** no task, PR, or milestone item is done without unit tests, and every package stays at **100% unit coverage per file** (lines, branches, functions, statements). This is part of every milestone's exit criteria, in addition to the criteria listed in §8.
 
 ### 9.1 Unit tests (100% gate)
-- **Runner:** Vitest 5 with `test.projects` (one project per package) in the root `vitest.config.ts`; `@vitest/coverage-v8`; `coverage.thresholds: { 100: true, perFile: true }`; `coverage.include` lists every `{apps,packages,tools}/*/src/**` file, so an untested file counts as 0%.
+- **Runner:** Vitest 5 with two `test.projects` in the root `vitest.config.ts` (`unit`, `integration`); `@vitest/coverage-v8`; `coverage.thresholds: { 100: true, perFile: true }`; `coverage.include` lists every `{apps,packages,tools}/*/src/**` file, so an untested file counts as 0%.
 - **Per layer:**
   - `packages/domain`, `packages/crypto`, `packages/i18n` formatters: pure unit tests + golden tests from the seed and Section 19 + property tests (`fast-check`) for `money`, `period`, `debt`, `receivables` (Σ payments ≤ principal).
   - `packages/db` repositories and `apps/worker` processors: unit tests against fakes of their ports (repository interfaces, clock, queue, object store, HTTP); the real Postgres/Valkey/SeaweedFS paths are covered by integration tests (§9.2).
