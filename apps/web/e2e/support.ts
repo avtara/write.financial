@@ -85,6 +85,27 @@ export async function enterCode(page: Page, label: string | RegExp, code: string
   await page.keyboard.type(code);
 }
 
+export async function openUserMenu(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
+}
+
+/** Signs out through the user menu and its confirmation dialog. */
+export async function signOut(page: Page): Promise<void> {
+  await openUserMenu(page);
+  await page.getByRole('menuitem', { name: 'Keluar' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Keluar dari write.financial?' });
+  await dialog.getByRole('button', { name: 'Keluar' }).click();
+  await expect(page).toHaveURL(/\/sign-in/);
+}
+
+/** Submits the sign-in form with `account`'s email and password (2FA accounts continue on `/2fa`). */
+export async function signInWithPassword(page: Page, account: Account): Promise<void> {
+  await page.goto('/sign-in');
+  await page.getByLabel('Email').fill(account.email);
+  await page.getByLabel('Kata sandi', { exact: true }).fill(account.password);
+  await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+}
+
 export async function screenshot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `/tmp/wf-auth-${name}.png`, fullPage: true });
 }

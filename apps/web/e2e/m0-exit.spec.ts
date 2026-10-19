@@ -5,7 +5,7 @@
  * Settings › Security (devices, history, sign out other devices), the sign-in page's language switch, Bull Board for
  * the admin, and an invited user who gets 403 there.
  */
-import type { Browser, Page } from '@playwright/test';
+import type { Browser } from '@playwright/test';
 import { BASE_URL } from './env.ts';
 import {
   clearAuthCounters,
@@ -13,9 +13,12 @@ import {
   expect,
   freshPassword,
   mailSubjects,
+  openUserMenu,
   saveAccount,
   screenshot,
   SETUP_TOKEN,
+  signInWithPassword,
+  signOut,
   test,
   totp,
   USER_STATE,
@@ -29,25 +32,6 @@ test.beforeEach(clearAuthCounters);
 
 const admin: Account = { name: 'Sari Admin', email: 'admin@e2e.test', password: freshPassword() };
 const user: Account = { name: 'Budi Pengguna', email: 'budi@e2e.test', password: freshPassword() };
-
-async function openUserMenu(page: Page) {
-  await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
-}
-
-async function signOut(page: Page) {
-  await openUserMenu(page);
-  await page.getByRole('menuitem', { name: 'Keluar' }).click();
-  const dialog = page.getByRole('alertdialog', { name: 'Keluar dari write.financial?' });
-  await dialog.getByRole('button', { name: 'Keluar' }).click();
-  await expect(page).toHaveURL(/\/sign-in/);
-}
-
-async function signInWithPassword(page: Page, account: Account) {
-  await page.goto('/sign-in');
-  await page.getByLabel('Email').fill(account.email);
-  await page.getByLabel('Kata sandi', { exact: true }).fill(account.password);
-  await page.getByRole('button', { name: 'Masuk', exact: true }).click();
-}
 
 /** Signs `account` in with its password and current TOTP code in a fresh browser context. */
 async function signInElsewhere(browser: Browser, account: Account) {
