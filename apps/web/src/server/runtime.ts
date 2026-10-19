@@ -16,6 +16,7 @@ import { createBudgets, type BudgetsRepository } from '@wf/db/budgets';
 import { createCategories, type CategoriesRepository } from '@wf/db/categories';
 import { createDashboard, type DashboardRepository } from '@wf/db/dashboard';
 import { createDb } from '@wf/db/db';
+import { createDrafts, type DraftsRepository } from '@wf/db/drafts';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
@@ -23,6 +24,9 @@ import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
 import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
 import { createTags, type TagsRepository } from '@wf/db/tags';
+import { createTransactionQuery, type TransactionQueryRepository } from '@wf/db/transaction-query';
+import { createTransactions, type TransactionsRepository } from '@wf/db/transactions';
+import { createUserKeys } from '@wf/db/user-keys';
 import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
 import type { Mailer } from '@wf/integrations/mailer';
@@ -77,6 +81,9 @@ export interface Services extends BaseRuntime {
   readonly periods: PeriodsRepository;
   readonly budgets: BudgetsRepository;
   readonly dashboard: DashboardRepository;
+  readonly transactions: TransactionsRepository;
+  readonly transactionQuery: TransactionQueryRepository;
+  readonly drafts: DraftsRepository;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -104,6 +111,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
 
   let adminExists = false;
   let board: QueueBoard | undefined;
+  const getDek = createUserKeys(appDb, keyring).getOrCreateDek;
   return {
     ...runtime,
     now,
@@ -122,6 +130,9 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     periods: createPeriods(appDb, { now }),
     budgets: createBudgets(appDb, { now }),
     dashboard: createDashboard(appDb, { now }),
+    transactions: createTransactions(appDb, { getDek, now }),
+    transactionQuery: createTransactionQuery(appDb, { getDek }),
+    drafts: createDrafts(appDb, { getDek }),
     mailer,
     sendWith,
     invite: createInviter({

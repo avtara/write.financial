@@ -102,4 +102,17 @@ describe('DatePicker', () => {
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
     expect(onValueChange).not.toHaveBeenCalled();
   });
+
+  it('shows a caller trigger label and reports the month shown', async () => {
+    const onMonthChange = vi.fn();
+    const screen = await render(
+      <Harness initial={TODAY} triggerLabel="15 Okt 2026, 19.30" onMonthChange={onMonthChange} />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Tanggal' });
+    await expect.element(trigger).toHaveTextContent('15 Okt 2026, 19.30');
+    await userEvent.click(trigger);
+    expect(onMonthChange).toHaveBeenLastCalledWith('2026-10-15');
+    await userEvent.click(page.getByRole('button', { name: 'Bulan sebelumnya' }));
+    expect(onMonthChange).toHaveBeenLastCalledWith('2026-09-01');
+  });
 });

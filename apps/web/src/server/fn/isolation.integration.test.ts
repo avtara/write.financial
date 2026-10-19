@@ -8,7 +8,7 @@
  * case in {@link MATRIX}, so new server functions cannot skip this test.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -23,7 +23,9 @@ import type { AccountsOverview } from '@wf/db/accounts';
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { CategoryView } from '@wf/db/categories';
 import type { Dashboard } from '@wf/db/dashboard';
+import type { DraftView } from '@wf/db/drafts';
 import type { ManualRateInput } from '@wf/db/fx-rates';
+import type { RecordResult } from '@wf/db/ledger-core';
 import { migrate } from '@wf/db/migrate';
 import { bootstrapRoles, ROLES, type RoleName } from '@wf/db/roles';
 import type { PeriodsOverview } from '@wf/db/periods';
@@ -47,6 +49,16 @@ import * as gate from './gate.ts';
 import * as ledger from './ledger.ts';
 import * as setup from './setup.ts';
 import * as tags from './tags.ts';
+// Named: the module also exports its input schema, which is not a server function.
+import {
+  listDrafts,
+  listTransactionDays,
+  recordTransaction,
+  removeDraft,
+  removeTransactions,
+  restoreTransactions,
+  saveDraft,
+} from './transactions-write.ts';
 
 /** `YYYY-MM-DD` as the repositories' branded date type. */
 type LocalDate = ManualRateInput['asOf'];
@@ -118,6 +130,13 @@ const FUNCTIONS = {
   ...ledger,
   ...setup,
   ...tags,
+  recordTransaction,
+  removeTransactions,
+  restoreTransactions,
+  listTransactionDays,
+  saveDraft,
+  listDrafts,
+  removeDraft,
   getPreferences,
 };
 type Name = keyof typeof FUNCTIONS;
@@ -128,6 +147,18 @@ let a2: SessionBrowser;
 let b2: SessionBrowser;
 let aId: string;
 let bId: string;
+let aAccountId: string;
+let bAccountId: string;
+/** A's expense (on {@link A_DAY}) and draft, which B must neither see nor change. */
+let aTransactionId: string;
+let aDraftId: string;
+/** B's own transaction and draft, made by the `recordTransaction` and `saveDraft` cases. */
+let bTransactionId: string;
+let bDraftId: string;
+/** The idempotency key of A's expense; B reusing it must still record B's own transaction. */
+const A_CLIENT_ID = randomUUID();
+const A_DAY = '2026-10-05';
+const B_DAY = '2026-10-07';
 /** Plaintext secrets no response may contain (stored ciphertexts and hashes are added in the final scan). */
 const secrets: string[] = [AUTH_SECRET, SETUP_TOKEN, SMTP_PASSWORD, A.password, B.password];
 /** Every server function response, for the final scan. */
@@ -169,13 +200,31 @@ const ledgerIds = async (userId: string) =>
       UNION ALL SELECT id::text FROM fx_rates WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM periods WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM budget_versions WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM transactions WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM drafts WHERE user_id = ${userId}
       ORDER BY 1`
   ).map((row) => row.id);
 /** JSON for the leak scan; ledger amounts are bigints. */
 const toJson = (value: unknown) =>
   JSON.stringify(value, (_key, child: unknown) => (typeof child === 'bigint' ? child.toString() : child));
-/** A's ledger rows, all with names B must never see. */
-const A_LEDGER = { account: 'Rekening Rahasia A', category: 'Rahasia A', tag: 'rahasia-a' };
+/** A's ledger rows, all with names or texts B must never see. */
+const A_LEDGER = {
+  account: 'Rekening Rahasia A',
+  category: 'Rahasia A',
+  tag: 'rahasia-a',
+  transaction: 'Belanja Rahasia A',
+  note: 'Catatan Rahasia A',
+  draft: 'Draf Rahasia A',
+};
+/** Whether transaction `id` is soft-deleted. */
+const isDeleted = async (id: string) =>
+  (
+    await superuser<{ deleted: boolean }[]>`SELECT deleted_at IS NOT NULL AS deleted FROM transactions WHERE id = ${id}`
+  )[0]?.deleted;
+/** The stored (encrypted) payload of draft `id`, or `undefined` when it is gone. */
+const draftPayload = async (id: string) =>
+  (await superuser<{ payload: string }[]>`SELECT encode(payload_enc, 'hex') AS payload FROM drafts WHERE id = ${id}`)[0]
+    ?.payload;
 /** The id of a user's live category or tag by its stored name or slug. */
 const categoryId = async (userId: string, name: string) =>
   (
@@ -305,7 +354,7 @@ beforeAll(async () => {
     [aId, A_LEDGER],
     [bId, { account: 'Rekening B', category: 'Kategori B', tag: 'tag-b' }],
   ] as const) {
-    await services.accounts.create(userId, {
+    const created = await services.accounts.create(userId, {
       type: 'bank',
       providerName: 'BCA',
       displayName: names.account,
@@ -314,6 +363,8 @@ beforeAll(async () => {
       openingDate: '2026-10-01' as LocalDate,
       color: 'blue',
     });
+    if (userId === aId) aAccountId = created.id;
+    else bAccountId = created.id;
     await services.categories.create(userId, {
       kind: 'expense',
       group: 'wants',
@@ -339,6 +390,20 @@ beforeAll(async () => {
     rate: '16474',
     asOf: '2026-10-15' as LocalDate,
   });
+  aTransactionId = (
+    await services.transactions.create(aId, {
+      type: 'expense',
+      clientId: A_CLIENT_ID,
+      occurredAt: new Date(`${A_DAY}T05:00:00Z`),
+      accountId: aAccountId,
+      amountMinor: 50_000n,
+      categoryId: null,
+      description: A_LEDGER.transaction,
+      note: A_LEDGER.note,
+      tags: [A_LEDGER.tag],
+    })
+  ).id;
+  aDraftId = (await services.drafts.save(aId, { kind: 'transaction', payload: { description: A_LEDGER.draft } })).id;
 
   expect(await count('users', `role = 'admin'`)).toBe(1);
   expect((await sessionIds(aId)).length).toBeGreaterThanOrEqual(2);
@@ -861,6 +926,113 @@ const MATRIX: Record<Name, Case> = {
       const [aPeriod] = await superuser<{ id: string }[]>`SELECT id::text FROM periods WHERE user_id = ${aId} LIMIT 1`;
       expect(await as('B', 'getDashboard', { scope: 'month', periodId: aPeriod?.id })).toEqual(NOT_FOUND);
       expect(await as('B', 'getDashboard', { scope: 'year' })).toMatchObject(ok({ scope: 'year' }));
+    },
+  },
+  recordTransaction: {
+    input: () => ({
+      type: 'expense',
+      clientId: A_CLIENT_ID,
+      occurredAt: new Date(`${B_DAY}T05:00:00Z`),
+      accountId: bAccountId,
+      amountMinor: 25_000n,
+      categoryId: null,
+      description: 'Kopi B',
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const before = await count('transactions');
+      // A's account is not B's to record on.
+      expect(
+        await as('B', 'recordTransaction', { ...(input as object), clientId: randomUUID(), accountId: aAccountId }),
+      ).toEqual({ ok: false, code: 'NOT_FOUND' });
+      expect(await count('transactions')).toBe(before);
+      // A's idempotency key does not replay A's transaction for B.
+      const recorded = await as<Result<RecordResult>>('B', 'recordTransaction', input);
+      if (!recorded.ok) throw new Error(`recordTransaction failed: ${recorded.code}`);
+      expect(recorded.value).toMatchObject({ created: true });
+      expect(recorded.value.id).not.toBe(aTransactionId);
+      bTransactionId = recorded.value.id;
+      const row = async (id: string) =>
+        (await superuser`SELECT user_id, description FROM transactions WHERE id = ${id}`)[0];
+      expect(await row(bTransactionId)).toEqual({ user_id: bId, description: 'Kopi B' });
+      expect(await row(aTransactionId)).toEqual({ user_id: aId, description: A_LEDGER.transaction });
+    },
+  },
+  removeTransactions: {
+    input: () => ({ ids: [aTransactionId] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      expect(await as('B', 'removeTransactions', input)).toEqual(ok({ deleted: [] }));
+      expect(await isDeleted(aTransactionId)).toBe(false);
+      expect(await as('B', 'removeTransactions', { ids: [bTransactionId, aTransactionId] })).toEqual(
+        ok({ deleted: [bTransactionId] }),
+      );
+      expect([await isDeleted(bTransactionId), await isDeleted(aTransactionId)]).toEqual([true, false]);
+    },
+  },
+  restoreTransactions: {
+    input: () => ({ ids: [aTransactionId] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      // A deletes the expense; B cannot bring it back, A can.
+      expect(await as('A', 'removeTransactions', input)).toEqual(ok({ deleted: [aTransactionId] }));
+      expect(await as('B', 'restoreTransactions', input)).toEqual(ok({ restored: [] }));
+      expect(await isDeleted(aTransactionId)).toBe(true);
+      expect(await as('B', 'restoreTransactions', { ids: [bTransactionId, aTransactionId] })).toEqual(
+        ok({ restored: [bTransactionId] }),
+      );
+      expect([await isDeleted(bTransactionId), await isDeleted(aTransactionId)]).toEqual([false, true]);
+      expect(await as('A', 'restoreTransactions', input)).toEqual(ok({ restored: [aTransactionId] }));
+      expect(await isDeleted(aTransactionId)).toBe(false);
+    },
+  },
+  listTransactionDays: {
+    input: () => ({ from: '2026-10-01', to: '2026-10-31' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      expect(await as('B', 'listTransactionDays', input)).toEqual(ok([B_DAY]));
+      expect(await as('A', 'listTransactionDays', input)).toEqual(ok([A_DAY]));
+    },
+  },
+  saveDraft: {
+    input: () => ({ kind: 'transaction', payload: { description: 'Draf B' } }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofA = await draftPayload(aDraftId);
+      expect(await as('B', 'saveDraft', { ...(input as object), id: aDraftId })).toEqual({
+        ok: false,
+        code: 'NOT_FOUND',
+      });
+      expect(await draftPayload(aDraftId)).toBe(ofA);
+      const saved = await as<Result<{ id: string }>>('B', 'saveDraft', input);
+      if (!saved.ok) throw new Error(`saveDraft failed: ${saved.code}`);
+      bDraftId = saved.value.id;
+      expect((await superuser`SELECT user_id FROM drafts WHERE id = ${bDraftId}`)[0]).toEqual({ user_id: bId });
+    },
+  },
+  listDrafts: {
+    input: () => ({ kind: 'transaction' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<DraftView[]>>('B', 'listDrafts', input);
+      expect(ofB.ok && ofB.value.map((draft) => ({ id: draft.id, payload: draft.payload }))).toEqual([
+        { id: bDraftId, payload: { description: 'Draf B' } },
+      ]);
+      const ofA = await as<Result<DraftView[]>>('A', 'listDrafts', input);
+      expect(ofA.ok && ofA.value.map((draft) => ({ id: draft.id, payload: draft.payload }))).toEqual([
+        { id: aDraftId, payload: { description: A_LEDGER.draft } },
+      ]);
+    },
+  },
+  removeDraft: {
+    input: () => ({ id: aDraftId }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofA = await draftPayload(aDraftId);
+      expect(await as('B', 'removeDraft', input)).toEqual({ ok: false, code: 'NOT_FOUND' });
+      expect(await draftPayload(aDraftId)).toBe(ofA);
+      expect(await as('B', 'removeDraft', { id: bDraftId })).toEqual(ok(null));
+      expect(await count('drafts', `user_id = '${bId}'`)).toBe(0);
     },
   },
   getPreferences: {
