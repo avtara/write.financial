@@ -6,6 +6,7 @@
  */
 import { Link, useNavigate } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
+import { Checkbox } from '@wf/ui/checkbox';
 import { useState } from 'react';
 import type { AuthFailure } from '../../lib/auth-client.ts';
 import { authErrorMessage } from '../../lib/auth-errors.ts';
@@ -13,7 +14,7 @@ import { hardNavigate, safeRedirect } from '../../lib/navigation.ts';
 import type { Viewer } from '../../server/gate.ts';
 import { useAuthActions } from '../auth-actions.tsx';
 import { AuthHeading } from '../auth-layout.tsx';
-import { Button, Checkbox, Field, TextInput } from '../form.tsx';
+import { Button, Field, TextInput } from '../form.tsx';
 import { PasswordInput } from '../password-field.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { AUTH_LINK, AuthFoot, GoogleSignIn } from './parts.tsx';

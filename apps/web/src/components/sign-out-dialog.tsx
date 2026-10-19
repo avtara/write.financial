@@ -5,6 +5,7 @@
  * like `ConfirmDialog`, which has no room for the "all devices" option.
  */
 import { m } from '@wf/i18n/messages';
+import { Checkbox } from '@wf/ui/checkbox';
 import { LogOut } from 'lucide-react';
 import { AlertDialog } from 'radix-ui';
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +14,7 @@ import { hardNavigate } from '../lib/navigation.ts';
 import type { DeviceView } from '../server/account.ts';
 import { listDevices, revokeOtherDevices } from '../server/fn/account.ts';
 import { useAuthActions } from './auth-actions.tsx';
-import { Button, Checkbox, FormError } from './form.tsx';
+import { Button, FormError } from './form.tsx';
 import { usePreferences } from './preferences.tsx';
 
 function SignOutForm() {

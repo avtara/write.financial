@@ -48,11 +48,12 @@ describe('/_app layout', () => {
     expect(beforeLoad(admin)).toEqual({ viewer: admin });
   });
 
-  it('wraps its pages in the app shell', async () => {
+  it('wraps its pages in the app shell, with one toast region', async () => {
     await page.viewport(1440, 900);
     const Layout = Route.options.component as ComponentType;
     const { screen } = await renderApp(<Layout />);
     await expect.element(screen.getByRole('main')).toBeInTheDocument();
     await expect.element(screen.getByRole('navigation', { name: 'Navigasi utama' })).toBeVisible();
+    await expect.element(screen.getByRole('region', { name: 'Notifikasi' })).toBeInTheDocument();
   });
 });

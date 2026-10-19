@@ -84,24 +84,6 @@ export function Select({ size = 'lg', className = '', children, ...props }: Sele
   );
 }
 
-export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
-  label: ReactNode;
-  /** A second, quieter line under the label. */
-  description?: ReactNode;
-}
-
-export function Checkbox({ label, description, className = '', ...props }: CheckboxProps) {
-  return (
-    <label className={`flex cursor-pointer items-start gap-2 text-[13px] text-text-secondary ${className}`}>
-      <input type="checkbox" {...props} className="mt-0.5 size-4 shrink-0 accent-fg" />
-      <span className="flex flex-col gap-0.5">
-        <span>{label}</span>
-        {description === undefined ? null : <span className="text-[11.5px] text-subtle">{description}</span>}
-      </span>
-    </label>
-  );
-}
-
 export type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'ghost';
 
 const BUTTON_VARIANT: Readonly<Record<ButtonVariant, string>> = {

@@ -377,6 +377,7 @@
   "theme_label": "Tema",
   "theme_light": "Terang",
   "theme_system": "Sistem",
+  "toast_region_label": "Notifikasi",
   "totp_backup_codes_label": "Kode cadangan",
   "totp_backup_copy": "Salin semua",
   "totp_backup_download": "Unduh .txt",

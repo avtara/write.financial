@@ -13,3 +13,6 @@ allowBuilds:
   msgpackr-extract: false
   protobufjs: false
   ssh2: false
+
+patchedDependencies:
+  sonner@2.0.8: patches/sonner@2.0.8.patch

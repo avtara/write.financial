@@ -4,9 +4,10 @@
  * as `.txt` (through a `blob:` URL, never `data:`), and continue only after confirming they are saved.
  */
 import { m } from '@wf/i18n/messages';
+import { Checkbox } from '@wf/ui/checkbox';
 import { Check, Copy, Download } from 'lucide-react';
 import { useState } from 'react';
-import { Button, Checkbox } from './form.tsx';
+import { Button } from './form.tsx';
 
 export const BACKUP_CODES_FILE = 'write-financial-backup-codes.txt';
 

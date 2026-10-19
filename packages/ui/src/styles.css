@@ -6,6 +6,10 @@
  *   @import '@wf/ui/styles.css';
  */
 
+/* sonner's toast layout and stacking, as a stylesheet: its inline `<style>` is patched out for the nonce-only CSP. In
+ * the base layer, so the utilities of our toast card win. */
+@import 'sonner/dist/styles.css' layer(base);
+
 /* Geist and Geist Mono variable fonts from the `geist` package (PRD §10). */
 @font-face {
   font-family: 'Geist';
@@ -44,5 +48,18 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+/* Entrances used through `motion-safe:animate-[…]` (Sheet). */
+@keyframes wf-sheet-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes wf-fade-in {
+  from {
+    opacity: 0;
   }
 }

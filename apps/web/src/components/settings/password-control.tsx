@@ -5,10 +5,11 @@
  */
 import { useRouter } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
+import { Checkbox } from '@wf/ui/checkbox';
 import { useState } from 'react';
 import { authErrorMessage } from '../../lib/auth-errors.ts';
 import { useAuthActions } from '../auth-actions.tsx';
-import { Button, Checkbox, Field, FormError, FormNotice, TextInput } from '../form.tsx';
+import { Button, Field, FormError, FormNotice, TextInput } from '../form.tsx';
 import { Modal } from '../modal.tsx';
 import { PasswordInput } from '../password-field.tsx';
 import { usePreferences } from '../preferences.tsx';

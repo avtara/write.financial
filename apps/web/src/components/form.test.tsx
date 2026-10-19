@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { render } from 'vitest-browser-react';
-import { Button, Checkbox, Field, FormError, FormNotice, Select, TextInput } from './form.tsx';
+import { Button, Field, FormError, FormNotice, Select, TextInput } from './form.tsx';
 
 describe('Field', () => {
   it('labels its control and links the hint', async () => {
@@ -55,23 +55,6 @@ describe('Select', () => {
     );
     await expect.element(screen.getByRole('combobox', { name: 'Besar' })).toHaveValue('b');
     await expect.element(screen.getByRole('combobox', { name: 'Kecil' })).toHaveClass('h-8');
-  });
-});
-
-describe('Checkbox', () => {
-  it('toggles by its label and shows an optional description', async () => {
-    const onChange = vi.fn();
-    const screen = await render(
-      <>
-        <Checkbox label="Ingat saya" description="30 hari" onChange={onChange} />
-        <Checkbox label="Tanpa deskripsi" />
-      </>,
-    );
-    await userEvent.click(screen.getByText('Ingat saya'));
-    expect(onChange).toHaveBeenCalledTimes(1);
-    await expect.element(screen.getByRole('checkbox', { name: /Ingat saya/ })).toBeChecked();
-    await expect.element(screen.getByText('30 hari')).toBeVisible();
-    await expect.element(screen.getByRole('checkbox', { name: 'Tanpa deskripsi' })).not.toBeChecked();
   });
 });
 
