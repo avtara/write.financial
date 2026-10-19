@@ -34,7 +34,8 @@ beforeEach(async () => {
   userId = await insertUser(test, 'avtara@example.test');
 });
 
-describe('seedLedger', () => {
+// Seeding 128 transactions through the repositories on PGlite takes several seconds on a loaded CI runner.
+describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
   it('reproduces the design balances and the Rp55.023.000 available balance', async () => {
     // A category of the user's own is left alone.
     await test.query(
