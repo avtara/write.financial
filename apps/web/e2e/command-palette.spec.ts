@@ -48,6 +48,7 @@ test('offers to create what matches nothing', async ({ page }) => {
   await page.goto('/');
   await page.keyboard.press('Control+k');
   const dialog = page.getByRole('dialog', { name: PALETTE });
+  await expect(dialog.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('cicilan motor');
   await expect(dialog.getByRole('listbox').getByText('Tidak ada hasil untuk “cicilan motor”')).toBeVisible();
   await page.screenshot({ path: '/tmp/wf-cmdk-empty.png' });
@@ -78,6 +79,7 @@ test('navigates with the G sequence, and opens from the tablet rail', async ({ p
 
   // A category opens Settings › Kategori.
   await page.keyboard.press('Control+k');
+  await expect(dialog.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('makan');
   const category = dialog.getByRole('group', { name: /^Kategori/ }).getByRole('option', { name: /Makan & Dapur/ });
   await expect(category).toBeVisible();
