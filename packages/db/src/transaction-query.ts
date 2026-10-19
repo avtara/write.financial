@@ -158,9 +158,9 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
 /** Lines that count as In: the principal of an income. */
-const isIn = sql`(${transactions.type} = 'income' and ${postings.role} = 'principal')`;
+export const isIn = sql`(${transactions.type} = 'income' and ${postings.role} = 'principal')`;
 /** Lines that count as Out: the principal of an expense, fees, and FX-difference losses. */
-const isOut = sql`((${transactions.type} = 'expense' and ${postings.role} = 'principal') or ${postings.role} = 'fee' or (${postings.role} = 'fx_diff' and ${postings.amountBaseMinor} < 0))`;
+export const isOut = sql`((${transactions.type} = 'expense' and ${postings.role} = 'principal') or ${postings.role} = 'fee' or (${postings.role} = 'fx_diff' and ${postings.amountBaseMinor} < 0))`;
 /** The sent leg of a transfer. */
 const isSent = sql`(${transactions.type} = 'transfer' and ${postings.role} = 'principal' and ${postings.amountMinor} < 0)`;
 const sumIn = sql`sum(case when ${isIn} then ${postings.amountBaseMinor} else 0 end)`;
@@ -297,6 +297,70 @@ async function whereIn(tx: Transaction, userId: string, filter: TransactionFilte
   return and(...conditions) as SQL;
 }
 
+const daysIn = (tx: Transaction, where: SQL) =>
+  tx
+    .select({
+      date: transactions.localDate,
+      inMinor: sumIn.mapWith(BigInt),
+      outMinor: sumOut.mapWith(BigInt),
+      transferMinor: sql`sum(case when ${isSent} then -${postings.amountBaseMinor} else 0 end)`.mapWith(BigInt),
+      count: sql<number>`count(distinct ${transactions.id})::int`,
+      inCount: countOf('income'),
+      outCount: countOf('expense'),
+      transferCount: countOf('transfer'),
+    })
+    .from(transactions)
+    .innerJoin(postings, eq(postings.transactionId, transactions.id))
+    .where(where)
+    .groupBy(transactions.localDate)
+    .orderBy(desc(transactions.localDate));
+
+const dayGroupsIn = async (tx: Transaction, where: SQL): Promise<DayGroup[]> =>
+  (await daysIn(tx, where)).map(({ date, inMinor, outMinor, count }) => ({ date, inMinor, outMinor, count }));
+
+/** The category a line counts under: the transaction's for the principal, its own for fee and FX-difference lines. */
+export const lineCategoryId = sql<
+  string | null
+>`case when ${postings.role} = 'principal' then ${transactions.categoryId} else ${postings.categoryId} end`;
+
+const categoriesIn = (tx: Transaction, where: SQL): Promise<CategoryGroup[]> => {
+  const categoryId = lineCategoryId;
+  const kind = sql<'expense' | 'income'>`case when ${isIn} then 'income' else 'expense' end`;
+  const total = sql`sum(case when ${isIn} then ${postings.amountBaseMinor} else -${postings.amountBaseMinor} end)`;
+  return tx
+    .select({
+      categoryId,
+      kind,
+      totalMinor: total.mapWith(BigInt),
+      count: sql<number>`count(distinct ${transactions.id})::int`,
+      shareBps: sql<number>`coalesce(round(${total} * 10000 / nullif(sum(${total}) over (partition by ${kind}), 0)), 0)::int`,
+    })
+    .from(transactions)
+    .innerJoin(postings, eq(postings.transactionId, transactions.id))
+    .where(and(where, or(isIn, isOut)))
+    .groupBy(categoryId, kind)
+    .orderBy(desc(total), asc(kind), sql`${categoryId} nulls last`);
+};
+
+/** A {@link TransactionFilter} without `search` (which may need the DEK), for aggregates in other repositories. */
+export type AggregateFilter = Omit<TransactionFilter, 'search'>;
+
+const NO_SEARCH: Search = { tags: [], notes: null };
+
+/** `groupByCategory` inside the caller's user transaction. */
+export async function categoryTotalsIn(
+  tx: Transaction,
+  userId: string,
+  filter: AggregateFilter,
+): Promise<CategoryGroup[]> {
+  return categoriesIn(tx, await whereIn(tx, userId, filter, NO_SEARCH));
+}
+
+/** `groupByDay` inside the caller's user transaction (newest day first). */
+export async function dayTotalsIn(tx: Transaction, userId: string, filter: AggregateFilter): Promise<DayGroup[]> {
+  return dayGroupsIn(tx, await whereIn(tx, userId, filter, NO_SEARCH));
+}
+
 export function createTransactionQuery(
   db: Database,
   { getDek }: { readonly getDek: (userId: string) => Promise<Dek> },
@@ -310,24 +374,6 @@ export function createTransactionQuery(
     const search = await parseSearch(filter.search, () => getDek(userId));
     return withUser(db, userId, async (tx) => fn(tx, await whereIn(tx, userId, filter, search)));
   };
-
-  const daysIn = (tx: Transaction, where: SQL) =>
-    tx
-      .select({
-        date: transactions.localDate,
-        inMinor: sumIn.mapWith(BigInt),
-        outMinor: sumOut.mapWith(BigInt),
-        transferMinor: sql`sum(case when ${isSent} then -${postings.amountBaseMinor} else 0 end)`.mapWith(BigInt),
-        count: sql<number>`count(distinct ${transactions.id})::int`,
-        inCount: countOf('income'),
-        outCount: countOf('expense'),
-        transferCount: countOf('transfer'),
-      })
-      .from(transactions)
-      .innerJoin(postings, eq(postings.transactionId, transactions.id))
-      .where(where)
-      .groupBy(transactions.localDate)
-      .orderBy(desc(transactions.localDate));
 
   return {
     list: (userId, filter, { sort = 'date_desc', limit = DEFAULT_LIMIT, offset = 0 } = {}) =>
@@ -413,32 +459,9 @@ export function createTransactionQuery(
         };
       }),
 
-    groupByDay: (userId, filter) =>
-      query(userId, filter, async (tx, where) =>
-        (await daysIn(tx, where)).map(({ date, inMinor, outMinor, count }) => ({ date, inMinor, outMinor, count })),
-      ),
+    groupByDay: (userId, filter) => query(userId, filter, dayGroupsIn),
 
-    groupByCategory: (userId, filter) =>
-      query(userId, filter, async (tx, where) => {
-        const categoryId = sql<
-          string | null
-        >`case when ${postings.role} = 'principal' then ${transactions.categoryId} else ${postings.categoryId} end`;
-        const kind = sql<'expense' | 'income'>`case when ${isIn} then 'income' else 'expense' end`;
-        const total = sql`sum(case when ${isIn} then ${postings.amountBaseMinor} else -${postings.amountBaseMinor} end)`;
-        return tx
-          .select({
-            categoryId,
-            kind,
-            totalMinor: total.mapWith(BigInt),
-            count: sql<number>`count(distinct ${transactions.id})::int`,
-            shareBps: sql<number>`coalesce(round(${total} * 10000 / nullif(sum(${total}) over (partition by ${kind}), 0)), 0)::int`,
-          })
-          .from(transactions)
-          .innerJoin(postings, eq(postings.transactionId, transactions.id))
-          .where(and(where, or(isIn, isOut)))
-          .groupBy(categoryId, kind)
-          .orderBy(desc(total), asc(kind), sql`${categoryId} nulls last`);
-      }),
+    groupByCategory: (userId, filter) => query(userId, filter, categoriesIn),
 
     summary: (userId, filter) =>
       query(userId, filter, async (tx, where) => {

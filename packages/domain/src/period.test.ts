@@ -10,14 +10,18 @@ import {
   PRORATION_BASE_DAYS,
   addDays,
   countDays,
+  detectPayday,
   formatPeriodLabel,
   nextPeriod,
   parseLocalDate,
+  periodAfter,
   periodFor,
+  periodProgress,
   periodStartDay,
   periodsBetween,
   previousPeriod,
   prorateLimit,
+  recalculatedPeriods,
   transitionPeriod,
   type LocalDate,
   type Period,
@@ -303,8 +307,10 @@ describe('transitionPeriod (FR-P2 option a)', () => {
 });
 
 describe('prorateLimit (PRD §7.2: limit × transition_days ÷ 30)', () => {
-  it('golden: 18.750.000 × 24/30 = 15.000.000', () => {
-    expect(prorateLimit(18_750_000n, 24)).toBe(15_000_000n);
+  it('M2 exit golden: Rp18.750.000 for the 24-day transition 1–24 Nov (1 → 25 on 15 Okt) is Rp15.000.000', () => {
+    const transition = transitionPeriod(day(1), day(25), d('2026-10-15'));
+    expect([transition.start, transition.end, transition.days]).toEqual(['2026-11-01', '2026-11-24', 24]);
+    expect(prorateLimit(18_750_000n, transition.days)).toBe(15_000_000n);
   });
 
   it('keeps the full limit for 30 days and handles 1 day and a zero limit', () => {
@@ -341,6 +347,116 @@ describe('prorateLimit (PRD §7.2: limit × transition_days ÷ 30)', () => {
   it('rejects a negative limit', () => {
     expect(() => prorateLimit(-1n, 24)).toThrow('Budget limit must not be negative: -1');
     expect(new InvalidProrationError('x').name).toBe('InvalidProrationError');
+  });
+});
+
+describe('periodAfter', () => {
+  it('after Oktober with start day 25: transition 1–24 Nov, then Desember 25 Nov – 24 Des', () => {
+    const transition = periodAfter({ end: d('2026-10-31') }, day(25));
+    expect(transition).toEqual({
+      kind: 'transition',
+      start: '2026-11-01',
+      end: '2026-11-24',
+      days: 24,
+      label: '2026-11',
+    });
+    expect(periodAfter(transition, day(25))).toEqual(normal('2026-11-25', '2026-12-24', 30, '2026-12'));
+  });
+
+  it('is the next normal period when the day after starts one', () => {
+    expect(periodAfter({ end: d('2026-10-31') }, day(1))).toEqual(normal('2026-11-01', '2026-11-30', 30, '2026-11'));
+  });
+
+  it('changing 25 → 1 after 25 Sep – 24 Okt: transition 25–31 Okt', () => {
+    expect(periodAfter({ end: d('2026-10-24') }, day(1))).toEqual({
+      kind: 'transition',
+      start: '2026-10-25',
+      end: '2026-10-31',
+      days: 7,
+      label: '2026-10',
+    });
+  });
+});
+
+describe('periodProgress (FR-B2 "Hari ke-15 dari 31 · 16 hari lagi")', () => {
+  const october = periodFor(d('2026-10-15'), day(1));
+
+  it('M2 exit golden: 15 Okt is day 15 of 31 with 16 days left', () => {
+    expect(periodProgress(october, d('2026-10-15'))).toEqual({ day: 15, daysLeft: 16 });
+  });
+
+  it('counts the first and last day, and clamps before the start and after the end', () => {
+    expect(periodProgress(october, d('2026-10-01'))).toEqual({ day: 1, daysLeft: 30 });
+    expect(periodProgress(october, d('2026-10-31'))).toEqual({ day: 31, daysLeft: 0 });
+    expect(periodProgress(october, d('2026-09-30'))).toEqual({ day: 0, daysLeft: 31 });
+    expect(periodProgress(october, d('2026-08-15'))).toEqual({ day: 0, daysLeft: 31 });
+    expect(periodProgress(october, d('2026-11-01'))).toEqual({ day: 31, daysLeft: 0 });
+    expect(periodProgress(october, d('2027-01-15'))).toEqual({ day: 31, daysLeft: 0 });
+  });
+
+  it('day + days left is always the period length', () => {
+    fc.assert(
+      fc.property(localDates, startDays, localDates, (date, startDay, today) => {
+        const period = periodFor(date, startDay);
+        const progress = periodProgress(period, today);
+        expect(progress.day + progress.daysLeft).toBe(period.days);
+        expect(progress.day).toBeGreaterThanOrEqual(0);
+        expect(progress.day).toBeLessThanOrEqual(period.days);
+      }),
+    );
+  });
+});
+
+describe('recalculatedPeriods (FR-P2 option b)', () => {
+  const october = periodFor(d('2026-10-15'), day(1));
+
+  it('M2 exit golden: 1 → 25 on 15 Okt replaces Oktober by 25 Sep – 24 Okt', () => {
+    expect(recalculatedPeriods(october, day(25), d('2026-10-15'))).toEqual([
+      normal('2026-09-25', '2026-10-24', 30, '2026-10'),
+    ]);
+  });
+
+  it('M2 exit golden: 1 → 5 on 15 Okt keeps 1–4 Okt as a transition, then 5 Okt – 4 Nov', () => {
+    expect(recalculatedPeriods(october, day(5), d('2026-10-15'))).toEqual([
+      { kind: 'transition', start: '2026-10-01', end: '2026-10-04', days: 4, label: '2026-10' },
+      normal('2026-10-05', '2026-11-04', 31, '2026-11'),
+    ]);
+  });
+
+  it('keeps the current period when the new start day gives the same start', () => {
+    expect(recalculatedPeriods(october, day(1), d('2026-10-15'))).toEqual([october]);
+  });
+});
+
+describe('detectPayday (FR-P1 "Ikuti gajian")', () => {
+  it('M2 exit golden: salaries on the 1st suggest start day 1', () => {
+    expect(detectPayday([d('2026-08-01'), d('2026-09-01'), d('2026-10-01')])).toBe(1);
+  });
+
+  it('takes the most frequent day', () => {
+    expect(detectPayday([d('2026-10-25'), d('2026-08-25'), d('2026-09-24')])).toBe(25);
+    expect(detectPayday([d('2026-09-24'), d('2026-08-25'), d('2026-10-25')])).toBe(25);
+  });
+
+  it('caps days 29–31 at 28', () => {
+    expect(detectPayday([d('2026-08-31'), d('2026-09-30'), d('2026-10-31')])).toBe(28);
+    expect(detectPayday([d('2026-08-29'), d('2026-09-28'), d('2026-10-05')])).toBe(28);
+  });
+
+  it('breaks a tie by the most recent date, in any input order', () => {
+    // Day 1: 1 Okt (most recent) and 1 Agu; day 5: 5 Sep and 5 Jul.
+    expect(detectPayday([d('2026-10-01'), d('2026-09-05'), d('2026-08-01'), d('2026-07-05')])).toBe(1);
+    expect(detectPayday([d('2026-07-05'), d('2026-08-01'), d('2026-09-05'), d('2026-10-01')])).toBe(1);
+    expect(detectPayday([d('2026-09-05'), d('2026-10-01')])).toBe(1);
+    expect(detectPayday([d('2026-10-01'), d('2026-09-05')])).toBe(1);
+    expect(detectPayday([d('2026-10-05')])).toBe(5);
+    // The most recent date of a day, not the last one given: day 1 (1 Okt) beats day 5 (5 Sep).
+    expect(detectPayday([d('2026-10-01'), d('2026-09-05'), d('2026-08-05'), d('2026-07-01')])).toBe(1);
+    expect(detectPayday([d('2026-07-01'), d('2026-09-05'), d('2026-08-05'), d('2026-10-01')])).toBe(1);
+  });
+
+  it('is null without salary dates', () => {
+    expect(detectPayday([])).toBeNull();
   });
 });
 

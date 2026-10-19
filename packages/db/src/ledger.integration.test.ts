@@ -67,10 +67,11 @@ afterAll(async () => {
 });
 
 describe('M1 ledger on PostgreSQL 18', () => {
-  it('seeds 128 transactions that reproduce the design balances and Rp55.023.000 available', async () => {
+  it('seeds 249 transactions (121 in the closed September, 128 in October) that reproduce the design balances and Rp55.023.000 available', async () => {
     const result = await seedLedger(app, userId, { getDek: createUserKeys(app, keyring).getOrCreateDek });
     expect(result.balances).toEqual(seedClosingBalances(DESIGN_SEED));
-    expect(result.transactions).toBe(128);
+    expect(result.transactions).toBe(249);
+    expect(result.closedPeriods).toBe(1);
     expect(result.availableMinor).toBe(55_023_000n);
     const overview = await createAccounts(app).list(userId);
     expect(overview.availableMinor).toBe(55_023_000n);
@@ -82,7 +83,7 @@ describe('M1 ledger on PostgreSQL 18', () => {
     const transactions = createTransactions(app, { getDek: createUserKeys(app, keyring).getOrCreateDek });
     const { accounts: seeded } = await accounts.list(userId);
     const bca = firstRow(
-      seeded.filter((account) => account.openingBalanceMinor === 41_610_000n),
+      seeded.filter((account) => account.displayName === 'BCA Tahapan'),
       'BCA Tahapan',
     );
     const gotrade = firstRow(

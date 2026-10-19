@@ -36,6 +36,13 @@
       "when": 1792402146192,
       "tag": "0004_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792428681339,
+      "tag": "0005_periods_budget",
+      "breakpoints": true
     }
   ]
 }

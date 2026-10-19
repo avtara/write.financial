@@ -5,7 +5,9 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
+    "./budget": "./src/budget.ts",
     "./categories": "./src/categories.ts",
+    "./dashboard": "./src/dashboard.ts",
     "./fx": "./src/fx.ts",
     "./ledger": "./src/ledger.ts",
     "./money": "./src/money.ts",

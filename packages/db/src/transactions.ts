@@ -23,6 +23,8 @@ import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity, type ActivityEntry } from './activity.ts';
 import {
+  assertOpenDatesIn,
+  assertOpenTransactionsIn,
   checkCategoryIn,
   NOTE_PURPOSE,
   planTransactionIn,
@@ -458,6 +460,7 @@ export function createTransactions(
       const dek = await getDek(userId);
       const stored = await withUser(db, userId, async (tx) => {
         const before = await liveHeaderIn(tx, id);
+        await assertOpenDatesIn(tx, [before.localDate]);
         const beforeLines = await tx
           .select({
             accountId: postings.accountId,
@@ -500,6 +503,7 @@ export function createTransactions(
 
     remove: (userId, ids) =>
       withUser(db, userId, async (tx) => {
+        await assertOpenTransactionsIn(tx, ids);
         const rows = await tx
           .update(transactions)
           .set({ deletedAt: now() })
@@ -512,6 +516,7 @@ export function createTransactions(
 
     restore: (userId, ids) =>
       withUser(db, userId, async (tx) => {
+        await assertOpenTransactionsIn(tx, ids);
         const rows = await tx
           .update(transactions)
           .set({ deletedAt: null })
@@ -613,6 +618,7 @@ export function createTransactions(
 
     unsplit: (userId, parentId) =>
       withUser(db, userId, async (tx) => {
+        await assertOpenTransactionsIn(tx, [parentId]);
         const restored = await tx
           .update(transactions)
           .set({ deletedAt: null })
@@ -632,6 +638,7 @@ export function createTransactions(
 
     bulkSetCategory: (userId, ids, categoryId) =>
       withUser(db, userId, async (tx) => {
+        await assertOpenTransactionsIn(tx, ids);
         const rows = await tx
           .select({ id: transactions.id, type: transactions.type, categoryId: transactions.categoryId })
           .from(transactions)
@@ -681,6 +688,7 @@ export function createTransactions(
 
     bulkAddTag: (userId, ids, tag) =>
       withUser(db, userId, async (tx) => {
+        await assertOpenTransactionsIn(tx, ids);
         const [tagId] = (await resolveTagsIn(tx, userId, [tag])) as [string];
         const rows = await tx
           .select({

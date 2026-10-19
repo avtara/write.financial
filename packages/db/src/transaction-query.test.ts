@@ -12,7 +12,9 @@ import { withUser } from './db.ts';
 import { builtInCategoryIn, recordTransactionIn, type TransactionDraft } from './ledger-core.ts';
 import { accounts, transactions } from './schema.ts';
 import {
+  categoryTotalsIn,
   createTransactionQuery,
+  dayTotalsIn,
   type TransactionFilter,
   type TransactionListOptions,
   type TransactionQueryRepository,
@@ -476,6 +478,22 @@ describe('groupByCategory', () => {
       expect.objectContaining({ kind: 'expense', totalMinor: 22_660n, shareBps: 9006 }),
       { categoryId: category['system:bank_fee'], kind: 'expense', totalMinor: 2_500n, count: 1, shareBps: 994 },
     ]);
+  });
+});
+
+describe('in-transaction aggregates (budgets, dashboard)', () => {
+  it('categoryTotalsIn and dayTotalsIn match groupByCategory and groupByDay', async () => {
+    const filter = { from: '2026-10-02' as LocalDate, to: '2026-10-04' as LocalDate };
+    const [categories, days] = await asApp(() =>
+      withUser(
+        test.db,
+        alice,
+        async (t) => [await categoryTotalsIn(t, alice, filter), await dayTotalsIn(t, alice, filter)] as const,
+      ),
+    );
+    expect(categories).toEqual(await asApp(() => query.groupByCategory(alice, filter)));
+    expect(days).toEqual(await asApp(() => query.groupByDay(alice, filter)));
+    expect(days.map((day) => day.date)).toEqual(['2026-10-04', '2026-10-03', '2026-10-02']);
   });
 });
 

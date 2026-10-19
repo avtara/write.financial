@@ -9,17 +9,19 @@ import { randomUUID } from 'node:crypto';
 import { decryptText, encrypt } from '@wf/crypto/cipher';
 import { UnknownKeyVersionError, unwrapDek } from '@wf/crypto/envelope';
 import { addKeyVersion, parseKeyring } from '@wf/crypto/keyring';
-import type { LocalDate } from '@wf/domain/period';
+import type { LocalDate, YearMonth } from '@wf/domain/period';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { keyFileText } from '../test/keys.ts';
+import { createBudgets } from './budgets.ts';
 import { createDb, firstRow, withUser, type Database } from './db.ts';
 import { createFxRates } from './fx-rates.ts';
 import { createInstanceSettings } from './instance-settings.ts';
 import { builtInCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { migrate } from './migrate.ts';
+import { createPeriods } from './periods.ts';
 import { createPreferences } from './preferences.ts';
 import { bootstrapRoles, ROLES, type RoleName } from './roles.ts';
 import {
@@ -253,6 +255,34 @@ beforeAll(async () => {
         currency: 'IDR',
       });
     });
+    // Periods and budgets (M2): September (closed) and October, a budget, a moved leftover, a dismissed warning.
+    const at = (iso: string) => ({ now: () => new Date(iso) });
+    await withUser(dbs.app, userId, (tx) =>
+      tx.execute(sql`INSERT INTO periods (user_id, label, start_date, end_date, days)
+                     VALUES (${userId}, '2026-09', '2026-09-01', '2026-09-30', 30)`),
+    );
+    const [september] = await withUser(dbs.app, userId, (tx) =>
+      tx.execute<{ id: string }>(sql`SELECT id FROM periods WHERE start_date = '2026-09-01'`),
+    );
+    await createPeriods(dbs.worker, at('2026-10-01T00:05:00+07:00')).lock(userId, september?.id as string);
+    const budgets = createBudgets(dbs.app, at('2026-10-15T09:00:00Z'));
+    const { current } = await createPeriods(dbs.app, at('2026-10-15T09:00:00Z')).list(userId);
+    const [food, fee] = await withUser(dbs.app, userId, async (tx) => [
+      await builtInCategoryIn(tx, userId, 'system:food'),
+      await builtInCategoryIn(tx, userId, 'system:bank_fee'),
+    ]);
+    await budgets.saveVersion(userId, {
+      effectiveFrom: '2026-10' as YearMonth,
+      lines: [
+        { categoryId: food, limitMinor: 3_500_000n },
+        { categoryId: fee, limitMinor: 100_000n },
+      ],
+    });
+    await budgets.moveLeftover(userId, current.id as string, {
+      targetCategoryId: food,
+      sources: [{ categoryId: fee, amountMinor: 50_000n }],
+    });
+    await budgets.dismissAlert(userId, current.id as string, food);
   }
 
   owned = [
@@ -490,6 +520,44 @@ describe('ledger roles', () => {
         INSUFFICIENT_PRIVILEGE,
       );
     }
+  });
+
+  it('lets the worker lock periods but never write budgets (D14, `periods.lock`)', async () => {
+    const [row] = await withUser(dbs.worker, alice, (tx) =>
+      tx.execute(sql`SELECT count(*)::int AS n FROM periods WHERE status = 'closed'`),
+    );
+    expect(row).toEqual({ n: 1 });
+    for (const statement of [
+      sql`INSERT INTO budget_versions (user_id, effective_from) VALUES (${alice}, '2027-01')`,
+      sql`UPDATE budget_lines SET limit_minor = 0`,
+      sql`DELETE FROM budget_period_overrides`,
+      sql`DELETE FROM budget_alert_dismissals`,
+      sql`UPDATE periods SET end_date = end_date`,
+      sql`DELETE FROM periods`,
+    ]) {
+      expect(await pgErrorCode(withUser(dbs.worker, alice, (tx) => tx.execute(statement)))).toBe(
+        INSUFFICIENT_PRIVILEGE,
+      );
+    }
+  });
+
+  it('refuses transaction writes dated inside a closed period (FR-P3)', async () => {
+    const { id: account } = firstRow(
+      await superuser<{ id: string }[]>`SELECT id FROM accounts WHERE user_id = ${alice} AND currency = 'IDR' LIMIT 1`,
+      'accounts',
+    );
+    const occurredAt = new Date('2026-09-20T05:00:00Z');
+    const draft = {
+      type: 'expense',
+      clientId: randomUUID(),
+      occurredAt,
+      accountId: account,
+      amountMinor: 1_000n,
+      categoryId: null,
+    } as const;
+    await expect(
+      withUser(dbs.app, alice, (tx) => recordTransactionIn(tx, alice, draft, null, occurredAt)),
+    ).rejects.toMatchObject({ code: 'PERIOD_CLOSED' });
   });
 
   it('gives the worker the currencies in use across users, and only the worker', async () => {

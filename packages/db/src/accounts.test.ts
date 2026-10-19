@@ -62,6 +62,8 @@ const seedAccount = (key: string): SeedAccount => {
   return account;
 };
 
+const opening = (key: string): bigint => seedAccount(key).openingBalanceMinor;
+
 const plain = (overrides: Partial<AccountInput> = {}): AccountInput => ({
   type: 'bank',
   providerName: 'Bank Test',
@@ -148,29 +150,42 @@ describe('list and get', () => {
         account.sortOrder,
       ]),
     ).toEqual([
-      ['BCA Tahapan', 55_103_500n, 55_103_500n, 3, true, 0],
-      ['Bank Jago', 8_125_000n, 8_125_000n, 1, true, 1],
-      ['Mandiri', 3_840_000n, 3_840_000n, 0, false, 2],
-      ['GoPay', 812_000n, 812_000n, 0, false, 3],
-      ['OVO', 136_000n, 136_000n, 0, false, 4],
-      ['Dompet (tunai)', 500_000n, 500_000n, 0, false, 5],
+      // Salary 18.500.000 − rent 4.500.000 − transfer 500.000 − fee 6.500 on the opening balance (31 Aug).
+      ['BCA Tahapan', opening('bca') + 13_493_500n, opening('bca') + 13_493_500n, 3, true, 0],
+      ['Bank Jago', opening('jago') + 500_000n, opening('jago') + 500_000n, 1, true, 1],
+      ['Mandiri', opening('mandiri'), opening('mandiri'), 0, false, 2],
+      // The soft-deleted expense does not count.
+      ['GoPay', opening('gopay'), opening('gopay'), 0, false, 3],
+      ['OVO', opening('ovo'), opening('ovo'), 0, false, 4],
+      ['Dompet (tunai)', opening('cash'), opening('cash'), 0, false, 5],
     ]);
-    expect(overview.availableMinor).toBe(68_516_500n);
+    expect(overview.availableMinor).toBe(
+      ['bca', 'jago', 'mandiri', 'gopay', 'ovo', 'cash'].reduce((total, key) => total + opening(key), 0n) + 13_993_500n,
+    );
     expect(overview.accounts[0]).toMatchObject({
       providerName: 'Bank Central Asia',
       last4: '4821',
       showAsCard: true,
       isDefaultQuickEntry: true,
       status: 'active',
-      openingDate: '2026-09-30',
+      openingDate: seedAccount('bca').openingDate,
     });
     expect(overview.accounts[0]).not.toHaveProperty('userId');
-    expect(await asApp(() => repo.get(alice, ids.jago as string))).toMatchObject({ balanceMinor: 8_125_000n });
+    expect(await asApp(() => repo.get(alice, ids.jago as string))).toMatchObject({
+      balanceMinor: opening('jago') + 500_000n,
+    });
   });
 
   it('values foreign accounts with the reference rate and reports missing rates', async () => {
     await asApp(() => repo.create(alice, plain({ displayName: 'Rupiah' })));
-    const usd = await asApp(() => repo.create(alice, { ...inputOf(seedAccount('gotrade')), includeInAvailable: true }));
+    // US$2.411,03 (the 30 Sep balance before the M2 seed moved the opening date back).
+    const usd = await asApp(() =>
+      repo.create(alice, {
+        ...inputOf(seedAccount('gotrade')),
+        openingBalanceMinor: 241_103n,
+        includeInAvailable: true,
+      }),
+    );
     expect(usd).toMatchObject({ balanceMinor: 241_103n, balanceBaseMinor: null });
     expect(await asApp(() => repo.list(alice))).toMatchObject({ availableMinor: 1_000_000n, missingRates: ['USD'] });
 
@@ -488,7 +503,9 @@ describe('reorder', () => {
 
 describe('reconcile (FR-R4)', () => {
   it('records the difference as a transaction or a correction', async () => {
-    const account = await asApp(() => repo.create(alice, inputOf(seedAccount('cash'))));
+    const account = await asApp(() =>
+      repo.create(alice, { ...inputOf(seedAccount('cash')), openingBalanceMinor: 500_000n }),
+    );
     const food = await category(alice, 'system:food');
     const cashback = await category(alice, 'system:cashback');
 

@@ -28,6 +28,9 @@ const MESSAGES: Readonly<Record<LedgerErrorCode, () => string>> = {
   FX_RATE_MISSING: m.ledger_error_fx_rate_missing,
   INVALID_RATE: m.ledger_error_invalid_rate,
   INVALID_GOAL: m.ledger_error_invalid_goal,
+  PERIOD_CLOSED: m.ledger_error_period_closed,
+  INVALID_PERIOD: m.ledger_error_invalid_period,
+  INVALID_BUDGET: m.ledger_error_invalid_budget,
 };
 
 export function ledgerErrorMessage(code: string, locale: Locale): string {

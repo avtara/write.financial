@@ -7,7 +7,7 @@ import { TAG_SLUG_PATTERN } from './tags.ts';
 
 type Flow = Extract<SeedTransaction, { kind: 'expense' | 'income' }>;
 
-const { accounts, transactions } = DESIGN_SEED;
+const { accounts, transactions, septemberTransactions } = DESIGN_SEED;
 const flows = transactions.filter((transaction): transaction is Flow => transaction.kind !== 'transfer');
 const expenses = flows.filter((transaction) => transaction.kind === 'expense');
 const incomes = flows.filter((transaction) => transaction.kind === 'income');
@@ -17,6 +17,14 @@ const CATEGORY: Partial<Record<BuiltInCategoryKey, BuiltInCategory>> = Object.fr
 );
 const total = (rows: readonly Flow[]): bigint => rows.reduce((sum, row) => sum + row.amountMinor, 0n);
 const inCategory = (key: BuiltInCategoryKey) => expenses.filter((expense) => expense.categoryKey === key);
+const septemberFlows = septemberTransactions.filter(
+  (transaction): transaction is Flow => transaction.kind !== 'transfer',
+);
+const septemberExpenses = septemberFlows.filter((transaction) => transaction.kind === 'expense');
+const septemberIncomes = septemberFlows.filter((transaction) => transaction.kind === 'income');
+const septemberTransfers = septemberTransactions.filter((transaction) => transaction.kind === 'transfer');
+const inSeptemberCategory = (key: BuiltInCategoryKey) =>
+  septemberExpenses.filter((expense) => expense.categoryKey === key);
 
 describe('DESIGN_SEED transactions (Section 00, 1–15 Okt 2026)', () => {
   it('golden: 128 transactions = 4 income + 121 expense + 3 transfers', () => {
@@ -105,6 +113,112 @@ describe('DESIGN_SEED transactions (Section 00, 1–15 Okt 2026)', () => {
   });
 });
 
+describe('DESIGN_SEED September (Section 10 "Laporan September 2026", the closed period)', () => {
+  it('golden: 121 transactions = 4 income + 114 expense + 3 transfers', () => {
+    expect(septemberTransactions).toHaveLength(121);
+    expect(septemberIncomes).toHaveLength(4);
+    expect(septemberExpenses).toHaveLength(114);
+    expect(septemberTransfers).toHaveLength(3);
+  });
+
+  it('golden: income Rp25.800.000, expenses Rp18.300.000, transfers Rp7.500.000', () => {
+    expect(total(septemberIncomes)).toBe(25_800_000n);
+    expect(total(septemberExpenses)).toBe(18_300_000n);
+    expect(septemberTransfers.reduce((sum, transfer) => sum + transfer.sentMinor, 0n)).toBe(7_500_000n);
+  });
+
+  it.each([
+    ['system:rent', 4_500_000n],
+    ['system:food', 3_400_000n],
+    ['system:transport', 1_600_000n],
+    ['system:bills', 1_400_000n],
+    ['system:health', 300_000n],
+    ['system:shopping', 2_600_000n],
+    ['system:entertainment', 1_800_000n],
+    ['system:hobby', 900_000n],
+    ['system:subscriptions', 850_000n],
+    ['system:gifts', 700_000n],
+    ['system:personal_care', 250_000n],
+  ] as const)('golden report: %s spends %d', (key, amount) => {
+    expect(total(inSeptemberCategory(key))).toBe(amount);
+  });
+
+  it('golden: the 9.9 sale — 7 Shopee orders including Kursi kerja ergonomis 1.050.000 on 9 Sep', () => {
+    const shopee = inSeptemberCategory('system:shopping').filter((expense) => expense.merchant === 'Shopee');
+    expect(shopee).toHaveLength(7);
+    expect(shopee.find((expense) => expense.description === 'Kursi kerja ergonomis')).toMatchObject({
+      amountMinor: 1_050_000n,
+      occurredAt: expect.stringMatching(/^2026-09-09T/) as unknown,
+    });
+  });
+
+  it('golden: Tokopedia Sepatu lari 449.000 on 27 Sep is the largest transaction of 25–30 Sep', () => {
+    const [largest] = septemberFlows
+      .filter((flow) => flow.occurredAt >= '2026-09-25')
+      .toSorted((a, b) => (a.amountMinor < b.amountMinor ? 1 : -1));
+    expect(largest).toMatchObject({
+      merchant: 'Tokopedia',
+      description: 'Sepatu lari',
+      amountMinor: 449_000n,
+      occurredAt: expect.stringMatching(/^2026-09-27T/) as unknown,
+    });
+  });
+
+  it('dates every transaction 1–30 Sep 2026 in WIB, in chronological order', () => {
+    for (const transaction of septemberTransactions) {
+      expect(transaction.occurredAt).toMatch(/^2026-09-(0[1-9]|[12]\d|30)T([01]\d|2[0-3]):[0-5]\d:00\+07:00$/);
+    }
+    const times = septemberTransactions.map((transaction) => transaction.occurredAt);
+    expect(times).toEqual([...times].sort());
+  });
+
+  it('matches category kind to transaction kind, uses positive amounts and seed accounts, at most 5 slug tags', () => {
+    const keys = accounts.map((account) => account.key);
+    for (const flow of septemberFlows) {
+      expect(CATEGORY[flow.categoryKey]?.kind).toBe(flow.kind);
+      expect(flow.amountMinor).toBeGreaterThan(0n);
+      expect(keys).toContain(flow.accountKey);
+    }
+    for (const transfer of septemberTransfers) {
+      expect(transfer.receivedMinor).toBeGreaterThan(0n);
+      expect(keys).toContain(transfer.fromAccountKey);
+      expect(keys).toContain(transfer.toAccountKey);
+    }
+    for (const transaction of septemberTransactions) {
+      expect(transaction.tags.length).toBeLessThanOrEqual(5);
+      for (const tag of transaction.tags) expect(tag).toMatch(TAG_SLUG_PATTERN);
+    }
+  });
+
+  it('closed September on 1 Okt; periods start on the 1st', () => {
+    expect(DESIGN_SEED.periodStartDay).toBe(1);
+    expect(DESIGN_SEED.closedPeriods).toEqual([
+      { start: '2026-09-01', end: '2026-09-30', closedAt: '2026-10-01T00:05:00+07:00' },
+    ]);
+  });
+});
+
+describe('DESIGN_SEED budgets (Section 06 "Riwayat perubahan")', () => {
+  it('golden: one version from 2026-09 with 10 lines totalling Rp18.750.000', () => {
+    expect(DESIGN_SEED.budgets).toHaveLength(1);
+    const [version] = DESIGN_SEED.budgets;
+    expect(version?.effectiveFrom).toBe('2026-09');
+    expect(version?.expectedIncomeMinor).toBe(26_000_000n);
+    const lines = version?.lines ?? [];
+    expect(lines).toHaveLength(10);
+    expect(lines.reduce((sum, line) => sum + line.limitMinor, 0n)).toBe(18_750_000n);
+    expect(lines.filter((line) => line.isFixed).map((line) => line.categoryKey)).toEqual([
+      'system:rent',
+      'system:bills',
+      'system:subscriptions',
+    ]);
+    for (const line of lines) {
+      expect(line).toMatchObject({ rollover: false, alertPct: 85 });
+      expect(CATEGORY[line.categoryKey]?.kind).toBe('expense');
+    }
+  });
+});
+
 describe('DESIGN_SEED accounts (Section 05 `ycP7T`)', () => {
   it('golden: closing balances on 15 Okt', () => {
     expect(Object.fromEntries(seedClosingBalances(DESIGN_SEED))).toEqual({
@@ -151,8 +265,21 @@ describe('DESIGN_SEED accounts (Section 05 `ycP7T`)', () => {
     expect(accounts.filter((account) => account.isDefaultQuickEntry).map((account) => account.key)).toEqual(['bca']);
   });
 
-  it('opens every account on 30 Sep 2026; only Gotrade is in USD', () => {
-    for (const account of accounts) expect(account.openingDate).toBe('2026-09-30');
+  it('opens every account on 31 Agu 2026 with the 30 Sep balances minus September; only Gotrade is in USD', () => {
+    for (const account of accounts) expect(account.openingDate).toBe('2026-08-31');
+    expect(Object.fromEntries(accounts.map((account) => [account.key, account.openingBalanceMinor]))).toEqual({
+      bca: 38_415_000n,
+      jago: 5_125_000n,
+      mandiri: 2_440_000n,
+      gopay: 2_382_000n,
+      ovo: 1_541_000n,
+      cash: 2_120_000n,
+      gotrade: 210_522n,
+      indodax: 5_500_000n,
+      stockbit: 4_300_000n,
+      pluang: 3_700_000n,
+      bibit: 2_500_000n,
+    });
     expect(accounts.filter((account) => account.currency !== 'IDR').map((account) => account.key)).toEqual(['gotrade']);
   });
 });
@@ -172,10 +299,14 @@ describe('DESIGN_SEED goals (Section 00 card "Tujuan tabungan")', () => {
 });
 
 describe('seedClosingBalances', () => {
-  const base: DesignSeed = { ...DESIGN_SEED, transactions: [] };
+  const base: DesignSeed = { ...DESIGN_SEED, transactions: [], septemberTransactions: [] };
 
   it('is the opening balance without transactions', () => {
-    expect(seedClosingBalances(base).get('bca')).toBe(41_610_000n);
+    expect(seedClosingBalances(base).get('bca')).toBe(38_415_000n);
+  });
+
+  it('golden: the 30 Sep balances after September only', () => {
+    expect(seedClosingBalances({ ...DESIGN_SEED, transactions: [] }).get('bca')).toBe(41_610_000n);
   });
 
   it('subtracts expenses and sent amounts, adds income and received amounts', () => {
@@ -215,9 +346,9 @@ describe('seedClosingBalances', () => {
       ],
     };
     const closing = seedClosingBalances(seed);
-    expect(closing.get('ovo')).toBe(131_000n);
-    expect(closing.get('cash')).toBe(483_650n);
-    expect(closing.get('gotrade')).toBe(241_203n);
+    expect(closing.get('ovo')).toBe(1_536_000n);
+    expect(closing.get('cash')).toBe(2_103_650n);
+    expect(closing.get('gotrade')).toBe(210_622n);
   });
 
   it('rejects transactions on unknown accounts', () => {

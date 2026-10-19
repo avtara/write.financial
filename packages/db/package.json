@@ -32,7 +32,10 @@
     "./tags": "./src/tags.ts",
     "./transaction-query": "./src/transaction-query.ts",
     "./transactions": "./src/transactions.ts",
-    "./testing": "./test/pglite.ts"
+    "./testing": "./test/pglite.ts",
+    "./periods": "./src/periods.ts",
+    "./budgets": "./src/budgets.ts",
+    "./dashboard": "./src/dashboard.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

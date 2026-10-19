@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Drizzle schema (plan §4.0–4.1, M0 + the M1 ledger). Source of the generated migrations in `migrations/`; roles,
+ * Drizzle schema (plan §4.0–4.2: M0, the M1 ledger, and the M2 periods and budgets). Source of the generated migrations in `migrations/`; roles,
  * grants, Row-Level Security, triggers, and seed rows live in the hand-written SQL next to the generated tables.
  *
  * Better Auth tables (`users` … `passkeys`) follow `npx auth generate` of Better Auth 1.7.10 with the two-factor
@@ -13,7 +13,8 @@ import { ACCOUNT_TYPES } from '@wf/domain/ledger';
 import { CATEGORY_GROUPS, CATEGORY_KINDS } from '@wf/domain/categories';
 import { POSTING_ROLES, TRANSACTION_SOURCES, TRANSACTION_TYPES } from '@wf/domain/transactions';
 import { LOCALES } from '@wf/i18n/locale';
-import type { LocalDate, PeriodStartDay } from '@wf/domain/period';
+import type { AlertPct } from '@wf/domain/budget';
+import type { LocalDate, PeriodStartDay, YearMonth } from '@wf/domain/period';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -545,7 +546,6 @@ export const transactions = pgTable(
     occurredAt: timestamptz('occurred_at').notNull(),
     /** `occurred_at` as a calendar date in the user's time zone. */
     localDate: localDate('local_date').notNull(),
-    periodId: uuid('period_id'),
     description: text('description'),
     merchant: text('merchant'),
     noteEnc: bytea('note_enc'),
@@ -890,5 +890,172 @@ export const transactionTags = pgTable(
       columns: [table.userId, table.tagId],
       foreignColumns: [tags.userId, tags.id],
     }).onDelete('cascade'),
+  ],
+);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Periods and budgets (M2, plan §4.2). Transactions belong to a period by `local_date` (no `period_id`): a period is
+// a date range, so FR-P2 recalculation only moves the range of the open period, and a closed period keeps its range
+// and numbers (FR-P3; writes dated inside it are refused).
+// ---------------------------------------------------------------------------------------------------------------
+
+export const PERIOD_KINDS = ['normal', 'transition'] as const;
+export const periodKind = pgEnum('period_kind', PERIOD_KINDS);
+export const PERIOD_STATUSES = ['open', 'closed'] as const;
+export const periodStatus = pgEnum('period_status', PERIOD_STATUSES);
+
+/**
+ * Materialized monthly periods (FR-P1–P3), contiguous from the first one created. `label` is the month the period
+ * ends in (`YYYY-MM`, 25 Sep – 24 Okt = "Oktober"). A recalculated open period may overlap the closed one before it.
+ */
+export const periods = pgTable(
+  'periods',
+  {
+    id: id(),
+    userId: ownerId(),
+    label: char('label', { length: 7 }).$type<YearMonth>().notNull(),
+    startDate: localDate('start_date').notNull(),
+    endDate: localDate('end_date').notNull(),
+    days: smallint('days').notNull(),
+    kind: periodKind('kind').notNull().default('normal'),
+    status: periodStatus('status').notNull().default('open'),
+    closedAt: timestamptz('closed_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('periods_user_id_id_key').on(table.userId, table.id),
+    unique('periods_user_id_start_date_key').on(table.userId, table.startDate),
+    index('periods_user_id_end_date_idx').on(table.userId, table.endDate),
+    check('periods_label_check', sql`${table.label} = to_char(${table.endDate}, 'YYYY-MM')`),
+    check(
+      'periods_days_check',
+      sql`${table.days} = ${table.endDate} - ${table.startDate} + 1 and ${table.days} between 1 and 62`,
+    ),
+    check('periods_closed_check', sql`(${table.status} = 'closed') = (${table.closedAt} is not null)`),
+  ],
+);
+
+/** FR-B1: per-category limits from the period labelled `effective_from` until the next version. */
+export const budgetVersions = pgTable(
+  'budget_versions',
+  {
+    id: id(),
+    userId: ownerId(),
+    effectiveFrom: char('effective_from', { length: 7 }).$type<YearMonth>().notNull(),
+    /** "Atur anggaran · pemasukan Rp26.000.000": the income the allocation is compared with. */
+    expectedIncomeMinor: money('expected_income_minor'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('budget_versions_user_id_id_key').on(table.userId, table.id),
+    unique('budget_versions_user_id_effective_from_key').on(table.userId, table.effectiveFrom),
+    check('budget_versions_effective_from_check', sql`${table.effectiveFrom} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+    check(
+      'budget_versions_expected_income_check',
+      sql`${table.expectedIncomeMinor} is null or ${table.expectedIncomeMinor} >= 0`,
+    ),
+  ],
+);
+
+/** One category's limit and options in a version (FR-B1, FR-B4). */
+export const budgetLines = pgTable(
+  'budget_lines',
+  {
+    id: id(),
+    userId: ownerId(),
+    versionId: uuid('version_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    limitMinor: money('limit_minor').notNull(),
+    /** "Bawa sisa ke bulan depan". */
+    rollover: boolean('rollover').notNull().default(false),
+    /** "Anggaran tetap": no daily rate, "lunas" once spent. */
+    isFixed: boolean('is_fixed').notNull().default(false),
+    /** "Ingatkan di 85%". */
+    alertPct: smallint('alert_pct').$type<AlertPct>().notNull().default(85),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('budget_lines_version_id_category_id_key').on(table.versionId, table.categoryId),
+    index('budget_lines_user_id_category_id_idx').on(table.userId, table.categoryId),
+    foreignKey({
+      name: 'budget_lines_version_fk',
+      columns: [table.userId, table.versionId],
+      foreignColumns: [budgetVersions.userId, budgetVersions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'budget_lines_category_fk',
+      columns: [table.userId, table.categoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }),
+    check('budget_lines_limit_check', sql`${table.limitMinor} >= 0`),
+    check('budget_lines_alert_pct_check', sql`${table.alertPct} in (50, 80, 85, 100)`),
+  ],
+);
+
+export const BUDGET_OVERRIDE_REASONS = ['transfer', 'rollover'] as const;
+export const budgetOverrideReason = pgEnum('budget_override_reason', BUDGET_OVERRIDE_REASONS);
+
+/**
+ * A change of one category's limit in one period only: moved leftover (FR-B3, `transfer`, grouped by `move_id` for
+ * Undo) or a confirmed rollover proposal (FR-P4, `rollover`, M3 sets `review_item_id`). Transition proration is not
+ * stored: it follows from the period's `kind` and `days`.
+ */
+export const budgetPeriodOverrides = pgTable(
+  'budget_period_overrides',
+  {
+    id: id(),
+    userId: ownerId(),
+    periodId: uuid('period_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    deltaMinor: money('delta_minor').notNull(),
+    reason: budgetOverrideReason('reason').notNull(),
+    moveId: uuid('move_id'),
+    /** The Review-queue item whose confirmation created it (foreign key added with `review_items` in M3). */
+    reviewItemId: uuid('review_item_id'),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index('budget_period_overrides_user_id_period_id_idx').on(table.userId, table.periodId),
+    index('budget_period_overrides_move_id_idx').on(table.moveId),
+    foreignKey({
+      name: 'budget_period_overrides_period_fk',
+      columns: [table.userId, table.periodId],
+      foreignColumns: [periods.userId, periods.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'budget_period_overrides_category_fk',
+      columns: [table.userId, table.categoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }),
+    check('budget_period_overrides_delta_check', sql`${table.deltaMinor} <> 0`),
+    check('budget_period_overrides_move_check', sql`(${table.reason} = 'transfer') = (${table.moveId} is not null)`),
+  ],
+);
+
+/** FR-B5 "Abaikan": a category's warning hidden until the end of the period. */
+export const budgetAlertDismissals = pgTable(
+  'budget_alert_dismissals',
+  {
+    userId: ownerId(),
+    periodId: uuid('period_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.periodId, table.categoryId] }),
+    foreignKey({
+      name: 'budget_alert_dismissals_period_fk',
+      columns: [table.userId, table.periodId],
+      foreignColumns: [periods.userId, periods.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'budget_alert_dismissals_category_fk',
+      columns: [table.userId, table.categoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }),
   ],
 );

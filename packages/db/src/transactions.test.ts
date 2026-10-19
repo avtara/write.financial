@@ -678,3 +678,33 @@ describe('isolation and roles', () => {
     ).rejects.toMatchObject(pgError(/permission denied for table postings/));
   });
 });
+
+describe('closed periods (FR-P3)', () => {
+  it('refuses every write dated inside a closed period', async () => {
+    const september = new Date('2026-09-20T12:00:00+07:00');
+    const closedId = await create(expense({ occurredAt: september }));
+    const openId = await create(expense());
+    await test.query(
+      `INSERT INTO periods (user_id, label, start_date, end_date, days, kind, status, closed_at)
+       VALUES ($1, '2026-09', '2026-09-01', '2026-09-30', 30, 'normal', 'closed', now())`,
+      [alice],
+    );
+    const closed = { code: 'PERIOD_CLOSED' };
+    await expect(asApp(() => repo.create(alice, expense({ occurredAt: september })))).rejects.toMatchObject(closed);
+    // Out of a closed period, and into one.
+    await expect(asApp(() => repo.update(alice, closedId, expense()))).rejects.toMatchObject(closed);
+    await expect(asApp(() => repo.update(alice, openId, expense({ occurredAt: september })))).rejects.toMatchObject(
+      closed,
+    );
+    await expect(asApp(() => repo.remove(alice, [openId, closedId]))).rejects.toMatchObject(closed);
+    await expect(asApp(() => repo.restore(alice, [closedId]))).rejects.toMatchObject(closed);
+    await expect(asApp(() => repo.unsplit(alice, closedId))).rejects.toMatchObject(closed);
+    await expect(asApp(() => repo.bulkSetCategory(alice, [closedId], transport))).rejects.toMatchObject(closed);
+    await expect(asApp(() => repo.bulkAddTag(alice, [closedId], 'liburan'))).rejects.toMatchObject(closed);
+
+    // Nothing to check: no ids, or ids that match no transaction.
+    expect(await asApp(() => repo.remove(alice, []))).toEqual({ deleted: [] });
+    expect(await asApp(() => repo.remove(alice, [randomUUID()]))).toEqual({ deleted: [] });
+    expect(await asApp(() => repo.remove(alice, [openId]))).toEqual({ deleted: [openId] });
+  });
+});

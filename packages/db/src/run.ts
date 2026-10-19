@@ -45,8 +45,8 @@ async function seed(args: readonly string[], config: Config, output: Output): Pr
   try {
     const result = await seedLedger(db, userId, { getDek: createUserKeys(db, keyring).getOrCreateDek });
     output.log(
-      `Seeded ${result.balances.size} accounts, ${result.transactions} transactions, and ${result.goals} goals; ` +
-        `available balance ${result.availableMinor} (minor units).`,
+      `Seeded ${result.balances.size} accounts, ${result.transactions} transactions, ${result.closedPeriods} closed ` +
+        `period, a budget, and ${result.goals} goals; available balance ${result.availableMinor} (minor units).`,
     );
   } finally {
     await db.$client.end();

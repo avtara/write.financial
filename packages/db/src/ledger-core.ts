@@ -21,7 +21,7 @@ import {
   type TransactionSource,
   type Valuation,
 } from '@wf/domain/transactions';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import { referenceRateIn } from './fx-rates.ts';
@@ -29,6 +29,7 @@ import { LedgerError } from './ledger-errors.ts';
 import {
   accounts,
   categories,
+  periods,
   postings,
   tagAliases,
   tags,
@@ -58,6 +59,42 @@ export async function userContextIn(tx: Transaction, userId: string): Promise<Us
 export function localDateOf(at: Date, timezone: string): LocalDate {
   // en-CA formats dates as YYYY-MM-DD.
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(at) as LocalDate;
+}
+
+/**
+ * FR-P3: closed periods are read-only, so nothing dated inside one may be recorded, changed, deleted, or restored.
+ * @throws {LedgerError} `PERIOD_CLOSED`
+ */
+export async function assertOpenDatesIn(tx: Transaction, dates: readonly LocalDate[]): Promise<void> {
+  const days = [...new Set(dates)];
+  if (days.length === 0) return;
+  const closed = await tx
+    .select({ id: periods.id })
+    .from(periods)
+    .where(
+      and(
+        eq(periods.status, 'closed'),
+        sql`exists (select 1 from (values ${sql.join(
+          days.map((day) => sql`(${day}::date)`),
+          sql`, `,
+        )}) as d(day) where d.day between ${periods.startDate} and ${periods.endDate})`,
+      ),
+    )
+    .limit(1);
+  if (closed.length > 0) throw new LedgerError('PERIOD_CLOSED', 'The date is inside a closed period');
+}
+
+/** {@link assertOpenDatesIn} for existing transactions (also soft-deleted ones). */
+export async function assertOpenTransactionsIn(tx: Transaction, ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const rows = await tx
+    .select({ localDate: transactions.localDate })
+    .from(transactions)
+    .where(inArray(transactions.id, [...ids]));
+  await assertOpenDatesIn(
+    tx,
+    rows.map((row) => row.localDate),
+  );
 }
 
 /**
@@ -275,6 +312,7 @@ export async function planTransactionIn(
 ): Promise<TransactionPlan> {
   const context = await userContextIn(tx, userId);
   const localDate = localDateOf(draft.occurredAt, context.timezone);
+  await assertOpenDatesIn(tx, [localDate]);
   const note = draft.note?.trim() ?? '';
   if (note !== '' && dek === null) throw new TypeError('A note needs the user DEK');
   const noteEnc = note === '' || dek === null ? null : encrypt(dek, note, { userId, purpose: NOTE_PURPOSE });
