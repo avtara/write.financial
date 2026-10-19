@@ -36,6 +36,7 @@ describe('expense and income postings', () => {
     expect(incomePostings({ ...IDR, account: BCA, amountMinor: 18_500_000n })[0]).toMatchObject({
       amountMinor: 18_500_000n,
       amountBaseMinor: 18_500_000n,
+      role: 'principal',
     });
   });
 
@@ -51,8 +52,23 @@ describe('expense and income postings', () => {
   });
 
   it('requires a positive amount (FR-T8)', () => {
-    expect(() => expensePostings({ ...IDR, account: BCA, amountMinor: 0n })).toThrow(NonPositiveAmountError);
+    expect(() => expensePostings({ ...IDR, account: BCA, amountMinor: 0n })).toThrow(
+      'amount must be greater than zero',
+    );
+    expect(() => incomePostings({ ...IDR, account: BCA, amountMinor: 0n })).toThrow('amount must be greater than zero');
     expect(() => incomePostings({ ...IDR, account: BCA, amountMinor: -1n })).toThrow(NonPositiveAmountError);
+  });
+
+  it('names its errors', () => {
+    expect(new NonPositiveAmountError('x').name).toBe('NonPositiveAmountError');
+    expect(new SameAccountTransferError()).toMatchObject({
+      name: 'SameAccountTransferError',
+      message: 'A transfer needs two different accounts',
+    });
+    expect(new SplitMismatchError(4n)).toMatchObject({
+      name: 'SplitMismatchError',
+      message: 'Split parts differ from the total by 4',
+    });
   });
 });
 
@@ -153,13 +169,31 @@ describe('transferPostings', () => {
     expect(postings.at(-1)).toMatchObject({ role: 'fx_diff', amountBaseMinor: -62_500n });
   });
 
+  it('values the difference with the reference, not another rate, when one leg is in the base currency', () => {
+    const { fxDifference } = transferPostings({
+      baseCurrency: 'IDR',
+      rates: [{ base: 'USD', quote: 'IDR', rate: '16350' }],
+      from: BCA,
+      to: GOTRADE,
+      sentMinor: 3_000_000n,
+      receivedMinor: 18_210n,
+      reference: USD_IDR,
+      fxDifferenceCategoryId: 'fx',
+    });
+    expect(fxDifference?.differenceBaseMinor).toBe(-22_660n);
+  });
+
   it('validates accounts, amounts, and rates (FR-T8)', () => {
     const base = { ...IDR, from: BCA, to: JAGO, sentMinor: 1n, receivedMinor: 1n, fxDifferenceCategoryId: 'fx' };
     expect(() => transferPostings({ ...base, to: BCA })).toThrow(SameAccountTransferError);
-    expect(() => transferPostings({ ...base, sentMinor: 0n })).toThrow(NonPositiveAmountError);
-    expect(() => transferPostings({ ...base, receivedMinor: 0n })).toThrow(NonPositiveAmountError);
-    expect(() => transferPostings({ ...base, fee: { minor: 0n, categoryId: 'f' } })).toThrow(NonPositiveAmountError);
-    expect(() => transferPostings({ ...base, receivedMinor: 2n })).toThrow(RangeError);
+    expect(() => transferPostings({ ...base, sentMinor: 0n })).toThrow('sent must be greater than zero');
+    expect(() => transferPostings({ ...base, receivedMinor: 0n })).toThrow('received must be greater than zero');
+    expect(() => transferPostings({ ...base, fee: { minor: 0n, categoryId: 'f' } })).toThrow(
+      'fee must be greater than zero',
+    );
+    expect(() => transferPostings({ ...base, receivedMinor: 2n })).toThrow(
+      'A same-currency transfer receives what it sends',
+    );
     expect(() => transferPostings({ ...base, to: GOTRADE })).toThrow(MissingRateError);
   });
 });
@@ -175,10 +209,13 @@ describe('splits (FR-L5)', () => {
   it('rejects fewer than two parts, non-positive parts, and mismatches', () => {
     expect(() => {
       assertSplit(1n, [1n]);
-    }).toThrow(RangeError);
+    }).toThrow('A split needs at least two parts');
     expect(() => {
       assertSplit(1n, [2n, -1n]);
     }).toThrow(NonPositiveAmountError);
+    expect(() => {
+      assertSplit(1n, [1n, 0n]);
+    }).toThrow('part must be greater than zero');
     expect(() => {
       assertSplit(10n, [3n, 3n]);
     }).toThrow(expect.objectContaining({ remainingMinor: 4n }) as Error);
