@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { defineConfig, devices } from '@playwright/test';
-import { BASE_URL, e2eEnv } from './e2e/env.ts';
+import { BASE_URL, E2E_NOW, e2eEnv } from './e2e/env.ts';
+
+// The run's clock (`clockOffsetMs` in `e2e/env.ts`): fixed once here in the runner, which evaluates the config before
+// it starts the web server and the workers; both inherit `process.env`, and the workers' own evaluation of this file
+// keeps the inherited value. Every "now" of the run is E2E_NOW plus the real time elapsed since.
+const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse(E2E_NOW) - Date.now()));
 
 /**
  * End-to-end tests against the production build (`pnpm --filter @wf/web build` first) and the dev services
@@ -12,6 +17,9 @@ import { BASE_URL, e2eEnv } from './e2e/env.ts';
  * - `settings-ledger`: Settings › Kategori and Tag (create, rename, merge, delete; keyboard only) as the invited user,
  * - `accounts`: "Rekening & dompet" with the design persona seeded for the invited user (M1),
  * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed.
+ *
+ * The server, Postgres, the browsers, and the TOTP codes run on one clock that starts at E2E_NOW (the design persona's
+ * day), so the seed's goldens hold whatever the real date is.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -65,9 +73,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'node e2e/prepare.ts && node .output/server/index.mjs',
+    command: 'node e2e/prepare.ts && node --import ./e2e/clock.ts .output/server/index.mjs',
     url: `${BASE_URL}/healthz`,
-    env: e2eEnv(),
+    env: { ...e2eEnv(), WF_E2E_CLOCK_OFFSET_MS: clockOffset },
     // Never reuse a server: the run needs the fresh instance `prepare.ts` creates.
     reuseExistingServer: false,
     timeout: 120_000,

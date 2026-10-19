@@ -6,13 +6,14 @@
  * the admin, and an invited user who gets 403 there.
  */
 import type { Browser } from '@playwright/test';
-import { BASE_URL } from './env.ts';
+import { BASE_URL, e2eNow } from './env.ts';
 import {
   clearAuthCounters,
   enterCode,
   expect,
   freshPassword,
   mailSubjects,
+  newContext,
   openUserMenu,
   saveAccount,
   screenshot,
@@ -35,7 +36,7 @@ const user: Account = { name: 'Budi Pengguna', email: 'budi@e2e.test', password:
 
 /** Signs `account` in with its password and current TOTP code in a fresh browser context. */
 async function signInElsewhere(browser: Browser, account: Account) {
-  const context = await browser.newContext({
+  const context = await newContext(browser, {
     locale: 'id-ID',
     baseURL: BASE_URL,
     userAgent:
@@ -133,7 +134,7 @@ test('after signing out, signing in needs the TOTP code', async ({ page }) => {
 test('five wrong codes lock the account; afterwards a backup code signs in', async ({ page }) => {
   await signInWithPassword(page, admin);
   await expect(page).toHaveURL(/\/2fa/);
-  const wrong = totp(admin.totpSecret ?? '', Date.now() - 10 * 60_000);
+  const wrong = totp(admin.totpSecret ?? '', e2eNow() - 10 * 60_000);
   for (const left of [4, 3, 2, 1]) {
     await enterCode(page, 'Kode verifikasi', wrong);
     await expect(page.getByText(new RegExp(`sisa ${left} percobaan`))).toBeVisible();
@@ -191,7 +192,7 @@ test('Settings › Security lists the devices and the history, and signs out the
 });
 
 test('the language switch on the sign-in page applies without a reload', async ({ browser }) => {
-  const context = await browser.newContext({ locale: 'id-ID', baseURL: BASE_URL });
+  const context = await newContext(browser, { locale: 'id-ID', baseURL: BASE_URL });
   const page = await context.newPage();
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/sign-in');
@@ -227,7 +228,7 @@ test('Bull Board opens for the admin, and an invited user gets 403', async ({ pa
   expect(url).toMatch(/\/sign-up\?invitation=/);
   await expect.poll(() => mailSubjects(user.email)).toContain('Undangan bergabung ke Keuangan E2E');
 
-  const context = await browser.newContext({ locale: 'id-ID', baseURL: BASE_URL });
+  const context = await newContext(browser, { locale: 'id-ID', baseURL: BASE_URL });
   const invited = await context.newPage();
   await invited.setViewportSize({ width: 1440, height: 900 });
   await invited.goto(url);

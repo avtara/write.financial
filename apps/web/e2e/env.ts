@@ -16,6 +16,28 @@ export const MAILPIT_URL = process.env['WF_E2E_MAILPIT_URL'] ?? 'http://127.0.0.
 /** Files the specs share (TOTP secret, backup codes, the invited user's session); under the git-ignored reports. */
 export const STATE_DIR = path.resolve(import.meta.dirname, '../../../reports/e2e-state');
 
+/** The suite's "now" at the start of a run: the design persona's day (the seed's goldens assume 15 Okt 2026). */
+export const E2E_NOW = '2026-10-15T09:42:00+07:00';
+
+/**
+ * The one clock offset of a run, `Date.parse(E2E_NOW)` minus the real time, fixed once by `playwright.config.ts`
+ * (`process.env` is set in the runner before the web server and the test workers start, and inherited by both; the
+ * workers re-evaluate the config but keep the inherited value). The server (`clock.ts`), Postgres (`prepare.ts`), the
+ * TOTP codes, and the browser (`context.clock.setSystemTime`) all add it to the real time, so they agree while time
+ * passes. 0 outside that config: the self-host proof runs against a real clock.
+ *
+ * Cookie lifetimes are `Max-Age` (relative), so the browser's real cookie clock does not matter; Valkey windows are
+ * TTLs.
+ */
+export function clockOffsetMs(): number {
+  return Number(process.env['WF_E2E_CLOCK_OFFSET_MS'] ?? 0);
+}
+
+/** The run's current time in epoch milliseconds, as the E2E server sees it. */
+export function e2eNow(): number {
+  return Date.now() + clockOffsetMs();
+}
+
 const DATABASE_KEYS = [
   'DATABASE_URL',
   'DATABASE_URL_WORKER',

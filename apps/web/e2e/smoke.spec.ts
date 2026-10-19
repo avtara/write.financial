@@ -9,6 +9,19 @@ async function openUserMenu(page: Page) {
   await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
 }
 
+/**
+ * Picks `language` in the user menu and waits until the switch is saved to the account (FR-S8): the server renders the
+ * account's language before the cookie's, so a reload or the next test must not overtake the save.
+ */
+async function switchLanguage(page: Page, language: 'English' | 'Bahasa Indonesia') {
+  await openUserMenu(page);
+  const saved = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith('/_serverFn/'),
+  );
+  await page.getByRole('menuitemradio', { name: language }).click();
+  expect((await saved).ok()).toBe(true);
+}
+
 test.describe('layout', () => {
   test('desktop 1440 shows the full sidebar', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -44,8 +57,7 @@ test('locale switch changes the text and <html lang> without a reload, and persi
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
-  await openUserMenu(page);
-  await page.getByRole('menuitemradio', { name: 'English' }).click();
+  await switchLanguage(page, 'English');
   await expect(page.getByRole('heading', { level: 1, name: 'Welcome' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
@@ -53,8 +65,7 @@ test('locale switch changes the text and <html lang> without a reload, and persi
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.getByText('No data yet')).toBeVisible();
 
-  await openUserMenu(page);
-  await page.getByRole('menuitemradio', { name: 'Bahasa Indonesia' }).click();
+  await switchLanguage(page, 'Bahasa Indonesia');
   await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
 });
@@ -63,6 +74,8 @@ test('theme and privacy mode persist across a reload', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   const html = page.locator('html');
+  // The labels below are Indonesian: the account's language, which the locale test restores.
+  await expect(html).toHaveAttribute('lang', 'id');
   await expect(html).toHaveAttribute('data-theme', 'dark');
 
   await openUserMenu(page);
