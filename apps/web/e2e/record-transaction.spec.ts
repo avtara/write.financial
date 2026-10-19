@@ -5,21 +5,19 @@
  * Rp3.000.000 that arrives as US$182,10 at the reference rate 16350.0275 records an FX difference of −Rp22.660; a
  * filled form closed with Escape is kept as a draft and continued later; and the Quick Add bar saves with ↵.
  */
-import { execFileSync } from 'node:child_process';
-import path from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 import postgres from 'postgres';
 import { e2eEnv } from './env.ts';
-import { expect, loadAccount, screenshot, test, USER_STATE } from './support.ts';
+import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
 
 test.describe.configure({ mode: 'serial' });
 test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 900 } });
 
-const env = e2eEnv();
-const sql = () => postgres(env['DATABASE_URL_SUPERUSER'] ?? '', { max: 1, onnotice: () => undefined });
+const sql = () => postgres(e2eEnv()['DATABASE_URL_SUPERUSER'] ?? '', { max: 1, onnotice: () => undefined });
 
 test.beforeAll(async () => {
   const { email } = loadAccount('user');
+  await seedDesignPersona(email);
   const db = sql();
   try {
     const [row] = await db<{ accounts: number }[]>`

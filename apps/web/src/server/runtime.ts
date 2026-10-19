@@ -22,6 +22,7 @@ import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
 import { createNotifications, type NotificationsRepository } from '@wf/db/notifications';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
+import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-items';
 import { createReview, type ReviewRepository } from '@wf/db/review';
 import { createSchedules, type SchedulesRepository } from '@wf/db/schedules';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
@@ -96,6 +97,8 @@ export interface Services extends BaseRuntime {
   readonly review: ReviewRepository;
   readonly notifications: NotificationsRepository;
   readonly schedules: SchedulesRepository;
+  /** ⌘K "Baru dibuka". */
+  readonly recentItems: RecentItemsRepository;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -150,6 +153,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     review: createReview(appDb, { getDek, now }),
     notifications: createNotifications(appDb, { now }),
     schedules: createSchedules(appDb, { now }),
+    recentItems: createRecentItems(appDb, { now }),
     mailer,
     sendWith,
     invite: createInviter({
