@@ -65,7 +65,7 @@ test('records what matches nothing as a transaction', async ({ page }) => {
   await page.keyboard.press('Enter');
   // The Record Transaction sheet opens with the query as its description (left unsaved).
   const sheet = page.getByRole('dialog');
-  await expect(sheet.getByRole('heading')).toHaveText(/^Catat /);
+  await expect(sheet.getByRole('heading', { level: 2 })).toHaveText(/^Catat /);
   await expect(sheet.getByRole('textbox', { name: 'Catatan' })).toHaveValue('cicilan motor');
 });
 
