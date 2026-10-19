@@ -96,11 +96,19 @@ describe('CategoriesSection', () => {
     await expect.element(needs.getByRole('heading', { name: 'Kebutuhan · 2' })).toBeVisible();
     await expect.element(needs.getByText('Sewa Kos')).toBeVisible();
     await expect.element(needs.getByText('Tetap')).toBeVisible();
-    await expect.element(needs.getByText('1 transaksi')).toBeVisible();
-    await expect.element(screen.getByRole('region', { name: 'Biaya keuangan' }).getByText('Sistem')).toBeVisible();
+    // The count is under the name in narrow rows and on the right in wide ones (one of them is hidden).
     await expect
-      .element(screen.getByRole('region', { name: 'Biaya keuangan' }).getByText('Belum dipakai'))
-      .toBeVisible();
+      .poll(() =>
+        needs
+          .getByText('1 transaksi')
+          .elements()
+          .filter((node) => node.checkVisibility()),
+      )
+      .toHaveLength(1);
+    await expect.element(screen.getByRole('region', { name: 'Biaya keuangan' }).getByText('Sistem')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Biaya keuangan' }).getByText('Belum dipakai').elements()).toHaveLength(
+      2,
+    );
     const archived = screen.getByRole('region', { name: 'Diarsipkan' });
     await expect.element(archived.getByText('Lama')).toBeVisible();
     // Alone in its group or archived: nothing to reorder.
