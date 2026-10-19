@@ -7,6 +7,8 @@
 import { Dialog } from 'radix-ui';
 import { useRef, type ReactNode } from 'react';
 
+const WIDTH = { md: 'w-[420px]', lg: 'w-[460px]', xl: 'w-[560px]' } as const;
+
 export interface ModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -14,8 +16,8 @@ export interface ModalProps {
   description?: string;
   /** For content that shows its own heading (`TotpEnrollment`): the title is only announced. */
   hideTitle?: boolean;
-  /** `md` 420 px (forms), `lg` 460 px (authenticator setup). */
-  size?: 'md' | 'lg';
+  /** `md` 420 px (forms), `lg` 460 px (authenticator setup), `xl` 560 px (account form, reconciliation). */
+  size?: 'md' | 'lg' | 'xl';
   children: ReactNode;
 }
 
@@ -43,7 +45,7 @@ export function Modal({
             event.preventDefault();
             opener.current?.focus();
           }}
-          className={`fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-32px)] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-[14px] border border-border-dialog bg-dialog p-6 text-fg shadow-[0_16px_48px_var(--shadow)] ${size === 'md' ? 'w-[420px]' : 'w-[460px]'}`}
+          className={`fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-32px)] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-[14px] border border-border-dialog bg-dialog p-6 text-fg shadow-[0_16px_48px_var(--shadow)] ${WIDTH[size]}`}
         >
           <div className={hideTitle ? 'sr-only' : 'flex flex-col gap-1'}>
             <Dialog.Title className="text-[16px] font-semibold">{title}</Dialog.Title>

@@ -15,6 +15,7 @@ import { Route as HealthzRouteImport } from './../routes/healthz.ts';
 import { Route as SetupRouteImport } from './../routes/setup.tsx';
 import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup.tsx';
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
+import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
 import { Route as Auth2faRouteImport } from './../routes/_auth/2fa.tsx';
 import { Route as AuthForgotRouteImport } from './../routes/_auth/forgot.tsx';
 import { Route as AuthResetPasswordRouteImport } from './../routes/_auth/reset-password.tsx';
@@ -23,6 +24,7 @@ import { Route as AuthSignUpRouteImport } from './../routes/_auth/sign-up.tsx';
 import { Route as AdminQueuesRouteImport } from './../routes/admin/queues.ts';
 import { Route as AppSettingsSectionRouteImport } from './../routes/_app/settings.$section.tsx';
 import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$.ts';
+import { Route as ApiAccountLogoIdRouteImport } from './../routes/api/account-logo.$id.ts';
 import { Route as ApiAuthSplatRouteImport } from './../routes/api/auth/$.ts';
 
 const AppRoute = AppRouteImport.update({
@@ -51,6 +53,11 @@ const TwoFactorSetupRoute = TwoFactorSetupRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppAccountsRoute = AppAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
   getParentRoute: () => AppRoute,
 } as any);
 const Auth2faRoute = Auth2faRouteImport.update({
@@ -93,6 +100,11 @@ const AdminQueuesSplatRoute = AdminQueuesSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => AdminQueuesRoute,
 } as any);
+const ApiAccountLogoIdRoute = ApiAccountLogoIdRouteImport.update({
+  id: '/api/account-logo/$id',
+  path: '/api/account-logo/$id',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -104,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/healthz': typeof HealthzRoute;
   '/setup': typeof SetupRoute;
   '/two-factor-setup': typeof TwoFactorSetupRoute;
+  '/accounts': typeof AppAccountsRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
@@ -112,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/admin/queues': typeof AdminQueuesRouteWithChildren;
   '/settings/$section': typeof AppSettingsSectionRoute;
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
+  '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
 }
 export interface FileRoutesByTo {
@@ -119,6 +133,7 @@ export interface FileRoutesByTo {
   '/healthz': typeof HealthzRoute;
   '/setup': typeof SetupRoute;
   '/two-factor-setup': typeof TwoFactorSetupRoute;
+  '/accounts': typeof AppAccountsRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
@@ -127,6 +142,7 @@ export interface FileRoutesByTo {
   '/admin/queues': typeof AdminQueuesRouteWithChildren;
   '/settings/$section': typeof AppSettingsSectionRoute;
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
+  '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
 }
 export interface FileRoutesById {
@@ -136,6 +152,7 @@ export interface FileRoutesById {
   '/healthz': typeof HealthzRoute;
   '/setup': typeof SetupRoute;
   '/two-factor-setup': typeof TwoFactorSetupRoute;
+  '/_app/accounts': typeof AppAccountsRoute;
   '/_auth/2fa': typeof Auth2faRoute;
   '/_auth/forgot': typeof AuthForgotRoute;
   '/_auth/reset-password': typeof AuthResetPasswordRoute;
@@ -145,6 +162,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute;
   '/_app/settings/$section': typeof AppSettingsSectionRoute;
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
+  '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
 }
 export interface FileRouteTypes {
@@ -154,6 +172,7 @@ export interface FileRouteTypes {
     | '/healthz'
     | '/setup'
     | '/two-factor-setup'
+    | '/accounts'
     | '/2fa'
     | '/forgot'
     | '/reset-password'
@@ -162,6 +181,7 @@ export interface FileRouteTypes {
     | '/admin/queues'
     | '/settings/$section'
     | '/admin/queues/$'
+    | '/api/account-logo/$id'
     | '/api/auth/$';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -169,6 +189,7 @@ export interface FileRouteTypes {
     | '/healthz'
     | '/setup'
     | '/two-factor-setup'
+    | '/accounts'
     | '/2fa'
     | '/forgot'
     | '/reset-password'
@@ -177,6 +198,7 @@ export interface FileRouteTypes {
     | '/admin/queues'
     | '/settings/$section'
     | '/admin/queues/$'
+    | '/api/account-logo/$id'
     | '/api/auth/$';
   id:
     | '__root__'
@@ -185,6 +207,7 @@ export interface FileRouteTypes {
     | '/healthz'
     | '/setup'
     | '/two-factor-setup'
+    | '/_app/accounts'
     | '/_auth/2fa'
     | '/_auth/forgot'
     | '/_auth/reset-password'
@@ -194,6 +217,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/settings/$section'
     | '/admin/queues/$'
+    | '/api/account-logo/$id'
     | '/api/auth/$';
   fileRoutesById: FileRoutesById;
 }
@@ -204,6 +228,7 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute;
   TwoFactorSetupRoute: typeof TwoFactorSetupRoute;
   AdminQueuesRoute: typeof AdminQueuesRouteWithChildren;
+  ApiAccountLogoIdRoute: typeof ApiAccountLogoIdRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
 }
 
@@ -249,6 +274,13 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/';
       preLoaderRoute: typeof AppIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/accounts': {
+      id: '/_app/accounts';
+      path: '/accounts';
+      fullPath: '/accounts';
+      preLoaderRoute: typeof AppAccountsRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_auth/2fa': {
@@ -307,6 +339,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminQueuesSplatRouteImport;
       parentRoute: typeof AdminQueuesRoute;
     };
+    '/api/account-logo/$id': {
+      id: '/api/account-logo/$id';
+      path: '/api/account-logo/$id';
+      fullPath: '/api/account-logo/$id';
+      preLoaderRoute: typeof ApiAccountLogoIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/api/auth/$': {
       id: '/api/auth/$';
       path: '/api/auth/$';
@@ -318,11 +357,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAccountsRoute: typeof AppAccountsRoute;
   AppIndexRoute: typeof AppIndexRoute;
   AppSettingsSectionRoute: typeof AppSettingsSectionRoute;
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccountsRoute: AppAccountsRoute,
   AppIndexRoute: AppIndexRoute,
   AppSettingsSectionRoute: AppSettingsSectionRoute,
 };
@@ -366,6 +407,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   TwoFactorSetupRoute: TwoFactorSetupRoute,
   AdminQueuesRoute: AdminQueuesRouteWithChildren,
+  ApiAccountLogoIdRoute: ApiAccountLogoIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 };
 export const routeTree = rootRouteImport

@@ -21,6 +21,19 @@ describe('PageHeader', () => {
     await expect.element(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Selamat datang');
   });
 
+  it('shows a description and actions when given', async () => {
+    const { screen } = await renderApp(
+      <PageHeader
+        breadcrumb={['Akun', 'Rekening']}
+        title="Rekening"
+        description="11 rekening"
+        actions={<button type="button">Tambah</button>}
+      />,
+    );
+    await expect.element(screen.getByText('11 rekening')).toBeVisible();
+    await expect.element(screen.getByRole('button', { name: 'Tambah' })).toBeVisible();
+  });
+
   it('offers no peek while amounts are visible', async () => {
     const { screen } = await renderApp(header);
     await expect.element(screen.getByRole('button', { name: /Intip saldo/ })).not.toBeInTheDocument();

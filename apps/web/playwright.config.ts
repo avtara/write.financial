@@ -10,6 +10,7 @@ import { BASE_URL, e2eEnv } from './e2e/env.ts';
  * - `tablet`: the same screens at 1024 px, signed in as the admin and the invited user from `m0`,
  * - `app`: the app shell (layout, language, theme, privacy mode, security headers) as the invited user,
  * - `settings-ledger`: Settings › Kategori and Tag (create, rename, merge, delete; keyboard only) as the invited user,
+ * - `accounts`: "Rekening & dompet" with the design persona seeded for the invited user (M1),
  * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed.
  */
 export default defineConfig({
@@ -50,9 +51,16 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {
+      name: 'accounts',
+      testMatch: 'accounts.spec.ts',
+      dependencies: ['settings-ledger'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      // After `accounts`, which asserts the seed's exact balances; recording moves them.
       name: 'record',
       testMatch: 'record-transaction.spec.ts',
-      dependencies: ['settings-ledger'],
+      dependencies: ['accounts'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
   ],

@@ -33,12 +33,14 @@ export interface PageHeaderProps {
   /** Location of the page, outermost first; the last entry is the current page. */
   breadcrumb: readonly string[];
   title: string;
-  /** Page actions at the right, e.g. "Catat Transaksi". */
+  /** Under the title ("11 rekening · 6 untuk belanja, 5 platform investasi"). */
+  description?: ReactNode;
+  /** Page actions on the right ("Sesuaikan saldo", "Tambah rekening"). */
   actions?: ReactNode;
 }
 
 /** Page header (design `yGvLv`): breadcrumb and title, plus "Intip saldo" while amounts are hidden. */
-export function PageHeader({ breadcrumb, title, actions }: PageHeaderProps) {
+export function PageHeader({ breadcrumb, title, description, actions }: PageHeaderProps) {
   const { preferences } = usePreferences();
   return (
     <header className="flex items-end gap-3 pb-2">
@@ -58,6 +60,7 @@ export function PageHeader({ breadcrumb, title, actions }: PageHeaderProps) {
           </ol>
         </nav>
         <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.01em] text-fg">{title}</h1>
+        {description === undefined ? null : <p className="text-[13px] text-muted-fg">{description}</p>}
       </div>
       {preferences.balancesHidden ? <PeekButton /> : null}
       {actions}

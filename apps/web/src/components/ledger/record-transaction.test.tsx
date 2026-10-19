@@ -32,6 +32,8 @@ const writes = vi.hoisted(() => ({
   listTransactionDays: vi.fn(),
 }));
 vi.mock('../../server/fn/transactions-write.ts', () => writes);
+const reconcile = vi.hoisted(() => ({ openReconcile: vi.fn() }));
+vi.mock('../accounts/reconcile.tsx', () => ({ useReconcile: () => reconcile }));
 
 const ZONE = 'Asia/Jakarta';
 
@@ -384,6 +386,8 @@ describe('RecordTransactionProvider', () => {
     await userEvent.click(page.getByRole('option', { name: /OVO/ }));
     await userEvent.fill(amount, '100000');
     await expect.element(sheet.getByRole('button', { name: /^Tetap simpan/ })).toBeVisible();
+    await userEvent.click(sheet.getByRole('button', { name: 'Sesuaikan saldo' }));
+    expect(reconcile.openReconcile).toHaveBeenCalledWith(OVO.id);
     const incomeFirst = sheet.getByRole('button', { name: 'Catat pemasukan dulu' });
     await userEvent.click(incomeFirst);
     await expect

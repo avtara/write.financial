@@ -30,6 +30,7 @@ import { createUserKeys } from '@wf/db/user-keys';
 import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
 import type { Mailer } from '@wf/integrations/mailer';
+import { createObjectStore, type ObjectStore } from '@wf/integrations/objectstore';
 import { Redis } from 'ioredis';
 import { pino, type Logger } from 'pino';
 import { createInstanceStore, type InstanceStore } from './instance-store.ts';
@@ -84,6 +85,10 @@ export interface Services extends BaseRuntime {
   readonly transactions: TransactionsRepository;
   readonly transactionQuery: TransactionQueryRepository;
   readonly drafts: DraftsRepository;
+  /** Receipts and other transaction attachments (encrypted per user). */
+  readonly attachmentStore: ObjectStore;
+  /** Uploaded account logos (FR-R1), in the avatars bucket (encrypted per user). */
+  readonly logoStore: ObjectStore;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -133,6 +138,8 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     transactions: createTransactions(appDb, { getDek, now }),
     transactionQuery: createTransactionQuery(appDb, { getDek }),
     drafts: createDrafts(appDb, { getDek }),
+    attachmentStore: createObjectStore({ s3: config.s3, bucket: 'attachments', getDek }),
+    logoStore: createObjectStore({ s3: config.s3, bucket: 'avatars', getDek }),
     mailer,
     sendWith,
     invite: createInviter({

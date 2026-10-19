@@ -5,7 +5,7 @@
  */
 import { m } from '@wf/i18n/messages';
 import type { KbdKey } from '@wf/ui/kbd-hint';
-import { LayoutDashboard, LayoutGrid, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, LayoutGrid, Wallet, type LucideIcon } from 'lucide-react';
 import type { FileRouteTypes } from '../generated/routeTree.gen.ts';
 
 export interface NavItem {
@@ -15,8 +15,8 @@ export interface NavItem {
   readonly icon: LucideIcon;
   /** Tablet rail icon (17 px); the design uses a different glyph for some entries. */
   readonly railIcon: LucideIcon;
-  /** `G` + letter navigation (design "Pintasan keyboard", NAVIGASI). */
-  readonly shortcut: readonly KbdKey[];
+  /** `G` + letter navigation (design "Pintasan keyboard", NAVIGASI); pages the design gives no letter have none. */
+  readonly shortcut?: readonly KbdKey[];
 }
 
 export interface NavGroup {
@@ -28,5 +28,9 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: m.nav_menu,
     items: [{ to: '/', label: m.nav_overview, icon: LayoutDashboard, railIcon: LayoutGrid, shortcut: ['G', 'R'] }],
+  },
+  {
+    label: m.nav_group_account,
+    items: [{ to: '/accounts', label: m.accounts_title, icon: Wallet, railIcon: Wallet }],
   },
 ];

@@ -74,6 +74,8 @@ export const EXPECTED_CODES: readonly string[] = [
     'MAIL_NOT_CONFIGURED',
     'MAIL_FAILED',
     'INVALID_PROFILE',
+    // An uploaded image the image pipeline refused (`detail`: the reason).
+    'IMAGE_REJECTED',
     // Ledger repositories (`LedgerError`).
     ...LEDGER_ERROR_CODES,
   ]),

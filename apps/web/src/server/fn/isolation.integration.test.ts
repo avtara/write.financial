@@ -42,6 +42,8 @@ import { getPreferences } from '../get-preferences.ts';
 import type * as RuntimeModule from '../runtime.ts';
 import { createServices, type Services } from '../runtime.ts';
 import * as account from './account.ts';
+import type { AccountDetail } from './accounts.ts';
+import * as accounts from './accounts.ts';
 import * as admin from './admin.ts';
 import * as budget from './budget.ts';
 import * as categories from './categories.ts';
@@ -123,6 +125,7 @@ let smtpPort = 0;
 /** The server functions this test imports; {@link MATRIX} must have a case for each. */
 const FUNCTIONS = {
   ...account,
+  ...accounts,
   ...admin,
   ...budget,
   ...categories,
@@ -265,6 +268,23 @@ const instanceInput = () => ({
 const hostileInstance = () => ({ ...instanceInput(), instanceName: 'Pwned', registrationMode: 'open', smtp: null });
 
 const UNAUTHENTICATED = { ok: false, code: 'UNAUTHENTICATED' };
+/** A's accounts with every field a write could change, and A's ledger row counts. */
+const aLedger = async () => ({
+  accounts: await superuser`SELECT * FROM accounts WHERE user_id = ${aId} ORDER BY id`,
+  transactions: await count('transactions', `user_id = '${aId}'`),
+  adjustments: await count('balance_adjustments', `user_id = '${aId}'`),
+});
+/** Calls `fn` as B with `input` (aimed at A's account): refused as not found, A's ledger unchanged. */
+async function notFoundForB(fn: Name, input: unknown): Promise<void> {
+  const before = await aLedger();
+  expect(await as('B', fn, input)).toEqual(NOT_FOUND);
+  expect(await aLedger()).toEqual(before);
+}
+const bAccountNames = async () =>
+  (
+    await superuser<{ name: string; status: string }[]>`
+    SELECT display_name AS name, status::text FROM accounts WHERE user_id = ${bId} ORDER BY sort_order, id`
+  ).map((row) => `${row.name}:${row.status}`);
 const FORBIDDEN = { ok: false, code: 'FORBIDDEN' };
 const ok = <T>(value: T) => ({ ok: true, value });
 const NOT_FOUND = { ok: false, code: 'NOT_FOUND' };
@@ -1033,6 +1053,129 @@ const MATRIX: Record<Name, Case> = {
       expect(await draftPayload(aDraftId)).toBe(ofA);
       expect(await as('B', 'removeDraft', { id: bDraftId })).toEqual(ok(null));
       expect(await count('drafts', `user_id = '${bId}'`)).toBe(0);
+    },
+  },
+  createAccount: {
+    input: () => ({
+      type: 'cash',
+      providerName: 'Dompet B',
+      displayName: 'Dompet B',
+      currency: 'IDR',
+      openingBalanceMinor: 50_000n,
+      openingDate: '2026-10-01',
+      color: 'green',
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const before = await aLedger();
+      expect(await as('B', 'createAccount', input)).toMatchObject(ok({ displayName: 'Dompet B' }));
+      expect(await bAccountNames()).toEqual(['Rekening B:active', 'Dompet B:active']);
+      expect(await aLedger()).toEqual(before);
+    },
+  },
+  updateAccount: {
+    input: () => ({ id: aAccountId, patch: { displayName: 'Pwned', showAsCard: true } }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('updateAccount', input);
+      expect(await as('B', 'updateAccount', { id: bAccountId, patch: { displayName: 'Rekening B' } })).toMatchObject(
+        ok({ displayName: 'Rekening B' }),
+      );
+    },
+  },
+  getAccountDetail: {
+    input: () => ({ id: aAccountId }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('getAccountDetail', input);
+      const ofB = await as<Result<AccountDetail>>('B', 'getAccountDetail', { id: bAccountId });
+      expect(
+        ofB.ok && ofB.value.recent.every((row) => row.accountId === bAccountId || row.toAccountId === bAccountId),
+      ).toBe(true);
+    },
+  },
+  reconcileAccount: {
+    input: () => ({ id: aAccountId, mode: 'correction', actualBalanceMinor: 1n }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('reconcileAccount', input);
+    },
+  },
+  reconcileAccounts: {
+    input: () => ({
+      occurredAt: new Date('2026-10-15T05:00:00Z'),
+      items: [
+        { id: aAccountId, actualBalanceMinor: 1n, categoryId: null, clientId: '0192a6c4-0000-7000-8000-0000000000d1' },
+      ],
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('reconcileAccounts', input);
+    },
+  },
+  reorderAccounts: {
+    input: () => ({ ids: [aAccountId] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('reorderAccounts', input);
+    },
+  },
+  archiveAccount: {
+    // B tries to move its balance into A's account.
+    input: () => ({
+      id: bAccountId,
+      transfer: { toAccountId: aAccountId, clientId: '0192a6c4-0000-7000-8000-0000000000d2' },
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('archiveAccount', input);
+      expect(await bAccountNames()).toEqual(['Rekening B:active', 'Dompet B:active']);
+      await notFoundForB('archiveAccount', { id: aAccountId });
+      const dompet = (
+        await superuser<{ id: string }[]>`
+        SELECT id::text FROM accounts WHERE user_id = ${bId} AND display_name = 'Dompet B'`
+      )[0]?.id;
+      expect(await as('B', 'archiveAccount', { id: dompet })).toMatchObject(ok({ status: 'archived' }));
+    },
+  },
+  restoreAccount: {
+    input: () => ({ id: aAccountId }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('restoreAccount', input);
+    },
+  },
+  deleteAccount: {
+    input: () => ({ id: aAccountId }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('deleteAccount', input);
+      const dompet = (
+        await superuser<{ id: string }[]>`
+        SELECT id::text FROM accounts WHERE user_id = ${bId} AND display_name = 'Dompet B'`
+      )[0]?.id;
+      expect(await as('B', 'deleteAccount', { id: dompet })).toEqual(ok({ deletedTransactions: 0 }));
+      expect(await bAccountNames()).toEqual(['Rekening B:active']);
+    },
+  },
+  setAccountLogo: {
+    input: () => {
+      const form = new FormData();
+      form.set('id', aAccountId);
+      form.set('file', new File([new Uint8Array([137, 80, 78, 71])], 'logo.png', { type: 'image/png' }));
+      return form;
+    },
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      // Refused before the image is read or anything reaches storage.
+      await notFoundForB('setAccountLogo', input);
+    },
+  },
+  removeAccountLogo: {
+    input: () => ({ id: aAccountId }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      await notFoundForB('removeAccountLogo', input);
     },
   },
   getPreferences: {

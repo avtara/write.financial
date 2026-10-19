@@ -28,6 +28,8 @@ vi.mock('../server/fn/transactions-write.ts', () => writes);
 afterEach(() => {
   vi.restoreAllMocks();
 });
+// The reconcile provider's server functions only run when it opens.
+vi.mock('../server/fn/accounts.ts', () => ({ reconcileAccount: vi.fn() }));
 
 const VIEWER: Viewer = {
   id: 'u1',

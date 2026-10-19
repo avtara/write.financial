@@ -13,6 +13,7 @@ ruleTester.run('money-via-component', moneyViaComponent, {
   valid: [
     '<Money minor={balanceMinor} currency="IDR" context="amount" />',
     '<Delta minor={row.deltaMinor} currency="IDR" />',
+    '<AmountInput value={draft.limitMinor} onValueChange={(limitMinor) => set({ limitMinor })} currency="IDR" />',
     '<WalletCard balanceMinor={account.balanceMinor} />',
     '<ui.Card totalMinor={totalMinor} />',
     '<ul>{rows.map((row) => <li key={row.id}><Money minor={row.amountMinor} currency="IDR" context="table" /></li>)}</ul>',

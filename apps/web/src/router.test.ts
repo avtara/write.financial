@@ -59,8 +59,10 @@ describe('getRouter', () => {
     expect(Object.keys(getRouter().routesByPath).sort()).toEqual([
       '/',
       '/2fa',
+      '/accounts',
       '/admin/queues',
       '/admin/queues/$',
+      '/api/account-logo/$id',
       '/api/auth/$',
       '/forgot',
       '/healthz',
