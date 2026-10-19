@@ -45,6 +45,7 @@ import {
   type EntryKind,
   type TransactionFormValues,
 } from './transaction-draft.ts';
+import { useReconcile } from '../accounts/reconcile.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 
@@ -288,6 +289,8 @@ function RecordSheet({
     setFailure(null);
   };
 
+  // FR-R4 "Sesuaikan saldo" opens over the sheet, which keeps what was typed.
+  const { openReconcile } = useReconcile();
   const keepDraft = async (): Promise<boolean> => {
     const result = await saveDraft({
       data: {
@@ -460,6 +463,7 @@ function RecordSheet({
               if (kept) restart({ initial: fresh({ type: 'income', accountId }), draftId: null });
             });
           }}
+          onAdjustBalance={openReconcile}
         />
         {failure === null ? null : <FormError>{failure}</FormError>}
       </Sheet>

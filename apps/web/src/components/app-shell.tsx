@@ -17,12 +17,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const navShortcuts = useMemo(
     () =>
-      NAV_GROUPS.flatMap((group) => group.items).map((item): ShortcutBinding => ({
-        keys: item.shortcut,
-        run: () => {
-          void navigate({ to: item.to });
-        },
-      })),
+      NAV_GROUPS.flatMap((group) => group.items).flatMap((item): ShortcutBinding[] =>
+        item.shortcut === undefined
+          ? []
+          : [
+              {
+                keys: item.shortcut,
+                run: () => {
+                  void navigate({ to: item.to });
+                },
+              },
+            ],
+      ),
     [navigate],
   );
   useShortcuts(navShortcuts);

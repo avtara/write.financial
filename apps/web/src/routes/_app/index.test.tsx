@@ -24,6 +24,8 @@ const writes = vi.hoisted(() => ({
   listTransactionDays: vi.fn(),
 }));
 vi.mock('../../server/fn/transactions-write.ts', () => writes);
+// The record sheet's "Sesuaikan saldo" action (FR-R4) is not part of these tests.
+vi.mock('../../components/accounts/reconcile.tsx', () => ({ useReconcile: () => ({ openReconcile: vi.fn() }) }));
 
 const ACCOUNTS_OK = {
   ok: true,

@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-/** Shared E2E helpers: the console-error guard, TOTP codes, the accounts the specs share, and the services. */
+/**
+ * Shared E2E helpers: the console-error guard, TOTP codes, the accounts the specs share, the design persona's ledger,
+ * and the services.
+ */
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test as base, type Page } from '@playwright/test';
 import { Redis } from 'ioredis';
 import { Secret, TOTP } from 'otpauth';
+import postgres from 'postgres';
 import { e2eEnv, MAILPIT_URL, STATE_DIR } from './env.ts';
 
 /** Every test fails on console errors; Chromium reports CSP violations ("Refused to …") there. */
@@ -113,4 +118,26 @@ export async function screenshot(page: Page, name: string): Promise<void> {
 /** A password no breach list knows, different every run. */
 export function freshPassword(): string {
   return `Wf-e2e-${crypto.randomUUID()}`;
+}
+
+/**
+ * Loads the design persona (`DESIGN_SEED`: 11 accounts, 128 transactions 1–15 Oct 2026, 6 goals) for `email` with the
+ * seed CLI (`pnpm db:seed`), once: a user who already has accounts is left as they are, so every spec that needs the
+ * ledger can call it. Specs change the data (recording transactions moves balances), so assert relative values.
+ */
+export async function seedDesignPersona(email: string): Promise<void> {
+  const env = e2eEnv();
+  const sql = postgres(env['DATABASE_URL_SUPERUSER'] ?? '', { max: 1, onnotice: () => undefined });
+  try {
+    const [row] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM accounts JOIN users ON users.id = accounts.user_id WHERE users.email = ${email}`;
+    if ((row?.n ?? 0) > 0) return;
+  } finally {
+    await sql.end();
+  }
+  execFileSync('node', ['src/cli.ts', 'seed', '--email', email], {
+    cwd: path.resolve(import.meta.dirname, '../../../packages/db'),
+    env: { ...process.env, ...env },
+    stdio: 'pipe',
+  });
 }

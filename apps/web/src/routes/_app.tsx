@@ -2,6 +2,7 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
 import { Toaster } from '@wf/ui/toast';
+import { ReconcileProvider } from '../components/accounts/reconcile.tsx';
 import { AppShell } from '../components/app-shell.tsx';
 import { RecordTransactionProvider } from '../components/ledger/record-transaction.tsx';
 
@@ -9,7 +10,7 @@ import { RecordTransactionProvider } from '../components/ledger/record-transacti
  * Pathless layout for every signed-in page. Signed-out visitors go to sign-in (and come back afterwards); admins
  * without two-step verification must enroll first, because 2FA is mandatory for admins (PRD §9.1, FR-A9). Toasts
  * (`toast()` from `@wf/ui/toast`) appear in the one `<Toaster>` mounted here, and the Record Transaction sheet (`N`,
- * FR-T1) is mounted here once for every page.
+ * FR-T1) and "Sesuaikan saldo" (`useReconcile()`, FR-R4) are mounted here once for every page.
  */
 export const Route = createFileRoute('/_app')({
   beforeLoad: ({ context, location }) => {
@@ -25,11 +26,13 @@ function AppLayout() {
   const { viewer } = Route.useRouteContext();
   return (
     <>
-      <RecordTransactionProvider timeZone={viewer.timezone}>
-        <AppShell>
-          <Outlet />
-        </AppShell>
-      </RecordTransactionProvider>
+      <ReconcileProvider timeZone={viewer.timezone}>
+        <RecordTransactionProvider timeZone={viewer.timezone}>
+          <AppShell>
+            <Outlet />
+          </AppShell>
+        </RecordTransactionProvider>
+      </ReconcileProvider>
       <Toaster label={m.toast_region_label()} />
     </>
   );

@@ -47,4 +47,10 @@ describe('Modal', () => {
     await expect.element(dialog).not.toHaveAttribute('aria-describedby');
     expect(dialog.getByRole('heading').element().parentElement?.className).toBe('sr-only');
   });
+
+  it('has an extra-wide size for the account dialogs', async () => {
+    const { screen } = await renderApp(<Opener size="xl" />);
+    await userEvent.click(screen.getByRole('button', { name: 'open' }));
+    await expect.element(page.getByRole('dialog', { name: 'Ubah kata sandi' })).toHaveClass(/w-\[560px\]/);
+  });
 });

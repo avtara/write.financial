@@ -64,6 +64,12 @@ export function Field({ label, aside, hint, error = null, children }: FieldProps
   );
 }
 
+/** A frame that looks like a text input, for controls that draw no border themselves (`AmountInput` inline). */
+export const INPUT_FRAME: Readonly<Record<ControlSize, string>> = {
+  lg: 'flex h-[42px] w-full min-w-0 items-center rounded-[9px] border border-border-input bg-input px-3 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring has-disabled:text-text-disabled',
+  sm: 'flex h-8 w-full min-w-0 items-center rounded-[7px] border border-border-input bg-input px-2.5 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring',
+};
+
 export interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   size?: ControlSize;
 }
