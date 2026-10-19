@@ -76,6 +76,6 @@ test('the admin signs in with password and TOTP', async ({ page }) => {
   // Through Caddy, the app's CSP and the HSTS header both reach the browser.
   const home = await page.goto('/');
   expect(home?.status()).toBe(200);
-  expect(home?.headers()['content-security-policy']).toContain("base-uri 'self'");
+  expect(home?.headers()['content-security-policy']).toMatch(/script-src 'nonce-[^']+' 'strict-dynamic'/);
   expect(home?.headers()['strict-transport-security']).toBe('max-age=63072000; includeSubDomains');
 });
