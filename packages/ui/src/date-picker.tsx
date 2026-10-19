@@ -31,6 +31,10 @@ export interface DatePickerProps {
   presetsFooter?: ReactNode;
   /** Under the calendar: a legend ("● ada transaksi"), a time field, actions. */
   footer?: ReactNode;
+  /** Trigger text instead of the formatted date, e.g. "15 Okt 2026, 19.30" or "Hari ini". */
+  triggerLabel?: string;
+  /** The month shown (any day in it) when the popover opens and on every navigation, e.g. to load its markers. */
+  onMonthChange?: (month: LocalDate) => void;
   /** `lg` 42 px, `sm` 32 px, like the text inputs. */
   size?: 'lg' | 'sm';
   /** From a `Field`, or `aria-label` when there is no visible label. */
@@ -59,6 +63,8 @@ export function DatePicker({
   disableFuture = false,
   isMarked,
   markerLabel,
+  triggerLabel,
+  onMonthChange,
   labels,
   presets = [],
   presetsFooter,
@@ -71,6 +77,10 @@ export function DatePicker({
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState<LocalDate>(value ?? today);
+  const showMonth = (next: LocalDate) => {
+    setMonth(next);
+    onMonthChange?.(next);
+  };
   const pick = (date: LocalDate) => {
     onValueChange(date);
     setOpen(false);
@@ -79,7 +89,7 @@ export function DatePicker({
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (next) setMonth(value ?? today);
+        if (next) showMonth(value ?? today);
         setOpen(next);
       }}
     >
@@ -92,7 +102,7 @@ export function DatePicker({
       >
         <CalendarDays aria-hidden="true" className="size-3.5 shrink-0 text-muted-fg" />
         <span className={`min-w-0 flex-1 truncate ${value === null ? 'text-subtle' : ''}`}>
-          {value === null ? placeholder : formatDate(value, locale, 'date')}
+          {value === null ? placeholder : (triggerLabel ?? formatDate(value, locale, 'date'))}
         </span>
         <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
       </PopoverTrigger>
@@ -124,7 +134,7 @@ export function DatePicker({
           <div className="w-[280px] p-3">
             <Calendar
               month={month}
-              onMonthChange={setMonth}
+              onMonthChange={showMonth}
               selected={value}
               onSelect={pick}
               today={today}

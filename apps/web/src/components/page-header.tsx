@@ -2,7 +2,7 @@
 import { m } from '@wf/i18n/messages';
 import { KbdHint, type KbdKey } from '@wf/ui/kbd-hint';
 import { ChevronRight, Eye } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { usePreferences } from './preferences.tsx';
 import { useShortcuts } from './shortcuts.tsx';
 
@@ -33,10 +33,12 @@ export interface PageHeaderProps {
   /** Location of the page, outermost first; the last entry is the current page. */
   breadcrumb: readonly string[];
   title: string;
+  /** Page actions at the right, e.g. "Catat Transaksi". */
+  actions?: ReactNode;
 }
 
 /** Page header (design `yGvLv`): breadcrumb and title, plus "Intip saldo" while amounts are hidden. */
-export function PageHeader({ breadcrumb, title }: PageHeaderProps) {
+export function PageHeader({ breadcrumb, title, actions }: PageHeaderProps) {
   const { preferences } = usePreferences();
   return (
     <header className="flex items-end gap-3 pb-2">
@@ -58,6 +60,7 @@ export function PageHeader({ breadcrumb, title }: PageHeaderProps) {
         <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.01em] text-fg">{title}</h1>
       </div>
       {preferences.balancesHidden ? <PeekButton /> : null}
+      {actions}
     </header>
   );
 }
