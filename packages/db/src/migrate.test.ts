@@ -33,6 +33,8 @@ const GRANTS = {
   budget_period_overrides: LEDGER,
   budget_versions: LEDGER,
   categories: LEDGER,
+  // M3: the worker suggests subscriptions (upsert) and the app acts on them.
+  detected_recurring: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
   drafts: { wf_app: ALL },
   entitlements: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   fx_rates: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
@@ -44,12 +46,22 @@ const GRANTS = {
     wf_worker: 'SELECT',
   },
   invitations: { wf_app: ALL, wf_auth: 'SELECT,UPDATE(used_at)' },
+  // Only the worker creates and delivers emails; notifications are created by it and read/marked by the app.
+  notification_outbox: { wf_worker: 'INSERT,SELECT,UPDATE(attempts,last_error,sent_at)' },
+  notifications: { wf_app: 'DELETE,SELECT,UPDATE(read_at)', wf_worker: 'INSERT,SELECT' },
   passkeys: { wf_auth: ALL },
   // D14: the worker's only write is the period lock (close an ended period, create the next one).
   periods: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE(closed_at,status,updated_at)' },
   plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   postings: LEDGER,
   recent_items: { wf_app: ALL },
+  recurrences: { wf_app: ALL, wf_worker: 'SELECT' },
+  // D14: the worker creates review items but cannot resolve them (no UPDATE); only confirmReview (wf_app) does.
+  review_items: { wf_app: ALL, wf_worker: 'INSERT,SELECT' },
+  scheduled_occurrences: {
+    wf_app: ALL,
+    wf_worker: 'INSERT,SELECT,UPDATE(expected_minor,remind_at,reminded_at,status,updated_at)',
+  },
   security_events: {
     wf_app: 'INSERT,SELECT',
     wf_auth: 'INSERT,SELECT',
@@ -57,6 +69,7 @@ const GRANTS = {
     wf_worker: 'INSERT,SELECT',
   },
   sessions: { wf_auth: ALL },
+  subscriptions: { wf_app: ALL, wf_worker: 'SELECT' },
   tag_aliases: LEDGER,
   tags: LEDGER,
   transaction_tags: LEDGER,
@@ -136,7 +149,14 @@ describe('migrate', () => {
          FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef ORDER BY p.proname`,
       ),
     ).toEqual(
-      ['fx_currencies_in_use', 'wf_maintenance_purge_auth'].map((name) => ({
+      [
+        'fx_currencies_in_use',
+        'wf_due_reminders',
+        'wf_maintenance_purge_auth',
+        'wf_maintenance_purge_notifications',
+        'wf_pending_outbox',
+        'wf_worker_users',
+      ].map((name) => ({
         name,
         owner: 'wf_migrate',
         config: ['search_path=pg_catalog, public'],

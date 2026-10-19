@@ -43,6 +43,13 @@
       "when": 1792428681339,
       "tag": "0005_periods_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792432458993,
+      "tag": "0006_schedules_review",
+      "breakpoints": true
     }
   ]
 }
