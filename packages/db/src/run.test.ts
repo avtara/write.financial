@@ -56,7 +56,7 @@ describe('run', () => {
   it('prints usage for an unknown command', async () => {
     const out = capture();
     expect(await run(['drop-everything'], env, out)).toBe(2);
-    expect(out.errors).toEqual(['Usage: wf-db <bootstrap|migrate|rewrap-keys>']);
+    expect(out.errors).toEqual(['Usage: wf-db <bootstrap|migrate|rewrap-keys|seed --email <user>>']);
   });
 
   it('reports invalid configuration by key, without values', async () => {
@@ -146,5 +146,27 @@ describe('run', () => {
     const out = capture();
     expect(await run(['rewrap-keys'], { ...env, KEK_FILE: path.join(dir, 'missing') }, out)).toBe(1);
     expect(out.errors[0]).toMatch(/ENOENT/);
+  });
+
+  it('seed loads the design persona into an existing user’s empty ledger, once', async () => {
+    await insertUser(pglite, 'Avtara@Example.test');
+    const first = capture();
+    expect(await run(['seed', '--email', 'avtara@example.test'], env, first)).toBe(0);
+    expect(first.logs).toEqual([
+      'Seeded 11 accounts, 128 transactions, and 6 goals; available balance 55023000 (minor units).',
+    ]);
+    const again = capture();
+    expect(await run(['seed', '--email', 'avtara@example.test'], env, again)).toBe(1);
+    expect(again.errors[0]).toMatch(/already has accounts/);
+    // 128 transactions through the repositories, one at a time over PGlite.
+  }, 60_000);
+
+  it('seed needs the email of an existing user', async () => {
+    const missing = capture();
+    expect(await run(['seed'], env, missing)).toBe(1);
+    expect(missing.errors).toEqual(['Error: --email is required for seed']);
+    const unknown = capture();
+    expect(await run(['seed', '--email', 'nobody@example.test'], env, unknown)).toBe(1);
+    expect(unknown.errors).toEqual(['Error: No user has this email address']);
   });
 });

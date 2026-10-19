@@ -19,8 +19,12 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testconta
 import { ValkeyContainer, type StartedValkeyContainer } from '@testcontainers/valkey';
 import { loadConfig } from '@wf/config';
 import { createKeyFile } from '@wf/crypto/keyring';
+import type { AccountsOverview } from '@wf/db/accounts';
+import type { CategoryView } from '@wf/db/categories';
+import type { ManualRateInput } from '@wf/db/fx-rates';
 import { migrate } from '@wf/db/migrate';
 import { bootstrapRoles, ROLES, type RoleName } from '@wf/db/roles';
+import type { TagView } from '@wf/db/tags';
 import { pino } from 'pino';
 import postgres from 'postgres';
 import { SMTPServer } from 'smtp-server';
@@ -35,7 +39,11 @@ import { createServices, type Services } from '../runtime.ts';
 import * as account from './account.ts';
 import * as admin from './admin.ts';
 import * as gate from './gate.ts';
+import * as ledger from './ledger.ts';
 import * as setup from './setup.ts';
+
+/** `YYYY-MM-DD` as the repositories' branded date type. */
+type LocalDate = ManualRateInput['asOf'];
 
 const running = vi.hoisted(() => ({ services: null as Promise<Services> | null }));
 
@@ -95,7 +103,7 @@ const mail: string[] = [];
 let smtpPort = 0;
 
 /** The server functions this test imports; {@link MATRIX} must have a case for each. */
-const FUNCTIONS = { ...account, ...admin, ...gate, ...setup, getPreferences };
+const FUNCTIONS = { ...account, ...admin, ...gate, ...ledger, ...setup, getPreferences };
 type Name = keyof typeof FUNCTIONS;
 
 type Caller = 'A' | 'B' | 'anonymous';
@@ -135,6 +143,21 @@ const instanceRow = async () => (await superuser`SELECT * FROM instance_settings
 const count = async (table: string, where = 'true') =>
   Number((await superuser.unsafe<{ n: string }[]>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))[0]?.n);
 const currentSessionId = async (browser: SessionBrowser) => (await browser.session())?.session.id;
+/** Ids of a user's rows in the ledger tables the read functions return. */
+const ledgerIds = async (userId: string) =>
+  (
+    await superuser<{ id: string }[]>`
+      SELECT id::text FROM accounts WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM categories WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM tags WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM fx_rates WHERE user_id = ${userId}
+      ORDER BY 1`
+  ).map((row) => row.id);
+/** JSON for the leak scan; ledger amounts are bigints. */
+const toJson = (value: unknown) =>
+  JSON.stringify(value, (_key, child: unknown) => (typeof child === 'bigint' ? child.toString() : child));
+/** A's ledger rows, all with names B must never see. */
+const A_LEDGER = { account: 'Rekening Rahasia A', category: 'Rahasia A', tag: 'rahasia-a' };
 
 const smtpInput = (password?: string) => ({
   host: '127.0.0.1',
@@ -239,6 +262,36 @@ beforeAll(async () => {
   browsers.B.cookies.set('wf_setup', encodeURIComponent(SETUP_TOKEN));
   browsers.anonymous.cookies.set('wf_setup', encodeURIComponent(SETUP_TOKEN));
 
+  // Ledger rows of both users through the app's repositories; A's have names B must never see.
+  for (const [userId, names] of [
+    [aId, A_LEDGER],
+    [bId, { account: 'Rekening B', category: 'Kategori B', tag: 'tag-b' }],
+  ] as const) {
+    await services.accounts.create(userId, {
+      type: 'bank',
+      providerName: 'BCA',
+      displayName: names.account,
+      currency: 'IDR',
+      openingBalanceMinor: 1_000_000n,
+      openingDate: '2026-10-01' as LocalDate,
+      color: 'blue',
+    });
+    await services.categories.create(userId, {
+      kind: 'expense',
+      group: 'wants',
+      name: names.category,
+      icon: 'coffee',
+      color: 'orange',
+    });
+    await services.tags.create(userId, names.tag);
+  }
+  await services.fxRates.upsertManual(aId, {
+    base: 'USD',
+    quote: 'IDR',
+    rate: '16474',
+    asOf: '2026-10-15' as LocalDate,
+  });
+
   expect(await count('users', `role = 'admin'`)).toBe(1);
   expect((await sessionIds(aId)).length).toBeGreaterThanOrEqual(2);
   expect((await eventIds(aId)).length).toBeGreaterThanOrEqual(1);
@@ -284,7 +337,15 @@ async function aSnapshot() {
 
 /** The ids of A's rows; none may appear in a response to B or a signed-out visitor. */
 async function aIdentifiers(): Promise<string[]> {
-  return [aId, A.email, A.name, ...(await sessionIds(aId)), ...(await eventIds(aId))];
+  return [
+    aId,
+    A.email,
+    A.name,
+    ...Object.values(A_LEDGER),
+    ...(await sessionIds(aId)),
+    ...(await eventIds(aId)),
+    ...(await ledgerIds(aId)),
+  ];
 }
 
 interface Case {
@@ -498,6 +559,47 @@ const MATRIX: Record<Name, Case> = {
       });
     },
   },
+  listAccounts: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<AccountsOverview>>('B', 'listAccounts', input);
+      expect(ofB.ok && ofB.value.accounts.map((a) => a.displayName)).toEqual(['Rekening B']);
+      expect(ofB.ok && ofB.value.availableMinor).toBe(1_000_000n);
+      const ofA = await as<Result<AccountsOverview>>('A', 'listAccounts', input);
+      expect(ofA.ok && ofA.value.accounts.map((a) => a.displayName)).toEqual([A_LEDGER.account]);
+    },
+  },
+  listCategories: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<CategoryView[]>>('B', 'listCategories', input);
+      const ids = await ledgerIds(bId);
+      expect(ofB.ok && ofB.value.length).toBeGreaterThan(1);
+      expect(ofB.ok && ofB.value.filter((c) => !ids.includes(c.id))).toEqual([]);
+      expect(ofB.ok && ofB.value.map((c) => c.name)).toContain('Kategori B');
+    },
+  },
+  listTags: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<TagView[]>>('B', 'listTags', input);
+      expect(ofB.ok && ofB.value.map((t) => t.slug)).toEqual(['tag-b']);
+      const ofA = await as<Result<TagView[]>>('A', 'listTags', { query: 'rahasia' });
+      expect(ofA.ok && ofA.value.map((t) => t.slug)).toEqual([A_LEDGER.tag]);
+    },
+  },
+  getReferenceRate: {
+    input: () => ({ base: 'USD', quote: 'IDR' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      // A's manual rate is A's alone; B has none and no built-in rate exists yet.
+      expect(await as('B', 'getReferenceRate', input)).toEqual(ok(null));
+      expect(await as('A', 'getReferenceRate', input)).toMatchObject(ok({ rate: '16474', manual: true }));
+    },
+  },
   getPreferences: {
     anonymous: () => requestContext(null).preferences,
     asB: async () => {
@@ -562,7 +664,7 @@ describe('tenant isolation at the API', () => {
       ]);
     };
     for (const { caller, fn, value } of responses) {
-      const json = JSON.stringify(value);
+      const json = toJson(value);
       expect(encKeys(value, `${caller} ${fn}`)).toEqual([]);
       expect(forbidden.filter((text) => json.includes(text)).length, `${caller} ${fn} leaks a secret`).toBe(0);
       if (caller !== 'A')

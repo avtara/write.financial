@@ -6,6 +6,7 @@
  */
 import type { AuthSession } from '@wf/auth/auth';
 import { assertFreshSession, assertTwoFactorEnrolled, UnauthenticatedError } from '@wf/auth/session';
+import { LEDGER_ERROR_CODES } from '@wf/db/ledger-errors';
 
 export type Result<T> =
   | { readonly ok: true; readonly value: T }
@@ -55,23 +56,27 @@ export const ok = <T>(value: T): Result<T> => ({ ok: true, value });
  * (Postgres `23505`, `ECONNREFUSED`, …) are not expected and stay errors.
  */
 export const EXPECTED_CODES: readonly string[] = [
-  'UNAUTHENTICATED',
-  'TWO_FACTOR_REQUIRED',
-  'REAUTHENTICATION_REQUIRED',
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'DEVICE_NOT_FOUND',
-  'ADMIN_EXISTS',
-  'INVALID_EMAIL',
-  'INVALID_NAME',
-  'PASSWORD_TOO_SHORT',
-  'PASSWORD_TOO_LONG',
-  'PASSWORD_COMPROMISED',
-  'EMAIL_TAKEN',
-  'INVITATIONS_DISABLED',
-  'MAIL_NOT_CONFIGURED',
-  'MAIL_FAILED',
-  'INVALID_PROFILE',
+  ...new Set([
+    'UNAUTHENTICATED',
+    'TWO_FACTOR_REQUIRED',
+    'REAUTHENTICATION_REQUIRED',
+    'FORBIDDEN',
+    'NOT_FOUND',
+    'DEVICE_NOT_FOUND',
+    'ADMIN_EXISTS',
+    'INVALID_EMAIL',
+    'INVALID_NAME',
+    'PASSWORD_TOO_SHORT',
+    'PASSWORD_TOO_LONG',
+    'PASSWORD_COMPROMISED',
+    'EMAIL_TAKEN',
+    'INVITATIONS_DISABLED',
+    'MAIL_NOT_CONFIGURED',
+    'MAIL_FAILED',
+    'INVALID_PROFILE',
+    // Ledger repositories (`LedgerError`).
+    ...LEDGER_ERROR_CODES,
+  ]),
 ];
 
 /** Runs `action`; an error with one of the {@link EXPECTED_CODES} becomes a failed `Result`, anything else is

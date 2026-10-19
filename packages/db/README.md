@@ -10,7 +10,7 @@ pnpm --filter @wf/db generate          # drizzle-kit: diff src/schema.ts against
 pnpm --filter @wf/db db:bootstrap      # create/update the roles (superuser, idempotent)
 pnpm --filter @wf/db db:migrate        # apply pending migrations as wf_migrate
 pnpm --filter @wf/db db:rewrap-keys    # after adding a KEK version to KEK_FILE: re-wrap every DEK (as wf_migrate)
-```
+pnpm db:seed --email <user>            # dev/E2E: load the design persona into that existing user's empty ledger
 
 The `db:*` scripts read the repository `.env` (`DATABASE_URL_*`, see `.env.example`). `generate` uses
 [`drizzle.config.ts`](drizzle.config.ts). Tables come from `generate`; everything drizzle-kit does not model (functions,
@@ -33,6 +33,16 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./entitlements`                                | `createEntitlements(db)` → `can(userId, feature)`                                                       |
 | `./invitations` | `createInvitations(db)` → `create(adminUserId, …)` (`wf_app`), `isUsable`, `claim`, `claimForEmail` (`wf_auth`) |
 | `./testing` | Test-only: PGlite helpers (`startMigrated`, `insertUser`, …) for other packages' unit tests |
+| `./ledger-errors` | `LedgerError` with a stable `code` (`LEDGER_ERROR_CODES`) for every expected ledger refusal |
+| `./ledger-core` | In-transaction building blocks: `recordTransactionIn`, `planTransactionIn`, `writeLinesIn`, `valuationIn`, `builtInCategoryIn`, `resolveTagsIn` |
+| `./accounts` | `createAccounts(db)` → balances + available balance, CRUD with FR-R2/R3 rules, archive/restore/delete, reorder, `reconcile`, `flows`, `series` |
+| `./categories` | `createCategories(db)` → built-ins on first use, CRUD, move, merge, archive, delete (→ uncategorized) |
+| `./tags` | `createTags(db)` → usage counts, create/rename, merge (old slug becomes an alias), `similar` |
+| `./transactions` | `createTransactions(db, { getDek })` → create (idempotent per `client_id`), get, update, soft delete + restore, duplicate, split/unsplit, bulk edits, attachments |
+| `./transaction-query` | `createTransactionQuery(db, { getDek })` → Transactions page list, by-day/by-category groups, summary |
+| `./fx-rates` | `createFxRates(db)` → manual rates, `referenceRate`; worker: `upsertGlobal`, `latestGlobal`, `currenciesInUse` |
+| `./drafts`, `./recent-items`, `./goals`, `./activity` | Encrypted form drafts, ⌘K recently opened, minimal goals, per-entity timeline |
+| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`) through the repositories |
 | `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)` (worker only, via `wf_maintenance_purge_auth`)       |
 | `./backup`                                      | Self-host backup/restore: `bundledMigrations()`, `migrationLevel(url)`, `inspectRestoreTarget(superuserUrl)`, `resetAppSchema(superuserUrl, passwords)` |
 
@@ -63,6 +73,10 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `instance_settings` (one row)                              | S, U(setup columns²)           | S            | S                 | S(all but secrets³)      | read: all; update: admins only; `wf_migrate`: all        |
 | `invitations`                                              | S I U D                        | –            | S, U(`used_at`)   | –                        | app: admins only; auth: all                              |
 | `plans`, `entitlements` (no RLS)                           | S                              | S            | –                 | S                        | –                                                        |
+| ledger: `accounts`, `categories`, `tags`, `tag_aliases`, `transaction_tags`, `transactions`, `postings`, `transfer_meta`, `balance_adjustments`, `attachments`, `goals` | S I U D | S (D14) | – | – | own rows |
+| `drafts`, `recent_items`                                   | S I U D                        | –            | –                 | –                        | own rows                                                 |
+| `activity_log`                                             | S I                            | –            | –                 | –                        | own rows                                                 |
+| `fx_rates`                                                 | S I U D (own manual rows)      | S I U (global rows) | –          | –                        | read: global + own; worker writes only `user_id IS NULL` |
 
 ¹ `name, image, nickname, timezone, locale, base_currency, onboarding_completed_at, deletion_requested_at, updated_at`
 (not `role`, `email`, `email_verified`, `two_factor_enabled`). ² Everything the setup wizard (FR-OP1) writes, including
@@ -74,11 +88,17 @@ Database level: CONNECT for every role; CREATE on the database and on schema `pu
 `DATABASE_URL_READONLY_OPS` gives it a password. `bootstrapRoles` sends SCRAM-SHA-256 verifiers, never plaintext
 passwords. Any change to this matrix must update `src/migrate.test.ts` (it asserts the exact grants).
 
-Functions: the only SECURITY DEFINER function is `wf_maintenance_purge_auth(timestamptz) → jsonb` (owner
-`wf_migrate`, `search_path = pg_catalog, public`, EXECUTE for `wf_worker` only, not PUBLIC). It deletes expired
-`verifications` and `sessions` and `invitations` that expired or were used more than 30 days ago, as of the given time
-capped at the server's `now()`, and returns the counts per table. `wf_migrate` has SELECT and DELETE policies on those
-three tables that match only such dead rows, so even the function cannot remove a live session.
+Functions: the SECURITY DEFINER functions are `wf_maintenance_purge_auth(timestamptz) → jsonb` and
+`fx_currencies_in_use() → SETOF char(3)` (owner `wf_migrate`, `search_path = pg_catalog, public`, EXECUTE for
+`wf_worker` only, not PUBLIC). The purge deletes expired `verifications` and `sessions` and `invitations` that expired
+or were used more than 30 days ago, as of the given time capped at the server's `now()`, and returns the counts per
+table. `wf_migrate` has SELECT and DELETE policies on those three tables that match only such dead rows, so even the
+function cannot remove a live session. `fx_currencies_in_use` returns only the currency codes in use (accounts, base
+currencies, manual rates) for the fx job; `wf_migrate` has SELECT policies on `accounts`, `users`, and `fx_rates` for it.
+
+Ledger rows reference their parents with composite `(user_id, id)` foreign keys, so a row can never point at another
+user's account, category, transaction, or tag (foreign-key checks bypass RLS). A trigger limits a transaction to five
+tags. `pg_trgm` backs the merchant/description/goal-name search indexes.
 
 ## Tests
 

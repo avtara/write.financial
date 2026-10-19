@@ -11,11 +11,15 @@ import { createAuth, type WfAuth } from '@wf/auth/auth';
 import { createInviter, type Invitation, type Inviter, type InviteInput } from '@wf/auth/invitations';
 import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring } from '@wf/crypto/keyring';
+import { createAccounts, type AccountsRepository } from '@wf/db/accounts';
+import { createCategories, type CategoriesRepository } from '@wf/db/categories';
 import { createDb } from '@wf/db/db';
+import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
+import { createTags, type TagsRepository } from '@wf/db/tags';
 import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
 import type { Mailer } from '@wf/integrations/mailer';
@@ -61,6 +65,11 @@ export interface Services extends BaseRuntime {
   readonly profiles: ProfilesRepository;
   /** On `wf_app`. */
   readonly securityEvents: Pick<SecurityEvents, 'list'>;
+  /** Ledger repositories, on `wf_app`. */
+  readonly accounts: AccountsRepository;
+  readonly categories: CategoriesRepository;
+  readonly tags: TagsRepository;
+  readonly fxRates: FxRatesRepository;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -99,6 +108,10 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     instance,
     profiles: createProfiles(appDb),
     securityEvents: createSecurityEvents(appDb),
+    accounts: createAccounts(appDb, { now }),
+    categories: createCategories(appDb),
+    tags: createTags(appDb),
+    fxRates: createFxRates(appDb),
     mailer,
     sendWith,
     invite: createInviter({

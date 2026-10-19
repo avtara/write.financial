@@ -12,6 +12,7 @@
     "dev:up": "docker compose -f deploy/dev/compose.yaml up -d --wait",
     "dev:down": "docker compose -f deploy/dev/compose.yaml down",
     "dev:reset": "docker compose -f deploy/dev/compose.yaml down -v",
+    "db:seed": "pnpm --filter @wf/db db:seed",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

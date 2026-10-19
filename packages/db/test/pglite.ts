@@ -7,6 +7,7 @@
  * session that all connections share.
  */
 import { PGlite } from '@electric-sql/pglite';
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { expect } from 'vitest';
 import { createDb, type Database } from '../src/db.ts';
@@ -47,7 +48,8 @@ export function pgError(pattern: RegExp): { cause: { message: string } } {
 
 /** An empty database (no roles, no tables). */
 export async function startPglite(): Promise<PgliteServer> {
-  const pg = await PGlite.create();
+  // pg_trgm is a contrib extension in PGlite; the ledger migration creates it (trigram search indexes).
+  const pg = await PGlite.create({ extensions: { pg_trgm } });
   const server = new PGLiteSocketServer({ db: pg, host: '127.0.0.1', port: 0 });
   await server.start();
   return {

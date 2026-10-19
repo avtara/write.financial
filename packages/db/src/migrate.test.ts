@@ -18,10 +18,21 @@ const OPS_SETTINGS_COLUMNS =
 const PROFILE_COLUMNS =
   'base_currency,deletion_requested_at,image,locale,name,nickname,onboarding_completed_at,timezone,updated_at';
 
+/** Ledger tables (M1): the app reads and writes them, the worker only reads them (D14). */
+const LEDGER = { wf_app: ALL, wf_worker: 'SELECT' };
+
 /** Privileges per table and role (the owner wf_migrate aside); `PRIV(cols)` = column-level grant. See README. */
 const GRANTS = {
+  accounts: LEDGER,
   accounts_auth: { wf_auth: ALL },
+  activity_log: { wf_app: 'INSERT,SELECT' },
+  attachments: LEDGER,
+  balance_adjustments: LEDGER,
+  categories: LEDGER,
+  drafts: { wf_app: ALL },
   entitlements: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
+  fx_rates: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
+  goals: LEDGER,
   instance_settings: {
     wf_app: `SELECT,UPDATE(${SETUP_COLUMNS})`,
     wf_auth: 'SELECT',
@@ -31,6 +42,8 @@ const GRANTS = {
   invitations: { wf_app: ALL, wf_auth: 'SELECT,UPDATE(used_at)' },
   passkeys: { wf_auth: ALL },
   plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
+  postings: LEDGER,
+  recent_items: { wf_app: ALL },
   security_events: {
     wf_app: 'INSERT,SELECT',
     wf_auth: 'INSERT,SELECT',
@@ -38,6 +51,11 @@ const GRANTS = {
     wf_worker: 'INSERT,SELECT',
   },
   sessions: { wf_auth: ALL },
+  tag_aliases: LEDGER,
+  tags: LEDGER,
+  transaction_tags: LEDGER,
+  transactions: LEDGER,
+  transfer_meta: LEDGER,
   two_factors: { wf_auth: ALL },
   user_keys: { wf_app: 'INSERT,SELECT', wf_worker: 'INSERT,SELECT' },
   user_plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
@@ -103,7 +121,7 @@ describe('migrate', () => {
     expect(actual).toEqual(GRANTS);
   });
 
-  it('has one SECURITY DEFINER function: owned by wf_migrate, pinned search_path, executable by wf_worker only', async () => {
+  it('has only the documented SECURITY DEFINER functions: owned by wf_migrate, pinned search_path, wf_worker only', async () => {
     expect(
       await test.query(
         `SELECT p.proname AS name, pg_get_userbyid(p.proowner) AS owner, p.proconfig AS config,
@@ -111,14 +129,14 @@ describe('migrate', () => {
                  FROM aclexplode(p.proacl) a WHERE a.privilege_type = 'EXECUTE' AND a.grantee <> p.proowner) AS execute
          FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef ORDER BY p.proname`,
       ),
-    ).toEqual([
-      {
-        name: 'wf_maintenance_purge_auth',
+    ).toEqual(
+      ['fx_currencies_in_use', 'wf_maintenance_purge_auth'].map((name) => ({
+        name,
         owner: 'wf_migrate',
         config: ['search_path=pg_catalog, public'],
         execute: 'wf_worker',
-      },
-    ]);
+      })),
+    );
   });
 
   it('seeds the instance settings row and the personal plan with every feature', async () => {
