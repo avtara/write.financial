@@ -95,6 +95,11 @@ describe('RESULT_GROUPS', () => {
     await RESULT_GROUPS.accounts.open(ACCOUNT, navigate);
     await RESULT_GROUPS.categories.open(CATEGORY, navigate);
     await RESULT_GROUPS.tags.open(TAG, navigate);
-    expect(vi.mocked(navigate).mock.calls).toEqual([[{ to: '/' }], [{ to: '/' }], [{ to: '/' }], [{ to: '/' }]]);
+    expect(vi.mocked(navigate).mock.calls).toEqual([
+      [{ to: '/' }],
+      [{ to: '/' }],
+      [{ to: '/settings/$section', params: { section: 'categories' } }],
+      [{ to: '/settings/$section', params: { section: 'tags' } }],
+    ]);
   });
 });

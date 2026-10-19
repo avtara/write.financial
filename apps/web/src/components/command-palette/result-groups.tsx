@@ -66,13 +66,13 @@ export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits
     icon: Shapes,
     recentKind: 'category',
     view: (hit) => ({ title: categoryName(hit), detail: withArchived(categoryGroupLabel(hit.group), hit.archived) }),
-    open: (_hit, navigate) => navigate({ to: '/' }),
+    open: (_hit, navigate) => navigate({ to: '/settings/$section', params: { section: 'categories' } }),
   },
   tags: {
     heading: m.cmdk_group_tags,
     icon: Hash,
     recentKind: 'tag',
     view: (hit) => ({ title: `#${hit.slug}`, detail: m.cmdk_tag_usage({ count: hit.usageCount }) }),
-    open: (_hit, navigate) => navigate({ to: '/' }),
+    open: (_hit, navigate) => navigate({ to: '/settings/$section', params: { section: 'tags' } }),
   },
 };

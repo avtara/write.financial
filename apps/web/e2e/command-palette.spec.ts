@@ -2,7 +2,7 @@
 /**
  * ⌘K (FR-S4), keyboard only, as the invited user with the design persona's ledger: open with Ctrl+K, find a seeded
  * transaction by merchant, open it, find it again under "Baru dibuka", the no-results state, the `G` navigation
- * sequence, and the tablet rail's search button.
+ * sequence, the tablet rail's search button, and a category result opening Settings › Kategori.
  */
 import { expect, loadAccount, seedDesignPersona, test, USER_STATE } from './support.ts';
 
@@ -76,4 +76,16 @@ test('navigates with the G sequence, and opens from the tablet rail', async ({ p
   ).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(search).toBeFocused();
+
+  // A category opens Settings › Kategori.
+  await page.keyboard.press('Control+k');
+  await page.keyboard.type('makan');
+  const category = dialog.getByRole('group', { name: /^Kategori/ }).getByRole('option', { name: /Makan & Dapur/ });
+  await expect(category).toBeVisible();
+  for (let step = 0; step < 12 && (await category.getAttribute('aria-selected')) !== 'true'; step++) {
+    await page.keyboard.press('ArrowDown');
+  }
+  await expect(category).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/settings\/categories$/);
 });
