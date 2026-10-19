@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { NavigateFn } from '@tanstack/react-router';
 import type { LocalDate } from '@wf/domain/period';
-import { describe, expect, it, vi } from 'vitest';
+import { setLocale } from '@wf/i18n/runtime';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../../../test/render.tsx';
 import type { AccountHit, CategoryHit, TagHit, TransactionHit } from '../../lib/search.ts';
 import { RESULT_GROUPS, type ResultView } from './result-groups.tsx';
@@ -42,6 +43,11 @@ async function shown(view: ResultView) {
   const { screen } = await renderApp(<p data-testid="aside">{view.aside}</p>);
   return [view.title, view.detail, screen.getByTestId('aside').element().textContent];
 }
+
+// The views call message functions directly; earlier test files may have left another locale.
+beforeEach(async () => {
+  await setLocale('id', { reload: false });
+});
 
 describe('RESULT_GROUPS', () => {
   it('shows transactions with their date, category, account, and amount', async () => {
