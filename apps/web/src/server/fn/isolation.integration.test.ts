@@ -903,7 +903,8 @@ const MATRIX: Record<Name, Case> = {
       const rahasia = await as<Result<SearchResults>>('B', 'searchEverything', { query: 'rahasia' });
       expect(rahasia.ok && SEARCH_KINDS.map((kind) => rahasia.value[kind].total)).toEqual([0, 0, 0, 0]);
       const ofA = await as<Result<SearchResults>>('A', 'searchEverything', { query: 'rahasia' });
-      expect(ofA.ok && SEARCH_KINDS.map((kind) => ofA.value[kind].total)).toEqual([1, 1, 1, 1]);
+      // A's categories: "Rahasia A" and the budgeted "Anggaran rahasia-a".
+      expect(ofA.ok && SEARCH_KINDS.map((kind) => ofA.value[kind].total)).toEqual([1, 1, 2, 1]);
     },
   },
   touchRecent: {
