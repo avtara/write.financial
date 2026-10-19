@@ -36,6 +36,8 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Docker image + self-host compose + first-run setup wizard
 - [x] SECURITY.md, CONTRIBUTING.md, TRADEMARK.md
 - [x] Encrypted backup + restore of DB and objects (age), restore proven in CI
+- [x] Install proof in CI: fresh self-host stack through Caddy → setup wizard → admin sign-in with 2FA in ≤ 15 minutes
+- [x] API tenant isolation: every server function called as user B against A's data, with a guard that fails on uncovered server functions; no `_enc` fields or secrets in responses
 - [ ] Cloud staging: VPS, Caddy TLS, encrypted volumes, off-site backup copy (needs VPS, DNS and off-site bucket details)
 - [x] M0 unit tests: 100% per-file coverage gate green
 
