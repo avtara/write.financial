@@ -5,3 +5,35 @@
 
 /* Utilities used by this app's components. */
 @source './';
+
+/* User-picked colors (`lib/colors.ts`): a token arrives as `data-color`, a hex value as `--wf-color` via the CSSOM. */
+[data-color='amber'] {
+  --wf-color: var(--amber);
+}
+[data-color='blue'] {
+  --wf-color: var(--blue);
+}
+[data-color='cyan'] {
+  --wf-color: var(--cyan);
+}
+[data-color='green'] {
+  --wf-color: var(--green);
+}
+[data-color='orange'] {
+  --wf-color: var(--orange);
+}
+[data-color='red'] {
+  --wf-color: var(--red);
+}
+[data-color='rose'] {
+  --wf-color: var(--rose);
+}
+[data-color='violet'] {
+  --wf-color: var(--violet);
+}
+[data-color='yellow'] {
+  --wf-color: var(--yellow);
+}
+[data-color='subtle'] {
+  --wf-color: var(--subtle);
+}
