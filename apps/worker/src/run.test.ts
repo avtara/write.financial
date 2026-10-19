@@ -111,9 +111,14 @@ describe('worker', () => {
     expect(connections[0]?.options.failFast).toBe(false);
     signals.emit(signal);
     expect(await exit).toBe(0);
-    expect(log.messages()).toEqual(['job scheduler registered', 'worker started', 'shutting down', 'worker stopped']);
-    expect(log.lines[2]).toMatchObject({ signal });
-    expect(broker.closed).toEqual(['worker:maintenance', 'queue:maintenance', 'broker']);
+    expect(log.messages()).toEqual([
+      ...Array<string>(3).fill('job scheduler registered'),
+      'worker started',
+      'shutting down',
+      'worker stopped',
+    ]);
+    expect(log.lines[4]).toMatchObject({ signal });
+    expect(broker.closed).toEqual(['worker:maintenance', 'worker:fx', 'queue:maintenance', 'queue:fx', 'broker']);
   });
 
   it('logs Redis connection errors', async () => {
@@ -149,7 +154,7 @@ describe('worker', () => {
     };
     const exit = run([], ENV, deps({}, unreachable));
     await vi.waitFor(() => {
-      expect(broker.queues.size).toBe(1);
+      expect(broker.queues.size).toBe(2);
     });
     signals.emit('SIGINT');
     expect(await exit).toBe(1);
@@ -202,7 +207,7 @@ describe('worker', () => {
     expect(await exit).toBe(1);
     expect(log.messages().slice(-2)).toEqual(['shutdown failed', 'shutdown did not finish cleanly']);
     expect(log.lines.at(-1)).toMatchObject({ reason: 'failed' });
-    expect(broker.closed).toEqual(['queue:maintenance', 'broker']);
+    expect(broker.closed).toEqual(['queue:maintenance', 'queue:fx', 'broker']);
   });
 
   it('defaults to the host name, the wall clock, and the standard heartbeat', async () => {

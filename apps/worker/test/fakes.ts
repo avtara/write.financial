@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** In-memory stand-ins for the worker's ports (Redis, BullMQ, the database, the log). */
+import type { BuiltInRateInput } from '@wf/db/fx-rates';
 import type { AuthPurgeCounts } from '@wf/db/maintenance';
 import type { JobQueue } from '@wf/jobs/queues';
 import type { DestinationStream } from 'pino';
@@ -131,16 +132,30 @@ export function fakeBroker(nextRun: NextRun = NEXT_RUN): FakeBroker {
 
 export interface FakeDb extends WorkerDb {
   readonly purgeCalls: Date[];
+  /** Every batch passed to `fxRates.upsertGlobal`. */
+  readonly fxUpserts: (readonly BuiltInRateInput[])[];
 }
 
-export function fakeDb(counts: AuthPurgeCounts = { verifications: 2, sessions: 3, invitations: 1 }): FakeDb {
+export function fakeDb(
+  counts: AuthPurgeCounts = { verifications: 2, sessions: 3, invitations: 1 },
+  currenciesInUse: readonly string[] = ['IDR', 'USD'],
+): FakeDb {
   const purgeCalls: Date[] = [];
+  const fxUpserts: (readonly BuiltInRateInput[])[] = [];
   return {
     purgeCalls,
+    fxUpserts,
     maintenance: {
       purgeExpiredAuth: async (now) => {
         purgeCalls.push(now);
         return Promise.resolve(counts);
+      },
+    },
+    fxRates: {
+      currenciesInUse: async () => Promise.resolve([...currenciesInUse]),
+      upsertGlobal: async (rows) => {
+        fxUpserts.push(rows);
+        return Promise.resolve(rows.length);
       },
     },
   };

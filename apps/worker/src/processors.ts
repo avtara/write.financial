@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { createBuiltInFxProviders } from '@wf/integrations/fx/rates';
 import type { JobQueue } from '@wf/jobs/queues';
+import { createFxProcessor } from './processors/fx.ts';
 import { createMaintenanceProcessor } from './processors/maintenance.ts';
 import type { WorkerDb } from './worker-db.ts';
 
@@ -27,4 +29,5 @@ export interface ProcessorDefinition {
 /** One processor per enqueueable queue: `@wf/jobs` adding a queue without one here fails to compile. */
 export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
   maintenance: { concurrency: 1, create: createMaintenanceProcessor },
+  fx: { concurrency: 1, create: (deps) => createFxProcessor(deps, createBuiltInFxProviders()) },
 };

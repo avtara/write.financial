@@ -41,6 +41,11 @@ export type QueueName =
 export const JOBS = {
   /** Daily purge of expired auth rows (plan §6 `maintenance`); the work depends only on the clock. */
   maintenance: z.strictObject({}),
+  /**
+   * Built-in FX reference rates (plan §6 `fx`): scheduled 17.00 and 08.00 WIB, or "Perbarui sekarang" (FR-ST1). The
+   * currencies come from the database when the job runs, so the payload is empty.
+   */
+  fx: z.strictObject({}),
 } as const satisfies { readonly [Q in QueueName]?: z.ZodType<object> };
 
 /** Queues that have a processor. */
@@ -60,6 +65,7 @@ export type JobId<Q extends JobQueue> = string & { readonly [jobIdOf]: Q };
  */
 export const jobIds = {
   maintenance: (date: LocalDate) => `mt.${date}` as JobId<'maintenance'>,
+  fx: (date: LocalDate) => `fx.${date}` as JobId<'fx'>,
 } as const satisfies { readonly [Q in JobQueue]: (...args: never[]) => JobId<Q> };
 
 /** Redis key prefix of every queue. */

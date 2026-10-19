@@ -13,6 +13,7 @@
     "@wf/config": "workspace:*",
     "@wf/crypto": "workspace:*",
     "@wf/db": "workspace:*",
+    "@wf/integrations": "workspace:*",
     "@wf/jobs": "workspace:*",
     "bullmq": "^6.3.16",
     "ioredis": "^6.0.0",

@@ -34,8 +34,8 @@ describe('enqueue', () => {
 
   it('refuses queues without a processor at compile time', async () => {
     const { enqueue } = fakeQueues();
-    // @ts-expect-error `fx` has no processor yet, so it is not a JobQueue
-    await expect(enqueue('fx', {}, { jobId })).rejects.toThrow(TypeError);
+    // @ts-expect-error `market-server` has no processor yet, so it is not a JobQueue
+    await expect(enqueue('market-server', {}, { jobId })).rejects.toThrow(TypeError);
   });
 
   it('rejects secret-looking keys before anything reaches the queue, naming keys but not values', async () => {

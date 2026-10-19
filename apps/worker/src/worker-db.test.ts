@@ -16,6 +16,9 @@ describe('WorkerDb (D14)', () => {
     expect(Object.keys(connection.db)).toEqual([...WORKER_REPOSITORIES]);
     expect(Object.isFrozen(connection.db)).toBe(true);
     expect(Object.keys(connection.db.maintenance)).toEqual(['purgeExpiredAuth']);
+    // Only the built-in side of fx_rates: no manual-rate reads or writes.
+    expect(Object.keys(connection.db.fxRates)).toEqual(['currenciesInUse', 'upsertGlobal']);
+    expect(Object.isFrozen(connection.db.fxRates)).toBe(true);
     await expect(connection.close()).resolves.toBeUndefined();
   });
 });
