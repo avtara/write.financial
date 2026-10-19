@@ -12,6 +12,8 @@
 import { ACCOUNT_TYPES } from '@wf/domain/ledger';
 import { CATEGORY_GROUPS, CATEGORY_KINDS } from '@wf/domain/categories';
 import { POSTING_ROLES, TRANSACTION_SOURCES, TRANSACTION_TYPES } from '@wf/domain/transactions';
+import { RECURRENCE_END_TYPES, RECURRENCE_FREQS } from '@wf/domain/recurrence';
+import { CANCEL_MODES, SUBSCRIPTION_CYCLES, SUBSCRIPTION_STATUSES, USAGE_RATINGS } from '@wf/domain/subscriptions';
 import { LOCALES } from '@wf/i18n/locale';
 import type { AlertPct } from '@wf/domain/budget';
 import type { LocalDate, PeriodStartDay, YearMonth } from '@wf/domain/period';
@@ -1014,7 +1016,7 @@ export const budgetPeriodOverrides = pgTable(
     deltaMinor: money('delta_minor').notNull(),
     reason: budgetOverrideReason('reason').notNull(),
     moveId: uuid('move_id'),
-    /** The Review-queue item whose confirmation created it (foreign key added with `review_items` in M3). */
+    /** The confirmed period-close proposal (`review_items`) that created a `rollover` override. */
     reviewItemId: uuid('review_item_id'),
     createdAt: createdAt(),
   },
@@ -1030,6 +1032,11 @@ export const budgetPeriodOverrides = pgTable(
       name: 'budget_period_overrides_category_fk',
       columns: [table.userId, table.categoryId],
       foreignColumns: [categories.userId, categories.id],
+    }),
+    foreignKey({
+      name: 'budget_period_overrides_review_item_fk',
+      columns: [table.userId, table.reviewItemId],
+      foreignColumns: [reviewItems.userId, reviewItems.id],
     }),
     check('budget_period_overrides_delta_check', sql`${table.deltaMinor} <> 0`),
     check('budget_period_overrides_move_check', sql`(${table.reason} = 'transfer') = (${table.moveId} is not null)`),
@@ -1057,5 +1064,402 @@ export const budgetAlertDismissals = pgTable(
       columns: [table.userId, table.categoryId],
       foreignColumns: [categories.userId, categories.id],
     }),
+  ],
+);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Schedules, Review queue, subscriptions, notifications (M3, plan §4.3). D14: the worker never writes transactions,
+// postings, budgets, or goals; everything it creates that would change them is a `review_items` row that only a user
+// confirmation (`confirmReview`, wf_app) applies.
+// ---------------------------------------------------------------------------------------------------------------
+
+export const recurrenceFreq = pgEnum('recurrence_freq', RECURRENCE_FREQS);
+export const recurrenceEndType = pgEnum('recurrence_end_type', RECURRENCE_END_TYPES);
+export const RECURRENCE_STATUSES = ['active', 'stopped'] as const;
+export const recurrenceStatus = pgEnum('recurrence_status', RECURRENCE_STATUSES);
+
+/**
+ * A repeating transaction or contribution (FR-T6). `template` is the transaction draft every occurrence proposes
+ * (shape: `RecurrenceTemplate` in `@wf/db/schedules`); `start_on` is the first occurrence and anchors the interval
+ * (yearly: its month and day). Stopping (FR-L8) deletes the future occurrences and keeps past transactions.
+ */
+export const recurrences = pgTable(
+  'recurrences',
+  {
+    id: id(),
+    userId: ownerId(),
+    template: jsonb('template').$type<JsonObject>().notNull(),
+    freq: recurrenceFreq('freq').notNull(),
+    interval: smallint('interval').notNull().default(1),
+    startOn: localDate('start_on').notNull(),
+    /** ISO weekday 1 (Monday) – 7 (Sunday); weekly only. */
+    weekday: smallint('weekday'),
+    /** 1–31, clamped to the month's last day; monthly only. */
+    monthDay: smallint('month_day'),
+    endType: recurrenceEndType('end_type').notNull().default('never'),
+    endCount: smallint('end_count'),
+    /** Days before the due date for the 09.00 reminder (FR-T6 H-1 = 1); `null` = no reminder. */
+    remindOffsetDays: smallint('remind_offset_days'),
+    status: recurrenceStatus('status').notNull().default('active'),
+    stoppedAt: timestamptz('stopped_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('recurrences_user_id_id_key').on(table.userId, table.id),
+    index('recurrences_user_id_status_idx').on(table.userId, table.status),
+    check('recurrences_interval_check', sql`${table.interval} between 1 and 99`),
+    check('recurrences_weekday_check', sql`(${table.freq} = 'weekly') = (${table.weekday} is not null)`),
+    check('recurrences_weekday_range_check', sql`${table.weekday} is null or ${table.weekday} between 1 and 7`),
+    check('recurrences_month_day_check', sql`(${table.freq} = 'monthly') = (${table.monthDay} is not null)`),
+    check('recurrences_month_day_range_check', sql`${table.monthDay} is null or ${table.monthDay} between 1 and 31`),
+    check(
+      'recurrences_end_check',
+      sql`(${table.endType} = 'after') = (${table.endCount} is not null) and (${table.endCount} is null or ${table.endCount} between 1 and 999)`,
+    ),
+    check(
+      'recurrences_remind_check',
+      sql`${table.remindOffsetDays} is null or ${table.remindOffsetDays} between 0 and 30`,
+    ),
+    check('recurrences_stopped_check', sql`(${table.status} = 'stopped') = (${table.stoppedAt} is not null)`),
+    check('recurrences_template_check', sql`jsonb_typeof(${table.template}) = 'object'`),
+  ],
+);
+
+export const subscriptionCycle = pgEnum('subscription_cycle', SUBSCRIPTION_CYCLES);
+export const subscriptionStatus = pgEnum('subscription_status', SUBSCRIPTION_STATUSES);
+export const cancelMode = pgEnum('subscription_cancel_mode', CANCEL_MODES);
+export const usageRating = pgEnum('subscription_usage_rating', USAGE_RATINGS);
+
+/**
+ * A subscription (FR-SUB1–SUB6). `next_billing_date` is the next bill that is neither confirmed nor skipped; bills are
+ * materialized from it as `scheduled_occurrences` (source `subscription`) and paid only through the Review queue.
+ * Pause and cancel are stored as dates, so the effective state needs no worker write: paused while
+ * `paused_until > today`, ended once `ends_on` has passed.
+ */
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    id: id(),
+    userId: ownerId(),
+    name: varchar('name', { length: 40 }).notNull(),
+    plan: varchar('plan', { length: 40 }),
+    icon: text('icon'),
+    logoKey: text('logo_key'),
+    description: text('description'),
+    priceMinor: money('price_minor').notNull(),
+    currency: currency('currency').notNull(),
+    cycle: subscriptionCycle('cycle').notNull(),
+    nextBillingDate: localDate('next_billing_date').notNull(),
+    payFromAccountId: uuid('pay_from_account_id').notNull(),
+    categoryId: uuid('category_id'),
+    /** Days before a bill for the 09.00 reminder (FR-SUB1, default 3); `null` = no reminder. */
+    remindDaysBefore: smallint('remind_days_before').default(3),
+    startedOn: localDate('started_on').notNull(),
+    /** Last day of the free trial; the first bill is the day after (FR-SUB1). */
+    trialEndsOn: localDate('trial_ends_on'),
+    status: subscriptionStatus('status').notNull().default('active'),
+    pausedOn: localDate('paused_on'),
+    /** The day billing resumes (FR-SUB3 "aktif lagi"). */
+    pausedUntil: localDate('paused_until'),
+    /** Days before `paused_until` for the "aktif lagi" reminder; `null` = none. */
+    pauseRemindDays: smallint('pause_remind_days'),
+    cancelMode: cancelMode('cancel_mode'),
+    /** Last day of the subscription after a cancel (after the next bill, or the cancel day). */
+    endsOn: localDate('ends_on'),
+    cancelledAt: timestamptz('cancelled_at'),
+    usageRating: usageRating('usage_rating'),
+    ratedAt: timestamptz('rated_at'),
+    /** FR-SUB5 monthly usage review: when to ask again. */
+    nextReviewOn: localDate('next_review_on'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('subscriptions_user_id_id_key').on(table.userId, table.id),
+    index('subscriptions_user_id_status_idx').on(table.userId, table.status),
+    index('subscriptions_name_trgm_idx').using('gin', table.name.op('gin_trgm_ops')),
+    foreignKey({
+      name: 'subscriptions_account_fk',
+      columns: [table.userId, table.payFromAccountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'subscriptions_category_fk',
+      columns: [table.userId, table.categoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }),
+    currencyCheck('subscriptions_currency_check', table.currency),
+    check('subscriptions_price_check', sql`${table.priceMinor} > 0`),
+    check('subscriptions_name_check', sql`length(btrim(${table.name})) > 0`),
+    check(
+      'subscriptions_remind_check',
+      sql`${table.remindDaysBefore} is null or ${table.remindDaysBefore} between 0 and 30`,
+    ),
+    check(
+      'subscriptions_paused_check',
+      sql`(${table.status} = 'paused') = (${table.pausedUntil} is not null and ${table.pausedOn} is not null)`,
+    ),
+    check(
+      'subscriptions_cancelled_check',
+      sql`(${table.status} = 'cancelled') = (${table.endsOn} is not null and ${table.cancelMode} is not null and ${table.cancelledAt} is not null)`,
+    ),
+  ],
+);
+
+export const OCCURRENCE_SOURCES = [
+  'recurrence',
+  'subscription',
+  'goal_plan',
+  'installment',
+  'cc_statement',
+  'receivable',
+] as const;
+export const occurrenceSource = pgEnum('occurrence_source', OCCURRENCE_SOURCES);
+export const OCCURRENCE_STATUSES = ['scheduled', 'due_review', 'confirmed', 'skipped', 'unconfirmed'] as const;
+export const occurrenceStatus = pgEnum('occurrence_status', OCCURRENCE_STATUSES);
+
+/**
+ * One due date of a schedule (plan §4.3), materialized 90 days ahead. `scheduled` → `due_review` on the due date
+ * (a `review_items` row is created) → `unconfirmed` once overdue; `confirmed` (with the transaction) or `skipped` only
+ * by a user action. The unique source key makes materializing idempotent.
+ */
+export const scheduledOccurrences = pgTable(
+  'scheduled_occurrences',
+  {
+    id: id(),
+    userId: ownerId(),
+    sourceType: occurrenceSource('source_type').notNull(),
+    sourceId: uuid('source_id').notNull(),
+    dueDate: localDate('due_date').notNull(),
+    expectedMinor: money('expected_minor').notNull(),
+    currency: currency('currency').notNull(),
+    status: occurrenceStatus('status').notNull().default('scheduled'),
+    transactionId: uuid('transaction_id'),
+    remindAt: timestamptz('remind_at'),
+    remindedAt: timestamptz('reminded_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('scheduled_occurrences_user_id_id_key').on(table.userId, table.id),
+    unique('scheduled_occurrences_source_key').on(table.sourceType, table.sourceId, table.dueDate),
+    index('scheduled_occurrences_user_id_due_date_idx').on(table.userId, table.dueDate),
+    index('scheduled_occurrences_remind_at_idx')
+      .on(table.remindAt)
+      .where(sql`${table.remindedAt} is null and ${table.remindAt} is not null`),
+    foreignKey({
+      name: 'scheduled_occurrences_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    currencyCheck('scheduled_occurrences_currency_check', table.currency),
+    check('scheduled_occurrences_expected_check', sql`${table.expectedMinor} >= 0`),
+    check(
+      'scheduled_occurrences_confirmed_check',
+      sql`${table.status} <> 'confirmed' or ${table.transactionId} is not null`,
+    ),
+  ],
+);
+
+export const REVIEW_REASONS = [
+  'ai_suggestion',
+  'category_deleted',
+  'due_occurrence',
+  'import_row',
+  'period_close_proposal',
+] as const;
+export const reviewReason = pgEnum('review_reason', REVIEW_REASONS);
+export const REVIEW_SOURCES = ['gmail', 'assistant', 'receipt', 'schedule', 'period_close', 'system'] as const;
+export const reviewSource = pgEnum('review_source', REVIEW_SOURCES);
+export const REVIEW_STATUSES = ['pending', 'confirmed', 'ignored'] as const;
+export const reviewStatus = pgEnum('review_status', REVIEW_STATUSES);
+
+/**
+ * The single Review queue (FR-L7). `payload_enc` is the encrypted proposal (transaction draft, category assignment,
+ * or period-close proposal; shapes in `@wf/db/review-items`); `dedupe_key` makes every producer idempotent (a worker
+ * restart or retry never creates a second item). Plain columns hold only what ordering and badges need.
+ */
+export const reviewItems = pgTable(
+  'review_items',
+  {
+    id: id(),
+    userId: ownerId(),
+    reason: reviewReason('reason').notNull(),
+    source: reviewSource('source').notNull(),
+    dedupeKey: text('dedupe_key').notNull(),
+    occurrenceId: uuid('occurrence_id'),
+    /** `category_deleted`: the transaction that lost its category. */
+    subjectTransactionId: uuid('subject_transaction_id'),
+    /** `period_close_proposal`: the closed period. */
+    periodId: uuid('period_id'),
+    /** Due date or date of the proposed transaction, for ordering and grouping. */
+    dueDate: localDate('due_date'),
+    payloadEnc: bytea('payload_enc').notNull(),
+    /** AI confidence in percent (0–100); shown and used for ordering only (FR-L7). */
+    aiConfidence: smallint('ai_confidence'),
+    status: reviewStatus('status').notNull().default('pending'),
+    resolvedAt: timestamptz('resolved_at'),
+    resultingTransactionId: uuid('resulting_transaction_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('review_items_user_id_id_key').on(table.userId, table.id),
+    unique('review_items_dedupe_key').on(table.userId, table.dedupeKey),
+    index('review_items_user_id_status_idx').on(table.userId, table.status, table.reason),
+    foreignKey({
+      name: 'review_items_occurrence_fk',
+      columns: [table.userId, table.occurrenceId],
+      foreignColumns: [scheduledOccurrences.userId, scheduledOccurrences.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'review_items_subject_transaction_fk',
+      columns: [table.userId, table.subjectTransactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'review_items_period_fk',
+      columns: [table.userId, table.periodId],
+      foreignColumns: [periods.userId, periods.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'review_items_resulting_transaction_fk',
+      columns: [table.userId, table.resultingTransactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    check(
+      'review_items_confidence_check',
+      sql`${table.aiConfidence} is null or ${table.aiConfidence} between 0 and 100`,
+    ),
+    check('review_items_resolved_check', sql`(${table.status} = 'pending') = (${table.resolvedAt} is null)`),
+  ],
+);
+
+export const DETECTED_RECURRING_STATUSES = ['new', 'added', 'dismissed'] as const;
+export const detectedRecurringStatus = pgEnum('detected_recurring_status', DETECTED_RECURRING_STATUSES);
+
+/** FR-SUB4 subscription candidates found in transactions (suggestions only; "Tambahkan" creates the subscription). */
+export const detectedRecurring = pgTable(
+  'detected_recurring',
+  {
+    id: id(),
+    userId: ownerId(),
+    /** Normalized merchant (`@wf/domain/subscriptions`). */
+    merchantKey: text('merchant_key').notNull(),
+    merchant: text('merchant').notNull(),
+    dayOfMonth: smallint('day_of_month').notNull(),
+    amountMinor: money('amount_minor').notNull(),
+    currency: currency('currency').notNull(),
+    occurrences: smallint('occurrences').notNull(),
+    lastSeenOn: localDate('last_seen_on').notNull(),
+    accountId: uuid('account_id'),
+    categoryId: uuid('category_id'),
+    status: detectedRecurringStatus('status').notNull().default('new'),
+    subscriptionId: uuid('subscription_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('detected_recurring_user_id_id_key').on(table.userId, table.id),
+    unique('detected_recurring_merchant_key').on(table.userId, table.merchantKey),
+    foreignKey({
+      name: 'detected_recurring_account_fk',
+      columns: [table.userId, table.accountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'detected_recurring_category_fk',
+      columns: [table.userId, table.categoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }),
+    foreignKey({
+      name: 'detected_recurring_subscription_fk',
+      columns: [table.userId, table.subscriptionId],
+      foreignColumns: [subscriptions.userId, subscriptions.id],
+    }).onDelete('cascade'),
+    currencyCheck('detected_recurring_currency_check', table.currency),
+    check('detected_recurring_day_check', sql`${table.dayOfMonth} between 1 and 31`),
+    check('detected_recurring_amount_check', sql`${table.amountMinor} > 0`),
+  ],
+);
+
+export const NOTIFICATION_TYPES = [
+  'bill_reminder',
+  'trial_ending',
+  'pause_ending',
+  'review_due',
+  'bill_overdue',
+  'budget_threshold',
+  'low_balance',
+  'account_unchecked',
+  'insufficient_balance',
+  'period_closed',
+  'subscriptions_detected',
+  'system',
+] as const;
+export const notificationType = pgEnum('notification_type', NOTIFICATION_TYPES);
+export const NOTIFICATION_CATEGORIES = ['budget_bills', 'system'] as const;
+export const notificationCategory = pgEnum('notification_category', NOTIFICATION_CATEGORIES);
+
+/**
+ * In-app notifications (FR-S5): message keys plus params (rendered per locale and privacy mode in the UI), an action
+ * that opens a page (never records anything), and `ref`, the producer's idempotency key. Kept 90 days (maintenance).
+ */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: id(),
+    userId: ownerId(),
+    type: notificationType('type').notNull(),
+    category: notificationCategory('category').notNull(),
+    titleKey: text('title_key').notNull(),
+    bodyKey: text('body_key').notNull(),
+    params: jsonb('params').$type<JsonObject>().notNull().default({}),
+    action: jsonb('action').$type<JsonObject>(),
+    ref: text('ref').notNull(),
+    readAt: timestamptz('read_at'),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique('notifications_user_id_id_key').on(table.userId, table.id),
+    unique('notifications_ref_key').on(table.userId, table.ref),
+    index('notifications_user_id_created_at_idx').on(table.userId, table.createdAt.desc()),
+    check('notifications_params_check', sql`jsonb_typeof(${table.params}) = 'object'`),
+  ],
+);
+
+export const NOTIFICATION_CHANNELS = ['email'] as const;
+export const notificationChannel = pgEnum('notification_channel', NOTIFICATION_CHANNELS);
+
+/**
+ * Notifications to deliver outside the app (plan §4.3): one row per notification and channel, sent by the `notify`
+ * job with retries. `payload` is the email template data, built with the user's privacy mode (no amounts when hidden).
+ */
+export const notificationOutbox = pgTable(
+  'notification_outbox',
+  {
+    id: id(),
+    userId: ownerId(),
+    notificationId: uuid('notification_id').notNull(),
+    channel: notificationChannel('channel').notNull().default('email'),
+    payload: jsonb('payload').$type<JsonObject>().notNull(),
+    sendAt: timestamptz('send_at').notNull().defaultNow(),
+    sentAt: timestamptz('sent_at'),
+    attempts: smallint('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique('notification_outbox_user_id_id_key').on(table.userId, table.id),
+    unique('notification_outbox_notification_key').on(table.notificationId, table.channel),
+    index('notification_outbox_pending_idx')
+      .on(table.sendAt)
+      .where(sql`${table.sentAt} is null`),
+    foreignKey({
+      name: 'notification_outbox_notification_fk',
+      columns: [table.userId, table.notificationId],
+      foreignColumns: [notifications.userId, notifications.id],
+    }).onDelete('cascade'),
   ],
 );
