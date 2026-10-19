@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Check, ChevronsUpDown, type LucideIcon } from 'lucide-react';
+import { getNonce } from 'get-nonce';
 import { Select as SelectPrimitive } from 'radix-ui';
 import { POPOVER_SURFACE } from './popover.tsx';
 
@@ -74,7 +75,7 @@ export function Select<T extends string>({
         className={`flex w-full min-w-0 items-center gap-2 border border-border-input bg-input text-left text-fg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:text-text-disabled aria-invalid:border-red data-[placeholder]:text-subtle ${TRIGGER[size]}`}
       >
         <span className="min-w-0 flex-1 truncate">
-          <SelectPrimitive.Value placeholder={placeholder} />
+          <SelectPrimitive.Value placeholder={placeholder} className="pointer-events-none" />
         </span>
         <SelectPrimitive.Icon>
           <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
@@ -87,7 +88,8 @@ export function Select<T extends string>({
           collisionPadding={8}
           className={`${POPOVER_SURFACE} max-h-[var(--radix-select-content-available-height)] min-w-[var(--radix-select-trigger-width)]`}
         >
-          <SelectPrimitive.Viewport className="p-1.5">
+          {/* The viewport's scrollbar `<style>` needs the CSP nonce (`setNonce` in apps/web `router.tsx`). */}
+          <SelectPrimitive.Viewport className="p-1.5" nonce={getNonce()}>
             {options.map(({ value: option, label, description, icon: Icon, disabled: optionDisabled = false }) => (
               <SelectPrimitive.Item
                 key={option}

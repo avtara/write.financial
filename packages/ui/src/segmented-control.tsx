@@ -41,7 +41,7 @@ export function SegmentedControl<T extends string>({
       }}
       aria-label={label}
       orientation="horizontal"
-      className={`gap-0.5 rounded-[8px] border border-border bg-card p-[3px] ${fill ? 'flex w-full *:flex-1' : 'inline-flex'} ${className}`}
+      className={`gap-0.5 rounded-[8px] border border-border bg-card p-[3px] outline-none ${fill ? 'flex w-full *:flex-1' : 'inline-flex'} ${className}`}
     >
       {options.map(({ value: option, label: optionLabel, icon: Icon, disabled = false }) => (
         <RadioGroup.Item

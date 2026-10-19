@@ -1,0 +1,28 @@
+diff --git a/dist/index.js b/dist/index.js
+index 3e7d36c508597ae5923ee7c88f86d69cf6235a73..e00e28b6f6e6947eb95a81572ef9b504bf740aa5 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -139,7 +139,8 @@ var RovingFocusGroupImpl = /* @__PURE__ */ React.forwardRef(/* @__PURE__ */ __na
+           "data-orientation": orientation,
+           ...groupProps,
+           ref: composedRefs,
+-          style: { outline: "none", ...props.style },
++          // write.financial: no inline style (CSP `style-src` with a nonce rejects SSR style attributes); @wf/ui adds `outline-none`.
++          style: props.style,
+           onMouseDown: (0, import_primitive.composeEventHandlers)(props.onMouseDown, () => {
+             isClickFocusRef.current = true;
+           }),
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 4ddf08025f14b83c4ebaa00d3fc75359f1d7b64b..433d3dc769763747419c6f54fc367166b99aaa14 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -101,7 +101,8 @@ var RovingFocusGroupImpl = /* @__PURE__ */ React.forwardRef(/* @__PURE__ */ __na
+           "data-orientation": orientation,
+           ...groupProps,
+           ref: composedRefs,
+-          style: { outline: "none", ...props.style },
++          // write.financial: no inline style (CSP `style-src` with a nonce rejects SSR style attributes); @wf/ui adds `outline-none`.
++          style: props.style,
+           onMouseDown: composeEventHandlers(props.onMouseDown, () => {
+             isClickFocusRef.current = true;
+           }),

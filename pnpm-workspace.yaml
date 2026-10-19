@@ -15,4 +15,7 @@ allowBuilds:
   ssh2: false
 
 patchedDependencies:
+  '@radix-ui/react-roving-focus@1.2.1': patches/@radix-ui__react-roving-focus@1.2.1.patch
+  '@radix-ui/react-select@2.4.1': patches/@radix-ui__react-select@2.4.1.patch
+  '@radix-ui/react-tabs@1.2.1': patches/@radix-ui__react-tabs@1.2.1.patch
   sonner@2.0.8: patches/sonner@2.0.8.patch

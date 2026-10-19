@@ -22,7 +22,7 @@ export function TabsList({ label, fill = false, className = '', ...props }: Tabs
   return (
     <TabsPrimitive.List
       aria-label={label}
-      className={`gap-0.5 rounded-[8px] border border-border bg-input p-[3px] ${fill ? 'flex w-full *:flex-1' : 'inline-flex'} ${className}`}
+      className={`gap-0.5 rounded-[8px] border border-border bg-input p-[3px] outline-none ${fill ? 'flex w-full *:flex-1' : 'inline-flex'} ${className}`}
       {...props}
     />
   );

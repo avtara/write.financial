@@ -64,8 +64,7 @@ describe('TagsSection', () => {
     await expect.element(screen.getByText('Tidak ada tag yang cocok.')).toBeVisible();
     await screen.getByLabelText('Cari tag').fill('');
 
-    await screen.getByRole('combobox', { name: 'Urutkan tag' }).click();
-    await screen.getByRole('option', { name: 'Nama A–Z' }).click();
+    await screen.getByRole('combobox', { name: 'Urutkan tag' }).selectOptions('name');
     await expect.poll(() => list.getByRole('listitem').first().element().textContent).toContain('kerja-reimburse');
   });
 

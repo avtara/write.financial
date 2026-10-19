@@ -1,0 +1,34 @@
+diff --git a/dist/index.js b/dist/index.js
+index c32ae5e88436058706258fda930dce94e1d0c30a..3f50051c45c3f08ae58338513bd75a3623034f6c 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -219,10 +219,8 @@ var TabsContent = /* @__PURE__ */ React.forwardRef(
+         tabIndex: 0,
+         ...contentProps,
+         ref: forwardedRef,
+-        style: {
+-          ...props.style,
+-          animationDuration: isMountAnimationPreventedRef.current ? "0s" : void 0
+-        },
++        // write.financial: no inline style (CSP `style-src` with a nonce rejects SSR style attributes); @wf/ui tab panels do not animate.
++        style: props.style,
+         children: present && children
+       }
+     ) });
+diff --git a/dist/index.mjs b/dist/index.mjs
+index e5b247372fbaed7070c513c4697452d7deec6b0e..5b06c6a1eb4d5444ed0980ad491a8875eed3bce0 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -177,10 +177,8 @@ var TabsContent = /* @__PURE__ */ React.forwardRef(
+         tabIndex: 0,
+         ...contentProps,
+         ref: forwardedRef,
+-        style: {
+-          ...props.style,
+-          animationDuration: isMountAnimationPreventedRef.current ? "0s" : void 0
+-        },
++        // write.financial: no inline style (CSP `style-src` with a nonce rejects SSR style attributes); @wf/ui tab panels do not animate.
++        style: props.style,
+         children: present && children
+       }
+     ) });

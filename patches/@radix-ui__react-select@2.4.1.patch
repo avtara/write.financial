@@ -1,0 +1,28 @@
+diff --git a/dist/index.js b/dist/index.js
+index cbf979150635ccf619d7e74f7681d92b7564eb8b..f05f08da5536f066e38dc0a86f3646969b2c5e9f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -340,7 +340,8 @@ var SelectValue = /* @__PURE__ */ React.forwardRef(
+         ...valueProps,
+         asChild: showPlaceholder ? false : valueProps.asChild,
+         ref: composedRefs,
+-        style: { pointerEvents: "none" },
++        // write.financial: no inline style (CSP `style-src` with a nonce rejects SSR style attributes); @wf/ui adds `pointer-events-none`.
++        style: valueProps.style,
+         children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(React.Fragment, { children: showPlaceholder ? placeholder : children }, showPlaceholder ? "placeholder" : "value")
+       }
+     );
+diff --git a/dist/index.mjs b/dist/index.mjs
+index c36cf353eb4fd8b223a19d1ad340341add6ab453..296842407d01bd61f83a787fb9d5f88be7696028 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -270,7 +270,8 @@ var SelectValue = /* @__PURE__ */ React.forwardRef(
+         ...valueProps,
+         asChild: showPlaceholder ? false : valueProps.asChild,
+         ref: composedRefs,
+-        style: { pointerEvents: "none" },
++        // write.financial: no inline style (CSP `style-src` with a nonce rejects SSR style attributes); @wf/ui adds `pointer-events-none`.
++        style: valueProps.style,
+         children: /* @__PURE__ */ jsx(React.Fragment, { children: showPlaceholder ? placeholder : children }, showPlaceholder ? "placeholder" : "value")
+       }
+     );
