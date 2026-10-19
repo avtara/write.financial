@@ -60,7 +60,9 @@ export function DateTimeField({
         onChange({ date: next, time });
       }}
       onMonthChange={loadMonth}
-      triggerLabel={triggerLabel ?? `${formatDate(date, locale, 'date')}, ${time.replace(':', locale === 'id' ? '.' : ':')}`}
+      triggerLabel={
+        triggerLabel ?? `${formatDate(date, locale, 'date')}, ${time.replace(':', locale === 'id' ? '.' : ':')}`
+      }
       placeholder={m.date_field_placeholder()}
       today={today}
       locale={locale}

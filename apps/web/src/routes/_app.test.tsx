@@ -1,11 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { isRedirect } from '@tanstack/react-router';
 import type { ComponentType } from 'react';
-import { describe, expect, it } from 'vitest';
-import { page } from 'vitest/browser';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
 import type { Viewer } from '../server/gate.ts';
 import { Route } from './_app.tsx';
+
+const ledger = vi.hoisted(() => ({
+  listAccounts: vi.fn(),
+  listCategories: vi.fn(),
+  listTags: vi.fn(),
+  getReferenceRate: vi.fn(),
+}));
+vi.mock('../server/fn/ledger.ts', () => ledger);
+const writes = vi.hoisted(() => ({
+  recordTransaction: vi.fn(),
+  removeTransactions: vi.fn(),
+  restoreTransactions: vi.fn(),
+  listDrafts: vi.fn(),
+  saveDraft: vi.fn(),
+  removeDraft: vi.fn(),
+  listTransactionDays: vi.fn(),
+}));
+vi.mock('../server/fn/transactions-write.ts', () => writes);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const VIEWER: Viewer = {
   id: 'u1',
@@ -48,12 +70,16 @@ describe('/_app layout', () => {
     expect(beforeLoad(admin)).toEqual({ viewer: admin });
   });
 
-  it('wraps its pages in the app shell, with one toast region', async () => {
+  it('wraps its pages in the app shell, with one toast region and the Record Transaction sheet (N)', async () => {
     await page.viewport(1440, 900);
+    vi.spyOn(Route, 'useRouteContext').mockReturnValue({ viewer: VIEWER });
+    ledger.listAccounts.mockReturnValue(Promise.withResolvers().promise);
     const Layout = Route.options.component as ComponentType;
     const { screen } = await renderApp(<Layout />);
     await expect.element(screen.getByRole('main')).toBeInTheDocument();
     await expect.element(screen.getByRole('navigation', { name: 'Navigasi utama' })).toBeVisible();
     await expect.element(screen.getByRole('region', { name: 'Notifikasi' })).toBeInTheDocument();
+    await userEvent.keyboard('n');
+    await expect.element(page.getByRole('dialog', { name: 'Catat Transaksi' })).toBeVisible();
   });
 });

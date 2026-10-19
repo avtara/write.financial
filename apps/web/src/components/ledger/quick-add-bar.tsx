@@ -14,7 +14,7 @@ import { AmountInput } from '@wf/ui/amount-input';
 import { SegmentedControl } from '@wf/ui/segmented-control';
 import { toast } from '@wf/ui/toast';
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CircleAlert, CornerDownLeft, PenLine } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { recordTransaction } from '../../server/fn/transactions-write.ts';
@@ -45,19 +45,25 @@ function firstError(errors: FormErrors): string | null {
   if (errors.amount !== undefined) return m.quick_add_error_amount();
   if (errors.category !== undefined) return m.record_error_category();
   if (errors.account !== undefined) return m.record_error_account();
-  if (errors.toAccount !== undefined) {
-    return errors.toAccount === 'same_account' ? m.record_error_same_account() : m.record_error_to_account();
-  }
+  // Never "same account" here: each picker disables the account chosen on the other side.
+  if (errors.toAccount !== undefined) return m.record_error_to_account();
   return errors.rate === undefined && errors.received === undefined ? null : m.quick_add_error_rate();
 }
 
 export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps) {
   const router = useRouter();
   const start = (type: EntryKind) =>
-    emptyValues({ type, accountId: defaultAccountId(data.accounts), date: today, time: wallTime(new Date(), timeZone) });
+    emptyValues({
+      type,
+      accountId: defaultAccountId(data.accounts),
+      date: today,
+      time: wallTime(new Date(), timeZone),
+    });
   const form = useTransactionForm({ initial: start('expense'), data, locale });
   const [picked, setPicked] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Set when an amount was taken from the description: saving resumes once the form shows it.
+  const resubmit = useRef(false);
   const { values, update } = form;
   const account = data.accounts.find((candidate) => candidate.id === values.accountId);
   const currency = account?.currency ?? data.baseCurrency;
@@ -69,13 +75,17 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
     // "kopi 25rb": an amount in the description fills an empty amount.
     if (values.amountMinor === null) {
       const words = values.description.trim().split(/\s+/);
-      const index = words.findLastIndex((word) => /\d/.test(word) && parseMoneyInput(word, { locale, currency }) !== null);
-      if (index >= 0) {
+      const word = words.findLast(
+        (candidate) => /\d/.test(candidate) && parseMoneyInput(candidate, { locale, currency }) !== null,
+      );
+      if (word !== undefined) {
+        const index = words.lastIndexOf(word);
         update({
-          amountMinor: parseMoneyInput(words[index] ?? '', { locale, currency }),
+          amountMinor: parseMoneyInput(word, { locale, currency }),
           description: words.filter((_, at) => at !== index).join(' '),
         });
-        return void Promise.resolve().then(submit);
+        resubmit.current = true;
+        return;
       }
     }
     const input = form.prepare({ timeZone, source: 'quick' });
@@ -84,17 +94,20 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
     const result = await recordTransaction({ data: input }).catch(() => null);
     setSaving(false);
     if (result === null || !result.ok) {
-      toast({ tone: 'error', title: result === null ? m.record_save_failed() : ledgerErrorMessage(result.code, locale) });
+      toast({
+        tone: 'error',
+        title: result === null ? m.record_save_failed() : ledgerErrorMessage(result.code, locale),
+      });
       return;
     }
     const category = data.categories.find((candidate) => candidate.id === values.categoryId);
-    const amount = values.amountMinor ?? 0n;
+    const amount = input.type === 'transfer' ? input.sentMinor : input.amountMinor;
     announceSaved({
       id: result.value.id,
       label: category === undefined ? m.record_type_transfer() : categoryName(category),
       amountMinor: values.type === 'income' ? amount : -amount,
       currency,
-      accountName: account?.displayName ?? '',
+      accountName: account?.displayName,
       locale,
       onChange: () => {
         void router.invalidate();
@@ -104,6 +117,12 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
     setPicked(false);
     form.reset({ ...start(values.type), date: values.date });
   };
+  // Runs after the render that shows the amount taken from the description, with `submit` seeing it.
+  useEffect(() => {
+    if (!resubmit.current) return;
+    resubmit.current = false;
+    void submit();
+  });
 
   return (
     <form
@@ -121,7 +140,12 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
           value={values.type}
           onValueChange={(type) => {
             setPicked(false);
-            form.reset({ ...start(type), amountMinor: values.amountMinor, description: values.description, date: values.date });
+            form.reset({
+              ...start(type),
+              amountMinor: values.amountMinor,
+              description: values.description,
+              date: values.date,
+            });
           }}
           options={[
             { value: 'expense', label: m.quick_add_expense(), icon: ArrowUpRight },

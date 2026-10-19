@@ -89,7 +89,8 @@ export function useTransactionForm({
 
   const pair = values.type === 'transfer' ? transferAccounts(values, data.accounts) : null;
   const cross = pair !== null && pair.from.currency !== pair.to.currency ? pair : null;
-  const referenceKey = cross === null ? null : pairKey(ratePair(cross.from.currency, cross.to.currency, data.baseCurrency));
+  const referenceKey =
+    cross === null ? null : pairKey(ratePair(cross.from.currency, cross.to.currency, data.baseCurrency));
   // Neither side in the base currency: the FX difference is valued with the destination → base rate.
   const toBaseKey =
     cross === null || cross.from.currency === data.baseCurrency || cross.to.currency === data.baseCurrency
@@ -128,7 +129,6 @@ export function useTransactionForm({
       if (key !== null && !requested.current.has(key)) load(key);
     }
     // `load` only starts a request and reads state through updaters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referenceKey, toBaseKey]);
 
   const entry = referenceKey === null ? undefined : rates[referenceKey];

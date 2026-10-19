@@ -242,10 +242,10 @@ export function validate(
   return errors;
 }
 
-/** What leaves the source account: the amount plus a transfer fee. */
-function outflowMinor(values: TransactionFormValues): bigint {
+/** What leaves the source account: `amount` plus a transfer fee. */
+function outflowMinor(values: TransactionFormValues, amount: bigint): bigint {
   const fee = values.type === 'transfer' && values.feeMinor !== null && values.feeMinor > 0n ? values.feeMinor : 0n;
-  return (values.amountMinor ?? 0n) + fee;
+  return amount + fee;
 }
 
 export interface Shortfall {
@@ -264,7 +264,7 @@ export function shortfall(values: TransactionFormValues, accounts: readonly Acco
   if (values.type === 'income' || values.amountMinor === null || values.amountMinor <= 0n) return null;
   const account = byId(accounts, values.accountId);
   if (account === undefined || account.type === 'credit_card') return null;
-  const out = outflowMinor(values);
+  const out = outflowMinor(values, values.amountMinor);
   return account.balanceMinor >= out ? null : { account, outflowMinor: out, shortMinor: out - account.balanceMinor };
 }
 
@@ -278,36 +278,33 @@ export function balancesAfter(
   const source = byId(accounts, values.accountId);
   if (source === undefined || amount <= 0n) return [];
   if (values.type === 'income') return [{ account: source, afterMinor: source.balanceMinor + amount }];
-  const after = [{ account: source, afterMinor: source.balanceMinor - outflowMinor(values) }];
+  const after = [{ account: source, afterMinor: source.balanceMinor - outflowMinor(values, amount) }];
   if (values.type === 'expense') return after;
   const destination = byId(accounts, values.toAccountId);
   if (destination === undefined || destination.id === source.id) return after;
   const received = destination.currency === source.currency ? amount : figures?.receivedMinor;
-  return received === undefined ? after : [...after, { account: destination, afterMinor: destination.balanceMinor + received }];
+  return received === undefined
+    ? after
+    : [...after, { account: destination, afterMinor: destination.balanceMinor + received }];
 }
 
 const offsetMs = (at: number, timeZone: string): number => {
-  const part: Record<string, number> = {};
-  for (const { type, value } of new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-  }).formatToParts(at)) {
-    part[type] = Number(value);
-  }
-  const wall = Date.UTC(
-    part['year'] ?? 0,
-    (part['month'] ?? 1) - 1,
-    part['day'] ?? 1,
-    part['hour'] ?? 0,
-    part['minute'] ?? 0,
-    part['second'] ?? 0,
-  );
+  // en-US with h23 always yields every one of these parts.
+  const part = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    })
+      .formatToParts(at)
+      .map(({ type, value }) => [type, Number(value)]),
+  ) as Record<'year' | 'month' | 'day' | 'hour' | 'minute' | 'second', number>;
+  const wall = Date.UTC(part.year, part.month - 1, part.day, part.hour, part.minute, part.second);
   return wall - (at - (at % 1000));
 };
 
@@ -342,7 +339,7 @@ export function datePresets(today: LocalDate): {
     yesterday: addDays(today, -1),
     twoDaysAgo: addDays(today, -2),
     // Saturday is 6; on a Saturday "Sabtu lalu" is the one a week before.
-    lastSaturday: addDays(today, -(((weekday + 1) % 7) || 7)),
+    lastSaturday: addDays(today, -((weekday + 1) % 7 || 7)),
     monthStart: parseLocalDate(`${today.slice(0, 8)}01`),
   };
 }
@@ -371,7 +368,13 @@ export function toRecordInput(
   };
   const amount = values.amountMinor ?? 0n;
   if (values.type !== 'transfer') {
-    return { ...common, type: values.type, accountId: values.accountId ?? '', amountMinor: amount, categoryId: values.categoryId };
+    return {
+      ...common,
+      type: values.type,
+      accountId: values.accountId ?? '',
+      amountMinor: amount,
+      categoryId: values.categoryId,
+    };
   }
   const cross = isCrossCurrency(values, context.accounts) ? context.figures : null;
   return {
@@ -395,7 +398,12 @@ export function guessCategory(
   categories: readonly CategoryView[],
   name: (category: CategoryView) => string,
 ): CategoryView | null {
-  const words = new Set(text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length >= 3));
+  const words = new Set(
+    text
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((word) => word.length >= 3),
+  );
   if (words.size === 0) return null;
   return (
     categories.find((category) =>

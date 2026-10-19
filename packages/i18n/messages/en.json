@@ -637,6 +637,7 @@
   "record_rate_mode_reference": "Reference",
   "record_rate_one": "1 {currency} =",
   "record_rate_reference": "Reference rate {provider} · updated {time}",
+  "record_rate_reference_bi": "BI transaction rate · updated {time}",
   "record_rate_refresh": "Refresh rate",
   "record_rate_retry": "Try again",
   "record_rate_saved_manual": "Your manual rate · from {date}",

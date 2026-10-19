@@ -151,7 +151,15 @@ export function CategorySelect({
   ...props
 }: CategorySelectProps) {
   const chosen = categories.find((category) => category.id === value);
-  const common = { categories, kind, value, onValueChange, label, searchPlaceholder, ...(budgetNote ? { budgetNote } : {}) };
+  const common = {
+    categories,
+    kind,
+    value,
+    onValueChange,
+    label,
+    searchPlaceholder,
+    ...(budgetNote ? { budgetNote } : {}),
+  };
   return (
     <CategorySearch {...common}>
       <button

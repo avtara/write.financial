@@ -71,8 +71,9 @@ export function TagInput({ value, onValueChange, tags, id, 'aria-describedby': d
     <div className="flex flex-col gap-2">
       <Popover
         open={open}
-        onOpenChange={(next) => {
-          if (!next) setDismissed(true);
+        // The list opens from typing, never from Radix: it only asks to close (Escape, a click outside).
+        onOpenChange={() => {
+          setDismissed(true);
         }}
       >
         <PopoverAnchor asChild>
