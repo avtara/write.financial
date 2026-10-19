@@ -10,7 +10,7 @@ import { Settings } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Viewer } from '../../server/gate.ts';
 
-export const SETTINGS_SECTIONS = ['profile', 'security', 'instance'] as const;
+export const SETTINGS_SECTIONS = ['profile', 'categories', 'tags', 'security', 'instance'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 interface SectionInfo {
@@ -20,12 +20,15 @@ interface SectionInfo {
 
 const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
   profile: { label: m.settings_nav_profile, description: m.settings_profile_description },
+  categories: { label: m.settings_nav_categories, description: m.settings_categories_description },
+  tags: { label: m.settings_nav_tags, description: m.settings_tags_description },
   security: { label: m.settings_nav_security, description: m.settings_security_description },
   instance: { label: m.settings_nav_instance, description: m.settings_instance_description },
 };
 
 const GROUPS: readonly { readonly label: () => string; readonly sections: readonly SettingsSection[] }[] = [
   { label: m.settings_group_account, sections: ['profile'] },
+  { label: m.settings_group_preferences, sections: ['categories', 'tags'] },
   { label: m.settings_group_data, sections: ['security'] },
   { label: m.settings_group_instance, sections: ['instance'] },
 ];

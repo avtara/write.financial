@@ -8,7 +8,8 @@ import { BASE_URL, e2eEnv } from './e2e/env.ts';
  * projects run in order:
  * - `m0`: the M0 exit flow at 1440 px (setup wizard, 2FA, lockout, backup codes, devices, Bull Board, invitations),
  * - `tablet`: the same screens at 1024 px, signed in as the admin and the invited user from `m0`,
- * - `app`: the app shell (layout, language, theme, privacy mode, security headers) as the invited user.
+ * - `app`: the app shell (layout, language, theme, privacy mode, security headers) as the invited user,
+ * - `settings-ledger`: Settings › Kategori and Tag (create, rename, merge, delete; keyboard only) as the invited user.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -39,6 +40,12 @@ export default defineConfig({
       name: 'app',
       testMatch: 'smoke.spec.ts',
       dependencies: ['tablet'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      name: 'settings-ledger',
+      testMatch: 'settings-ledger.spec.ts',
+      dependencies: ['app'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
   ],

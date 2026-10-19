@@ -40,6 +40,12 @@
   "auth_page_sign_in": "Sign in",
   "breadcrumb_finance": "Finance",
   "breadcrumb_label": "Breadcrumb",
+  "category_action_failed": "Couldn’t save the category change",
+  "category_archived": "{name} archived",
+  "category_archived_group": "Archived",
+  "category_badge_archived": "Archived",
+  "category_badge_fixed": "Fixed",
+  "category_badge_system": "System",
   "category_builtin_bank_fee": "Bank fees",
   "category_builtin_bills": "Bills & utilities",
   "category_builtin_bonus": "Bonus / holiday allowance",
@@ -66,12 +72,123 @@
   "category_builtin_subscriptions": "Subscriptions",
   "category_builtin_tax_stamp": "Tax & stamp duty",
   "category_builtin_transport": "Transport",
+  "category_created": "Category {name} created",
+  "category_delete_impact": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction stays recorded — balances and reports don’t change — and moves to Needs a category until you pick a new one.",
+        "countPlural=*": "{count} transactions stay recorded — balances and reports don’t change — and move to Needs a category until you pick a new one."
+      }
+    }
+  ],
+  "category_delete_title": "Delete the category {name}?",
+  "category_delete_unused": "This category isn’t used yet. This can’t be undone.",
+  "category_delete_used": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "This category is still used by {count} transaction. This can’t be undone.",
+        "countPlural=*": "This category is still used by {count} transactions. This can’t be undone."
+      }
+    }
+  ],
+  "category_deleted": "{name} deleted",
+  "category_deleted_uncategorized": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction needs a new category.",
+        "countPlural=*": "{count} transactions need a new category."
+      }
+    }
+  ],
+  "category_form_color": "Color",
+  "category_form_create": "Create category",
+  "category_form_edit_description": "Change its name, icon, color, or group.",
+  "category_form_edit_title": "Edit category",
+  "category_form_fixed": "Fixed expense",
+  "category_form_fixed_hint": "Every month, e.g. rent, bills, subscriptions",
+  "category_form_group": "Group",
+  "category_form_icon": "Icon",
+  "category_form_kind": "Type",
+  "category_form_name": "Category name",
+  "category_form_name_builtin": "Built-in category names follow the app language.",
+  "category_form_name_max": "max. {max} characters",
+  "category_form_name_placeholder": "Education",
+  "category_form_name_required": "Enter a category name.",
+  "category_form_new_description": "To group your transactions and budgets.",
+  "category_form_new_income_description": "To group your sources of income.",
+  "category_form_new_income_title": "New income category",
+  "category_form_new_title": "New category",
+  "category_form_preview": "Preview",
   "category_group_active": "Active",
+  "category_group_empty": "No categories in this group yet.",
   "category_group_financial": "Financial costs",
   "category_group_needs": "Needs",
   "category_group_other": "Other",
   "category_group_passive": "Passive",
   "category_group_wants": "Wants",
+  "category_kind_expense": "Expense",
+  "category_kind_income": "Income",
+  "category_menu": "{name} menu",
+  "category_menu_archive": "Archive",
+  "category_menu_delete": "Delete category",
+  "category_menu_edit": "Edit category",
+  "category_menu_merge": "Merge with…",
+  "category_menu_move": "Move to {group}",
+  "category_menu_unarchive": "Unarchive",
+  "category_merge_description": "All its transactions move to the target category, then this category is deleted.",
+  "category_merge_impact": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction moves from {source} to {target}. {source} is deleted.",
+        "countPlural=*": "{count} transactions move from {source} to {target}. {source} is deleted."
+      }
+    }
+  ],
+  "category_merge_placeholder": "Choose a category",
+  "category_merge_submit": "Merge",
+  "category_merge_target": "Merge into",
+  "category_merge_title": "Merge {name}",
+  "category_merged": "{source} merged into {target}",
+  "category_merged_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction moved.",
+        "countPlural=*": "{count} transactions moved."
+      }
+    }
+  ],
+  "category_moved": "{name} moved to {group}",
+  "category_new": "New category",
+  "category_reorder": "Reorder {name}",
+  "category_reorder_hint": "Press the up or down arrow to move it.",
+  "category_reordered": "{name} moved to position {position} of {total}",
+  "category_saved": "{name} saved",
+  "category_tab_expense": "Expense · {count}",
+  "category_tab_income": "Income · {count}",
+  "category_tabs_label": "Category type",
+  "category_transaction_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction",
+        "countPlural=*": "{count} transactions"
+      }
+    }
+  ],
+  "category_unarchived": "{name} unarchived",
+  "category_undo": "Undo",
+  "category_unused": "Not used yet",
   "challenge_backup_code": "Backup code",
   "challenge_code": "Verification code",
   "challenge_description": "Enter the 6-digit code from your authenticator app.",
@@ -88,6 +205,22 @@
   "challenge_use_backup": "Use a backup code",
   "challenge_use_passkey": "Use a passkey",
   "challenge_use_totp": "Use an authenticator code",
+  "color_amber": "Amber",
+  "color_apply": "Use color",
+  "color_blue": "Blue",
+  "color_cancel": "Cancel",
+  "color_custom": "Custom color",
+  "color_custom_current": "Custom color: {hex}",
+  "color_cyan": "Cyan",
+  "color_green": "Green",
+  "color_hex": "Hex color code",
+  "color_orange": "Orange",
+  "color_red": "Red",
+  "color_rose": "Pink",
+  "color_subtle": "Gray",
+  "color_system_picker": "Pick from the system palette",
+  "color_violet": "Violet",
+  "color_yellow": "Yellow",
   "device_group": "Active devices",
   "device_revoke": "Sign out",
   "device_revoke_description": "That device will need to sign in again to open write.financial.",
@@ -211,6 +344,58 @@
       }
     }
   ],
+  "icon_arrow_left_right": "Arrows",
+  "icon_baby": "Baby",
+  "icon_badge_percent": "Percent badge",
+  "icon_book_open": "Book",
+  "icon_briefcase": "Briefcase",
+  "icon_building": "Building",
+  "icon_bus": "Bus",
+  "icon_calendar_clock": "Calendar",
+  "icon_camera": "Camera",
+  "icon_car": "Car",
+  "icon_clapperboard": "Clapperboard",
+  "icon_coffee": "Coffee",
+  "icon_dumbbell": "Dumbbell",
+  "icon_film": "Film",
+  "icon_fuel": "Fuel",
+  "icon_gift": "Gift",
+  "icon_graduation_cap": "Education",
+  "icon_hand_coins": "Coins in hand",
+  "icon_hand_heart": "Donation",
+  "icon_heart_pulse": "Health",
+  "icon_house": "House",
+  "icon_landmark": "Bank",
+  "icon_laptop": "Laptop",
+  "icon_layout_grid": "Miscellaneous",
+  "icon_music": "Music",
+  "icon_palette": "Palette",
+  "icon_party_popper": "Celebration",
+  "icon_paw_print": "Pets",
+  "icon_percent": "Percent",
+  "icon_piggy_bank": "Piggy bank",
+  "icon_pill": "Medicine",
+  "icon_plane": "Travel",
+  "icon_presentation": "Teaching",
+  "icon_receipt": "Bill",
+  "icon_receipt_text": "Receipt",
+  "icon_repeat": "Repeat",
+  "icon_rotate_ccw": "Refund",
+  "icon_scissors": "Haircut",
+  "icon_shirt": "Clothing",
+  "icon_shopping_bag": "Shopping bag",
+  "icon_shopping_cart": "Shopping cart",
+  "icon_smartphone": "Phone",
+  "icon_sparkles": "Sparkles",
+  "icon_stamp": "Stamp",
+  "icon_store": "Store",
+  "icon_tag": "Price tag",
+  "icon_trending_up": "Investments",
+  "icon_utensils": "Food",
+  "icon_wallet": "Wallet",
+  "icon_wifi": "Internet",
+  "icon_wrench": "Repairs",
+  "icon_zap": "Electricity",
   "instance_default_locale": "Default language",
   "instance_default_timezone": "Default time zone",
   "instance_load_failed": "Instance settings could not be loaded",
@@ -395,20 +580,25 @@
   "security_totp_enable": "Turn on",
   "security_totp_title": "Authenticator app",
   "settings_cancel": "Cancel",
+  "settings_categories_description": "Drag to change the order in the Record Transaction form.",
   "settings_description": "Account, currencies & rates, appearance, notifications, and data — synced across all devices.",
   "settings_group_account": "Account",
   "settings_group_data": "Data",
   "settings_group_instance": "Instance",
+  "settings_group_preferences": "Preferences",
   "settings_instance_description": "Applies to everyone on this instance: name, registration, and email.",
+  "settings_nav_categories": "Categories",
   "settings_nav_instance": "Instance",
   "settings_nav_label": "Settings sections",
   "settings_nav_profile": "Profile & account",
   "settings_nav_security": "Security",
+  "settings_nav_tags": "Tags",
   "settings_profile_description": "Your profile sets how you're greeted. Your account sets how you sign in.",
   "settings_save": "Save changes",
   "settings_saved": "Saved",
   "settings_security_description": "Protect your financial data on this device.",
   "settings_synced": "Synced to all devices",
+  "settings_tags_description": "Free labels across categories for searching and reporting, e.g. #office or #reimburse. Type # while recording to add one.",
   "settings_title": "Settings",
   "settings_unsaved": "You have unsaved changes",
   "setup_admin_description": "The first account on this instance. The admin manages the instance and must use two-step verification.",
@@ -472,6 +662,97 @@
   "signup_submit": "Create account",
   "signup_title": "Create an account",
   "skip_to_content": "Skip to content",
+  "tag_action_failed": "Couldn’t save the tag change",
+  "tag_aliases": "also matches: {aliases}",
+  "tag_column_tag": "Tag",
+  "tag_column_used": "Used",
+  "tag_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} tag",
+        "countPlural=*": "{count} tags"
+      }
+    }
+  ],
+  "tag_create": "Create tag",
+  "tag_created": "Tag {slug} created",
+  "tag_delete_title": "Delete the tag {slug}?",
+  "tag_delete_unused": "This tag isn’t used yet. This can’t be undone.",
+  "tag_delete_used": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "This tag is removed from {count} transaction. This can’t be undone.",
+        "countPlural=*": "This tag is removed from {count} transactions. This can’t be undone."
+      }
+    }
+  ],
+  "tag_deleted": "Tag {slug} deleted",
+  "tag_empty": "No tags yet. Type # while recording a transaction, or create one here.",
+  "tag_input_hint": "Lowercase letters, digits, and hyphens; spaces become hyphens.",
+  "tag_invalid": "A tag needs a letter or digit, max. {max} characters.",
+  "tag_list_label": "Tags",
+  "tag_menu": "{slug} menu",
+  "tag_menu_delete": "Delete tag",
+  "tag_menu_merge": "Merge with…",
+  "tag_menu_rename": "Rename",
+  "tag_merge_choose": "Tags to merge",
+  "tag_merge_description": "Every transaction with the chosen tags moves to one target tag. The other tags are deleted; their old names still match when you type them.",
+  "tag_merge_impact_removed": "{tags} are deleted and become other names of {target}",
+  "tag_merge_impact_updated": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction updated ({breakdown})",
+        "countPlural=*": "{count} transactions updated ({breakdown})"
+      }
+    }
+  ],
+  "tag_merge_most_used": "most used",
+  "tag_merge_pick_two": "Choose at least 2 tags to merge.",
+  "tag_merge_results": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} result",
+        "countPlural=*": "{count} results"
+      }
+    }
+  ],
+  "tag_merge_selected": "{count} selected",
+  "tag_merge_submit": "Merge {count} tags",
+  "tag_merge_target": "Merge into",
+  "tag_merge_title": "Merge tags",
+  "tag_merged": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} tag merged into {target}",
+        "countPlural=*": "{count} tags merged into {target}"
+      }
+    }
+  ],
+  "tag_merged_aliases": "{tags} still match when you type them.",
+  "tag_new": "New tag",
+  "tag_new_label": "New tag name",
+  "tag_no_results": "No matching tags.",
+  "tag_rename_label": "New name for {slug}",
+  "tag_renamed": "Tag renamed to {slug}",
+  "tag_saved_as": "Saved as {slug}",
+  "tag_search": "Search tags",
+  "tag_similar_merge_into": "Merge into {slug}",
+  "tag_similar_review": "Review & merge",
+  "tag_similar_title": "{count} tags look alike",
+  "tag_sort": "Sort tags",
+  "tag_sort_name": "Name A–Z",
+  "tag_sort_usage": "Most used",
+  "tag_usage": "{count}×",
   "theme_dark": "Dark",
   "theme_label": "Theme",
   "theme_light": "Light",

@@ -3,16 +3,23 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
 import { FormError } from '../../components/form.tsx';
 import { usePreferences } from '../../components/preferences.tsx';
+import { CategoriesSection } from '../../components/settings/categories-section.tsx';
 import { InstanceSection } from '../../components/settings/instance-section.tsx';
 import { ProfileSection } from '../../components/settings/profile-section.tsx';
 import { SecuritySection } from '../../components/settings/security-section.tsx';
 import { canOpenSection, SettingsLayout } from '../../components/settings/settings-layout.tsx';
+import { TagsSection } from '../../components/settings/tags-section.tsx';
 import { authErrorMessage } from '../../lib/auth-errors.ts';
+import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
+import { listCategories, listTags } from '../../server/fn/ledger.ts';
+import { listSimilarTags } from '../../server/fn/tags.ts';
 
 /**
- * `/settings/profile`, `/settings/security`, and (admins) `/settings/instance`. Profile also loads the security
- * overview for its sign-in methods (Google linked, password set); the instance section loads its own data.
+ * `/settings/profile`, `/settings/categories`, `/settings/tags`, `/settings/security`, and (admins)
+ * `/settings/instance`. Profile also loads the security overview for its sign-in methods (Google linked, password
+ * set); categories include archived ones; tags come with the similar-tag pairs; the instance section loads its own
+ * data.
  */
 export const Route = createFileRoute('/_app/settings/$section')({
   loader: async ({ params, context }) => {
@@ -23,6 +30,12 @@ export const Route = createFileRoute('/_app/settings/$section')({
       return { section, profile, security };
     }
     if (section === 'security') return { section, security: await getSecurity() };
+    if (section === 'categories')
+      return { section, categories: await listCategories({ data: { includeArchived: true } }) };
+    if (section === 'tags') {
+      const [tags, similar] = await Promise.all([listTags({ data: {} }), listSimilarTags({ data: {} })]);
+      return { section, tags, similar };
+    }
     return { section };
   },
   head: () => ({ meta: [{ title: `${m.settings_title()} · ${m.app_name()}` }] }),
@@ -37,6 +50,17 @@ function SettingsPage() {
   let content;
   if (data.section === 'instance') {
     content = <InstanceSection />;
+  } else if (data.section === 'categories') {
+    content = data.categories.ok ? (
+      <CategoriesSection categories={data.categories.value} />
+    ) : (
+      <FormError>{ledgerErrorMessage(data.categories.code, preferences.locale)}</FormError>
+    );
+  } else if (data.section === 'tags') {
+    if (!data.tags.ok) content = <FormError>{ledgerErrorMessage(data.tags.code, preferences.locale)}</FormError>;
+    else if (!data.similar.ok)
+      content = <FormError>{ledgerErrorMessage(data.similar.code, preferences.locale)}</FormError>;
+    else content = <TagsSection tags={data.tags.value} similar={data.similar.value} />;
   } else if (!data.security.ok) {
     content = <FormError>{authErrorMessage({ code: data.security.code }, preferences.locale)}</FormError>;
   } else if (data.section === 'security') {

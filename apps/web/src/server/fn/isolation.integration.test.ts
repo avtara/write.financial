@@ -38,9 +38,11 @@ import type * as RuntimeModule from '../runtime.ts';
 import { createServices, type Services } from '../runtime.ts';
 import * as account from './account.ts';
 import * as admin from './admin.ts';
+import * as categories from './categories.ts';
 import * as gate from './gate.ts';
 import * as ledger from './ledger.ts';
 import * as setup from './setup.ts';
+import * as tags from './tags.ts';
 
 /** `YYYY-MM-DD` as the repositories' branded date type. */
 type LocalDate = ManualRateInput['asOf'];
@@ -103,7 +105,7 @@ const mail: string[] = [];
 let smtpPort = 0;
 
 /** The server functions this test imports; {@link MATRIX} must have a case for each. */
-const FUNCTIONS = { ...account, ...admin, ...gate, ...ledger, ...setup, getPreferences };
+const FUNCTIONS = { ...account, ...admin, ...categories, ...gate, ...ledger, ...setup, ...tags, getPreferences };
 type Name = keyof typeof FUNCTIONS;
 
 type Caller = 'A' | 'B' | 'anonymous';
@@ -158,6 +160,25 @@ const toJson = (value: unknown) =>
   JSON.stringify(value, (_key, child: unknown) => (typeof child === 'bigint' ? child.toString() : child));
 /** A's ledger rows, all with names B must never see. */
 const A_LEDGER = { account: 'Rekening Rahasia A', category: 'Rahasia A', tag: 'rahasia-a' };
+/** The id of a user's live category or tag by its stored name or slug. */
+const categoryId = async (userId: string, name: string) =>
+  (
+    await superuser<{ id: string }[]>`
+      SELECT id::text FROM categories WHERE user_id = ${userId} AND name = ${name} AND deleted_at IS NULL`
+  )[0]?.id ?? '';
+const tagId = async (userId: string, slug: string) =>
+  (await superuser<{ id: string }[]>`SELECT id::text FROM tags WHERE user_id = ${userId} AND slug = ${slug}`)[0]?.id ??
+  '';
+/** A's categories, tags, and aliases as stored; B's category and tag writes must leave them unchanged. */
+const aLedgerRows = async () => ({
+  categories: await superuser`SELECT * FROM categories WHERE user_id = ${aId} ORDER BY id`,
+  tags: await superuser`SELECT * FROM tags WHERE user_id = ${aId} ORDER BY id`,
+  aliases: await superuser`SELECT * FROM tag_aliases WHERE user_id = ${aId} ORDER BY id`,
+  tagged: await superuser`SELECT tt.* FROM transaction_tags tt JOIN tags t ON t.id = tt.tag_id
+    WHERE t.user_id = ${aId} ORDER BY 1, 2`,
+});
+/** Any id: the signed-out request is refused before it is looked up. */
+const SOME_ID = '0192a6c4-0000-7000-8000-000000000000';
 
 const smtpInput = (password?: string) => ({
   host: '127.0.0.1',
@@ -181,6 +202,7 @@ const hostileInstance = () => ({ ...instanceInput(), instanceName: 'Pwned', regi
 const UNAUTHENTICATED = { ok: false, code: 'UNAUTHENTICATED' };
 const FORBIDDEN = { ok: false, code: 'FORBIDDEN' };
 const ok = <T>(value: T) => ({ ok: true, value });
+const NOT_FOUND = { ok: false, code: 'NOT_FOUND' };
 
 beforeAll(async () => {
   [pg, valkey] = await Promise.all([
@@ -598,6 +620,183 @@ const MATRIX: Record<Name, Case> = {
       // A's manual rate is A's alone; B has none and no built-in rate exists yet.
       expect(await as('B', 'getReferenceRate', input)).toEqual(ok(null));
       expect(await as('A', 'getReferenceRate', input)).toMatchObject(ok({ rate: '16474', manual: true }));
+    },
+  },
+  createCategory: {
+    input: () => ({ kind: 'expense', group: 'needs', name: 'Pendidikan B', icon: 'graduation-cap', color: '#14b8a6' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await aLedgerRows();
+      const created = await as<Result<CategoryView>>('B', 'createCategory', input);
+      expect(created.ok && created.value).toMatchObject({ name: 'Pendidikan B', group: 'needs', color: '#14b8a6' });
+      expect(await categoryId(bId, 'Pendidikan B')).toBe(created.ok && created.value.id);
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  updateCategory: {
+    input: () => ({ id: SOME_ID, icon: 'gift' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      expect(await as('B', 'updateCategory', { id: await categoryId(aId, A_LEDGER.category), icon: 'gift' })).toEqual(
+        NOT_FOUND,
+      );
+      expect(
+        await as('B', 'updateCategory', { id: await categoryId(bId, 'Kategori B'), icon: 'gift', isFixed: true }),
+      ).toMatchObject(ok({ name: 'Kategori B', icon: 'gift', isFixed: true }));
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  moveCategory: {
+    input: () => ({ id: SOME_ID, group: 'needs' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      expect(await as('B', 'moveCategory', { id: await categoryId(aId, A_LEDGER.category), group: 'needs' })).toEqual(
+        NOT_FOUND,
+      );
+      expect(await as('B', 'moveCategory', { id: await categoryId(bId, 'Kategori B'), group: 'needs' })).toMatchObject(
+        ok({ group: 'needs' }),
+      );
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  archiveCategory: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      expect(await as('B', 'archiveCategory', { id: await categoryId(aId, A_LEDGER.category) })).toEqual(NOT_FOUND);
+      const archived = await as<Result<CategoryView>>('B', 'archiveCategory', {
+        id: await categoryId(bId, 'Kategori B'),
+      });
+      expect(archived.ok && archived.value.archivedAt).toBeInstanceOf(Date);
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  unarchiveCategory: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      expect(await as('B', 'unarchiveCategory', { id: await categoryId(aId, A_LEDGER.category) })).toEqual(NOT_FOUND);
+      expect(await as('B', 'unarchiveCategory', { id: await categoryId(bId, 'Kategori B') })).toMatchObject(
+        ok({ archivedAt: null }),
+      );
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  reorderCategories: {
+    input: () => ({ ids: [SOME_ID] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      const ofA = await categoryId(aId, A_LEDGER.category);
+      const needsOfB = (
+        await superuser<{ id: string }[]>`
+          SELECT id::text FROM categories
+          WHERE user_id = ${bId} AND "group" = 'needs' AND deleted_at IS NULL ORDER BY sort_order DESC`
+      ).map((row) => row.id);
+      expect(await as('B', 'reorderCategories', { ids: [ofA] })).toEqual(NOT_FOUND);
+      expect(await as('B', 'reorderCategories', { ids: [...needsOfB, ofA] })).toEqual(NOT_FOUND);
+      expect(await as('B', 'reorderCategories', { ids: needsOfB })).toEqual(ok(null));
+      expect(
+        (
+          await superuser<{ id: string }[]>`
+            SELECT id::text FROM categories
+            WHERE user_id = ${bId} AND "group" = 'needs' AND deleted_at IS NULL ORDER BY sort_order`
+        ).map((row) => row.id),
+      ).toEqual(needsOfB);
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  mergeCategories: {
+    input: () => ({ sourceId: SOME_ID, targetId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      const ofA = await categoryId(aId, A_LEDGER.category);
+      const source = await categoryId(bId, 'Pendidikan B');
+      const target = await categoryId(bId, 'Kategori B');
+      expect(await as('B', 'mergeCategories', { sourceId: source, targetId: ofA })).toEqual(NOT_FOUND);
+      expect(await as('B', 'mergeCategories', { sourceId: ofA, targetId: target })).toEqual(NOT_FOUND);
+      expect(await as('B', 'mergeCategories', { sourceId: source, targetId: target })).toEqual(ok({ moved: 0 }));
+      expect(await categoryId(bId, 'Pendidikan B')).toBe('');
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  deleteCategory: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      expect(await as('B', 'deleteCategory', { id: await categoryId(aId, A_LEDGER.category) })).toEqual(NOT_FOUND);
+      expect(await as('B', 'deleteCategory', { id: await categoryId(bId, 'Kategori B') })).toEqual(
+        ok({ uncategorized: 0 }),
+      );
+      expect(await categoryId(bId, 'Kategori B')).toBe('');
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  createTag: {
+    input: () => ({ input: '#Kopi Susu' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await aLedgerRows();
+      const created = await as<Result<TagView>>('B', 'createTag', input);
+      expect(created.ok && created.value).toMatchObject({ slug: 'kopi-susu', usageCount: 0, aliases: [] });
+      expect(await tagId(bId, 'kopi-susu')).toBe(created.ok && created.value.id);
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  renameTag: {
+    input: () => ({ id: SOME_ID, input: 'tag-b2' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      expect(await as('B', 'renameTag', { id: await tagId(aId, A_LEDGER.tag), input: 'tag-b2' })).toEqual(NOT_FOUND);
+      expect(await as('B', 'renameTag', { id: await tagId(bId, 'tag-b'), input: '#Tag B2' })).toMatchObject(
+        ok({ slug: 'tag-b2' }),
+      );
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  listSimilarTags: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      // Each user gets a likely duplicate of their own; neither sees the other's pair.
+      await services.tags.create(bId, 'kopi');
+      await services.tags.create(aId, `${A_LEDGER.tag}b`);
+      expect(await as('B', 'listSimilarTags', input)).toEqual(ok([{ a: 'kopi', b: 'kopi-susu' }]));
+      expect(await as('A', 'listSimilarTags', input)).toEqual(ok([{ a: A_LEDGER.tag, b: `${A_LEDGER.tag}b` }]));
+    },
+  },
+  mergeTags: {
+    input: () => ({ sourceIds: [SOME_ID], targetId: '0192a6c4-0000-7000-8000-000000000001' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      const ofA = await tagId(aId, A_LEDGER.tag);
+      const kopi = await tagId(bId, 'kopi');
+      const target = await tagId(bId, 'kopi-susu');
+      expect(await as('B', 'mergeTags', { sourceIds: [kopi], targetId: ofA })).toEqual(NOT_FOUND);
+      expect(await as('B', 'mergeTags', { sourceIds: [ofA], targetId: target })).toEqual(NOT_FOUND);
+      expect(await as('B', 'mergeTags', { sourceIds: [kopi], targetId: target })).toEqual(
+        ok({ id: target, slug: 'kopi-susu', usageCount: 0, aliases: ['kopi'] }),
+      );
+      expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  deleteTag: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aLedgerRows();
+      expect(await as('B', 'deleteTag', { id: await tagId(aId, A_LEDGER.tag) })).toEqual(NOT_FOUND);
+      expect(await as('B', 'deleteTag', { id: await tagId(bId, 'kopi-susu') })).toEqual(ok(null));
+      expect(await tagId(bId, 'kopi-susu')).toBe('');
+      expect(await aLedgerRows()).toEqual(a);
     },
   },
   getPreferences: {
