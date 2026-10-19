@@ -7,6 +7,8 @@ describe('canOpenSection', () => {
   it('knows the sections and keeps "instance" for admins', () => {
     expect(canOpenSection('profile', { role: 'user' })).toBe(true);
     expect(canOpenSection('security', { role: 'user' })).toBe(true);
+    expect(canOpenSection('categories', { role: 'user' })).toBe(true);
+    expect(canOpenSection('tags', { role: 'user' })).toBe(true);
     expect(canOpenSection('instance', { role: 'user' })).toBe(false);
     expect(canOpenSection('instance', { role: 'admin' })).toBe(true);
     expect(canOpenSection('billing', { role: 'admin' })).toBe(false);
@@ -27,8 +29,10 @@ describe('SettingsLayout', () => {
       )
       .toBeVisible();
     const nav = screen.getByRole('navigation', { name: 'Bagian pengaturan' });
-    expect(nav.element().textContent).toBe('AkunProfil & akunDataKeamanan');
+    expect(nav.element().textContent).toBe('AkunProfil & akunPreferensiKategoriTagDataKeamanan');
     await expect.element(nav.getByRole('link', { name: 'Profil & akun' })).toHaveAttribute('href', '/settings/profile');
+    await expect.element(nav.getByRole('link', { name: 'Kategori' })).toHaveAttribute('href', '/settings/categories');
+    await expect.element(nav.getByRole('link', { name: 'Tag' })).toHaveAttribute('href', '/settings/tags');
     const section = screen.getByRole('region', { name: 'Keamanan' });
     await expect.element(section.getByText('Lindungi data keuanganmu di perangkat ini.')).toBeVisible();
     await expect.element(section.getByText('isi')).toBeVisible();

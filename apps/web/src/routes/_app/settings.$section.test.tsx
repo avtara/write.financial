@@ -30,6 +30,21 @@ const server = vi.hoisted(() => ({
   getSecurityHistory: vi.fn(),
 }));
 vi.mock('../../server/fn/account.ts', () => server);
+const ledger = vi.hoisted(() => ({
+  listCategories: vi.fn(),
+  listTags: vi.fn(),
+  listSimilarTags: vi.fn(),
+}));
+vi.mock('../../server/fn/ledger.ts', () => ledger);
+vi.mock('../../server/fn/tags.ts', () => ({ listSimilarTags: ledger.listSimilarTags }));
+vi.mock('../../components/settings/categories-section.tsx', () => ({
+  CategoriesSection: ({ categories }: { categories: unknown[] }) => <p>{`${String(categories.length)} kategori`}</p>,
+}));
+vi.mock('../../components/settings/tags-section.tsx', () => ({
+  TagsSection: ({ tags, similar }: { tags: unknown[]; similar: unknown[] }) => (
+    <p>{`${String(tags.length)} tag, ${String(similar.length)} mirip`}</p>
+  ),
+}));
 vi.mock('../../components/settings/instance-section.tsx', () => ({
   InstanceSection: () => <p>instance form</p>,
 }));
@@ -90,6 +105,22 @@ describe('/settings/$section loader', () => {
     ).resolves.toEqual({ section: 'instance' });
   });
 
+  it('loads every category (archived too) or the tags with their similar pairs', async () => {
+    ledger.listCategories.mockResolvedValue({ ok: true, value: [] });
+    ledger.listTags.mockResolvedValue({ ok: true, value: [] });
+    ledger.listSimilarTags.mockResolvedValue({ ok: true, value: [] });
+    await expect(loader({ params: { section: 'categories' }, context: { viewer: VIEWER } })).resolves.toEqual({
+      section: 'categories',
+      categories: { ok: true, value: [] },
+    });
+    expect(ledger.listCategories).toHaveBeenCalledWith({ data: { includeArchived: true } });
+    await expect(loader({ params: { section: 'tags' }, context: { viewer: VIEWER } })).resolves.toEqual({
+      section: 'tags',
+      tags: { ok: true, value: [] },
+      similar: { ok: true, value: [] },
+    });
+  });
+
   it('answers 404 for unknown sections and for "instance" to non-admins', async () => {
     for (const section of ['billing', 'instance']) {
       const error: unknown = await loader({ params: { section }, context: { viewer: VIEWER } }).catch(
@@ -124,6 +155,35 @@ describe('/settings/$section page', () => {
     await openSettings('instance', { ...VIEWER, role: 'admin' });
     await expect.element(page.getByText('instance form')).toBeVisible();
     await expect.element(page.getByRole('link', { name: 'Instans' })).toBeVisible();
+  });
+
+  it('renders Kategori and Tag, or why they could not be loaded', async () => {
+    ledger.listCategories.mockResolvedValueOnce({ ok: true, value: [{}, {}] });
+    await openSettings('categories');
+    await expect.element(page.getByText('2 kategori')).toBeVisible();
+    await expect.element(page.getByRole('region', { name: 'Kategori' })).toBeVisible();
+
+    ledger.listCategories.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' });
+    await openSettings('categories');
+    await expect
+      .element(page.getByRole('alert').last())
+      .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
+
+    ledger.listTags.mockResolvedValue({ ok: true, value: [{}] });
+    ledger.listSimilarTags.mockResolvedValueOnce({ ok: true, value: [{}, {}] });
+    await openSettings('tags');
+    await expect.element(page.getByText('1 tag, 2 mirip')).toBeVisible();
+
+    ledger.listSimilarTags.mockResolvedValueOnce({ ok: false, code: 'UNAUTHENTICATED' });
+    await openSettings('tags');
+    await expect.element(page.getByRole('alert').last()).toHaveTextContent('Sesimu sudah berakhir. Masuk lagi.');
+
+    ledger.listTags.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' });
+    ledger.listSimilarTags.mockResolvedValueOnce({ ok: true, value: [] });
+    await openSettings('tags');
+    await expect
+      .element(page.getByRole('alert').last())
+      .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
   });
 
   it('explains when the section could not be loaded', async () => {
