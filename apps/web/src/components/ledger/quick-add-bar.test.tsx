@@ -135,7 +135,7 @@ describe('QuickAddBar', () => {
   it('records an income, keeping what was typed when switching', async () => {
     const { bar, amount, toast } = await renderBar();
     await userEvent.fill(amount, '1000000');
-    await userEvent.click(bar.getByRole('radio', { name: 'Masuk' }));
+    await userEvent.click(bar.getByRole('tab', { name: 'Masuk' }));
     await expect.element(amount).toHaveValue('1.000.000');
     const source = bar.getByRole('button', { name: 'Sumber pemasukan' });
     await userEvent.click(source);
@@ -143,12 +143,12 @@ describe('QuickAddBar', () => {
     await userEvent.click(page.getByRole('option', { name: /Gaji/ }));
     await userEvent.click(bar.getByRole('button', { name: /^Simpan/ }));
     await expect.element(toast).toMatchTextContent('Gaji · Rp1.000.000 · BCA Tahapan');
-    await expect.element(bar.getByRole('radio', { name: 'Masuk' })).toBeChecked();
+    await expect.element(bar.getByRole('tab', { name: 'Masuk' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('records a transfer between two accounts', async () => {
     const { bar, amount, toast } = await renderBar();
-    await userEvent.click(bar.getByRole('radio', { name: 'Transfer' }));
+    await userEvent.click(bar.getByRole('tab', { name: 'Transfer' }));
     await userEvent.fill(amount, '50000');
     await userEvent.click(bar.getByRole('button', { name: /^Simpan/ }));
     const alert = bar.getByRole('alert');

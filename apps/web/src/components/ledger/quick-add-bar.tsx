@@ -11,7 +11,7 @@ import { parseMoneyInput, type Locale } from '@wf/domain/money';
 import type { LocalDate } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
 import { AmountInput } from '@wf/ui/amount-input';
-import { SegmentedControl } from '@wf/ui/segmented-control';
+import { Tabs, TabsList, TabsTrigger } from '@wf/ui/tabs';
 import { toast } from '@wf/ui/toast';
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CircleAlert, CornerDownLeft, PenLine } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -139,10 +139,12 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
       className="flex flex-col gap-1.5"
     >
       <div className="flex flex-wrap items-center gap-2 rounded-[12px] border border-border bg-card p-2.5">
-        <SegmentedControl<EntryKind>
-          label={m.record_type_label()}
+        {/* Tabs, not a radio group: Radix radios render hidden inputs with inline styles on the server (CSP). */}
+        <Tabs
           value={values.type}
-          onValueChange={(type) => {
+          onValueChange={(next) => {
+            // Radix reports the value of one of the triggers below.
+            const type = next as EntryKind;
             setPicked(false);
             form.reset({
               ...start(type),
@@ -151,12 +153,19 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
               date: values.date,
             });
           }}
-          options={[
-            { value: 'expense', label: m.quick_add_expense(), icon: ArrowUpRight },
-            { value: 'income', label: m.quick_add_income(), icon: ArrowDownLeft },
-            { value: 'transfer', label: m.record_type_transfer(), icon: ArrowLeftRight },
-          ]}
-        />
+        >
+          <TabsList label={m.record_type_label()}>
+            <TabsTrigger value="expense" icon={ArrowUpRight} iconClassName="group-data-[state=active]:text-red-fg">
+              {m.quick_add_expense()}
+            </TabsTrigger>
+            <TabsTrigger value="income" icon={ArrowDownLeft} iconClassName="group-data-[state=active]:text-green-fg">
+              {m.quick_add_income()}
+            </TabsTrigger>
+            <TabsTrigger value="transfer" icon={ArrowLeftRight} iconClassName="group-data-[state=active]:text-blue-fg">
+              {m.record_type_transfer()}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <div
           className={`w-[170px] rounded-[9px] border bg-input px-3 py-[7px] ${message === m.quick_add_error_amount() ? 'border-red' : 'border-border-input'}`}
         >
