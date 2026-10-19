@@ -125,12 +125,16 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
   });
 
   return (
-    <form
-      noValidate
+    // Not a <form>: Radix radios inside a form render hidden inputs with inline styles, which the CSP refuses.
+    <div
+      role="form"
       aria-label={m.quick_add_label()}
-      onSubmit={(event) => {
-        event.preventDefault();
-        void submit();
+      onKeyDown={(event) => {
+        const { target } = event;
+        if (event.key === 'Enter' && target instanceof HTMLInputElement && target.getAttribute('role') !== 'combobox') {
+          event.preventDefault();
+          void submit();
+        }
       }}
       className="flex flex-col gap-1.5"
     >
@@ -255,7 +259,14 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
             className="min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-subtle"
           />
         </label>
-        <Button type="submit" size="sm" pending={saving} className="h-9">
+        <Button
+          size="sm"
+          pending={saving}
+          className="h-9"
+          onClick={() => {
+            void submit();
+          }}
+        >
           {m.record_save()}
           <CornerDownLeft aria-hidden="true" className="size-3.5" />
         </Button>
@@ -266,6 +277,6 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
           {message}
         </p>
       )}
-    </form>
+    </div>
   );
 }

@@ -389,12 +389,8 @@ export function TransactionForm({
     if (message === null && mode === 'create') form.reset(initial);
   };
   return (
-    <form
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        void submit();
-      }}
+    // Not a <form>: Radix radios inside a form render hidden inputs with inline styles, which the CSP refuses.
+    <div
       onKeyDown={(event) => {
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
@@ -411,7 +407,12 @@ export function TransactionForm({
         <Button variant="secondary" onClick={onCancel}>
           {m.record_cancel()}
         </Button>
-        <Button type="submit" pending={saving}>
+        <Button
+          pending={saving}
+          onClick={() => {
+            void submit();
+          }}
+        >
           {mode === 'edit'
             ? m.record_save_changes()
             : form.shortfall === null
@@ -419,6 +420,6 @@ export function TransactionForm({
               : m.record_save_anyway()}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

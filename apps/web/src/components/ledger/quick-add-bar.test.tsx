@@ -208,10 +208,18 @@ describe('QuickAddBar', () => {
     await userEvent.click(amount);
     await userEvent.keyboard('{Enter}');
     await expect.element(save).toBeDisabled();
-    // The disabled button blocks ↵; a programmatic submit still finds the save in progress.
-    (bar.element() as HTMLFormElement).requestSubmit();
+    // ↵ again while the save is in progress does not save twice.
+    await userEvent.keyboard('{Enter}');
     expect(writes.recordTransaction).toHaveBeenCalledTimes(3);
     pending.resolve({ ok: true, value: { id: 'tx-3' } });
     await expect.element(amount).toHaveValue('');
+  });
+  it('picks with ↵ in the category search and on buttons without saving', async () => {
+    const { category } = await renderBar();
+    await userEvent.click(category);
+    await userEvent.keyboard('Makan{Enter}');
+    await expect.element(category).toHaveTextContent('Makan & Dapur');
+    await userEvent.keyboard('{Enter}');
+    expect(writes.recordTransaction).not.toHaveBeenCalled();
   });
 });
