@@ -23,7 +23,7 @@ describe('maintenance processor', () => {
 
   it('fails the job when the purge fails, so BullMQ retries it', async () => {
     const process = createMaintenanceProcessor({
-      db: { maintenance: { purgeExpiredAuth: () => Promise.reject(new Error('connection refused')) } },
+      db: { ...fakeDb(), maintenance: { purgeExpiredAuth: () => Promise.reject(new Error('connection refused')) } },
       now: () => now,
     });
     await expect(process(job({}))).rejects.toThrow('connection refused');

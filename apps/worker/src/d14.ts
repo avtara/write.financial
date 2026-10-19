@@ -11,9 +11,9 @@
 /**
  * Repositories processors may use. Plan §6 allows `review_items`, `scheduled_occurrences`, `notifications`,
  * `notification_outbox`, `market_quotes`, `user_quotes`, `fx_rates`, `snapshots`, `reports`, `periods.lock`,
- * `job_status`, and logs; each is added here when its processor lands. M0 has only maintenance.
+ * `job_status`, and logs; each is added here when its processor lands. M1 adds the built-in rows of `fx_rates`.
  */
-export const WORKER_REPOSITORIES = ['maintenance'] as const;
+export const WORKER_REPOSITORIES = ['maintenance', 'fxRates'] as const;
 
 export type WorkerRepository = (typeof WORKER_REPOSITORIES)[number];
 

@@ -85,6 +85,6 @@ describe('D14: the worker cannot reach transactions, postings, budgets, goals, o
     expect(FORBIDDEN_IMPORTS.map(({ module }) => module)).toEqual(
       expect.arrayContaining(['@wf/auth', '@wf/db/transactions', '@wf/db/postings', '@wf/db/budgets', '@wf/db/goals']),
     );
-    expect(WORKER_REPOSITORIES).toEqual(['maintenance']);
+    expect(WORKER_REPOSITORIES).toEqual(['maintenance', 'fxRates']);
   });
 });

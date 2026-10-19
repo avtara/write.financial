@@ -34,12 +34,19 @@ const start = (db: WorkerDb = fakeDb()): Promise<Runtime> =>
 describe('startWorker', () => {
   it('registers the schedules, starts one worker per queue, and writes the heartbeat', async () => {
     const runtime = await start();
-    expect([...broker.queues.keys()]).toEqual(['maintenance']);
+    expect([...broker.queues.keys()]).toEqual(['maintenance', 'fx']);
     expect([...(broker.queues.get('maintenance')?.schedulers.keys() ?? [])]).toEqual(['maintenance-daily']);
+    expect([...(broker.queues.get('fx')?.schedulers.keys() ?? [])]).toEqual(['fx-daily', 'fx-retry']);
     expect(broker.workers.get('maintenance')?.concurrency).toBe(1);
+    expect(broker.workers.get('fx')?.concurrency).toBe(1);
     expect(broker.store.entries.get(KEY)?.value).toBe(String(NOW));
-    expect(log.messages()).toEqual(['job scheduler registered', 'worker started']);
-    expect(log.lines[1]).toMatchObject({ queues: ['maintenance'] });
+    expect(log.messages()).toEqual([
+      'job scheduler registered',
+      'job scheduler registered',
+      'job scheduler registered',
+      'worker started',
+    ]);
+    expect(log.lines[3]).toMatchObject({ queues: ['maintenance', 'fx'] });
     await runtime.stop();
   });
 
@@ -59,6 +66,7 @@ describe('startWorker', () => {
 
   it('logs a failed attempt and rethrows so BullMQ schedules the retry', async () => {
     const runtime = await start({
+      ...fakeDb(),
       maintenance: { purgeExpiredAuth: () => Promise.reject(new Error('permission denied')) },
     });
     await expect(broker.workers.get('maintenance')?.run({ id: 'j1', data: {}, attemptsMade: 0 })).rejects.toThrow(
@@ -106,17 +114,18 @@ describe('startWorker', () => {
 describe('stop', () => {
   it('waits for the running job, then removes the heartbeat, then closes the queues', async () => {
     const purge = Promise.withResolvers<{ verifications: number; sessions: number; invitations: number }>();
-    const runtime = await start({ maintenance: { purgeExpiredAuth: () => purge.promise } });
+    const runtime = await start({ ...fakeDb(), maintenance: { purgeExpiredAuth: () => purge.promise } });
     const job = broker.workers.get('maintenance')?.run({ id: 'j1', data: {}, attemptsMade: 0 });
     const stopping = runtime.stop();
     await vi.advanceTimersByTimeAsync(10);
-    expect(broker.closed).toEqual([]);
+    // The idle fx worker closes at once; the maintenance worker waits for its job, and no queue closes before both.
+    expect(broker.closed).toEqual(['worker:fx']);
     expect(broker.store.entries.has(KEY)).toBe(true);
 
     purge.resolve({ verifications: 0, sessions: 0, invitations: 0 });
     await stopping;
     await expect(job).resolves.toEqual({ purged: { verifications: 0, sessions: 0, invitations: 0 } });
-    expect(broker.closed).toEqual(['worker:maintenance', 'queue:maintenance']);
+    expect(broker.closed).toEqual(['worker:fx', 'worker:maintenance', 'queue:maintenance', 'queue:fx']);
     expect(broker.store.entries.has(KEY)).toBe(false);
   });
 });

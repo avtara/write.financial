@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createDb } from '@wf/db/db';
+import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createMaintenance, type Maintenance } from '@wf/db/maintenance';
 
 /**
@@ -8,6 +9,8 @@ import { createMaintenance, type Maintenance } from '@wf/db/maintenance';
  */
 export interface WorkerDb {
   readonly maintenance: Maintenance;
+  /** The built-in side of `fx_rates` only; a user's manual rates stay out of reach. */
+  readonly fxRates: Pick<FxRatesRepository, 'currenciesInUse' | 'upsertGlobal'>;
 }
 
 export interface WorkerDbConnection {
@@ -19,8 +22,12 @@ export interface WorkerDbConnection {
 /** Opens a lazily connecting pool as `wf_worker` (`DATABASE_URL_WORKER`). */
 export function openWorkerDb(url: string): WorkerDbConnection {
   const database = createDb(url, { max: 4 });
+  const { currenciesInUse, upsertGlobal } = createFxRates(database);
   return {
-    db: Object.freeze({ maintenance: createMaintenance(database) }),
+    db: Object.freeze({
+      maintenance: createMaintenance(database),
+      fxRates: Object.freeze({ currenciesInUse, upsertGlobal }),
+    }),
     close: () => database.$client.end(),
   };
 }
