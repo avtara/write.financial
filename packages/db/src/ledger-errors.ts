@@ -47,6 +47,12 @@ export const LEDGER_ERROR_CODES = [
   /** Invalid budget input: a negative limit, a category that is not an expense or fee category, an alert threshold
    * other than 50/80/85/100, or a leftover move beyond a category's remainder. */
   'INVALID_BUDGET',
+  /** FR-T6: invalid repeat rule (interval, weekday, day of month, end count, reminder offset) or template. */
+  'INVALID_RECURRENCE',
+  /** FR-SUB1/SUB3: invalid subscription input (name, price, cycle, dates, trial, pause or cancel option). */
+  'INVALID_SUBSCRIPTION',
+  /** FR-L7: the review item was already confirmed or ignored (another tab, a double click). */
+  'REVIEW_RESOLVED',
 ] as const;
 
 export type LedgerErrorCode = (typeof LEDGER_ERROR_CODES)[number];
