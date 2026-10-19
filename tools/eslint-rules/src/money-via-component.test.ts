@@ -27,6 +27,10 @@ ruleTester.run('money-via-component', moneyViaComponent, {
     '<p>{count}</p>',
     '<p>{Minor}</p>',
     'const label = String(balanceMinor);',
+    '<AmountInput value={values.amountMinor} currency="IDR" />',
+    '<AmountInput onValueChange={(amountMinor) => update({ amountMinor })} />',
+    '<Field onChange={() => save(values.feeMinor)} />',
+    '<p className={afterMinor < 0n ? "text-red" : ""}>{afterMinor === null ? null : <Money minor={afterMinor} currency="IDR" context="amount" />}</p>',
   ],
   invalid: [
     { code: '<p>{balanceMinor}</p>', errors: [error('balanceMinor')] },
@@ -41,5 +45,7 @@ ruleTester.run('money-via-component', moneyViaComponent, {
     { code: '<WalletCard label={balanceMinor} />', errors: [error('balanceMinor')] },
     { code: '<svg:text balanceMinor={balanceMinor} />', errors: [error('balanceMinor')] },
     { code: '<Card xlink:totalMinor={totalMinor} />', errors: [error('totalMinor')] },
+    { code: '<p>{amountMinor + feeMinor}</p>', errors: [error('amountMinor'), error('feeMinor')] },
+    { code: '<Field value={values.feeMinor} />', errors: [error('feeMinor')] },
   ],
 });

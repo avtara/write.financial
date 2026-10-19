@@ -547,6 +547,7 @@
   "record_rate_mode_reference": "Acuan",
   "record_rate_one": "1 {currency} =",
   "record_rate_reference": "Kurs acuan {provider} · diperbarui {time}",
+  "record_rate_reference_bi": "Kurs transaksi BI · diperbarui {time}",
   "record_rate_refresh": "Perbarui kurs",
   "record_rate_retry": "Coba lagi",
   "record_rate_saved_manual": "Kurs manualmu · berlaku {date}",

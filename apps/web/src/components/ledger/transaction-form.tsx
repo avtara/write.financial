@@ -69,6 +69,61 @@ export function TransactionFormFields({
   const short = form.shortfall;
   const impact = values.type === 'transfer' ? undefined : balancesAfter(values, data.accounts, figures)[0];
 
+  const warning =
+    short === null ? null : (
+      <div
+        role="status"
+        className="flex flex-col gap-2 rounded-[10px] border border-amber bg-amber-tint-1 p-3 text-[12.5px]"
+      >
+        <p className="flex items-start gap-2 font-medium text-amber-fg">
+          <TriangleAlert aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+          <span>
+            {m.record_short_title({ account: short.account.displayName })}{' '}
+            <Money minor={short.shortMinor} currency={short.account.currency} context="amount" locale={locale} />
+          </span>
+        </p>
+        <p className="pl-[22px] text-text-secondary">
+          {m.record_short_recorded()}{' '}
+          <Money
+            minor={short.account.balanceMinor}
+            currency={short.account.currency}
+            context="amount"
+            locale={locale}
+          />
+          {', '}
+          {values.type === 'transfer' ? m.record_short_transfer() : m.record_short_expense()}{' '}
+          <Money minor={short.outflowMinor} currency={short.account.currency} context="amount" locale={locale} />
+          {'. '}
+          {m.record_short_hint()}
+        </p>
+        {onRecordIncomeFirst === undefined && onAdjustBalance === undefined ? null : (
+          <div className="flex gap-2 pl-[22px]">
+            {onRecordIncomeFirst === undefined ? null : (
+              <Button
+                size="sm"
+                onClick={() => {
+                  onRecordIncomeFirst(short.account.id);
+                }}
+              >
+                {m.record_short_income_first()}
+              </Button>
+            )}
+            {onAdjustBalance === undefined ? null : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  onAdjustBalance(short.account.id);
+                }}
+              >
+                {m.record_short_adjust()}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+
   return (
     <>
       <SegmentedControl<EntryKind>
@@ -89,7 +144,10 @@ export function TransactionFormFields({
       <div
         className={`flex flex-col gap-2 rounded-[12px] border bg-input p-4 ${error('amount') === undefined ? 'border-border' : 'border-red'}`}
       >
-        <label htmlFor={ids.amount} className={`text-[12.5px] font-medium ${error('amount') === undefined ? 'text-muted-fg' : 'text-red-fg'}`}>
+        <label
+          htmlFor={ids.amount}
+          className={`text-[12.5px] font-medium ${error('amount') === undefined ? 'text-muted-fg' : 'text-red-fg'}`}
+        >
           {isCrossCurrency(values, data.accounts) ? m.record_amount_sent({ currency }) : m.record_amount()}
         </label>
         <AmountInput
@@ -106,7 +164,9 @@ export function TransactionFormFields({
           aria-describedby={error('amount') === undefined ? undefined : `${ids.amount}-error`}
         />
       </div>
-      {error('amount') === undefined ? null : <ErrorText id={`${ids.amount}-error`}>{m.record_error_amount()}</ErrorText>}
+      {error('amount') === undefined ? null : (
+        <ErrorText id={`${ids.amount}-error`}>{m.record_error_amount()}</ErrorText>
+      )}
 
       {values.type === 'transfer' ? (
         <>
@@ -118,6 +178,7 @@ export function TransactionFormFields({
             ids={ids}
             error={(field) => error(field)}
           />
+          {warning}
           <Field label={m.record_date()}>
             {({ id: fieldId }) => (
               <DateTimeField
@@ -143,13 +204,20 @@ export function TransactionFormFields({
               update({ categoryId });
             }}
             label={values.type === 'income' ? m.record_category_income_pick() : m.record_category_pick()}
-            searchPlaceholder={values.type === 'income' ? m.record_category_income_search() : m.category_picker_search()}
+            searchPlaceholder={
+              values.type === 'income' ? m.record_category_income_search() : m.category_picker_search()
+            }
             invalid={error('category') !== undefined}
             describedBy={error('category') === undefined ? undefined : ids.category}
           />
-          {error('category') === undefined ? null : <ErrorText id={ids.category}>{m.record_error_category()}</ErrorText>}
+          {error('category') === undefined ? null : (
+            <ErrorText id={ids.category}>{m.record_error_category()}</ErrorText>
+          )}
           <div className="grid grid-cols-2 gap-3">
-            <Field label={values.type === 'income' ? m.record_account_income() : m.record_account()} error={error('account') === undefined ? null : m.record_error_account()}>
+            <Field
+              label={values.type === 'income' ? m.record_account_income() : m.record_account()}
+              error={error('account') === undefined ? null : m.record_error_account()}
+            >
               {({ id: fieldId, describedBy, invalid }) => (
                 <AccountPicker
                   accounts={data.accounts}
@@ -186,53 +254,8 @@ export function TransactionFormFields({
               )}
             </Field>
           </div>
+          {warning}
         </>
-      )}
-
-      {short === null ? null : (
-        <div role="status" className="flex flex-col gap-2 rounded-[10px] border border-amber bg-amber-tint-1 p-3 text-[12.5px]">
-          <p className="flex items-start gap-2 font-medium text-amber-fg">
-            <TriangleAlert aria-hidden="true" className="mt-px size-3.5 shrink-0" />
-            <span>
-              {m.record_short_title({ account: short.account.displayName })}{' '}
-              <Money minor={short.shortMinor} currency={short.account.currency} context="amount" locale={locale} />
-            </span>
-          </p>
-          <p className="pl-[22px] text-text-secondary">
-            {m.record_short_recorded()}{' '}
-            <Money minor={short.account.balanceMinor} currency={short.account.currency} context="amount" locale={locale} />
-            {', '}
-            {values.type === 'transfer' ? m.record_short_transfer() : m.record_short_expense()}{' '}
-            <Money minor={short.outflowMinor} currency={short.account.currency} context="amount" locale={locale} />
-            {'. '}
-            {m.record_short_hint()}
-          </p>
-          {onRecordIncomeFirst === undefined && onAdjustBalance === undefined ? null : (
-            <div className="flex gap-2 pl-[22px]">
-              {onRecordIncomeFirst === undefined ? null : (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    onRecordIncomeFirst(short.account.id);
-                  }}
-                >
-                  {m.record_short_income_first()}
-                </Button>
-              )}
-              {onAdjustBalance === undefined ? null : (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    onAdjustBalance(short.account.id);
-                  }}
-                >
-                  {m.record_short_adjust()}
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
       )}
 
       <Field label={m.record_description()}>
@@ -301,7 +324,13 @@ export function TransactionFormFields({
           <Info aria-hidden="true" className="size-3.5 shrink-0 text-muted-fg" />
           <span>
             {m.record_impact_prefix({ account: impact.account.displayName })}{' '}
-            <Money minor={impact.afterMinor} currency={impact.account.currency} context="amount" locale={locale} className="text-fg" />{' '}
+            <Money
+              minor={impact.afterMinor}
+              currency={impact.account.currency}
+              context="amount"
+              locale={locale}
+              className="text-fg"
+            />{' '}
             {m.record_impact_suffix()}
           </span>
         </p>
@@ -336,7 +365,16 @@ export interface TransactionFormProps {
 }
 
 /** The form with its own actions, for detail panels (B5 edit) and other hosts without a pinned footer. */
-export function TransactionForm({ mode, initial, data, locale, timeZone, today, onSubmit, onCancel }: TransactionFormProps) {
+export function TransactionForm({
+  mode,
+  initial,
+  data,
+  locale,
+  timeZone,
+  today,
+  onSubmit,
+  onCancel,
+}: TransactionFormProps) {
   const form = useTransactionForm({ initial, data, locale });
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -374,7 +412,11 @@ export function TransactionForm({ mode, initial, data, locale, timeZone, today, 
           {m.record_cancel()}
         </Button>
         <Button type="submit" pending={saving}>
-          {mode === 'edit' ? m.record_save_changes() : form.shortfall === null ? m.record_save() : m.record_save_anyway()}
+          {mode === 'edit'
+            ? m.record_save_changes()
+            : form.shortfall === null
+              ? m.record_save()
+              : m.record_save_anyway()}
         </Button>
       </div>
     </form>

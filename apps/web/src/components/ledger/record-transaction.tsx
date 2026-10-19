@@ -48,9 +48,14 @@ import {
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 
+export interface RecordPrefill {
+  readonly type?: EntryKind;
+  readonly description?: string;
+}
+
 export interface RecordTransactionApi {
-  /** Opens the sheet on `type` (default Pengeluaran). */
-  readonly open: (options?: { readonly type?: EntryKind }) => void;
+  /** Opens the sheet on `type` (default Pengeluaran), optionally with a description typed elsewhere (⌘K). */
+  readonly open: (options?: RecordPrefill) => void;
 }
 
 const RecordContext = createContext<RecordTransactionApi | null>(null);
@@ -72,7 +77,7 @@ export function announceSaved(saved: {
   readonly label: string;
   readonly amountMinor: bigint;
   readonly currency: string;
-  readonly accountName: string;
+  readonly accountName: string | undefined;
   readonly locale: Locale;
   readonly onChange: () => void;
 }): void {
@@ -114,14 +119,20 @@ interface Session {
   readonly draftId: string | null;
 }
 
-export function RecordTransactionProvider({ timeZone, children }: { readonly timeZone: string; readonly children: ReactNode }) {
+export function RecordTransactionProvider({
+  timeZone,
+  children,
+}: {
+  readonly timeZone: string;
+  readonly children: ReactNode;
+}) {
   const { preferences } = usePreferences();
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<EntryKind>('expense');
+  const [prefill, setPrefill] = useState<RecordPrefill>({});
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
 
-  const load = (nextType: EntryKind) => {
-    setType(nextType);
+  const load = (next: RecordPrefill) => {
+    setPrefill(next);
     setLoaded({ status: 'loading' });
     setOpen(true);
     void Promise.all([
@@ -131,10 +142,14 @@ export function RecordTransactionProvider({ timeZone, children }: { readonly tim
       listDrafts({ data: { kind: 'transaction' } }),
     ]).then(
       ([accounts, categories, tags, drafts]) => {
-        const failed = [accounts, categories, tags, drafts].find((result) => !result.ok);
-        if (failed !== undefined && !failed.ok) {
-          setLoaded({ status: 'failed', message: ledgerErrorMessage(failed.code, preferences.locale) });
-        } else if (accounts.ok && categories.ok && tags.ok && drafts.ok) {
+        const fail = (code: string) => {
+          setLoaded({ status: 'failed', message: ledgerErrorMessage(code, preferences.locale) });
+        };
+        if (!accounts.ok) fail(accounts.code);
+        else if (!categories.ok) fail(categories.code);
+        else if (!tags.ok) fail(tags.code);
+        else if (!drafts.ok) fail(drafts.code);
+        else {
           setLoaded({
             status: 'ready',
             data: {
@@ -156,14 +171,24 @@ export function RecordTransactionProvider({ timeZone, children }: { readonly tim
   const api = useMemo<RecordTransactionApi>(
     () => ({
       open: (options) => {
-        load(options?.type ?? 'expense');
+        load(options ?? {});
       },
     }),
     // `load` only sets state and starts requests.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  const shortcuts = useMemo(() => [{ keys: ['N'], run: () => api.open() }], [api]);
+  const shortcuts = useMemo(
+    () => [
+      {
+        keys: ['N'],
+        run: () => {
+          api.open();
+        },
+      },
+    ],
+    [api],
+  );
   useShortcuts(shortcuts);
 
   return (
@@ -172,7 +197,7 @@ export function RecordTransactionProvider({ timeZone, children }: { readonly tim
       {open ? (
         loaded.status === 'ready' ? (
           <RecordSheet
-            type={type}
+            prefill={prefill}
             data={loaded.data}
             drafts={loaded.drafts}
             timeZone={timeZone}
@@ -215,7 +240,7 @@ const DESCRIPTIONS: Readonly<Record<EntryKind, () => string>> = {
 };
 
 function RecordSheet({
-  type,
+  prefill,
   data,
   drafts: initialDrafts,
   timeZone,
@@ -223,7 +248,7 @@ function RecordSheet({
   platform,
   onClose,
 }: {
-  readonly type: EntryKind;
+  readonly prefill: RecordPrefill;
   readonly data: LedgerData;
   readonly drafts: readonly DraftView[];
   readonly timeZone: string;
@@ -240,7 +265,11 @@ function RecordSheet({
       date: today,
       time: wallTime(new Date(), timeZone),
     });
-  const [session, setSession] = useState<Session>(() => ({ key: 0, initial: fresh({ type }), draftId: null }));
+  const [session, setSession] = useState<Session>(() => ({
+    key: 0,
+    initial: { ...fresh({ type: prefill.type ?? 'expense' }), description: prefill.description ?? '' },
+    draftId: null,
+  }));
   const [drafts, setDrafts] = useState(initialDrafts);
   const [savedCount, setSavedCount] = useState(0);
   const [addAnother, setAddAnother] = useState(false);
@@ -249,6 +278,9 @@ function RecordSheet({
   const [confirmClose, setConfirmClose] = useState(false);
   const form = useTransactionForm({ initial: session.initial, data, locale });
   const { values } = form;
+  const account = data.accounts.find((candidate) => candidate.id === values.accountId);
+  const category = data.categories.find((candidate) => candidate.id === values.categoryId);
+  const currency = account?.currency ?? data.baseCurrency;
 
   const restart = (next: Omit<Session, 'key'>) => {
     setSession((current) => ({ key: current.key + 1, ...next }));
@@ -288,15 +320,13 @@ function RecordSheet({
       void removeDraft({ data: { id: session.draftId } });
       setDrafts((current) => current.filter((draft) => draft.id !== session.draftId));
     }
-    const account = data.accounts.find((candidate) => candidate.id === values.accountId);
-    const category = data.categories.find((candidate) => candidate.id === values.categoryId);
-    const amount = values.amountMinor ?? 0n;
+    const amount = input.type === 'transfer' ? input.sentMinor : input.amountMinor;
     announceSaved({
       id: result.value.id,
       label: values.type === 'transfer' || category === undefined ? m.record_type_transfer() : categoryName(category),
       amountMinor: values.type === 'income' ? amount : -amount,
-      currency: account?.currency ?? data.baseCurrency,
-      accountName: account?.displayName ?? '',
+      currency,
+      accountName: account?.displayName,
       locale,
       onChange: () => {
         void router.invalidate();
@@ -305,7 +335,10 @@ function RecordSheet({
     void router.invalidate();
     if (another) {
       setSavedCount((count) => count + 1);
-      restart({ initial: { ...fresh({ type: values.type, accountId: values.accountId }), date: values.date }, draftId: null });
+      restart({
+        initial: { ...fresh({ type: values.type, accountId: values.accountId }), date: values.date },
+        draftId: null,
+      });
     } else {
       onClose();
     }
@@ -322,15 +355,12 @@ function RecordSheet({
   );
   useShortcuts(shortcuts);
 
-  const account = data.accounts.find((candidate) => candidate.id === values.accountId);
-  const category = data.categories.find((candidate) => candidate.id === values.categoryId);
-
   return (
     <>
       <Sheet
         open
-        onOpenChange={(next) => {
-          if (next) return;
+        onOpenChange={() => {
+          // Only closing reaches here: the sheet has no trigger of its own.
           if (isFilled(values)) setConfirmClose(true);
           else onClose();
         }}
@@ -352,6 +382,7 @@ function RecordSheet({
             <span className="flex-1" />
             <Button
               variant="secondary"
+              className="whitespace-nowrap"
               onClick={() => {
                 if (isFilled(values)) setConfirmClose(true);
                 else onClose();
@@ -361,6 +392,7 @@ function RecordSheet({
             </Button>
             <Button
               pending={saving}
+              className="whitespace-nowrap"
               onClick={() => {
                 void submit(addAnother);
               }}
@@ -372,7 +404,10 @@ function RecordSheet({
         }
       >
         {drafts.length === 0 || session.draftId !== null ? null : (
-          <section aria-label={m.record_drafts_heading()} className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-surface-2 p-3">
+          <section
+            aria-label={m.record_drafts_heading()}
+            className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-surface-2 p-3"
+          >
             <h3 className="flex items-center gap-1.5 text-[12.5px] font-medium text-muted-fg">
               <FileClock aria-hidden="true" className="size-3.5" />
               {m.record_drafts_heading()}
@@ -450,7 +485,7 @@ function RecordSheet({
           {values.amountMinor === null ? null : (
             <Money
               minor={values.type === 'income' ? values.amountMinor : -values.amountMinor}
-              currency={account?.currency ?? data.baseCurrency}
+              currency={currency}
               context="delta"
               locale={locale}
             />

@@ -66,14 +66,22 @@ function AccountCard({ side, account, afterMinor, placeholder, locale, className
       </span>
       {account === undefined ? null : (
         <span className="flex flex-col border-t border-border pt-2 text-[12px]">
-          <Money minor={account.balanceMinor} currency={account.currency} context="amount" locale={locale} className="text-subtle" />
+          <Money
+            minor={account.balanceMinor}
+            currency={account.currency}
+            context="amount"
+            locale={locale}
+            className="text-subtle"
+          />
           {afterMinor === undefined ? null : (
             <Money
               minor={afterMinor}
               currency={account.currency}
               context="amount"
               locale={locale}
-              className={afterMinor < 0n ? 'text-amber-fg' : afterMinor > account.balanceMinor ? 'text-green-fg' : 'text-fg'}
+              className={
+                afterMinor < 0n ? 'text-amber-fg' : afterMinor > account.balanceMinor ? 'text-green-fg' : 'text-fg'
+              }
             />
           )}
         </span>
@@ -100,7 +108,8 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
   const from = data.accounts.find((account) => account.id === values.accountId);
   const to = data.accounts.find((account) => account.id === values.toAccountId);
   const after = balancesAfter(values, data.accounts, figures);
-  const afterOf = (account: AccountView | undefined) => after.find((entry) => entry.account.id === account?.id)?.afterMinor;
+  const afterOf = (account: AccountView | undefined) =>
+    after.find((entry) => entry.account.id === account?.id)?.afterMinor;
   const toError = error('toAccount');
   const feeCategory = data.categories.find((category) => category.builtInKey === 'system:bank_fee');
   const fxCategoryShown = data.categories.some((category) => category.builtInKey === FX_DIFFERENCE_CATEGORY);
@@ -112,7 +121,11 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
   const expectedText =
     figures === null || pair === null
       ? undefined
-      : formatMoney(figures.difference.expectedReceivedMinor, pair.to.currency, { locale, context: 'table', privacy: hidden });
+      : formatMoney(figures.difference.expectedReceivedMinor, pair.to.currency, {
+          locale,
+          context: 'table',
+          privacy: hidden,
+        });
   const updatedAt = (at: Date) =>
     `${formatDate(toLocalDate(at, timeZone), locale, 'day')}, ${formatTime(at, timeZone, locale)}`;
 
@@ -218,7 +231,12 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
                 ) : (
                   <span className="font-mono text-[14px]">
                     {m.record_rate_one({ currency: rate.reference.base })}{' '}
-                    <Money minor={unitValue(rate.reference)} currency={rate.reference.quote} context="amount" locale={locale} />
+                    <Money
+                      minor={unitValue(rate.reference)}
+                      currency={rate.reference.quote}
+                      context="amount"
+                      locale={locale}
+                    />
                   </span>
                 )}
                 <span id={ids.rate} className="text-[11.5px] text-subtle">
@@ -231,18 +249,30 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
                         {' · '}
                         <Percent value={figures.deviationBps / 10_000} locale={locale} signed />{' '}
                         {m.record_rate_from_reference()}{' '}
-                        <Money minor={unitValue(rate.reference)} currency={rate.reference.quote} context="amount" locale={locale} />
+                        <Money
+                          minor={unitValue(rate.reference)}
+                          currency={rate.reference.quote}
+                          context="amount"
+                          locale={locale}
+                        />
                       </>
                     )
                   ) : rate.reference === null ? null : rate.status === 'failed' ? (
-                    <span className="text-amber-fg">{m.record_rate_failed_inline({ time: updatedAt(rate.reference.fetchedAt) })}</span>
+                    <span className="text-amber-fg">
+                      {m.record_rate_failed_inline({ time: updatedAt(rate.reference.fetchedAt) })}
+                    </span>
                   ) : rate.status === 'loading' ? (
                     m.record_rate_loading()
                   ) : rate.reference.manual ? (
                     m.record_rate_saved_manual({ date: formatDate(rate.reference.asOf, locale, 'day') })
                   ) : (
                     <>
-                      {m.record_rate_reference({ provider: rate.reference.provider, time: updatedAt(rate.reference.fetchedAt) })}
+                      {rate.reference.rateType === 'bi_transaction'
+                        ? m.record_rate_reference_bi({ time: updatedAt(rate.reference.fetchedAt) })
+                        : m.record_rate_reference({
+                            provider: rate.reference.provider,
+                            time: updatedAt(rate.reference.fetchedAt),
+                          })}
                       {rate.reference.provider === EXCHANGE_RATE_API ? (
                         <>
                           {' · '}
@@ -277,7 +307,10 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
                 onClick={rate.refresh}
                 className="flex size-8 shrink-0 items-center justify-center rounded-[7px] border border-border text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
               >
-                <RefreshCw aria-hidden="true" className={`size-3.5 ${rate.status === 'loading' ? 'motion-safe:animate-spin' : ''}`} />
+                <RefreshCw
+                  aria-hidden="true"
+                  className={`size-3.5 ${rate.status === 'loading' ? 'motion-safe:animate-spin' : ''}`}
+                />
               </button>
             </div>
             <div className="flex items-center gap-3 border-t border-border p-3">
@@ -291,7 +324,12 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
                   ) : (
                     <>
                       {m.record_received_expected()}{' '}
-                      <Money minor={figures.difference.expectedReceivedMinor} currency={pair.to.currency} context="amount" locale={locale} />
+                      <Money
+                        minor={figures.difference.expectedReceivedMinor}
+                        currency={pair.to.currency}
+                        context="amount"
+                        locale={locale}
+                      />
                       {' · '}
                       {m.record_received_effective()}{' '}
                       <Money
@@ -378,7 +416,9 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
             onValueChange={(minor) => {
               update({
                 feeMinor: minor,
-                ...(values.feeCategoryId === null && feeCategory !== undefined ? { feeCategoryId: feeCategory.id } : {}),
+                ...(values.feeCategoryId === null && feeCategory !== undefined
+                  ? { feeCategoryId: feeCategory.id }
+                  : {}),
               });
             }}
             currency={from?.currency ?? data.baseCurrency}
@@ -389,7 +429,12 @@ export function TransferFields({ form, data, locale, timeZone, ids, error }: Tra
           <div className="flex items-center gap-2 text-[12.5px] text-muted-fg">
             <span className="flex-1">
               {m.record_fee_recorded_prefix()}{' '}
-              <Money minor={values.feeMinor} currency={from?.currency ?? data.baseCurrency} context="amount" locale={locale} />{' '}
+              <Money
+                minor={values.feeMinor}
+                currency={from?.currency ?? data.baseCurrency}
+                context="amount"
+                locale={locale}
+              />{' '}
               {m.record_fee_recorded_suffix()}
             </span>
             <CategorySelect

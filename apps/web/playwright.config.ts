@@ -9,7 +9,8 @@ import { BASE_URL, e2eEnv } from './e2e/env.ts';
  * - `m0`: the M0 exit flow at 1440 px (setup wizard, 2FA, lockout, backup codes, devices, Bull Board, invitations),
  * - `tablet`: the same screens at 1024 px, signed in as the admin and the invited user from `m0`,
  * - `app`: the app shell (layout, language, theme, privacy mode, security headers) as the invited user,
- * - `settings-ledger`: Settings › Kategori and Tag (create, rename, merge, delete; keyboard only) as the invited user.
+ * - `settings-ledger`: Settings › Kategori and Tag (create, rename, merge, delete; keyboard only) as the invited user,
+ * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -46,6 +47,12 @@ export default defineConfig({
       name: 'settings-ledger',
       testMatch: 'settings-ledger.spec.ts',
       dependencies: ['app'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      name: 'record',
+      testMatch: 'record-transaction.spec.ts',
+      dependencies: ['settings-ledger'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
   ],

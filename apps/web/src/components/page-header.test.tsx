@@ -25,6 +25,17 @@ describe('PageHeader', () => {
     const { screen } = await renderApp(header);
     await expect.element(screen.getByRole('button', { name: /Intip saldo/ })).not.toBeInTheDocument();
   });
+
+  it('shows page actions at the right of the header', async () => {
+    const { screen } = await renderApp(
+      <PageHeader
+        breadcrumb={['Keuangan', 'Ringkasan']}
+        title="Selamat datang"
+        actions={<button type="button">Catat</button>}
+      />,
+    );
+    await expect.element(screen.getByRole('banner').getByRole('button', { name: 'Catat' })).toBeVisible();
+  });
 });
 
 describe('PeekButton', () => {

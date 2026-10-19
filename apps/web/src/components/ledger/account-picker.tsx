@@ -59,8 +59,7 @@ export function AccountPicker({
       .filter((account) => account.type === type && account.status === 'active')
       .map((account) => {
         const disabled = account.id === disabledId;
-        const short =
-          outflowMinor !== null && account.type !== 'credit_card' && account.balanceMinor < outflowMinor;
+        const short = outflowMinor !== null && account.type !== 'credit_card' && account.balanceMinor < outflowMinor;
         return {
           value: account.id,
           label: account.displayName,
