@@ -4,6 +4,7 @@
  * transaction by merchant, open it, find it again under "Baru dibuka", the no-results state, the `G` navigation
  * sequence, the tablet rail's search button, and a category result opening Settings › Kategori.
  */
+import type { Page } from '@playwright/test';
 import { expect, loadAccount, seedDesignPersona, test, USER_STATE } from './support.ts';
 
 test.use({ storageState: USER_STATE });
@@ -15,9 +16,15 @@ test.beforeAll(async () => {
 
 const PALETTE = 'Cari atau jalankan perintah';
 
+/** Opens `path` and waits until the page is hydrated: shortcuts are bound on the client. */
+async function visit(page: Page, path: string) {
+  await page.goto(path);
+  await page.waitForLoadState('networkidle');
+}
+
 test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
+  await visit(page, '/');
   await expect(page.getByRole('button', { name: 'Cari… Ctrl K' })).toBeVisible();
   await page.keyboard.press('Control+k');
   const dialog = page.getByRole('dialog', { name: PALETTE });
@@ -45,7 +52,7 @@ test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', 
 
 test('offers to create what matches nothing', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
+  await visit(page, '/');
   await page.keyboard.press('Control+k');
   const dialog = page.getByRole('dialog', { name: PALETTE });
   await expect(dialog.getByRole('combobox')).toBeFocused();
@@ -57,7 +64,7 @@ test('offers to create what matches nothing', async ({ page }) => {
 
 test('navigates with the G sequence, and opens from the tablet rail', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await page.goto('/settings/profile');
+  await visit(page, '/settings/profile');
   await page.keyboard.press('g');
   await page.keyboard.press('r');
   await expect(page).toHaveURL(/\/$/);
