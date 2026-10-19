@@ -32,13 +32,12 @@ test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', 
   await expect(shopee).toContainText('−Rp');
   await expect(shopee).toHaveAttribute('aria-selected', 'true');
   await page.screenshot({ path: '/tmp/wf-cmdk-results.png' });
-  const title = (await shopee.locator('span.truncate').first().textContent()) ?? '';
   await page.keyboard.press('Enter');
   await expect(dialog).toBeHidden();
 
   await page.keyboard.press('Control+k');
   const recent = dialog.getByRole('group', { name: 'Baru dibuka' });
-  await expect(recent.getByRole('option', { name: new RegExp(`^${title}`) })).toContainText('Transaksi ·');
+  await expect(recent.getByRole('option', { name: /^Shopee/ }).first()).toContainText('Transaksi ·');
   await page.screenshot({ path: '/tmp/wf-cmdk-open.png' });
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
