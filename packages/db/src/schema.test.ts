@@ -56,11 +56,26 @@ describe('schema', () => {
       });
     });
     expect(userRefs.toSorted()).toEqual([
+      'accounts.user_id:cascade',
       'accounts_auth.user_id:cascade',
+      'activity_log.user_id:cascade',
+      'attachments.user_id:cascade',
+      'balance_adjustments.user_id:cascade',
+      'categories.user_id:cascade',
+      'drafts.user_id:cascade',
+      'fx_rates.user_id:cascade',
+      'goals.user_id:cascade',
       'invitations.invited_by:cascade',
       'passkeys.user_id:cascade',
+      'postings.user_id:cascade',
+      'recent_items.user_id:cascade',
       'security_events.user_id:cascade',
       'sessions.user_id:cascade',
+      'tag_aliases.user_id:cascade',
+      'tags.user_id:cascade',
+      'transaction_tags.user_id:cascade',
+      'transactions.user_id:cascade',
+      'transfer_meta.user_id:cascade',
       'two_factors.user_id:cascade',
       'user_keys.user_id:cascade',
       'user_plans.user_id:cascade',
@@ -85,8 +100,12 @@ describe('schema', () => {
         .map((column) => `${getTableConfig(table).name}.${column.name}:${column.getSQLType()}`),
     );
     expect(binary.toSorted()).toEqual([
+      'attachments.name_enc:bytea',
+      'attachments.ocr_enc:bytea',
+      'drafts.payload_enc:bytea',
       'instance_settings.instance_dek_wrapped:bytea',
       'instance_settings.smtp_password_enc:bytea',
+      'transactions.note_enc:bytea',
       'user_keys.dek_wrapped:bytea',
     ]);
   });

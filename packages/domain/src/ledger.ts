@@ -4,6 +4,10 @@
  * already converted to the base currency where noted; conversion lives in `fx`.
  */
 
+/** FR-R1; e-wallets show a masked phone number instead of the last 4 digits. */
+export const ACCOUNT_TYPES = ['bank', 'ewallet', 'cash', 'investment', 'credit_card'] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+
 export interface AvailableBalanceAccount {
   /** `accounts.include_in_available` ("Hitung dalam saldo tersedia"). */
   readonly includeInAvailable: boolean;

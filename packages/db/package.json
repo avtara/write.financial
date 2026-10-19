@@ -19,6 +19,19 @@
     "./setup-status": "./src/setup-status.ts",
     "./profiles": "./src/profiles.ts",
     "./backup": "./src/backup.ts",
+    "./accounts": "./src/accounts.ts",
+    "./activity": "./src/activity.ts",
+    "./categories": "./src/categories.ts",
+    "./drafts": "./src/drafts.ts",
+    "./fx-rates": "./src/fx-rates.ts",
+    "./goals": "./src/goals.ts",
+    "./ledger-core": "./src/ledger-core.ts",
+    "./ledger-errors": "./src/ledger-errors.ts",
+    "./recent-items": "./src/recent-items.ts",
+    "./seed": "./src/seed.ts",
+    "./tags": "./src/tags.ts",
+    "./transaction-query": "./src/transaction-query.ts",
+    "./transactions": "./src/transactions.ts",
     "./testing": "./test/pglite.ts"
   },
   "scripts": {
@@ -26,7 +39,8 @@
     "generate": "drizzle-kit generate",
     "db:bootstrap": "node --env-file-if-exists=../../.env src/cli.ts bootstrap",
     "db:migrate": "node --env-file-if-exists=../../.env src/cli.ts migrate",
-    "db:rewrap-keys": "node --env-file-if-exists=../../.env src/cli.ts rewrap-keys"
+    "db:rewrap-keys": "node --env-file-if-exists=../../.env src/cli.ts rewrap-keys",
+    "db:seed": "node --env-file-if-exists=../../.env src/cli.ts seed"
   },
   "dependencies": {
     "@wf/config": "workspace:*",

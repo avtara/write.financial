@@ -11,6 +11,6 @@ it('runs the command named in argv and sets the exit code', async () => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   // Dynamic import is intentional: cli.ts runs on load, so it must load after argv is stubbed.
   await import('./cli.ts');
-  expect(error).toHaveBeenCalledWith('Usage: wf-db <bootstrap|migrate|rewrap-keys>');
+  expect(error).toHaveBeenCalledWith('Usage: wf-db <bootstrap|migrate|rewrap-keys|seed --email <user>>');
   expect(process.exitCode).toBe(2);
 });

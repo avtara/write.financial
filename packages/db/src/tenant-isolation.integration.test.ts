@@ -5,25 +5,48 @@
  * security events, ciphertext at rest, and KEK rotation. The user-owned tables are discovered from the catalog
  * (foreign keys to `users`), so a new table is covered without touching this file.
  */
+import { randomUUID } from 'node:crypto';
 import { decryptText, encrypt } from '@wf/crypto/cipher';
 import { UnknownKeyVersionError, unwrapDek } from '@wf/crypto/envelope';
 import { addKeyVersion, parseKeyring } from '@wf/crypto/keyring';
+import type { LocalDate } from '@wf/domain/period';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { keyFileText } from '../test/keys.ts';
 import { createDb, firstRow, withUser, type Database } from './db.ts';
+import { createFxRates } from './fx-rates.ts';
 import { createInstanceSettings } from './instance-settings.ts';
+import { builtInCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { migrate } from './migrate.ts';
 import { createPreferences } from './preferences.ts';
 import { bootstrapRoles, ROLES, type RoleName } from './roles.ts';
-import { accountsAuth, passkeys, sessions, twoFactors, users, verifications } from './schema.ts';
+import {
+  accounts,
+  accountsAuth,
+  attachments,
+  balanceAdjustments,
+  drafts,
+  goals,
+  passkeys,
+  recentItems,
+  sessions,
+  tagAliases,
+  tags,
+  twoFactors,
+  users,
+  verifications,
+} from './schema.ts';
 import { createSecurityEvents } from './security-events.ts';
 import { createUserKeys, KeyRotationRoleError } from './user-keys.ts';
 
 /** Tables without Row-Level Security: global catalog, read-only grants. */
 const GLOBAL_TABLES = ['entitlements', 'plans'];
+/** Tables with global rows (`user_id` null) every role may read; only their user rows are tenant data. */
+const SHARED_ROWS: Record<string, string> = { fx_rates: 'user_id IS NOT NULL' };
+const TODAY = '2026-10-15' as LocalDate;
+
 const INSUFFICIENT_PRIVILEGE = '42501';
 const READ_ONLY_TRANSACTION = '25006';
 
@@ -143,6 +166,95 @@ beforeAll(async () => {
     },
   });
 
+  // Ledger (M1): every ledger table gets rows of both users, written by the app in each user's context.
+  const fx = createFxRates(dbs.app);
+  await createFxRates(dbs.worker).upsertGlobal([
+    { base: 'SGD', quote: 'IDR', rate: '12500', provider: 'frankfurter', rateType: 'bi_transaction', asOf: TODAY },
+  ]);
+  for (const userId of [alice, bob]) {
+    await fx.upsertManual(userId, { base: 'USD', quote: 'IDR', rate: '16350.0275', asOf: TODAY });
+    await withUser(dbs.app, userId, async (tx) => {
+      const account = async (name: string, currency: string) =>
+        firstRow(
+          await tx
+            .insert(accounts)
+            .values({
+              userId,
+              type: 'bank',
+              providerName: name,
+              displayName: name,
+              currency,
+              openingBalanceMinor: 1_000_000n,
+              openingDate: TODAY,
+              color: 'blue',
+            })
+            .returning({ id: accounts.id }),
+          'accounts',
+        ).id;
+      const bca = await account('BCA', 'IDR');
+      const gotrade = await account('Gotrade', 'USD');
+      const food = await builtInCategoryIn(tx, userId, 'system:food');
+      const fee = await builtInCategoryIn(tx, userId, 'system:bank_fee');
+      const occurredAt = new Date('2026-10-14T12:30:00Z');
+      const { id: expenseId } = await recordTransactionIn(
+        tx,
+        userId,
+        {
+          type: 'expense',
+          clientId: randomUUID(),
+          occurredAt,
+          accountId: bca,
+          amountMinor: 85_000n,
+          categoryId: food,
+          tags: ['makan'],
+        },
+        null,
+        occurredAt,
+      );
+      await recordTransactionIn(
+        tx,
+        userId,
+        {
+          type: 'transfer',
+          clientId: randomUUID(),
+          occurredAt,
+          fromAccountId: bca,
+          toAccountId: gotrade,
+          sentMinor: 3_000_000n,
+          receivedMinor: 18_210n,
+          fee: { minor: 2_500n, categoryId: fee },
+        },
+        null,
+        occurredAt,
+      );
+      const tag = firstRow(await tx.select({ id: tags.id }).from(tags), 'tags');
+      await tx.insert(tagAliases).values({ userId, tagId: tag.id, slug: 'makan-siang' });
+      await tx
+        .insert(balanceAdjustments)
+        .values({ userId, accountId: bca, amountMinor: -500n, actualBalanceMinor: 1n });
+      await tx.insert(attachments).values({
+        userId,
+        transactionId: expenseId,
+        bucket: 'wf',
+        objectKey: `u/${userId}/${randomUUID()}`,
+        mime: 'image/jpeg',
+        size: 1024,
+        sha256: 'a'.repeat(64),
+        kind: 'receipt',
+      });
+      await tx.insert(drafts).values({ userId, kind: 'transaction', payloadEnc: Uint8Array.of(1, 2, 3) });
+      await tx.insert(recentItems).values({ userId, kind: 'transaction', ref: expenseId });
+      await tx.insert(goals).values({
+        userId,
+        name: 'Dana Darurat',
+        icon: 'shield',
+        color: 'green',
+        targetMinor: 54_000_000n,
+        currency: 'IDR',
+      });
+    });
+  }
+
   owned = [
     { table: 'users', column: 'id' },
     ...(await superuser<{ table: string; column: string }[]>`
@@ -203,7 +315,7 @@ describe('Row-Level Security', () => {
       for (const { table } of owned) {
         const [privilege] = await raw<{ allowed: boolean }[]>`
           SELECT has_table_privilege(current_user, ${table}, 'SELECT') AS allowed`;
-        const query = raw`SELECT * FROM ${raw(table)}`;
+        const query = raw`SELECT * FROM ${raw(table)} WHERE ${raw.unsafe(SHARED_ROWS[table] ?? 'true')}`;
         if (privilege?.allowed) expect({ table, rows: (await query).length }).toEqual({ table, rows: 0 });
         else expect({ table, code: await pgErrorCode(query) }).toEqual({ table, code: INSUFFICIENT_PRIVILEGE });
       }
@@ -359,5 +471,72 @@ describe('userKeys', () => {
     expect(await createInstanceSettings(dbs.worker, v2).smtpPassword()).toBe(SMTP_PASSWORD);
     // A keyring without v2 cannot open the re-wrapped keys.
     await expect(createUserKeys(dbs.app, v1).getOrCreateDek(alice)).rejects.toBeInstanceOf(UnknownKeyVersionError);
+  });
+});
+
+describe('ledger roles', () => {
+  it('lets the worker read but never write transactions or postings (D14)', async () => {
+    const [row] = await withUser(dbs.worker, alice, (tx) => tx.execute(sql`SELECT count(*)::int AS n FROM postings`));
+    // An expense (1) and a cross-currency transfer with a fee (2 + fee + fx_diff).
+    expect(row).toEqual({ n: 5 });
+    for (const statement of [
+      sql`INSERT INTO transactions (user_id, type, occurred_at, local_date, client_id, confirmed_by_user_at)
+          VALUES (${alice}, 'expense', now(), current_date, ${randomUUID()}, now())`,
+      sql`UPDATE transactions SET deleted_at = now()`,
+      sql`UPDATE postings SET amount_minor = 0`,
+      sql`DELETE FROM postings`,
+    ]) {
+      expect(await pgErrorCode(withUser(dbs.worker, alice, (tx) => tx.execute(statement)))).toBe(
+        INSUFFICIENT_PRIVILEGE,
+      );
+    }
+  });
+
+  it('gives the worker the currencies in use across users, and only the worker', async () => {
+    expect(await createFxRates(dbs.worker).currenciesInUse()).toEqual(['IDR', 'USD']);
+    expect(await pgErrorCode(createFxRates(dbs.app).currenciesInUse())).toBe(INSUFFICIENT_PRIVILEGE);
+  });
+
+  it('shares built-in rates with everyone and keeps manual rates per user', async () => {
+    const fx = createFxRates(dbs.app);
+    expect(await fx.referenceRate(bob, 'SGD', 'IDR')).toMatchObject({ rate: '12500', manual: false });
+    await fx.upsertManual(alice, { base: 'SGD', quote: 'IDR', rate: '12600', asOf: TODAY });
+    expect(await fx.referenceRate(alice, 'SGD', 'IDR')).toMatchObject({ rate: '12600', manual: true });
+    expect(await fx.referenceRate(bob, 'SGD', 'IDR')).toMatchObject({ rate: '12500', manual: false });
+    const updated = await withUser(dbs.app, alice, (tx) =>
+      tx.execute(sql`UPDATE fx_rates SET rate = 1 WHERE user_id IS NULL`),
+    );
+    expect(updated.count).toBe(0);
+    expect(await createFxRates(dbs.worker).latestGlobal('SGD', 'IDR')).toMatchObject({ rate: '12500' });
+  });
+
+  it('cannot point a row at another user’s account, even with raw SQL (composite foreign keys)', async () => {
+    const { id: accountOfAlice } = firstRow(
+      await superuser<{ id: string }[]>`SELECT id FROM accounts WHERE user_id = ${alice} LIMIT 1`,
+      'accounts',
+    );
+    const occurredAt = new Date();
+    const draft = {
+      type: 'expense',
+      clientId: randomUUID(),
+      occurredAt,
+      accountId: accountOfAlice,
+      amountMinor: 1n,
+      categoryId: null,
+    } as const;
+    await expect(
+      withUser(dbs.app, bob, (tx) => recordTransactionIn(tx, bob, draft, null, occurredAt)),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const raw = withUser(dbs.app, bob, async (tx) => {
+      const [created] = await tx.execute<{ id: string }>(
+        sql`INSERT INTO transactions (user_id, type, occurred_at, local_date, client_id, confirmed_by_user_at)
+            VALUES (${bob}, 'expense', now(), current_date, ${randomUUID()}, now()) RETURNING id`,
+      );
+      await tx.execute(
+        sql`INSERT INTO postings (user_id, transaction_id, account_id, amount_minor, currency, amount_base_minor)
+            VALUES (${bob}, ${created?.id}, ${accountOfAlice}, -1, 'IDR', -1)`,
+      );
+    });
+    expect(await pgErrorCode(raw)).toBe('23503');
   });
 });
