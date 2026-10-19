@@ -406,7 +406,6 @@
   "cmdk_action_record": "Record transaction",
   "cmdk_action_transfer": "Record transfer",
   "cmdk_archived": "archived",
-  "cmdk_create_account": "Add account",
   "cmdk_create_transaction": "Record “{query}” as a transaction",
   "cmdk_dialog_label": "Search or run a command",
   "cmdk_group_accounts": "Accounts",

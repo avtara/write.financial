@@ -352,7 +352,6 @@
   "cmdk_action_record": "Catat transaksi",
   "cmdk_action_transfer": "Catat transfer",
   "cmdk_archived": "diarsipkan",
-  "cmdk_create_account": "Tambah rekening",
   "cmdk_create_transaction": "Catat “{query}” sebagai transaksi",
   "cmdk_dialog_label": "Cari atau jalankan perintah",
   "cmdk_group_accounts": "Rekening",
