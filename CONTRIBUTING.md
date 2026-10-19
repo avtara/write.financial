@@ -82,6 +82,7 @@ Every change ships with unit tests, and CI blocks the merge otherwise ([PRD D27]
 | `pnpm test:integration` | Integration tests (`*.integration.test.ts`) against real services; needs Docker. |
 | `pnpm test:mutation` | Stryker mutation tests for `packages/domain` and `packages/crypto` (≥ 90%). Run it when you change those packages. |
 | `pnpm test:e2e` | Builds the web app and runs the Playwright smoke tests (`apps/web/e2e`) against the production server. Run `pnpm exec playwright install chromium` once first. |
+| `pnpm --filter @wf/web test:e2e:selfhost` | The install proof against a fresh self-host stack (`deploy/compose`, `docker compose up` first): setup wizard, admin with 2FA, sign-in. Needs `WF_SELFHOST_SETUP_TOKEN` (from `docker compose logs init`); `WF_SELFHOST_URL` defaults to `https://localhost`. CI runs it in the Docker job. |
 | `pnpm --filter @wf/web dev` | The web app with hot reload at http://localhost:3000. Reads `.env`. |
 | `pnpm --filter @wf/web build` / `start` | Production build, then the Node server (`apps/web/.output/server/index.mjs`) on port 3000 (`PORT`). `start` reads `.env`. |
 | `pnpm format` | Format the repository with Prettier. |
