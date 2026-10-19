@@ -153,12 +153,12 @@ describe('run', () => {
     const first = capture();
     expect(await run(['seed', '--email', 'avtara@example.test'], env, first)).toBe(0);
     expect(first.logs).toEqual([
-      'Seeded 11 accounts, 128 transactions, and 6 goals; available balance 55023000 (minor units).',
+      'Seeded 11 accounts, 249 transactions, 1 closed period, a budget, and 6 goals; available balance 55023000 (minor units).',
     ]);
     const again = capture();
     expect(await run(['seed', '--email', 'avtara@example.test'], env, again)).toBe(1);
     expect(again.errors[0]).toMatch(/already has accounts/);
-    // 128 transactions through the repositories, one at a time over PGlite.
+    // 249 transactions through the repositories, one at a time over PGlite.
   }, 60_000);
 
   it('seed needs the email of an existing user', async () => {

@@ -38,6 +38,15 @@ export const LEDGER_ERROR_CODES = [
   'INVALID_RATE',
   /** Invalid goal input. */
   'INVALID_GOAL',
+  /** FR-P3: the transaction is dated inside a closed period (or would move into or out of one), or the budget edit
+   * targets a closed period. Closed periods are read-only. */
+  'PERIOD_CLOSED',
+  /** Invalid period input: a start day outside 1–28, the same start day again, or locking a period that has not
+   * ended. */
+  'INVALID_PERIOD',
+  /** Invalid budget input: a negative limit, a category that is not an expense or fee category, an alert threshold
+   * other than 50/80/85/100, or a leftover move beyond a category's remainder. */
+  'INVALID_BUDGET',
 ] as const;
 
 export type LedgerErrorCode = (typeof LEDGER_ERROR_CODES)[number];

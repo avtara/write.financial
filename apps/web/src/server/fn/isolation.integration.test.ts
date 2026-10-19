@@ -20,10 +20,13 @@ import { ValkeyContainer, type StartedValkeyContainer } from '@testcontainers/va
 import { loadConfig } from '@wf/config';
 import { createKeyFile } from '@wf/crypto/keyring';
 import type { AccountsOverview } from '@wf/db/accounts';
+import type { BudgetStatus } from '@wf/db/budgets';
 import type { CategoryView } from '@wf/db/categories';
+import type { Dashboard } from '@wf/db/dashboard';
 import type { ManualRateInput } from '@wf/db/fx-rates';
 import { migrate } from '@wf/db/migrate';
 import { bootstrapRoles, ROLES, type RoleName } from '@wf/db/roles';
+import type { PeriodsOverview } from '@wf/db/periods';
 import type { TagView } from '@wf/db/tags';
 import { pino } from 'pino';
 import postgres from 'postgres';
@@ -38,6 +41,7 @@ import type * as RuntimeModule from '../runtime.ts';
 import { createServices, type Services } from '../runtime.ts';
 import * as account from './account.ts';
 import * as admin from './admin.ts';
+import * as budget from './budget.ts';
 import * as categories from './categories.ts';
 import * as gate from './gate.ts';
 import * as ledger from './ledger.ts';
@@ -105,7 +109,17 @@ const mail: string[] = [];
 let smtpPort = 0;
 
 /** The server functions this test imports; {@link MATRIX} must have a case for each. */
-const FUNCTIONS = { ...account, ...admin, ...categories, ...gate, ...ledger, ...setup, ...tags, getPreferences };
+const FUNCTIONS = {
+  ...account,
+  ...admin,
+  ...budget,
+  ...categories,
+  ...gate,
+  ...ledger,
+  ...setup,
+  ...tags,
+  getPreferences,
+};
 type Name = keyof typeof FUNCTIONS;
 
 type Caller = 'A' | 'B' | 'anonymous';
@@ -153,6 +167,8 @@ const ledgerIds = async (userId: string) =>
       UNION ALL SELECT id::text FROM categories WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM tags WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM fx_rates WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM periods WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM budget_versions WHERE user_id = ${userId}
       ORDER BY 1`
   ).map((row) => row.id);
 /** JSON for the leak scan; ledger amounts are bigints. */
@@ -306,6 +322,16 @@ beforeAll(async () => {
       color: 'orange',
     });
     await services.tags.create(userId, names.tag);
+    // M2: the current period and a budget line for a category no other case changes.
+    const budgeted = await services.categories.create(userId, {
+      kind: 'expense',
+      group: 'needs',
+      name: `Anggaran ${names.tag}`,
+      icon: 'wallet',
+      color: 'green',
+    });
+    const { current } = await services.periods.list(userId);
+    await services.budgets.setLine(userId, current.id as string, { categoryId: budgeted.id, limitMinor: 500_000n });
   }
   await services.fxRates.upsertManual(aId, {
     base: 'USD',
@@ -797,6 +823,44 @@ const MATRIX: Record<Name, Case> = {
       expect(await as('B', 'deleteTag', { id: await tagId(bId, 'kopi-susu') })).toEqual(ok(null));
       expect(await tagId(bId, 'kopi-susu')).toBe('');
       expect(await aLedgerRows()).toEqual(a);
+    },
+  },
+  listPeriods: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<PeriodsOverview>>('B', 'listPeriods');
+      const ids = await ledgerIds(bId);
+      expect(ofB.ok && ofB.value.periods.length).toBeGreaterThan(0);
+      expect(ofB.ok && ofB.value.periods.filter((period) => !ids.includes(period.id as string))).toEqual([]);
+      expect(ofB.ok && ids).toContain(ofB.ok && ofB.value.current.id);
+    },
+  },
+  getBudgetStatus: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<BudgetStatus>>('B', 'getBudgetStatus', input);
+      expect(ofB.ok && ofB.value.lines.map((line) => line.name)).toEqual(['Anggaran tag-b']);
+      expect(ofB.ok && ofB.value.totals.limitMinor).toBe(500_000n);
+      const [aPeriod] = await superuser<{ id: string }[]>`SELECT id::text FROM periods WHERE user_id = ${aId} LIMIT 1`;
+      expect(await as('B', 'getBudgetStatus', { periodId: aPeriod?.id })).toEqual(NOT_FOUND);
+    },
+  },
+  getDashboard: {
+    input: () => ({ scope: 'month' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<Dashboard>>('B', 'getDashboard', input);
+      expect(ofB.ok && ofB.value.period?.id).toBe(
+        (
+          await superuser<{ id: string }[]>`
+        SELECT id::text FROM periods WHERE user_id = ${bId} ORDER BY start_date DESC LIMIT 1`
+        )[0]?.id,
+      );
+      expect(ofB.ok && ofB.value.budget?.lines.map((line) => line.limitMinor)).toEqual([500_000n]);
+      const [aPeriod] = await superuser<{ id: string }[]>`SELECT id::text FROM periods WHERE user_id = ${aId} LIMIT 1`;
+      expect(await as('B', 'getDashboard', { scope: 'month', periodId: aPeriod?.id })).toEqual(NOT_FOUND);
+      expect(await as('B', 'getDashboard', { scope: 'year' })).toMatchObject(ok({ scope: 'year' }));
     },
   },
   getPreferences: {

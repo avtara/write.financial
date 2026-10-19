@@ -12,13 +12,16 @@ import { createInviter, type Invitation, type Inviter, type InviteInput } from '
 import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring } from '@wf/crypto/keyring';
 import { createAccounts, type AccountsRepository } from '@wf/db/accounts';
+import { createBudgets, type BudgetsRepository } from '@wf/db/budgets';
 import { createCategories, type CategoriesRepository } from '@wf/db/categories';
+import { createDashboard, type DashboardRepository } from '@wf/db/dashboard';
 import { createDb } from '@wf/db/db';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
+import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
 import { createTags, type TagsRepository } from '@wf/db/tags';
 import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
@@ -70,6 +73,10 @@ export interface Services extends BaseRuntime {
   readonly categories: CategoriesRepository;
   readonly tags: TagsRepository;
   readonly fxRates: FxRatesRepository;
+  /** Periods, budgets, and the dashboard (M2), on `wf_app`. */
+  readonly periods: PeriodsRepository;
+  readonly budgets: BudgetsRepository;
+  readonly dashboard: DashboardRepository;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -112,6 +119,9 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     categories: createCategories(appDb),
     tags: createTags(appDb),
     fxRates: createFxRates(appDb),
+    periods: createPeriods(appDb, { now }),
+    budgets: createBudgets(appDb, { now }),
+    dashboard: createDashboard(appDb, { now }),
     mailer,
     sendWith,
     invite: createInviter({

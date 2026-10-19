@@ -16,6 +16,9 @@ const tiny = (overrides: Partial<DesignSeed>): DesignSeed => ({
   ...DESIGN_SEED,
   accounts: DESIGN_SEED.accounts.slice(0, 1),
   transactions: [],
+  septemberTransactions: [],
+  closedPeriods: [],
+  budgets: [],
   goals: [],
   fxRates: [],
   ...overrides,
@@ -45,7 +48,8 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     const result = await asApp(() => seedLedger(test.db, userId, { getDek: options.getDek }));
     expect(result).toEqual({
       balances: seedClosingBalances(DESIGN_SEED),
-      transactions: 128,
+      transactions: 249,
+      closedPeriods: 1,
       goals: DESIGN_SEED.goals.length,
       availableMinor: 55_023_000n,
     });
@@ -54,10 +58,32 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
         `SELECT type, count(*)::int AS n FROM transactions WHERE deleted_at IS NULL GROUP BY type ORDER BY type`,
       ),
     ).toEqual([
-      { type: 'expense', n: 121 },
-      { type: 'income', n: 4 },
-      { type: 'transfer', n: 3 },
+      { type: 'expense', n: 235 },
+      { type: 'income', n: 8 },
+      { type: 'transfer', n: 6 },
     ]);
+    // September is the first period row and closed; October follows, open.
+    expect(
+      await test.query(
+        `SELECT label, start_date::text AS start, end_date::text AS end, status, closed_at FROM periods ORDER BY start_date`,
+      ),
+    ).toEqual([
+      {
+        label: '2026-09',
+        start: '2026-09-01',
+        end: '2026-09-30',
+        status: 'closed',
+        closed_at: new Date('2026-10-01T00:05:00+07:00'),
+      },
+      { label: '2026-10', start: '2026-10-01', end: '2026-10-31', status: 'open', closed_at: null },
+    ]);
+    expect(
+      await test.query(
+        `SELECT v.effective_from, count(l.id)::int AS lines, sum(l.limit_minor)::text AS total
+         FROM budget_versions v JOIN budget_lines l ON l.version_id = v.id GROUP BY v.effective_from`,
+      ),
+    ).toEqual([{ effective_from: '2026-09', lines: 10, total: '18750000' }]);
+    expect(await test.query('SELECT period_start_day FROM user_preferences')).toEqual([{ period_start_day: 1 }]);
     expect(await test.query('SELECT base_currency, timezone FROM users')).toEqual([
       { base_currency: 'IDR', timezone: 'Asia/Jakarta' },
     ]);
@@ -93,6 +119,34 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     const food = { ...expense, accountKey: account.key, categoryKey: 'system:food' as const };
     await expect(
       asApp(() => seedLedger(test.db, other, { ...options, seed: tiny({ transactions: [food] }) })),
+    ).rejects.toBeInstanceOf(SeedMismatchError);
+  });
+
+  it('fails on a closed period that is not a period of the ledger', async () => {
+    const closedAt = '2026-10-01T00:05:00+07:00';
+    // Not on the start day: the period row containing 30 Sep starts on the 1st.
+    await expect(
+      asApp(() =>
+        seedLedger(test.db, userId, {
+          ...options,
+          seed: tiny({ closedPeriods: [{ start: '2026-09-02', end: '2026-09-30', closedAt }] }),
+        }),
+      ),
+    ).rejects.toBeInstanceOf(SeedMismatchError);
+    // Before the first period row (September): a computed period, without a row to lock.
+    const other = await insertUser(test, 'other@example.test');
+    await expect(
+      asApp(() =>
+        seedLedger(test.db, other, {
+          ...options,
+          seed: tiny({
+            closedPeriods: [
+              { start: '2026-09-01', end: '2026-09-30', closedAt },
+              { start: '2026-08-01', end: '2026-08-31', closedAt },
+            ],
+          }),
+        }),
+      ),
     ).rejects.toBeInstanceOf(SeedMismatchError);
   });
 });

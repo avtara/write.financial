@@ -42,7 +42,10 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./transaction-query` | `createTransactionQuery(db, { getDek })` → Transactions page list, by-day/by-category groups, summary |
 | `./fx-rates` | `createFxRates(db)` → manual rates, `referenceRate`; worker: `upsertGlobal`, `latestGlobal`, `currenciesInUse` |
 | `./drafts`, `./recent-items`, `./goals`, `./activity` | Encrypted form drafts, ⌘K recently opened, minimal goals, per-entity timeline |
-| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`) through the repositories |
+| `./periods` | `createPeriods(db)` → materialized periods (FR-P1–P3): `list`, `get`, `covering`, `previewStartDay`/`changeStartDay` (FR-P2 (a) next period with a transition, (b) recalculate), `lock` (period close, worker) |
+| `./budgets` | `createBudgets(db)` → versioned budgets (FR-B1–B5): `status` of a period, `history`, `saveVersion`, `setLine`, `removeLine`, `fillFromAverage`, `moveLeftover`/`undoMove`, `dismissAlert`/`restoreAlert` |
+| `./dashboard` | `createDashboard(db)` → `get` for a week, period, year, or custom range (FR-D1/D2, FR-S7): KPIs + comparison, money flow, categories, trend, calendar, account flows, budget card |
+| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget) through the repositories |
 | `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)` (worker only, via `wf_maintenance_purge_auth`)       |
 | `./backup`                                      | Self-host backup/restore: `bundledMigrations()`, `migrationLevel(url)`, `inspectRestoreTarget(superuserUrl)`, `resetAppSchema(superuserUrl, passwords)` |
 
@@ -77,6 +80,8 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `drafts`, `recent_items`                                   | S I U D                        | –            | –                 | –                        | own rows                                                 |
 | `activity_log`                                             | S I                            | –            | –                 | –                        | own rows                                                 |
 | `fx_rates`                                                 | S I U D (own manual rows)      | S I U (global rows) | –          | –                        | read: global + own; worker writes only `user_id IS NULL` |
+| `periods`                                                  | S I U D                        | S I, U(`status`, `closed_at`, `updated_at`) | – | –                | own rows (worker: `periods.lock` only)                   |
+| `budget_versions`, `budget_lines`, `budget_period_overrides`, `budget_alert_dismissals` | S I U D | S (D14)  | –                 | –                        | own rows                                                 |
 
 ¹ `name, image, nickname, timezone, locale, base_currency, onboarding_completed_at, deletion_requested_at, updated_at`
 (not `role`, `email`, `email_verified`, `two_factor_enabled`). ² Everything the setup wizard (FR-OP1) writes, including

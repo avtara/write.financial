@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * The design persona "Avtara" for 1–15 Oktober 2026 (design Section 00 "Sumber data" plus the Dashboard, Transaksi,
- * Rekening, Anggaran, Langganan and Kalender digests). Opening balances are as of 30 Sep 2026, so that opening + the
- * October flows give the balances shown on 15 Okt. Merchants, dates and amounts the design shows are used verbatim;
- * the remaining daily spending is filled in so that every budget card total matches.
+ * Rekening, Anggaran, Langganan and Kalender digests), with September 2026 as the closed period before it (Section 10
+ * "Laporan September 2026", Section 06 `Z8qibf`). Account balances are as of 31 Agu, so that opening + the September
+ * and October flows give the balances shown on 15 Okt. Merchants, dates and amounts the design shows are used
+ * verbatim; the remaining daily spending is filled in so that every budget card and report total matches.
  */
+import type { AlertPct } from './budget.ts';
 import type { BuiltInCategoryKey } from './categories.ts';
 import type { AccountType } from './ledger.ts';
 
@@ -71,15 +73,38 @@ export interface SeedGoal {
   readonly tag: string | null;
 }
 
+/** A budget version (`budget_versions` + `budget_lines`), lines by built-in category. */
+export interface SeedBudgetVersion {
+  /** YYYY-MM: the first period it applies to. */
+  readonly effectiveFrom: string;
+  readonly expectedIncomeMinor: bigint;
+  readonly lines: readonly {
+    readonly categoryKey: BuiltInCategoryKey;
+    readonly limitMinor: bigint;
+    readonly isFixed: boolean;
+    readonly rollover: boolean;
+    readonly alertPct: AlertPct;
+  }[];
+}
+
 export interface DesignSeed {
   readonly baseCurrency: 'IDR';
   readonly timezone: 'Asia/Jakarta';
+  /** Periods start on the 1st (Section 14 default; "Oktober" = 1–31 Okt, day 15 of 31 on 15 Okt). */
+  readonly periodStartDay: 1;
   readonly accounts: readonly SeedAccount[];
+  /** 1–15 Okt 2026: 128 transactions. */
   readonly transactions: readonly SeedTransaction[];
+  /** 1–30 Sep 2026, the closed period: 121 transactions. */
+  readonly septemberTransactions: readonly SeedTransaction[];
+  /** Periods closed by the period close (FR-P3/P4): September, closed at the start of October. */
+  readonly closedPeriods: readonly { readonly start: string; readonly end: string; readonly closedAt: string }[];
+  readonly budgets: readonly SeedBudgetVersion[];
   readonly fxRates: readonly SeedFxRate[];
   readonly goals: readonly SeedGoal[];
 }
 
+/** The balances of {@link ACCOUNTS} are as of this day; the seed opens the accounts a month earlier. */
 const OPENING_DATE = '2026-09-30';
 
 /** Comments give the balance on 15 Okt and the October flow (Section 00 card "Rekening · saldo & arus Oktober"). */
@@ -445,6 +470,194 @@ const TRANSFERS: readonly SeedTransaction[] = [
   },
 ];
 
+/** Section 10 "Laporan September 2026": Rp25.800.000 in 4 transactions. */
+const SEPTEMBER_INCOME_ROWS: readonly FlowRow[] = [
+  ['09-01 08:00', 'bca', 'system:salary', 18_500_000n, 'PT Kinarya', 'Gaji September', ['gaji']],
+  ['09-08 00:05', 'mandiri', 'system:dividend_interest', 270_000n, 'Bank Mandiri', 'Dividen & bunga', []],
+  ['09-10 11:20', 'mandiri', 'system:sales', 1_130_000n, null, 'Penjualan & lainnya', []],
+  [
+    '09-15 20:40',
+    'bca',
+    'system:freelance',
+    5_900_000n,
+    'Studio Arunika',
+    'Invoice #0897',
+    ['freelance', 'studio-arunika'],
+  ],
+];
+
+/**
+ * The September expenses the design names (Section 06 `Z8qibf`, Section 10, Section 13, Section 14): Sewa Kos, the
+ * 9.9 Shopee sale with the ergonomic chair, Tokopedia — Sepatu lari Rp449.000 on 27 Sep (the largest transaction of
+ * 25–30 Sep, which moves into October when periods start on the 25th), bills, subscriptions, and the categories
+ * without daily filler.
+ */
+const SEPTEMBER_EXPENSE_ROWS: readonly FlowRow[] = [
+  ['09-01 09:15', 'bca', 'system:rent', 4_500_000n, 'Sewa Kos', 'September', ['rumah']],
+  ['09-02 10:00', 'bca', 'system:bills', 150_000n, 'Iuran kos', 'Kebersihan & keamanan', ['rumah', 'bulanan']],
+  ['09-03 08:30', 'bca', 'system:subscriptions', 199_000n, 'Fit Hub', 'Gym bulanan', ['bulanan']],
+  ['09-04 20:10', 'bca', 'system:shopping', 110_000n, 'Shopee', 'Kabel data', []],
+  ['09-05 16:30', 'bca', 'system:hobby', 180_000n, 'Gramedia', 'Buku', []],
+  ['09-06 18:45', 'gopay', 'system:health', 120_000n, 'Apotek K-24', null, []],
+  ['09-07 11:00', 'cash', 'system:personal_care', 85_000n, 'Barbershop', null, []],
+  ['09-09 00:15', 'bca', 'system:shopping', 1_050_000n, 'Shopee', 'Kursi kerja ergonomis', ['ruang-kerja']],
+  ['09-09 00:20', 'bca', 'system:shopping', 230_000n, 'Shopee', 'Lampu meja', ['ruang-kerja']],
+  ['09-09 09:00', 'bca', 'system:subscriptions', 45_000n, 'iCloud+', '200 GB', ['bulanan']],
+  ['09-09 12:30', 'bca', 'system:shopping', 185_000n, 'Shopee', 'Rak sepatu', ['rumah']],
+  ['09-09 21:10', 'bca', 'system:shopping', 96_000n, 'Shopee', 'Alat tulis', []],
+  ['09-09 21:40', 'bca', 'system:bills', 350_000n, 'PLN Token Listrik', null, ['rumah']],
+  ['09-11 19:00', 'bca', 'system:gifts', 150_000n, 'Kitabisa', 'Donasi', []],
+  ['09-12 08:00', 'bca', 'system:bills', 500_000n, 'PDAM', 'Air', ['rumah']],
+  ['09-12 10:30', 'bca', 'system:subscriptions', 274_100n, 'Canva', 'Canva Pro', ['kerja']],
+  ['09-12 22:00', 'bca', 'system:hobby', 220_000n, 'Steam', null, []],
+  ['09-13 15:20', 'bca', 'system:shopping', 200_000n, 'Uniqlo', 'Kaos', []],
+  ['09-15 13:40', 'bca', 'system:shopping', 120_000n, 'Shopee', 'Botol minum', []],
+  ['09-16 17:15', 'bca', 'system:health', 180_000n, 'Klinik Pratama', 'Periksa', []],
+  ['09-17 19:30', 'cash', 'system:hobby', 175_000n, 'Futsal', 'Sewa lapangan', ['akhir-pekan']],
+  ['09-18 09:00', 'bca', 'system:subscriptions', 186_000n, 'Netflix', 'Premium 4K', ['bulanan']],
+  ['09-19 18:00', 'bca', 'system:gifts', 400_000n, 'Kado nikahan', null, []],
+  ['09-20 10:00', 'bca', 'system:bills', 400_000n, 'IndiHome', 'Internet', ['rumah', 'bulanan']],
+  ['09-20 16:00', 'bca', 'system:hobby', 150_000n, 'Toko Buku Kalam', null, []],
+  ['09-21 20:30', 'bca', 'system:shopping', 160_000n, 'Shopee', 'Sprei', ['rumah']],
+  ['09-22 09:00', 'bca', 'system:subscriptions', 59_000n, 'YouTube Premium', null, ['bulanan']],
+  ['09-23 14:00', 'ovo', 'system:personal_care', 165_000n, 'Guardian', null, []],
+  ['09-24 09:00', 'bca', 'system:subscriptions', 86_900n, 'Spotify', 'Family', ['bulanan']],
+  ['09-26 19:00', 'bca', 'system:gifts', 150_000n, 'Kado ulang tahun', null, []],
+  ['09-27 13:05', 'bca', 'system:shopping', 449_000n, 'Tokopedia', 'Sepatu lari', []],
+  ['09-29 19:30', 'cash', 'system:hobby', 175_000n, 'Futsal', 'Sewa lapangan', []],
+];
+
+/**
+ * Daily spending filled in so that the September categories match the report (Makan & Dapur 3.400.000, Transportasi
+ * 1.600.000, Hiburan 1.800.000): `count` rows spread over 2–30 Sep, amounts varying around the average, the last one
+ * taking the remainder.
+ */
+const SEPTEMBER_FILLER: readonly {
+  readonly categoryKey: BuiltInCategoryKey;
+  readonly totalMinor: bigint;
+  readonly count: number;
+  readonly stepMinor: bigint;
+  readonly merchants: readonly string[];
+  readonly accountKeys: readonly string[];
+}[] = [
+  {
+    categoryKey: 'system:food',
+    totalMinor: 3_400_000n,
+    count: 34,
+    stepMinor: 10_000n,
+    merchants: ['Indomaret', 'Warteg Bahari', 'GoFood', 'Superindo', 'Alfamart', 'Nasi Padang Sederhana'],
+    accountKeys: ['bca', 'gopay', 'bca', 'ovo', 'cash'],
+  },
+  {
+    categoryKey: 'system:transport',
+    totalMinor: 1_600_000n,
+    count: 28,
+    stepMinor: 5_000n,
+    merchants: ['Gojek', 'Grab', 'KRL Commuter', 'Pertamina'],
+    accountKeys: ['bca', 'gopay', 'bca', 'cash'],
+  },
+  {
+    categoryKey: 'system:entertainment',
+    totalMinor: 1_800_000n,
+    count: 20,
+    stepMinor: 10_000n,
+    merchants: ['Kopi Kenangan', 'Starbucks', 'CGV', 'Fore Coffee', 'Chatime'],
+    accountKeys: ['bca', 'gopay', 'bca', 'ovo'],
+  },
+];
+
+function septemberFiller(): FlowRow[] {
+  return SEPTEMBER_FILLER.flatMap(({ categoryKey, totalMinor, count, stepMinor, merchants, accountKeys }) => {
+    const average = (totalMinor / BigInt(count) / stepMinor) * stepMinor;
+    const rows: FlowRow[] = [];
+    let left = totalMinor;
+    for (let index = 0; index < count; index += 1) {
+      const amountMinor = index === count - 1 ? left : average + BigInt((index % 5) - 2) * stepMinor;
+      left -= amountMinor;
+      const day = String(2 + Math.floor((index * 29) / count)).padStart(2, '0');
+      const hour = String(7 + ((index * 5) % 15)).padStart(2, '0');
+      const minute = String((index * 13 + categoryKey.length) % 60).padStart(2, '0');
+      rows.push([
+        `09-${day} ${hour}:${minute}`,
+        accountKeys[index % accountKeys.length] as string,
+        categoryKey,
+        amountMinor,
+        merchants[index % merchants.length] as string,
+        null,
+        [],
+      ]);
+    }
+    return rows;
+  });
+}
+
+/** Section 00 "Ditabung per bulan · Sep · 2,5 + 5,0": the September transfers (Rp7.500.000). */
+const SEPTEMBER_TRANSFERS: readonly SeedTransaction[] = [
+  {
+    kind: 'transfer',
+    occurredAt: '2026-09-01T08:30:00+07:00',
+    fromAccountKey: 'bca',
+    toAccountKey: 'gotrade',
+    sentMinor: 5_000_000n,
+    // round(5.000.000 / 16.350 × 100) cents.
+    receivedMinor: 30_581n,
+    description: 'DCA SPY + SCHD',
+    tags: ['dp-rumah', 'dana-pensiun'],
+  },
+  {
+    kind: 'transfer',
+    occurredAt: '2026-09-01T08:35:00+07:00',
+    fromAccountKey: 'bca',
+    toAccountKey: 'jago',
+    sentMinor: 500_000n,
+    receivedMinor: 500_000n,
+    description: 'Kantong darurat',
+    tags: ['dana-darurat'],
+  },
+  {
+    kind: 'transfer',
+    occurredAt: '2026-09-14T19:30:00+07:00',
+    fromAccountKey: 'bca',
+    toAccountKey: 'jago',
+    sentMinor: 2_000_000n,
+    receivedMinor: 2_000_000n,
+    description: 'Setor dana darurat',
+    tags: ['dana-darurat'],
+  },
+];
+
+/**
+ * Section 06 "Riwayat perubahan": the version in force since September 2026 (Rp18.750.000, the limits of the Section 00
+ * card "Anggaran Oktober" and the September results). Sewa Kos, Tagihan & Utilitas, and Langganan are fixed costs
+ * ("lunas 1 Okt", no daily rate).
+ */
+const BUDGETS: readonly SeedBudgetVersion[] = [
+  {
+    effectiveFrom: '2026-09',
+    expectedIncomeMinor: 26_000_000n,
+    lines: (
+      [
+        ['system:rent', 4_500_000n, true],
+        ['system:food', 3_500_000n, false],
+        ['system:transport', 2_000_000n, false],
+        ['system:bills', 1_500_000n, true],
+        ['system:health', 500_000n, false],
+        ['system:shopping', 2_000_000n, false],
+        ['system:entertainment', 2_500_000n, false],
+        ['system:subscriptions', 1_000_000n, true],
+        ['system:hobby', 1_000_000n, false],
+        ['system:personal_care', 250_000n, false],
+      ] as const
+    ).map(([categoryKey, limitMinor, isFixed]) => ({
+      categoryKey,
+      limitMinor,
+      isFixed,
+      rollover: false,
+      alertPct: 85,
+    })),
+  },
+];
+
 function flowTransactions(kind: 'expense' | 'income', rows: readonly FlowRow[]): SeedTransaction[] {
   return rows.map(([localTime, accountKey, categoryKey, amountMinor, merchant, description, tags]) => ({
     kind,
@@ -458,16 +671,56 @@ function flowTransactions(kind: 'expense' | 'income', rows: readonly FlowRow[]):
   }));
 }
 
+/** Moves `balances` (per account key) by the transactions' flows in each account's own currency. */
+function post(balances: Map<string, bigint>, transactions: readonly SeedTransaction[], sign: 1n | -1n): void {
+  const move = (accountKey: string, deltaMinor: bigint): void => {
+    const balance = balances.get(accountKey);
+    if (balance === undefined) throw new RangeError(`unknown seed account: ${accountKey}`);
+    balances.set(accountKey, balance + sign * deltaMinor);
+  };
+  for (const transaction of transactions) {
+    if (transaction.kind === 'transfer') {
+      move(transaction.fromAccountKey, -transaction.sentMinor);
+      move(transaction.toAccountKey, transaction.receivedMinor);
+    } else {
+      move(transaction.accountKey, transaction.kind === 'income' ? transaction.amountMinor : -transaction.amountMinor);
+    }
+  }
+}
+
+// Same offset everywhere, so the ISO strings sort chronologically.
+const byTime = (a: SeedTransaction, b: SeedTransaction): number => a.occurredAt.localeCompare(b.occurredAt);
+
+const SEPTEMBER_TRANSACTIONS: readonly SeedTransaction[] = [
+  ...flowTransactions('income', SEPTEMBER_INCOME_ROWS),
+  ...flowTransactions('expense', [...SEPTEMBER_EXPENSE_ROWS, ...septemberFiller()]),
+  ...SEPTEMBER_TRANSFERS,
+].sort(byTime);
+
+/** {@link ACCOUNTS} opened on 31 Agu: the 30 Sep balances minus the September flows. */
+function openedOn31August(): SeedAccount[] {
+  const balances = new Map(ACCOUNTS.map((account) => [account.key, account.openingBalanceMinor]));
+  post(balances, SEPTEMBER_TRANSACTIONS, -1n);
+  return ACCOUNTS.map((account) => ({
+    ...account,
+    openingBalanceMinor: balances.get(account.key) as bigint,
+    openingDate: '2026-08-31',
+  }));
+}
+
 export const DESIGN_SEED: DesignSeed = {
   baseCurrency: 'IDR',
   timezone: 'Asia/Jakarta',
-  accounts: ACCOUNTS,
-  // Same offset everywhere, so the ISO strings sort chronologically.
+  periodStartDay: 1,
+  accounts: openedOn31August(),
   transactions: [
     ...flowTransactions('income', INCOME_ROWS),
     ...flowTransactions('expense', EXPENSE_ROWS),
     ...TRANSFERS,
-  ].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt)),
+  ].sort(byTime),
+  septemberTransactions: SEPTEMBER_TRANSACTIONS,
+  closedPeriods: [{ start: '2026-09-01', end: '2026-09-30', closedAt: '2026-10-01T00:05:00+07:00' }],
+  budgets: BUDGETS,
   fxRates: [{ base: 'USD', quote: 'IDR', rate: '16350', asOf: '2026-10-15' }],
   // Section 00 card "Tujuan tabungan"; deadlines from the savings-goal seed table (docs/design-analysis/CrossCutting.md).
   goals: [
@@ -529,23 +782,12 @@ export const DESIGN_SEED: DesignSeed = {
 };
 
 /**
- * Balance of every seed account in its own currency after all seed transactions: opening − expenses + income
- * − sent (transfer source) + received (transfer destination). Used by the DB seed CLI as a self-check.
+ * Balance of every seed account in its own currency after all seed transactions (September and October): opening
+ * − expenses + income − sent (transfer source) + received (transfer destination). Used by the DB seed CLI as a
+ * self-check.
  */
 export function seedClosingBalances(seed: DesignSeed): ReadonlyMap<string, bigint> {
   const balances = new Map(seed.accounts.map((account) => [account.key, account.openingBalanceMinor]));
-  const post = (accountKey: string, deltaMinor: bigint): void => {
-    const balance = balances.get(accountKey);
-    if (balance === undefined) throw new RangeError(`unknown seed account: ${accountKey}`);
-    balances.set(accountKey, balance + deltaMinor);
-  };
-  for (const transaction of seed.transactions) {
-    if (transaction.kind === 'transfer') {
-      post(transaction.fromAccountKey, -transaction.sentMinor);
-      post(transaction.toAccountKey, transaction.receivedMinor);
-    } else {
-      post(transaction.accountKey, transaction.kind === 'income' ? transaction.amountMinor : -transaction.amountMinor);
-    }
-  }
+  post(balances, [...seed.septemberTransactions, ...seed.transactions], 1n);
   return balances;
 }

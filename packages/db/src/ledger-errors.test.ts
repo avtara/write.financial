@@ -13,4 +13,8 @@ describe('LedgerError', () => {
     expect(new Set(LEDGER_ERROR_CODES).size).toBe(LEDGER_ERROR_CODES.length);
     for (const code of LEDGER_ERROR_CODES) expect(code).toMatch(/^[A-Z_]+$/);
   });
+
+  it('includes the M2 period and budget codes', () => {
+    expect(LEDGER_ERROR_CODES).toEqual(expect.arrayContaining(['PERIOD_CLOSED', 'INVALID_PERIOD', 'INVALID_BUDGET']));
+  });
 });

@@ -153,6 +153,17 @@ export function previousPeriod(period: Period, startDay: PeriodStartDay): Period
   return periodFor(addDays(period.start, -1), startDay);
 }
 
+/**
+ * The period right after `current` when periods start on `startDay`: the normal period, or — when `current` does not
+ * end right before a start day, e.g. after the start day changed with FR-P2 option (a) — a transition period up to
+ * the day before the next start day (Oktober 1–31 Okt then day 25: transition 1–24 Nov, then 25 Nov – 24 Des).
+ */
+export function periodAfter(current: Pick<Period, 'end'>, startDay: PeriodStartDay): Period {
+  const start = addDays(current.end, 1);
+  const next = periodFor(start, startDay);
+  return next.start === start ? next : makePeriod('transition', start, next.end);
+}
+
 /** All normal periods that overlap `from`–`to` (inclusive), in order (FR-S7 "melintasi N periode"). */
 export function periodsBetween(from: LocalDate, to: LocalDate, startDay: PeriodStartDay): Period[] {
   if (from > to) throw new InvalidPeriodRangeError(`Invalid range: ${from} is after ${to}`);
@@ -194,6 +205,55 @@ export function prorateLimit(limitMinor: bigint, transitionDays: number): bigint
   }
   const base = BigInt(PRORATION_BASE_DAYS);
   return (2n * limitMinor * BigInt(transitionDays) + base) / (2n * base);
+}
+
+/** Where `today` stands in a period (FR-B2 "Hari ke-15 dari 31 · 16 hari lagi"). */
+export interface PeriodProgress {
+  /** Day N, today included: 0 before the start, `days` after the end. */
+  readonly day: number;
+  /** Days after today until the end (31 − 15 = 16 on 15 Okt); the whole period before it starts, 0 after it ends. */
+  readonly daysLeft: number;
+}
+
+export function periodProgress(period: Pick<Period, 'start' | 'end' | 'days'>, today: LocalDate): PeriodProgress {
+  const day = Math.min(Math.max(countDays(period.start, today), 0), period.days);
+  return { day, daysLeft: period.days - day };
+}
+
+/**
+ * FR-P2 option (b) "Hitung ulang periode berjalan": what replaces the `current` period when the start day becomes
+ * `newStartDay` on `today`. Moving the start earlier gives the new normal period, which may reach back into the
+ * previous period (1 → 25 on 15 Okt: 25 Sep – 24 Okt; transactions of 25–30 Sep move into it). Moving it later
+ * would leave the days before the new start without a period, so they stay in a shortened transition period first
+ * (1 → 5 on 15 Okt: transition 1–4 Okt, then 5 Okt – 4 Nov).
+ */
+export function recalculatedPeriods(current: Period, newStartDay: PeriodStartDay, today: LocalDate): Period[] {
+  const recalculated = periodFor(today, newStartDay);
+  if (recalculated.start <= current.start) return [recalculated];
+  return [makePeriod('transition', current.start, addDays(recalculated.start, -1)), recalculated];
+}
+
+/**
+ * FR-P1 "Ikuti gajian": the start day suggested by salary dates, i.e. their most frequent day of the month (the most
+ * recent one on a tie), capped at 28. `null` without salary dates.
+ */
+export function detectPayday(salaryDates: readonly LocalDate[]): PeriodStartDay | null {
+  const counts = new Map<number, { count: number; latest: LocalDate }>();
+  for (const date of salaryDates) {
+    const day = Math.min(Number(date.slice(8, 10)), MAX_START_DAY);
+    const seen = counts.get(day);
+    counts.set(day, {
+      count: (seen?.count ?? 0) + 1,
+      latest: seen !== undefined && seen.latest > date ? seen.latest : date,
+    });
+  }
+  let best: { day: number; count: number; latest: LocalDate } | null = null;
+  for (const [day, { count, latest }] of counts) {
+    if (best === null || count > best.count || (count === best.count && latest > best.latest)) {
+      best = { day, count, latest };
+    }
+  }
+  return best === null ? null : (best.day as PeriodStartDay);
 }
 
 /** Localized period name: "Oktober" / "Oktober 2026" (id), "October" / "October 2026" (en). */
