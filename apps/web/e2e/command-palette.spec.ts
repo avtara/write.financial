@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * ⌘K (FR-S4), keyboard only, as the invited user with the design persona's ledger: open with Ctrl+K, find a seeded
- * transaction by merchant, open it, find it again under "Baru dibuka", the no-results state, the `G` navigation
- * sequence, the tablet rail's search button, and a category result opening Settings › Kategori.
+ * transaction by merchant, open it, find it again under "Baru dibuka", record an unmatched query through the Record
+ * Transaction sheet, the `G` navigation sequence, the tablet rail's search button, and a category result opening
+ * Settings › Kategori.
  */
 import type { Page } from '@playwright/test';
 import { expect, loadAccount, seedDesignPersona, test, USER_STATE } from './support.ts';
@@ -50,7 +51,7 @@ test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', 
   await expect(dialog).toBeHidden();
 });
 
-test('offers to create what matches nothing', async ({ page }) => {
+test('records what matches nothing as a transaction', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await visit(page, '/');
   await page.keyboard.press('Control+k');
@@ -58,8 +59,14 @@ test('offers to create what matches nothing', async ({ page }) => {
   await expect(dialog.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('cicilan motor');
   await expect(dialog.getByRole('listbox').getByText('Tidak ada hasil untuk “cicilan motor”')).toBeVisible();
+  const record = dialog.getByRole('option', { name: 'Catat “cicilan motor” sebagai transaksi' });
+  await expect(record).toHaveAttribute('aria-selected', 'true');
   await page.screenshot({ path: '/tmp/wf-cmdk-empty.png' });
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('Enter');
+  // The Record Transaction sheet opens with the query as its description (left unsaved).
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.getByRole('heading')).toHaveText(/^Catat /);
+  await expect(sheet.getByRole('textbox', { name: 'Catatan' })).toHaveValue('cicilan motor');
 });
 
 test('navigates with the G sequence, and opens from the tablet rail', async ({ page }) => {
