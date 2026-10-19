@@ -422,6 +422,7 @@
   "theme_label": "Theme",
   "theme_light": "Light",
   "theme_system": "System",
+  "toast_region_label": "Notifications",
   "totp_backup_codes_label": "Backup codes",
   "totp_backup_copy": "Copy all",
   "totp_backup_download": "Download .txt",

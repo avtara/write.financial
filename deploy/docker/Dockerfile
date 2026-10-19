@@ -18,8 +18,9 @@ ARG RUNTIME_PROJECTS="--filter-prod @wf/launcher... --filter-prod @wf/worker..."
 FROM ${NODE_IMAGE} AS pnpm
 RUN npm install --global pnpm@12.14.0
 WORKDIR /src
-# Workspace manifests only, so the dependency layers stay cached until a manifest or the lockfile changes.
-COPY --parents package.json pnpm-lock.yaml pnpm-workspace.yaml apps/*/package.json packages/*/package.json tools/*/package.json ./
+# Workspace manifests (and the dependency patches `pnpm install` applies) only, so the dependency layers stay cached
+# until a manifest, a patch, or the lockfile changes.
+COPY --parents package.json pnpm-lock.yaml pnpm-workspace.yaml patches/*.patch apps/*/package.json packages/*/package.json tools/*/package.json ./
 
 FROM pnpm AS build
 # Lifecycle scripts are skipped here; the only one needed (Paraglide compile) runs below, after the sources are copied.

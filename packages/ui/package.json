@@ -15,18 +15,42 @@
     "./page-state": "./src/page-state.tsx",
     "./secret-input": "./src/secret-input.tsx",
     "./code-input": "./src/code-input.tsx",
-    "./confirm-dialog": "./src/confirm-dialog.tsx"
+    "./confirm-dialog": "./src/confirm-dialog.tsx",
+    "./amount-input": "./src/amount-input.tsx",
+    "./calendar": "./src/calendar.tsx",
+    "./checkbox": "./src/checkbox.tsx",
+    "./command": "./src/command.tsx",
+    "./date-label": "./src/date-label.tsx",
+    "./date-picker": "./src/date-picker.tsx",
+    "./dates": "./src/dates.ts",
+    "./dropdown-menu": "./src/dropdown-menu.tsx",
+    "./empty-state": "./src/empty-state.tsx",
+    "./popover": "./src/popover.tsx",
+    "./range-picker": "./src/range-picker.tsx",
+    "./segmented-control": "./src/segmented-control.tsx",
+    "./select": "./src/select.tsx",
+    "./sheet": "./src/sheet.tsx",
+    "./switch": "./src/switch.tsx",
+    "./tabs": "./src/tabs.tsx",
+    "./toast": "./src/toast.tsx",
+    "./tooltip": "./src/tooltip.tsx",
+    "./virtual-list": "./src/virtual-list.tsx"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@date-fns/tz": "^1.5.0",
+    "@tanstack/react-virtual": "^3.14.21",
     "@wf/domain": "workspace:*",
+    "cmdk": "^1.1.1",
+    "date-fns": "^4.4.0",
     "geist": "^1.8.1",
     "lucide-react": "^1.59.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

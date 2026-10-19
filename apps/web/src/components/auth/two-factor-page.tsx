@@ -6,6 +6,7 @@
  */
 import { Link } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
+import { Checkbox } from '@wf/ui/checkbox';
 import { CodeInput } from '@wf/ui/code-input';
 import { Fingerprint, Info, KeyRound } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -14,7 +15,7 @@ import { authErrorMessage } from '../../lib/auth-errors.ts';
 import { hardNavigate, safeRedirect } from '../../lib/navigation.ts';
 import { useAuthActions } from '../auth-actions.tsx';
 import { AuthHeading } from '../auth-layout.tsx';
-import { Button, Checkbox, Field, FormError, TextInput } from '../form.tsx';
+import { Button, Field, FormError, TextInput } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { AUTH_LINK, AuthFoot } from './parts.tsx';
 

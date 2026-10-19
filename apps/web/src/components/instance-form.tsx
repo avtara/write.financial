@@ -6,11 +6,12 @@
  */
 import { m } from '@wf/i18n/messages';
 import { LOCALES, type Locale } from '@wf/i18n/locale';
+import { Checkbox } from '@wf/ui/checkbox';
 import { SecretInput } from '@wf/ui/secret-input';
 import { useState } from 'react';
 import type { Result } from '../server/access.ts';
 import type { InstanceDraft, InstanceInput, SmtpInput } from '../server/setup.ts';
-import { Button, Checkbox, Field, FormError, FormNotice, Select, TextInput } from './form.tsx';
+import { Button, Field, FormError, FormNotice, Select, TextInput } from './form.tsx';
 import { usePreferences } from './preferences.tsx';
 import { resultMessage, type Failure } from './setup/result.ts';
 
