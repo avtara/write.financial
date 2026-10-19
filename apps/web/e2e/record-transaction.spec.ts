@@ -113,7 +113,11 @@ test('an IDR → USD transfer records the FX difference of −Rp22.660', async (
   await sheet.getByRole('radio', { name: 'Pengeluaran' }).focus();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
-  await expect(sheet.getByRole('radio', { name: 'Transfer' })).toBeChecked();
+  const transfer = sheet.getByRole('radio', { name: 'Transfer' });
+  await expect(transfer).toBeFocused();
+  // Radix selects on arrow focus only while the arrow key is still down, which races in CI; Space always selects.
+  await page.keyboard.press('Space');
+  await expect(transfer).toBeChecked();
   await expect(sheet.getByRole('heading', { name: 'Catat Transfer' })).toBeVisible();
 
   await sheet.getByRole('textbox', { name: /^Jumlah/ }).focus();
