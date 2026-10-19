@@ -1,19 +1,54 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Shared E2E helpers: the console-error guard, TOTP codes, the accounts the specs share, the design persona's ledger,
- * and the services.
+ * Shared E2E helpers: the console-error guard, the run's clock in the browser, TOTP codes, the accounts the specs
+ * share, the design persona's ledger, and the services.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { expect, test as base, type Page } from '@playwright/test';
+import type { Browser, BrowserContext, BrowserContextOptions, Page } from '@playwright/test';
+import { expect, test as base } from '@playwright/test';
 import { Redis } from 'ioredis';
 import { Secret, TOTP } from 'otpauth';
 import postgres from 'postgres';
-import { e2eEnv, MAILPIT_URL, STATE_DIR } from './env.ts';
+import { e2eEnv, e2eNow, MAILPIT_URL, STATE_DIR } from './env.ts';
 
-/** Every test fails on console errors; Chromium reports CSP violations ("Refused to …") there. */
-export const test = base.extend<{ failOnConsoleErrors: undefined }>({
+/**
+ * Puts `context`'s pages on the run's clock (`e2eNow` in `env.ts`, the server's "now"). `setSystemTime` without
+ * `install` only moves `Date`: timers stay real and time keeps passing. Playwright's `Date` makes its instances with the
+ * native constructor, so `new Date().constructor !== Date` and TanStack Start's serializer (seroval, which matches
+ * `value.constructor === Date`) refuses every date a server function sends; the second init script, which runs after
+ * the clock's, restores the native invariant. Before the context's first page: init scripts skip open pages.
+ */
+async function useRunClock(context: BrowserContext): Promise<void> {
+  await context.clock.setSystemTime(e2eNow());
+  await context.addInitScript(() => {
+    Date.prototype.constructor = Date;
+  });
+}
+
+/**
+ * A browser context besides the test's own, on the run's clock like the test's pages (`runClock`). Use it instead of
+ * `browser.newContext`.
+ */
+export async function newContext(browser: Browser, options: BrowserContextOptions): Promise<BrowserContext> {
+  const context = await browser.newContext(options);
+  await useRunClock(context);
+  return context;
+}
+
+/**
+ * Every test's pages see the run's clock (`useRunClock`; declared before `failOnConsoleErrors`, so it runs before the
+ * page opens), and every test fails on console errors; Chromium reports CSP violations ("Refused to …") there.
+ */
+export const test = base.extend<{ runClock: undefined; failOnConsoleErrors: undefined }>({
+  runClock: [
+    async ({ context }, use) => {
+      await useRunClock(context);
+      await use(undefined);
+    },
+    { auto: true },
+  ],
   failOnConsoleErrors: [
     async ({ page }, use) => {
       const errors: string[] = [];
@@ -36,7 +71,7 @@ export { expect };
 export const SETUP_TOKEN = e2eEnv()['SETUP_TOKEN'] ?? '';
 
 /** The current 6-digit code of a base32 TOTP secret (6 digits, 30 seconds, SHA-1, as Better Auth issues them). */
-export function totp(secret: string, at = Date.now()): string {
+export function totp(secret: string, at = e2eNow()): string {
   return new TOTP({ secret: Secret.fromBase32(secret), digits: 6, period: 30 }).generate({ timestamp: at });
 }
 
@@ -135,9 +170,14 @@ export async function seedDesignPersona(email: string): Promise<void> {
   } finally {
     await sql.end();
   }
-  execFileSync('node', ['src/cli.ts', 'seed', '--email', email], {
-    cwd: path.resolve(import.meta.dirname, '../../../packages/db'),
-    env: { ...process.env, ...env },
-    stdio: 'pipe',
-  });
+  // On the run's clock, like the server (`clock.ts`): the seed's open period is the one of E2E_NOW.
+  execFileSync(
+    'node',
+    ['--import', path.resolve(import.meta.dirname, 'clock.ts'), 'src/cli.ts', 'seed', '--email', email],
+    {
+      cwd: path.resolve(import.meta.dirname, '../../../packages/db'),
+      env: { ...process.env, ...env },
+      stdio: 'pipe',
+    },
+  );
 }

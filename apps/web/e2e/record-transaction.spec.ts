@@ -25,11 +25,16 @@ test.beforeAll(async () => {
     const [row] = await db<{ accounts: number }[]>`
       SELECT count(*)::int AS accounts FROM accounts a JOIN users u ON u.id = a.user_id WHERE u.email = ${email}`;
     if (row?.accounts === 0) {
-      execFileSync('node', ['src/cli.ts', 'seed', '--email', email], {
-        cwd: path.resolve(import.meta.dirname, '../../../packages/db'),
-        env: { ...process.env, ...env },
-        stdio: 'inherit',
-      });
+      // On the run's clock, like the server (`clock.ts`): the seed's open period is the one of E2E_NOW.
+      execFileSync(
+        'node',
+        ['--import', path.resolve(import.meta.dirname, 'clock.ts'), 'src/cli.ts', 'seed', '--email', email],
+        {
+          cwd: path.resolve(import.meta.dirname, '../../../packages/db'),
+          env: { ...process.env, ...env },
+          stdio: 'inherit',
+        },
+      );
     }
     // The reference rate of the golden example (PRD §7.2): shown as Rp16.350, exactly 16350.0275.
     await db`
