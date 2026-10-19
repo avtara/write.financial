@@ -46,7 +46,7 @@ function groupsOf({ categories, kind, budgetNote }: PickerCommon): ComboboxGroup
         .map((category) => ({
           value: category.id,
           label: categoryName(category),
-          icon: CATEGORY_ICONS[category.icon] ?? Shapes,
+          icon: CATEGORY_ICONS[category.icon]?.glyph ?? Shapes,
           aside: budgetNote?.(category),
         })),
     }))
