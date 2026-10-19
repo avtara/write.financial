@@ -3,11 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
 import { AppShell } from './app-shell.tsx';
+import { CommandPaletteProvider } from './command-palette/command-palette.tsx';
 
 const shell = (
-  <AppShell>
-    <p>page content</p>
-  </AppShell>
+  <CommandPaletteProvider>
+    <AppShell>
+      <p>page content</p>
+    </AppShell>
+  </CommandPaletteProvider>
 );
 
 describe('AppShell', () => {

@@ -16,7 +16,8 @@ const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse
  * - `app`: the app shell (layout, language, theme, privacy mode, security headers) as the invited user,
  * - `settings-ledger`: Settings › Kategori and Tag (create, rename, merge, delete; keyboard only) as the invited user,
  * - `accounts`: "Rekening & dompet" with the design persona seeded for the invited user (M1),
- * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed.
+ * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed,
+ * - `cmdk`: the ⌘K palette, keyboard only, as the invited user with the design persona's ledger (`seedDesignPersona`).
  *
  * The server, Postgres, the browsers, and the TOTP codes run on one clock that starts at E2E_NOW (the design persona's
  * day), so the seed's goldens hold whatever the real date is.
@@ -69,6 +70,12 @@ export default defineConfig({
       name: 'record',
       testMatch: 'record-transaction.spec.ts',
       dependencies: ['accounts'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      name: 'cmdk',
+      testMatch: 'command-palette.spec.ts',
+      dependencies: ['app'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
   ],

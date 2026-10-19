@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Link, useRouteContext } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
+import { KbdHint } from '@wf/ui/kbd-hint';
+import { Search } from 'lucide-react';
+import { useCommandPalette } from './command-palette/command-palette.tsx';
 import { LogoTile } from './logo-mark.tsx';
 import { NAV_GROUPS } from './nav.ts';
+import { usePreferences } from './preferences.tsx';
 import { UserMenu } from './user-menu.tsx';
 
 /** Product wordmark: Geist 600, "write" in `$fg` and ".financial" in `$muted-fg` (design Section 20). */
@@ -17,16 +21,31 @@ function Wordmark() {
   );
 }
 
-/** Desktop sidebar (≥ 1280 px, design `qjLGK`): 248 px, brand, navigation groups, user menu at the bottom. */
+/**
+ * Desktop sidebar (≥ 1280 px, design `qjLGK`): 248 px, brand, the ⌘K search field, navigation groups, user menu at
+ * the bottom.
+ */
 export function Sidebar() {
   // The signed-in user, from the `_app` route context (absent outside it).
   const { viewer } = useRouteContext({ strict: false });
+  const palette = useCommandPalette();
+  const { platform } = usePreferences().preferences;
   return (
     <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-6 border-r border-border px-4 py-5 xl:flex">
       <div className="flex items-center gap-2.5 px-2">
         <LogoTile variant="sidebar" />
         <Wordmark />
       </div>
+      <button
+        type="button"
+        onClick={palette.open}
+        aria-keyshortcuts={platform === 'mac' ? 'Meta+K' : 'Control+K'}
+        className="-mt-2 flex h-[34px] items-center gap-2 rounded-[7px] border border-border bg-input px-2.5 text-[13px] text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        <Search aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="flex-1 text-left">{m.cmdk_open()}</span>
+        <KbdHint keys={['mod', 'K']} platform={platform} />
+      </button>
       <nav aria-label={m.nav_main_label()} className="flex flex-col gap-0.5">
         {NAV_GROUPS.map((group) => (
           <section key={group.label()} className="flex flex-col gap-0.5">

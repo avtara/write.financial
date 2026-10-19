@@ -55,6 +55,7 @@ import { SMTPServer } from 'smtp-server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { requestContext } from '../../../test/server-fn.ts';
 import { SessionBrowser } from '../../../test/session-browser.ts';
+import { SEARCH_KINDS, type RecentEntry, type SearchResults } from '../../lib/search.ts';
 import type { Result } from '../access.ts';
 import type { DeviceView, SecurityHistory, SecurityOverview } from '../account.ts';
 import { getPreferences } from '../get-preferences.ts';
@@ -71,6 +72,7 @@ import * as ledger from './ledger.ts';
 import * as notifications from './notifications.ts';
 import * as review from './review.ts';
 import * as schedules from './schedules.ts';
+import * as search from './search.ts';
 import * as setup from './setup.ts';
 import * as tags from './tags.ts';
 // Named: the module also exports its input schema, which is not a server function.
@@ -160,6 +162,7 @@ const FUNCTIONS = {
   ...notifications,
   ...review,
   ...schedules,
+  ...search,
   ...setup,
   ...tags,
   recordTransaction,
@@ -279,6 +282,7 @@ const A_LEDGER = {
   subscription: 'Langganan Rahasia A',
   recurrence: 'Kos Rahasia A',
   detected: 'Toko Rahasia A',
+  merchant: 'Warung Rahasia A',
 };
 /** Whether transaction `id` is soft-deleted. */
 const isDeleted = async (id: string) =>
@@ -456,7 +460,7 @@ beforeAll(async () => {
   // Ledger rows of both users through the app's repositories; A's have names B must never see.
   for (const [userId, names] of [
     [aId, A_LEDGER],
-    [bId, { account: 'Rekening B', category: 'Kategori B', tag: 'tag-b' }],
+    [bId, { account: 'Rekening B', category: 'Kategori B', tag: 'tag-b', merchant: 'Warung B' }],
   ] as const) {
     const created = await services.accounts.create(userId, {
       type: 'bank',
@@ -487,6 +491,15 @@ beforeAll(async () => {
     });
     const { current } = await services.periods.list(userId);
     await services.budgets.setLine(userId, current.id as string, { categoryId: budgeted.id, limitMinor: 500_000n });
+    await services.transactions.create(userId, {
+      type: 'expense',
+      clientId: crypto.randomUUID(),
+      occurredAt: new Date('2026-10-14T05:00:00Z'),
+      accountId: created.id,
+      amountMinor: 25_000n,
+      categoryId: null,
+      merchant: names.merchant,
+    });
   }
   await services.fxRates.upsertManual(aId, {
     base: 'USD',
@@ -844,7 +857,7 @@ const MATRIX: Record<Name, Case> = {
     asB: async (input) => {
       const ofB = await as<Result<AccountsOverview>>('B', 'listAccounts', input);
       expect(ofB.ok && ofB.value.accounts.map((a) => a.displayName)).toEqual(['Rekening B']);
-      expect(ofB.ok && ofB.value.availableMinor).toBe(1_000_000n);
+      expect(ofB.ok && ofB.value.availableMinor).toBe(975_000n);
       const ofA = await as<Result<AccountsOverview>>('A', 'listAccounts', input);
       expect(ofA.ok && ofA.value.accounts.map((a) => a.displayName)).toEqual([A_LEDGER.account]);
     },
@@ -877,6 +890,40 @@ const MATRIX: Record<Name, Case> = {
       // A's manual rate is A's alone; B has none and no built-in rate exists yet.
       expect(await as('B', 'getReferenceRate', input)).toEqual(ok(null));
       expect(await as('A', 'getReferenceRate', input)).toMatchObject(ok({ rate: '16474', manual: true }));
+    },
+  },
+  searchEverything: {
+    input: () => ({ query: 'warung' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<SearchResults>>('B', 'searchEverything', input);
+      expect(ofB.ok && ofB.value.transactions.hits.map((hit) => [hit.title, hit.accountName])).toEqual([
+        ['Warung B', 'Rekening B'],
+      ]);
+      const rahasia = await as<Result<SearchResults>>('B', 'searchEverything', { query: 'rahasia' });
+      expect(rahasia.ok && SEARCH_KINDS.map((kind) => rahasia.value[kind].total)).toEqual([0, 0, 0, 0]);
+      const ofA = await as<Result<SearchResults>>('A', 'searchEverything', { query: 'rahasia' });
+      expect(ofA.ok && SEARCH_KINDS.map((kind) => ofA.value[kind].total)).toEqual([1, 1, 1, 1]);
+    },
+  },
+  touchRecent: {
+    // B remembers A's account id: stored for B alone, and never resolved for B (below).
+    input: () => ({ kind: 'account', ref: aAccountId }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      expect(await as('B', 'touchRecent', input)).toEqual(ok(null));
+      expect(await count('recent_items', `user_id = '${bId}'`)).toBe(1);
+      expect(await count('recent_items', `user_id = '${aId}'`)).toBe(0);
+    },
+  },
+  listRecent: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      expect(await as('B', 'touchRecent', { kind: 'account', ref: bAccountId })).toEqual(ok(null));
+      const ofB = await as<Result<RecentEntry[]>>('B', 'listRecent', input);
+      expect(ofB.ok && ofB.value.map((entry) => entry.kind !== 'page' && entry.hit.id)).toEqual([bAccountId]);
+      expect(await as('A', 'listRecent', input)).toEqual(ok([]));
     },
   },
   createCategory: {
