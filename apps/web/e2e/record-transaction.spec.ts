@@ -57,7 +57,8 @@ async function openSheet(page: Page): Promise<Locator> {
   await expect(page.getByRole('form', { name: 'Catat cepat' })).toBeVisible();
   await page.locator('body').press('n');
   const sheet = page.getByRole('dialog');
-  await expect(sheet.getByRole('heading')).toHaveText(/^Catat /);
+  // The sheet's title (saved drafts add their own heading once they load).
+  await expect(sheet.getByRole('heading', { level: 2 })).toHaveText(/^Catat /);
   await expect(sheet.getByRole('textbox', { name: 'Jumlah' })).toBeFocused();
   return sheet;
 }
