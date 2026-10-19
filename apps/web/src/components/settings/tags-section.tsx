@@ -18,14 +18,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@wf/ui/dropdown-menu';
-import { Select } from '@wf/ui/select';
 import { toast } from '@wf/ui/toast';
 import { Check, Ellipsis, Merge, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import type { Result } from '../../server/access.ts';
 import { createTag, deleteTag, mergeTags, renameTag } from '../../server/fn/tags.ts';
-import { Button, TextInput } from '../form.tsx';
+import { Button, Select as NativeSelect, TextInput } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { settle } from '../setup/result.ts';
 import { matchTags, TagMergePanel } from './tag-merge-panel.tsx';
@@ -233,19 +232,19 @@ export function TagsSection({ tags, similar }: TagsSectionProps) {
             className="pl-8"
           />
         </div>
-        <div className="w-[190px]">
-          <Select<Sort>
-            size="sm"
-            aria-label={m.tag_sort()}
-            value={sort}
-            onValueChange={setSort}
-            placeholder={m.tag_sort()}
-            options={[
-              { value: 'usage', label: m.tag_sort_usage() },
-              { value: 'name', label: m.tag_sort_name() },
-            ]}
-          />
-        </div>
+        {/* Native: a Radix Select renders inline styles during SSR, which the nonce-only CSP refuses. */}
+        <NativeSelect
+          size="sm"
+          aria-label={m.tag_sort()}
+          value={sort}
+          onChange={(event) => {
+            setSort(event.target.value as Sort);
+          }}
+          className="w-[190px]"
+        >
+          <option value="usage">{m.tag_sort_usage()}</option>
+          <option value="name">{m.tag_sort_name()}</option>
+        </NativeSelect>
         <Button
           size="sm"
           onClick={() => {

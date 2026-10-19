@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { setNonce } from 'get-nonce';
 import { FileSpreadsheet } from 'lucide-react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -32,6 +33,16 @@ function Harness({ onValueChange, ...props }: Partial<SelectProps<Format>>) {
 }
 
 describe('Select', () => {
+  it('gives the viewport style element the CSP nonce', async () => {
+    setNonce('nonce-select');
+    const screen = await render(<Harness />);
+    await screen.getByRole('combobox', { name: 'Format' }).click();
+    await expect.element(page.getByRole('listbox')).toBeVisible();
+    const style = document.querySelector('[data-radix-select-viewport]')?.parentElement?.querySelector('style');
+    expect(style?.nonce).toBe('nonce-select');
+    await userEvent.keyboard('{Escape}');
+  });
+
   it('shows the placeholder, opens with the keyboard, and picks an option', async () => {
     const onValueChange = vi.fn();
     const screen = await render(<Harness onValueChange={onValueChange} />);
