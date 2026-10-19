@@ -23,6 +23,7 @@
     "@wf/config": "workspace:*",
     "@wf/crypto": "workspace:*",
     "@wf/db": "workspace:*",
+    "@wf/domain": "workspace:*",
     "@wf/i18n": "workspace:*",
     "@wf/integrations": "workspace:*",
     "@wf/jobs": "workspace:*",
