@@ -14,6 +14,11 @@ describe('normalizeTagSlug', () => {
     expect(slug).toMatch(TAG_SLUG_PATTERN);
   });
 
+  it('matches whole slugs only', () => {
+    for (const bad of ['Dana', 'dana-', '-dana', 'dana!', '!dana', 'dana--darurat']) {
+      expect(TAG_SLUG_PATTERN.test(bad)).toBe(false);
+    }
+  });
   it('rejects empty and over-long slugs', () => {
     expect(normalizeTagSlug('#')).toBeNull();
     expect(normalizeTagSlug('   ')).toBeNull();

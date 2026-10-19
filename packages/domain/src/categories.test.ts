@@ -22,6 +22,7 @@ describe('category kinds and groups', () => {
 
 describe('BUILT_IN_CATEGORIES (FR-K1)', () => {
   it('has unique, prefixed keys within the name limit', () => {
+    expect(BUILT_IN_PREFIX).toBe('system:');
     expect(new Set(keys).size).toBe(keys.length);
     for (const key of keys) {
       expect(key.startsWith(BUILT_IN_PREFIX)).toBe(true);

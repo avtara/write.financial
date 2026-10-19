@@ -63,6 +63,19 @@ describe('convert', () => {
   it('only rescales within one currency and rejects unrelated rates', () => {
     expect(convert({ minor: 5n, currency: 'IDR' }, 'IDR', REFERENCE)).toBe(5n);
     expect(() => convert({ minor: 5n, currency: 'SGD' }, 'IDR', REFERENCE)).toThrow(MissingRateError);
+    // One side of the rate matches, the other does not.
+    expect(() => convert({ minor: 5n, currency: 'USD' }, 'SGD', REFERENCE)).toThrow(MissingRateError);
+    expect(() => convert({ minor: 5n, currency: 'IDR' }, 'SGD', REFERENCE)).toThrow(
+      'No exchange rate between IDR and SGD',
+    );
+  });
+
+  it('names its errors', () => {
+    expect(new MissingRateError('IDR', 'SGD').name).toBe('MissingRateError');
+    expect(new InvalidRateError('x')).toMatchObject({
+      name: 'InvalidRateError',
+      message: 'Exchange rate must be a positive decimal with at most 8 fraction digits: x',
+    });
   });
 });
 
@@ -73,12 +86,16 @@ describe('findRate / rateToBase', () => {
     expect(findRate([sgd, REFERENCE], 'IDR', 'USD')).toBe(REFERENCE);
     expect(findRate([sgd, REFERENCE], 'SGD', 'IDR')).toBe(sgd);
     expect(findRate([REFERENCE], 'SGD', 'IDR')).toBeUndefined();
+    expect(findRate([REFERENCE], 'USD', 'SGD')).toBeUndefined();
+    expect(findRate([REFERENCE], 'SGD', 'USD')).toBeUndefined();
   });
 
   it('gives the base value of one unit of the currency', () => {
     expect(rateToBase('USD', 'IDR', REFERENCE)).toBe('16350.0275');
     expect(rateToBase('SGD', 'IDR', sgd)).toBe('12500');
     expect(() => rateToBase('EUR', 'IDR', sgd)).toThrow(MissingRateError);
+    expect(() => rateToBase('USD', 'SGD', REFERENCE)).toThrow(MissingRateError);
+    expect(() => rateToBase('IDR', 'SGD', REFERENCE)).toThrow(MissingRateError);
   });
 });
 
@@ -88,12 +105,25 @@ describe('effectiveRate', () => {
     expect(effectiveRate({ minor: 10_000n, currency: 'USD' }, { minor: 1_618_400n, currency: 'IDR' }, REFERENCE)).toBe(
       '16184',
     );
+    // Both currencies with minor units: US$100,00 → S$135,00 is 1.35.
+    expect(
+      effectiveRate(
+        { minor: 10_000n, currency: 'USD' },
+        { minor: 13_500n, currency: 'SGD' },
+        { base: 'USD', quote: 'SGD' },
+      ),
+    ).toBe('1.35');
   });
 
   it('rejects other currencies and non-positive amounts', () => {
     expect(() => effectiveRate(SENT, { minor: 1n, currency: 'SGD' }, REFERENCE)).toThrow(MissingRateError);
-    expect(() => effectiveRate(SENT, { minor: 0n, currency: 'USD' }, REFERENCE)).toThrow(RangeError);
-    expect(() => effectiveRate({ minor: 0n, currency: 'IDR' }, RECEIVED, REFERENCE)).toThrow(RangeError);
+    expect(() => effectiveRate(RECEIVED, { minor: 1n, currency: 'SGD' }, REFERENCE)).toThrow(MissingRateError);
+    expect(() => effectiveRate(SENT, { minor: 0n, currency: 'USD' }, REFERENCE)).toThrow(
+      'Both amounts must be positive',
+    );
+    expect(() => effectiveRate({ minor: 0n, currency: 'IDR' }, RECEIVED, REFERENCE)).toThrow(
+      'Both amounts must be positive',
+    );
   });
 });
 
