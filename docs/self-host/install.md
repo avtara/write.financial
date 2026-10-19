@@ -7,7 +7,7 @@ file in [`deploy/compose/`](../../deploy/compose/):
 | ----------- | -------------------------------------------------------------------------------------------------- | ------------------ |
 | `caddy`     | HTTPS (automatic certificates, HSTS), HTTP → HTTPS redirect, reverse proxy to `web`                 | `edge`, ports 80/443 |
 | `web`       | the app                                                                                            | `edge`, `internal` |
-| `worker`    | background jobs                                                                                    | `internal`         |
+| `worker`    | background jobs, including the daily FX reference rates                                            | `internal`, `egress` |
 | `init`      | one-shot on every start: generates missing secrets, creates database roles, runs migrations, exits | `internal`         |
 | `postgres`  | PostgreSQL 18                                                                                      | `internal`         |
 | `valkey`    | Valkey 9 (Redis-compatible) for queues and cache                                                   | `internal`         |
@@ -15,7 +15,8 @@ file in [`deploy/compose/`](../../deploy/compose/):
 | `backup`    | on demand: encrypted backups and restores ([backup.md](backup.md)), not started by `up`           | `internal`         |
 
 Only Caddy publishes ports. The `internal` network has no route to the outside world, so PostgreSQL, Valkey, and
-SeaweedFS are unreachable from other machines.
+SeaweedFS are unreachable from other machines. The worker also joins `egress`, a network without published ports, to
+fetch FX reference rates.
 
 ## Requirements
 
@@ -24,6 +25,9 @@ SeaweedFS are unreachable from other machines.
 - Docker Engine 26 or newer with the Compose plugin 2.26 or newer (`docker compose version`).
 - For a public instance: a domain name whose DNS `A`/`AAAA` record points at the server, and inbound TCP 80 and 443
   (plus UDP 443 for HTTP/3) open. Caddy needs outbound internet access to obtain certificates.
+- Outbound HTTPS from the worker to `api.frankfurter.dev`, `cdn.jsdelivr.net`, `latest.currency-api.pages.dev`, and
+  `open.er-api.com` for exchange rates (no keys needed). Without it, transfers between currencies still work with
+  the last fetched or a manual rate.
 
 ## 1. Get the Compose files
 
