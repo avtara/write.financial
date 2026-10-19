@@ -6,7 +6,8 @@
 #
 # Start order: postgres → init (generates missing secrets into the `secrets` volume, creates the database roles, runs
 # migrations, exits) → valkey + seaweedfs → web + worker → caddy. Only caddy publishes ports (80/443). PostgreSQL,
-# Valkey, and SeaweedFS sit on the `internal` network, which has no route to the outside world.
+# Valkey, and SeaweedFS sit on the `internal` network, which has no route to the outside world; the worker also joins
+# `egress` for its data sources (FX rates), whose adapters only reach their own hosts.
 # Backups (docs/self-host/backup.md): `docker compose run --rm backup`, daily from a host timer; `backup` is not
 # started by `up`.
 # Requires Docker Engine 26+ and Compose 2.26+ (volume subpaths).
@@ -92,7 +93,7 @@ services:
       retries: 3
       start_period: 60s
       start_interval: 2s
-    networks: [internal]
+    networks: [internal, egress]
 
   # One-shot: secrets, database roles, migrations. Runs again (idempotently) on every `up`, e.g. after an upgrade.
   init:
@@ -227,6 +228,9 @@ services:
 networks:
   # caddy ↔ web. A regular bridge: Caddy needs the internet for certificates.
   edge:
+  # worker → external data sources (Frankfurter, fawazahmed0, open.er-api). A regular bridge with nothing published;
+  # each adapter refuses hosts outside its own allowlist.
+  egress:
   # Everything else. `internal`: no published ports, no route out.
   internal:
     internal: true
