@@ -60,6 +60,8 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
     : year
       ? m.overview_cashflow_per_month({ year: dashboard.ranges.full.from.slice(0, 4) })
       : m.overview_cashflow_six_periods();
+  // The trend always holds the period containing the end of what is shown.
+  const current = columns.find((column) => column.current) as CashflowColumn;
 
   const stats: { label: string; value: ReactNode; tone?: string }[] = [
     {
@@ -67,7 +69,7 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
         ? m.overview_cashflow_net_week()
         : year
           ? m.overview_cashflow_net_year({ year: dashboard.ranges.full.from.slice(0, 4) })
-          : m.overview_cashflow_net({ what: columns.find((column) => column.current)?.label ?? '' }),
+          : m.overview_cashflow_net({ what: current.label }),
       value: <Money minor={dashboard.kpis.current.savedMinor} currency={currency} context="delta" locale={locale} />,
     },
     {

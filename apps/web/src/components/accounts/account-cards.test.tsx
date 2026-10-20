@@ -64,4 +64,23 @@ describe('AccountCards', () => {
     );
     expect(again.screen.getByRole('listitem').elements()).toHaveLength(1);
   });
+
+  it('adds a footer under each card and leaves out "pressed" where cards only navigate', async () => {
+    const { screen } = await renderApp(
+      <AccountCards
+        accounts={[
+          accountView({ id: 'card', displayName: 'Kartu', showAsCard: true }),
+          accountView({ id: 'other', displayName: 'Lain', showAsCard: false }),
+        ]}
+        baseCurrency="IDR"
+        onSelect={vi.fn()}
+        onShowOthers={vi.fn()}
+        footer={(accounts) => <span>{accounts.map((account) => account.id).join('+')}</span>}
+      />,
+    );
+    const card = screen.getByRole('button', { name: /Kartu/ });
+    await expect.element(card).toMatchTextContent('card');
+    expect(card.element().hasAttribute('aria-pressed')).toBe(false);
+    await expect.element(screen.getByRole('button', { name: /1 lainnya/ })).toMatchTextContent('other');
+  });
 });

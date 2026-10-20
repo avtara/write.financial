@@ -30,7 +30,8 @@ test.describe('layout', () => {
     await expect(sidebar).toHaveCount(1);
     await expect(sidebar.getByRole('link', { name: 'Ringkasan' })).toHaveAttribute('data-status', 'active');
     await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
-    await expect(page.getByText('Belum ada data')).toBeVisible();
+    await expect(page.getByText('Belum ada data. Tambahkan rekening pertamamu untuk mulai.')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Siapkan write.financial dalam 3 langkah' })).toBeVisible();
   });
 
   test('tablet 1024 shows the icon rail with tooltips', async ({ page }) => {

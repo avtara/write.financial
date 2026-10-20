@@ -98,9 +98,11 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
       : null;
   const name = profile?.nickname ?? profile?.name.split(' ')[0] ?? '';
   const empty = !hasTransactions;
-  // Reached only when one of these failed (the cards need all three).
-  const failure = [data.dashboard, data.accounts, data.categories].find((result) => !result.ok) as
-    { readonly ok: false; readonly code: string } | undefined;
+  // Read only where one of these failed (the cards need all three), so it is set there.
+  const failure = [data.dashboard, data.accounts, data.categories].find((result) => !result.ok) as {
+    readonly ok: false;
+    readonly code: string;
+  };
   const title = empty
     ? m.overview_greeting_welcome({ name })
     : greeting(data.loadedAt, timeZone, name).replace(/, $/, '');
@@ -146,7 +148,7 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
           <PageState
             kind="error"
             title={m.overview_load_failed()}
-            description={ledgerErrorMessage(failure?.code ?? 'INTERNAL', locale)}
+            description={ledgerErrorMessage(failure.code, locale)}
           />
         </section>
       ) : (
