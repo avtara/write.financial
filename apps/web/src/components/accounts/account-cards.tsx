@@ -8,6 +8,7 @@ import type { AccountView } from '@wf/db/accounts';
 import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
 import { Ellipsis } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { cardSlots } from '../../lib/accounts.ts';
 import { accountTypeLabel } from '../../lib/ledger-labels.ts';
 import { usePreferences } from '../preferences.tsx';
@@ -16,16 +17,26 @@ import { AccountLogo } from './account-logo.tsx';
 export interface AccountCardsProps {
   readonly accounts: readonly AccountView[];
   readonly baseCurrency: string;
-  readonly selectedId: string | null;
+  /** The pressed card (a filter); leave out where a card only navigates (the Overview). */
+  readonly selectedId?: string | null;
   readonly onSelect: (account: AccountView) => void;
   /** "N lainnya": e.g. scroll to the full list. */
   readonly onShowOthers: () => void;
+  /** A last line under a card's balance (`[account]`) or under "N lainnya" (its accounts): "+Rp1.200.000 bulan ini". */
+  readonly footer?: (accounts: readonly AccountView[]) => ReactNode;
 }
 
 const CARD =
   'flex min-w-0 flex-col gap-2 rounded-[10px] border border-border bg-card p-3.5 text-left hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-fg';
 
-export function AccountCards({ accounts, baseCurrency, selectedId, onSelect, onShowOthers }: AccountCardsProps) {
+export function AccountCards({
+  accounts,
+  baseCurrency,
+  selectedId,
+  onSelect,
+  onShowOthers,
+  footer,
+}: AccountCardsProps) {
   const { preferences } = usePreferences();
   const { locale } = preferences;
   const { cards, others } = cardSlots(accounts);
@@ -37,7 +48,7 @@ export function AccountCards({ accounts, baseCurrency, selectedId, onSelect, onS
         <li key={account.id} className="flex">
           <button
             type="button"
-            aria-pressed={account.id === selectedId}
+            aria-pressed={selectedId === undefined ? undefined : account.id === selectedId}
             className={`${CARD} flex-1`}
             onClick={() => {
               onSelect(account);
@@ -62,6 +73,7 @@ export function AccountCards({ accounts, baseCurrency, selectedId, onSelect, onS
               locale={locale}
               className="text-[17px] font-semibold text-fg"
             />
+            {footer?.([account])}
           </button>
         </li>
       ))}
@@ -86,6 +98,7 @@ export function AccountCards({ accounts, baseCurrency, selectedId, onSelect, onS
               locale={locale}
               className="text-[17px] font-semibold text-fg"
             />
+            {footer?.(others)}
           </button>
         </li>
       )}

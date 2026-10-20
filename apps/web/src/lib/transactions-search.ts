@@ -35,24 +35,27 @@ const isLocalDate = (value: string): boolean => {
   }
 };
 
-const yearMonth = z
+/** A period label `YYYY-MM` (also the Overview's `?period=`). */
+export const yearMonthParam = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
   .transform((value) => value as YearMonth);
 
-/** `2026-09-14..2026-10-13` (inclusive, start ≤ end, at most {@link MAX_RANGE_DAYS} days). */
-const rangeParam = z.string().refine((value) => {
-  const [from, to, ...rest] = value.split('..');
-  return (
-    rest.length === 0 &&
-    from !== undefined &&
-    to !== undefined &&
-    isLocalDate(from) &&
-    isLocalDate(to) &&
-    from <= to &&
-    countDays(from as LocalDate, to as LocalDate) <= MAX_RANGE_DAYS
-  );
-}, 'Expected YYYY-MM-DD..YYYY-MM-DD');
+/** `2026-09-14..2026-10-13` (inclusive, start ≤ end, at most `maxDays` days). */
+export function rangeParam(maxDays: number) {
+  return z.string().refine((value) => {
+    const [from, to, ...rest] = value.split('..');
+    return (
+      rest.length === 0 &&
+      from !== undefined &&
+      to !== undefined &&
+      isLocalDate(from) &&
+      isLocalDate(to) &&
+      from <= to &&
+      countDays(from as LocalDate, to as LocalDate) <= maxDays
+    );
+  }, 'Expected YYYY-MM-DD..YYYY-MM-DD');
+}
 
 /** A comma-separated list whose every value passes `item` (at most {@link MAX_LIST}). */
 function listParam(item: z.ZodType<string>) {
@@ -68,9 +71,9 @@ const amount = z.int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 /** What selects the rows: period or range, filters, search, sort. Shared by the URL and the server functions. */
 const QUERY_SHAPE = {
   /** Period label `YYYY-MM` (FR-P1); without `period` and `range`, the current period. */
-  period: yearMonth.optional(),
+  period: yearMonthParam.optional(),
   /** Custom range (FR-S7); wins over `period`. */
-  range: rangeParam.optional(),
+  range: rangeParam(MAX_RANGE_DAYS).optional(),
   type: listParam(z.enum(LISTED_TYPES)).optional(),
   category: listParam(z.uuid()).optional(),
   uncategorized: z.boolean().optional(),
