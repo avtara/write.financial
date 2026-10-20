@@ -232,6 +232,277 @@
   "auth_page_sign_in": "Sign in",
   "breadcrumb_finance": "Finance",
   "breadcrumb_label": "Breadcrumb",
+  "budget_add_button": "Add budget category",
+  "budget_add_create": "Create new category",
+  "budget_add_empty": "No category found",
+  "budget_add_label": "Choose a category without a budget",
+  "budget_add_search": "Search categories without a budget…",
+  "budget_add_spent": "{amount} this month",
+  "budget_and": " and ",
+  "budget_aside_label": "Group summary and warnings",
+  "budget_attention_dismiss": "Dismiss",
+  "budget_attention_dismiss_label": "Dismiss the {name} warning until the period ends",
+  "budget_attention_dismissed": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} dismissed until the end of the month · {names}",
+        "countPlural=*": "{count} dismissed until the end of the month · {names}"
+      }
+    }
+  ],
+  "budget_attention_move": "Move {amount}",
+  "budget_attention_none": "Every category is on track.",
+  "budget_attention_over_body": "Cover it with what is left in {sources}.",
+  "budget_attention_over_no_source": "No other category has anything left to cover it.",
+  "budget_attention_over_title": "{name} is {amount} over",
+  "budget_attention_raise": "Raise the limit",
+  "budget_attention_show": "Show",
+  "budget_attention_title": "Needs attention",
+  "budget_attention_warning_body": "Projected {projection}. Keep it to {daily}/day or raise the limit.",
+  "budget_attention_warning_fixed": "{amount} left for this fixed cost.",
+  "budget_attention_warning_title": "{name} at {used} on day {day}",
+  "budget_close": "Close",
+  "budget_closed_description": "Month finished · closed",
+  "budget_description": "Day {day} of {days} · {left} days until the next payday",
+  "budget_detail_cover": "Add from another category",
+  "budget_detail_daily": "Daily limit",
+  "budget_detail_daily_title": "Daily spending",
+  "budget_detail_days_left": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} day left",
+        "countPlural=*": "{count} days left"
+      }
+    }
+  ],
+  "budget_detail_failed": "The category details could not be loaded",
+  "budget_detail_fixed": "fixed budget",
+  "budget_detail_left": "Left",
+  "budget_detail_loading": "Loading details…",
+  "budget_detail_months": "Last 3 months",
+  "budget_detail_no_transactions": "No transactions in this period yet.",
+  "budget_detail_over": "Over",
+  "budget_detail_projection": "Projection",
+  "budget_detail_running": "running",
+  "budget_detail_safe_line": "safe limit {amount}/day",
+  "budget_detail_spent": "Spent",
+  "budget_detail_transactions": "{month} transactions · {count}",
+  "budget_dismissed": "{name} warning dismissed until the period ends",
+  "budget_empty_closed": "This period had no budget",
+  "budget_empty_description": "Set a limit per category; it applies every month until you change it.",
+  "budget_empty_title": "No budget yet",
+  "budget_groups_description": "Used of the {month} limits",
+  "budget_groups_over": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} category over its limit",
+        "countPlural=*": "{count} categories over their limit"
+      }
+    }
+  ],
+  "budget_groups_title": "Needs & Wants",
+  "budget_hero_done": "Finished · {used} used",
+  "budget_hero_of": "of {amount}",
+  "budget_hero_remaining": "{month} budget left",
+  "budget_hero_result": "{month} result",
+  "budget_hero_today": "Today · ideal {ideal}",
+  "budget_history_added": "New category",
+  "budget_history_all": "All categories",
+  "budget_history_automatic": "automatic",
+  "budget_history_button": "Change history",
+  "budget_history_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} change",
+        "countPlural=*": "{count} changes"
+      }
+    }
+  ],
+  "budget_history_created": "Budget created",
+  "budget_history_created_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} category",
+        "countPlural=*": "{count} categories"
+      }
+    }
+  ],
+  "budget_history_deleted_category": "Deleted category",
+  "budget_history_effective": "Effective from {month}",
+  "budget_history_empty": "No budget history yet",
+  "budget_history_failed": "The history could not be loaded",
+  "budget_history_filter": "Filter by category",
+  "budget_history_loading": "Loading history…",
+  "budget_history_removed": "Removed from the budget",
+  "budget_history_since": "Changes since {month}",
+  "budget_history_title": "Budget change history",
+  "budget_history_total": "Total",
+  "budget_history_totals": "Monthly budget total",
+  "budget_history_until_changed": "applies until changed again",
+  "budget_kpi_leftover": "Left over",
+  "budget_kpi_leftover_note": "after rollover",
+  "budget_kpi_over": "Over the limit",
+  "budget_kpi_over_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} category",
+        "countPlural=*": "{count} categories"
+      }
+    }
+  ],
+  "budget_kpi_over_many": "+{amount} in total",
+  "budget_kpi_over_none": "all within their limit",
+  "budget_kpi_over_one": "{name} +{amount}",
+  "budget_kpi_projection": "End-of-month projection",
+  "budget_kpi_projection_over": "{amount} over",
+  "budget_kpi_projection_within": "within the limit",
+  "budget_kpi_safe_daily": "Safe daily limit",
+  "budget_kpi_safe_daily_note": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "left ÷ {count} day",
+        "countPlural=*": "left ÷ {count} days"
+      }
+    }
+  ],
+  "budget_kpi_spent": "Spent",
+  "budget_kpi_spent_note": "{used} · ideal {ideal}",
+  "budget_kpi_spent_unbudgeted": "{used} · +{amount} without a budget",
+  "budget_legend_left": "Left {amount}",
+  "budget_legend_spent": "Spent {amount}",
+  "budget_limit_cancel_hint": "cancel",
+  "budget_limit_delta_down": "−{delta} → total {total}",
+  "budget_limit_delta_up": "+{delta} → total {total}",
+  "budget_limit_edit_label": "Change the {name} limit",
+  "budget_limit_save_hint": "save",
+  "budget_limit_saved": "{name} limit set to {amount}",
+  "budget_line_dismissed": "Warning dismissed",
+  "budget_line_left": "{amount} left",
+  "budget_line_left_daily": "{amount} left · {daily}/day",
+  "budget_line_menu": "{name} options",
+  "budget_line_over": "{amount} over",
+  "budget_line_paid": "paid",
+  "budget_line_unused": "not used yet",
+  "budget_line_will_exceed": "will go {amount} over",
+  "budget_list_description": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} category · white line = today's ideal position",
+        "countPlural=*": "{count} categories · white line = today's ideal position"
+      }
+    }
+  ],
+  "budget_list_description_closed": "{count} categories · {over} over the limit",
+  "budget_list_title": "Budget by category",
+  "budget_load_failed": "The budget could not be loaded",
+  "budget_menu_alert": "Remind me at {pct}%",
+  "budget_menu_alert_label": "Warning",
+  "budget_menu_detail": "View details",
+  "budget_menu_edit_limit": "Change limit",
+  "budget_menu_fixed": "Fixed budget",
+  "budget_menu_move_from": "Move the leftover to…",
+  "budget_menu_remove": "Remove from the budget",
+  "budget_menu_rollover": "Carry the leftover to next month",
+  "budget_move_amount_label": "Amount from {name}",
+  "budget_move_description": "Move what is left in other categories. The budget total stays the same.",
+  "budget_move_failed": "The leftover could not be moved",
+  "budget_move_from": "Take from",
+  "budget_move_no_source": "No other category has anything left.",
+  "budget_move_result": "Result",
+  "budget_move_result_exact": "{name} ends up exactly at its limit — the next transaction goes over again.",
+  "budget_move_result_limit": "Limit {from} → {to} · spent {spent}",
+  "budget_move_source_after": "{before} left → {after} left",
+  "budget_move_submit": "Move {amount}",
+  "budget_move_summary": "{amount} from {count} categories",
+  "budget_move_target": "Move to",
+  "budget_move_target_placeholder": "Choose a category",
+  "budget_move_title": "Cover the {name} shortfall",
+  "budget_move_title_any": "Move leftover",
+  "budget_move_total_unchanged": "The budget total stays {amount}.",
+  "budget_move_undone": "Leftover move undone",
+  "budget_moved_description": "From {sources}.",
+  "budget_moved_title": "{amount} moved to {name}",
+  "budget_options_saved": "{name} options saved",
+  "budget_pace_ahead": "Ahead of plan",
+  "budget_pace_on_track": "On track",
+  "budget_period_choose": "Period {period}, choose another period",
+  "budget_period_closed": "Closed",
+  "budget_period_next": "Next period",
+  "budget_period_open": "Open",
+  "budget_period_previous": "Previous period",
+  "budget_period_running": "Running",
+  "budget_period_transition": "Transition",
+  "budget_read_only": "Read-only · the month is closed",
+  "budget_removed": "{name} removed from the budget",
+  "budget_save_failed": "The {name} budget could not be saved",
+  "budget_setup_add": "Add category",
+  "budget_setup_allocated": "Allocated",
+  "budget_setup_average": "3-month average {amount}",
+  "budget_setup_button": "Set budget",
+  "budget_setup_changes": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} change · effective from {month}",
+        "countPlural=*": "{count} changes · effective from {month}"
+      }
+    }
+  ],
+  "budget_setup_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} category",
+        "countPlural=*": "{count} categories"
+      }
+    }
+  ],
+  "budget_setup_description": "Applies every month until changed again",
+  "budget_setup_failed": "The budget could not be saved",
+  "budget_setup_fill": "Fill from the 3-month average",
+  "budget_setup_income": "Monthly income",
+  "budget_setup_income_hint": "Used to work out the income left over.",
+  "budget_setup_income_left": "Income left",
+  "budget_setup_limit_label": "{name} limit",
+  "budget_setup_new": "new category",
+  "budget_setup_no_average": "no average yet",
+  "budget_setup_remove": "Remove {name} from the budget",
+  "budget_setup_save": "Save budget",
+  "budget_setup_saved": "Budget saved, effective from {month}",
+  "budget_setup_title": "Set budget",
+  "budget_sort_custom": "Custom order",
+  "budget_sort_grouped": "Group Needs & Wants",
+  "budget_sort_label": "Sort",
+  "budget_sort_menu": "Sort: {sort}",
+  "budget_sort_name": "Name A–Z",
+  "budget_sort_over_first": "Over the limit first",
+  "budget_sort_remaining": "Most left",
+  "budget_sort_used": "% used",
+  "budget_tab_all": "All",
+  "budget_tab_summary": "{count} {group} categories · {spent} of {limit} ({used})",
+  "budget_tabs_label": "Category group",
+  "budget_transition_body": "The start day changed. The transition period has only {days} days, so the budget is prorated {days}/30 days: total {from} → {to}.",
+  "budget_transition_label": "Next transition period",
+  "budget_transition_title": "Next: transition period {month} {range}",
+  "budget_undo": "Undo",
   "calendar_next_month": "Next month",
   "calendar_previous_month": "Previous month",
   "category_action_failed": "Couldn’t save the category change",
@@ -718,6 +989,7 @@
   "ledger_error_too_many_cards": "At most 3 accounts can be shown as cards.",
   "ledger_error_too_many_tags": "At most 5 tags per transaction.",
   "locale_switcher_label": "Language",
+  "nav_budget": "Budget",
   "nav_group_account": "Account",
   "nav_main_label": "Main navigation",
   "nav_menu": "Menu",
@@ -817,6 +1089,82 @@
   "password_strength_strong": "strong",
   "password_strength_very_strong": "very strong",
   "password_strength_weak": "weak",
+  "period_settings_apply_next": "Start from the next period",
+  "period_settings_apply_next_budget": "{name} stays {range}, then a transition {transition}: budget limit {from} → {to} ({days}/{base} days).",
+  "period_settings_apply_next_plain": "{name} stays {range}; the next period starts on day {day}.",
+  "period_settings_apply_next_transition": "{name} stays {range}, then a transition {transition} ({days} days).",
+  "period_settings_apply_recalc": "Recalculate the current period",
+  "period_settings_apply_recalc_moved": "{name} becomes {range}. Transactions from {moved} move with it, e.g. {example} {amount}.",
+  "period_settings_apply_recalc_none": "{name} becomes {range}. No transactions move.",
+  "period_settings_confirm": "Recalculate",
+  "period_settings_confirm_budget": "{name} budget & saving rate are recalculated",
+  "period_settings_confirm_description": "{name} becomes {range} from now on. This changes the numbers of the current period.",
+  "period_settings_confirm_moved_in": "Transactions from {moved} move to {name}, e.g. {example} {amount} ({date})",
+  "period_settings_confirm_moved_none": "No transactions change period",
+  "period_settings_confirm_moved_out": "Transactions from {moved} leave {name} for a transition period, e.g. {example} {amount} ({date})",
+  "period_settings_confirm_reports": "The final {name} report doesn't change",
+  "period_settings_confirm_reports_none": "Final reports don't change",
+  "period_settings_confirm_schedules": "Recurring contributions & bills keep their dates",
+  "period_settings_confirm_title": "Recalculate the {name} period?",
+  "period_settings_day": "Day {day}",
+  "period_settings_days": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} day",
+        "countPlural=*": "{count} days"
+      }
+    }
+  ],
+  "period_settings_days_note": "Days 29–31 aren't available, so every month always has a period.",
+  "period_settings_follow_payday": "Follow payday · day {day}",
+  "period_settings_follow_payday_none": "Needs a recorded salary income.",
+  "period_settings_follow_payday_unavailable": "Follow payday",
+  "period_settings_group_apply": "Apply the change",
+  "period_settings_group_preview": "Preview",
+  "period_settings_group_start": "Period start",
+  "period_settings_name": "Period name",
+  "period_settings_name_end": "End",
+  "period_settings_name_example": "{range} is called “{name}”",
+  "period_settings_name_hint": "Used in titles & reports",
+  "period_settings_name_rule": "A period is named after the month it ends in",
+  "period_settings_payday_aligned": "Matches",
+  "period_settings_payday_match": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Salary from {payer} arrives on day {day} (last month)",
+        "countPlural=*": "Salary from {payer} arrives on day {day} (last {count} months)"
+      }
+    }
+  ],
+  "period_settings_payday_match_unnamed": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Salary arrives on day {day} (last month)",
+        "countPlural=*": "Salary arrives on day {day} (last {count} months)"
+      }
+    }
+  ],
+  "period_settings_payday_misaligned": "Not aligned with payday",
+  "period_settings_payday_mismatch": "Salary from {payer} usually arrives on day {payday}, not day {day}",
+  "period_settings_payday_mismatch_unnamed": "Salary usually arrives on day {payday}, not day {day}",
+  "period_settings_payday_none": "No salary income yet, so there's no suggested day.",
+  "period_settings_payday_source": "Worked out from your latest salary transactions; recurring income schedules aren't used yet.",
+  "period_settings_picker_title": "Start on day",
+  "period_settings_preview_loading": "Working out the preview…",
+  "period_settings_save_failed": "Couldn't save the period start",
+  "period_settings_saved": "Period start saved · day {day}",
+  "period_settings_start_day": "Financial month starts",
+  "period_settings_start_day_hint": "Day 1–28 · the same every month, February included",
+  "period_settings_suggestion": "Suggested from transactions",
+  "period_settings_transition": "Transition",
+  "period_settings_unchanged": "unchanged",
+  "period_settings_unnamed": "Unnamed",
   "privacy_hidden_amount": "amount hidden",
   "privacy_hide_balances": "Hide balances",
   "privacy_peek": "Peek at balances",
@@ -868,6 +1216,7 @@
   "record_add_another": "Add another after saving",
   "record_amount": "Amount",
   "record_amount_sent": "Sent · {currency}",
+  "record_budget_impact": "{name} budget becomes {used} · {spent} / {limit}",
   "record_cancel": "Cancel",
   "record_category": "Category",
   "record_category_income": "Income source",
@@ -1025,9 +1374,11 @@
   "settings_nav_categories": "Categories",
   "settings_nav_instance": "Instance",
   "settings_nav_label": "Settings sections",
+  "settings_nav_period": "Monthly period",
   "settings_nav_profile": "Profile & account",
   "settings_nav_security": "Security",
   "settings_nav_tags": "Tags",
+  "settings_period_description": "When a financial month starts. Used by the Dashboard, Budget, Reports, Savings, and Calendar.",
   "settings_profile_description": "Your profile sets how you're greeted. Your account sets how you sign in.",
   "settings_save": "Save changes",
   "settings_saved": "Saved",

@@ -5,7 +5,7 @@
  */
 import { m } from '@wf/i18n/messages';
 import type { KbdKey } from '@wf/ui/kbd-hint';
-import { LayoutDashboard, LayoutGrid, Wallet, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, LayoutGrid, PiggyBank, Wallet, type LucideIcon } from 'lucide-react';
 import type { FileRouteTypes } from '../generated/routeTree.gen.ts';
 
 export interface NavItem {
@@ -27,7 +27,10 @@ export interface NavGroup {
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: m.nav_menu,
-    items: [{ to: '/', label: m.nav_overview, icon: LayoutDashboard, railIcon: LayoutGrid, shortcut: ['G', 'R'] }],
+    items: [
+      { to: '/', label: m.nav_overview, icon: LayoutDashboard, railIcon: LayoutGrid, shortcut: ['G', 'R'] },
+      { to: '/budget', label: m.nav_budget, icon: PiggyBank, railIcon: PiggyBank, shortcut: ['G', 'A'] },
+    ],
   },
   {
     label: m.nav_group_account,

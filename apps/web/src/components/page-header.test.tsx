@@ -44,10 +44,12 @@ describe('PageHeader', () => {
       <PageHeader
         breadcrumb={['Keuangan', 'Ringkasan']}
         title="Selamat datang"
+        description="Hari ke-15 dari 31"
         actions={<button type="button">Catat</button>}
       />,
     );
     await expect.element(screen.getByRole('banner').getByRole('button', { name: 'Catat' })).toBeVisible();
+    await expect.element(screen.getByRole('banner').getByText('Hari ke-15 dari 31')).toBeVisible();
   });
 });
 

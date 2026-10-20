@@ -37,6 +37,11 @@ const ledger = vi.hoisted(() => ({
 }));
 vi.mock('../../server/fn/ledger.ts', () => ledger);
 vi.mock('../../server/fn/tags.ts', () => ({ listSimilarTags: ledger.listSimilarTags }));
+const budget = vi.hoisted(() => ({ getPeriodSettings: vi.fn() }));
+vi.mock('../../server/fn/budget.ts', () => budget);
+vi.mock('../../components/settings/period-section.tsx', () => ({
+  PeriodSection: ({ payday }: { payday: { day: number } }) => <p>{`gajian tgl ${String(payday.day)}`}</p>,
+}));
 vi.mock('../../components/settings/categories-section.tsx', () => ({
   CategoriesSection: ({ categories }: { categories: unknown[] }) => <p>{`${String(categories.length)} kategori`}</p>,
 }));
@@ -121,6 +126,14 @@ describe('/settings/$section loader', () => {
     });
   });
 
+  it('loads the period settings', async () => {
+    budget.getPeriodSettings.mockResolvedValue({ ok: true, value: { overview: {}, payday: {} } });
+    await expect(loader({ params: { section: 'period' }, context: { viewer: VIEWER } })).resolves.toEqual({
+      section: 'period',
+      period: { ok: true, value: { overview: {}, payday: {} } },
+    });
+  });
+
   it('answers 404 for unknown sections and for "instance" to non-admins', async () => {
     for (const section of ['billing', 'instance']) {
       const error: unknown = await loader({ params: { section }, context: { viewer: VIEWER } }).catch(
@@ -184,6 +197,17 @@ describe('/settings/$section page', () => {
     await expect
       .element(page.getByRole('alert').last())
       .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
+  });
+
+  it('renders Periode bulanan, or why it could not be loaded', async () => {
+    budget.getPeriodSettings.mockResolvedValueOnce({ ok: true, value: { overview: {}, payday: { day: 1 } } });
+    await openSettings('period');
+    await expect.element(page.getByText('gajian tgl 1')).toBeVisible();
+    await expect.element(page.getByRole('region', { name: 'Periode bulanan' })).toBeVisible();
+
+    budget.getPeriodSettings.mockResolvedValueOnce({ ok: false, code: 'UNAUTHENTICATED' });
+    await openSettings('period');
+    await expect.element(page.getByRole('alert').last()).toHaveTextContent('Sesimu sudah berakhir. Masuk lagi.');
   });
 
   it('explains when the section could not be loaded', async () => {

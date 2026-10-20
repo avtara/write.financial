@@ -20,6 +20,7 @@ import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { recordTransaction } from '../../server/fn/transactions-write.ts';
 import { Button } from '../form.tsx';
 import { AccountPicker, AccountTrigger } from './account-picker.tsx';
+import { budgetNotes } from '../budget/budget-note.tsx';
 import { CategorySelect } from './category-picker.tsx';
 import { DateTimeField } from './date-time-field.tsx';
 import { announceSaved } from './record-transaction.tsx';
@@ -69,6 +70,10 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
   const currency = account?.currency ?? data.baseCurrency;
   const live = data.categories.filter((category) => values.type !== 'transfer' && category.kind === values.type);
   const message = form.showErrors ? firstError(form.errors) : null;
+  const notes =
+    values.type === 'expense'
+      ? budgetNotes(data.budget, currency === data.baseCurrency ? (values.amountMinor ?? 0n) : 0n, locale)
+      : undefined;
 
   const submit = async () => {
     if (saving) return;
@@ -237,6 +242,7 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
             placeholder={values.type === 'income' ? m.record_category_income() : m.record_category()}
             aria-label={values.type === 'income' ? m.record_category_income() : m.record_category()}
             aria-invalid={message === m.record_error_category()}
+            {...(notes === undefined ? {} : { budgetNote: notes })}
             className="h-9 w-[190px] rounded-[9px] px-3 text-[13px]"
           />
         )}

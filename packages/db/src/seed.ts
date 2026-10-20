@@ -26,7 +26,7 @@ import { createPeriodClose } from './period-close.ts';
 import { createPeriods, ensureIn } from './periods.ts';
 import { createPreferences } from './preferences.ts';
 import { createSchedules } from './schedules.ts';
-import { accounts, users } from './schema.ts';
+import { accounts, periods, users } from './schema.ts';
 import { createTransactions } from './transactions.ts';
 
 export interface SeedResult {
@@ -69,6 +69,9 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
   await withUser(db, userId, async (tx) => {
     const [existing] = await tx.select({ id: accounts.id }).from(accounts).limit(1);
     if (existing !== undefined) throw new SeedTargetNotEmptyError();
+    // Visiting the app creates the period rows from the current one on (the first row is the first visit's period),
+    // which would leave no room for the closed September before it. Without accounts they hold nothing.
+    await tx.delete(periods).where(eq(periods.userId, userId));
     await tx
       .update(users)
       .set({

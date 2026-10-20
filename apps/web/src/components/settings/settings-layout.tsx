@@ -10,7 +10,7 @@ import { Settings } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Viewer } from '../../server/gate.ts';
 
-export const SETTINGS_SECTIONS = ['profile', 'categories', 'tags', 'security', 'instance'] as const;
+export const SETTINGS_SECTIONS = ['profile', 'period', 'categories', 'tags', 'security', 'instance'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 interface SectionInfo {
@@ -20,6 +20,7 @@ interface SectionInfo {
 
 const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
   profile: { label: m.settings_nav_profile, description: m.settings_profile_description },
+  period: { label: m.settings_nav_period, description: m.settings_period_description },
   categories: { label: m.settings_nav_categories, description: m.settings_categories_description },
   tags: { label: m.settings_nav_tags, description: m.settings_tags_description },
   security: { label: m.settings_nav_security, description: m.settings_security_description },
@@ -28,7 +29,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
 
 const GROUPS: readonly { readonly label: () => string; readonly sections: readonly SettingsSection[] }[] = [
   { label: m.settings_group_account, sections: ['profile'] },
-  { label: m.settings_group_preferences, sections: ['categories', 'tags'] },
+  { label: m.settings_group_preferences, sections: ['period', 'categories', 'tags'] },
   { label: m.settings_group_data, sections: ['security'] },
   { label: m.settings_group_instance, sections: ['instance'] },
 ];
@@ -60,7 +61,8 @@ export function SettingsLayout({
           <p className="text-[12.5px] text-muted-fg">{m.settings_description()}</p>
         </div>
       </header>
-      <div className="flex min-h-[560px] overflow-hidden rounded-[14px] border border-border">
+      {/* `clip`, not `hidden`: rounds the corners without becoming the scroll container of a section's sticky footer. */}
+      <div className="flex min-h-[560px] overflow-clip rounded-[14px] border border-border">
         <nav
           aria-label={m.settings_nav_label()}
           className="flex w-[220px] shrink-0 flex-col gap-4 border-r border-border bg-surface-sunken p-3"

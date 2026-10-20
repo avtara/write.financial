@@ -14,6 +14,7 @@ import { toast } from '@wf/ui/toast';
 import { useEffect, useRef, useState } from 'react';
 import { getReferenceRate } from '../../server/fn/ledger.ts';
 import type { RecordTransactionInput } from '../../server/fn/transactions-write.ts';
+import type { BudgetLookup } from '../budget/budget-note.tsx';
 import {
   fxFigures,
   ratePair,
@@ -33,6 +34,8 @@ export interface LedgerData {
   readonly accounts: readonly AccountView[];
   readonly categories: readonly CategoryView[];
   readonly tags: readonly TagView[];
+  /** The current period's budget (FR-T2/T3 notes); absent when it could not be loaded. */
+  readonly budget?: BudgetLookup;
 }
 
 /** `loading` also while a refresh runs over a rate already shown; `failed` keeps showing the last one. */
