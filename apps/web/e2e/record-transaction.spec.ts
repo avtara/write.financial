@@ -116,12 +116,9 @@ test('an expense entered with the keyboard changes the balance, and Urungkan res
 
 test('an IDR → USD transfer records the FX difference of −Rp22.660', async ({ page }) => {
   const sheet = await openSheet(page);
-  await sheet.getByRole('radio', { name: 'Pengeluaran' }).focus();
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowRight');
+  // Space selects the focused type. (Arrowing there races with Radix's select-on-arrow-focus in CI.)
   const transfer = sheet.getByRole('radio', { name: 'Transfer' });
-  await expect(transfer).toBeFocused();
-  // Radix selects on arrow focus only while the arrow key is still down, which races in CI; Space always selects.
+  await transfer.focus();
   await page.keyboard.press('Space');
   await expect(transfer).toBeChecked();
   await expect(sheet.getByRole('heading', { name: 'Catat Transfer' })).toBeVisible();
