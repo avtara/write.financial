@@ -218,6 +218,24 @@ describe('year', () => {
       usedBps: 2600,
       state: 'ok',
     });
+    // Twelve periods; November and December have not started and stay empty.
+    expect(result.trend.periods.map((period) => period.label)).toEqual([
+      '2026-01',
+      '2026-02',
+      '2026-03',
+      '2026-04',
+      '2026-05',
+      '2026-06',
+      '2026-07',
+      '2026-08',
+      '2026-09',
+      '2026-10',
+      '2026-11',
+      '2026-12',
+    ]);
+    expect(result.trend.periods.at(-1)).toMatchObject({ start: '2026-12-01', incomeMinor: 0n, expenseMinor: 0n });
+    expect(result.trend.periods.at(-3)).toMatchObject({ incomeMinor: 13_000_000n, expenseMinor: 1_456_500n });
+    expect(result.trend.averageSavedMinor).toBe((8_000_000n + 11_543_500n) / 10n);
   });
 
   it('an explicit year', async () => {
