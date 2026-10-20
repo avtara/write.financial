@@ -53,10 +53,10 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M2 — Periods, budget, dashboard
 
-- [ ] Payday periods 1–28, transition periods, recalculation
-- [ ] Versioned budgets, moving leftovers, rollover, alerts
-- [ ] Week/Month/Year dashboard + custom range
-- [ ] M2 unit tests: 100% per-file coverage gate green
+- [x] Payday periods 1–28, transition periods, recalculation
+- [x] Versioned budgets, moving leftovers, rollover, alerts
+- [x] Week/Month/Year dashboard + custom range
+- [x] M2 unit tests: 100% per-file coverage gate green
 
 ## M3 — Scheduling, Review queue, subscriptions, calendar, notifications
 
