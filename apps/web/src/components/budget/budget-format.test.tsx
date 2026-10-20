@@ -24,7 +24,6 @@ describe('budget formats', () => {
           <Amount valueMinor={5200n} /> | <Pct bps={4839} className="text-fg" />
         </p>
       </BudgetFormatProvider>,
-      { preferences: { locale: 'en' } },
     );
     await expect.element(screen.getByText('US$52.00')).toBeVisible();
     await expect.element(screen.getByText('48%')).toHaveClass('text-fg');
