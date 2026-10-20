@@ -4,7 +4,6 @@
  * ("Ini ringkasan uangmu periode 1–15 Oktober 2026."), the period button ("Okt 2026", "12–18 Okt", "2026"), and the
  * like-for-like comparison under each KPI ("vs Sep", "vs Sen–Kam lalu", "vs 2025").
  */
-import { TZDate } from '@date-fns/tz';
 import type { Dashboard } from '@wf/db/dashboard';
 import type { DateRange } from '@wf/domain/dashboard';
 import type { LocalDate, YearMonth } from '@wf/domain/period';
@@ -25,7 +24,7 @@ function range(from: LocalDate, to: LocalDate, locale: Locale, options: Intl.Dat
 
 /** "Selamat pagi" 04.00–10.59, "siang" 11.00–14.59, "sore" 15.00–17.59, "malam" from 18.00. */
 export function greeting(now: Date, timeZone: string, name: string): string {
-  const hour = new TZDate(now, timeZone).getHours();
+  const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone }).format(now));
   if (hour >= 4 && hour < 11) return m.overview_greeting_morning({ name });
   if (hour >= 11 && hour < 15) return m.overview_greeting_midday({ name });
   if (hour >= 15 && hour < 18) return m.overview_greeting_afternoon({ name });

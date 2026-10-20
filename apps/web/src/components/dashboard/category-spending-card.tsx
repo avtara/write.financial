@@ -136,11 +136,21 @@ export function CategorySpendingCard({ dashboard, budget, categories, locale, ca
   }
   const spentMinor = [...groupTotals.values()].reduce((total, value) => total + value, 0n);
   const dates = transactionsDatesOf(dashboard);
+  // Each group's segment of the 0–1000 bar.
   let offset = 0;
+  const segments = [...groupTotals].map(([group, amountMinor]) => {
+    const length = (Number(amountMinor) / Number(spentMinor)) * 1000;
+    const segment = { group, amountMinor, x: offset, width: Math.max(length - 4, 2) };
+    offset += length;
+    return segment;
+  });
 
   return (
     <BudgetFormatProvider value={{ currency, locale }}>
-      <section aria-labelledby="overview-categories" className="flex flex-col rounded-[12px] border border-border bg-card">
+      <section
+        aria-labelledby="overview-categories"
+        className="flex flex-col rounded-[12px] border border-border bg-card"
+      >
         <div className="flex flex-wrap items-center gap-4 px-6 pt-5 pb-4">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h2 id="overview-categories" className="text-[15px] font-semibold text-fg">
@@ -150,23 +160,31 @@ export function CategorySpendingCard({ dashboard, budget, categories, locale, ca
               {m.overview_categories_caption({ count: tiles.length, caption })}
             </p>
           </div>
-          {spentMinor > 0n ? (
+          {segments.length > 0 ? (
             <div className="flex w-[320px] flex-col gap-1.5 max-md:w-full">
               <svg aria-hidden="true" viewBox="0 0 1000 6" preserveAspectRatio="none" className="block h-1.5 w-full">
-                {[...groupTotals].map(([group, value]) => {
-                  const width = Math.max((Number(value) / Number(spentMinor)) * 1000 - 4, 2);
-                  const x = offset;
-                  offset += (Number(value) / Number(spentMinor)) * 1000;
-                  return (
-                    <rect key={group} x={x} width={width} height="6" rx="3" className={GROUP_BAR[group] ?? 'fill-neutral-mid'} />
-                  );
-                })}
+                {segments.map((segment) => (
+                  <rect
+                    key={segment.group}
+                    x={segment.x}
+                    width={segment.width}
+                    height="6"
+                    rx="3"
+                    className={GROUP_BAR[segment.group] ?? 'fill-neutral-mid'}
+                  />
+                ))}
               </svg>
               <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-subtle">
-                {[...groupTotals].map(([group, value]) => (
-                  <li key={group} className="flex items-center gap-1.5">
-                    {categoryGroupLabel(group)}
-                    <Money minor={value} currency={currency} context="amount" locale={locale} className="text-fg" />
+                {segments.map((segment) => (
+                  <li key={segment.group} className="flex items-center gap-1.5">
+                    {categoryGroupLabel(segment.group)}
+                    <Money
+                      minor={segment.amountMinor}
+                      currency={currency}
+                      context="amount"
+                      locale={locale}
+                      className="text-fg"
+                    />
                   </li>
                 ))}
               </ul>

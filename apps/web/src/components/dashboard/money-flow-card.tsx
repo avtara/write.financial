@@ -137,6 +137,20 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
     width === null || graph.nodes.length === 0
       ? null
       : layoutFlow(graph, { left: LEFT, top: 12, right: width - RIGHT, bottom: height - 12 }, 14);
+  // Each node's label texts (formatted with the privacy mode) and accessible name.
+  const texts = new Map(
+    (layout?.nodes ?? []).map((node) => {
+      const amount = money(node.valueMinor);
+      const percent = share(node.shareBps);
+      return [
+        node.id,
+        {
+          value: shown === 'amount' ? `${amount}  ${percent}` : percent,
+          label: `${name(node.id)}, ${shown === 'amount' ? `${amount} ` : ''}${percent}`,
+        },
+      ];
+    }),
+  );
   /** Dimmed when a group is focused and the node or band is not on its path. */
   const dimmed = (id: string) =>
     wide && focus !== null && id !== focus && id !== 'total' && !id.startsWith('source:') && parentOf.get(id) !== focus;
@@ -328,7 +342,9 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
 
       <div ref={measure} className="relative px-0 py-4">
         {graph.nodes.length === 0 ? (
-          <p className="flex h-[200px] items-center justify-center text-[13px] text-subtle">{m.overview_flow_empty()}</p>
+          <p className="flex h-[200px] items-center justify-center text-[13px] text-subtle">
+            {m.overview_flow_empty()}
+          </p>
         ) : layout === null ? (
           <div aria-hidden="true" className="h-[280px]" />
         ) : (
@@ -372,8 +388,7 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
               const tone = node.id === 'total' ? { fill: 'fill-fg' } : toneOf(node.id);
               const middle = (node.y0 + node.y1) / 2;
               const inline = node.column === 3 || node.y1 - node.y0 < 26;
-              const value = shown === 'amount' ? `${money(node.valueMinor)}  ${share(node.shareBps)}` : share(node.shareBps);
-              const label = `${name(node.id)}, ${shown === 'amount' ? money(node.valueMinor) : ''} ${share(node.shareBps)}`;
+              const { value, label } = texts.get(node.id) as { value: string; label: string };
               const interactive = node.column !== 1;
               return (
                 <g
@@ -454,6 +469,7 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
             dashboard={dashboard}
             money={money}
             share={share}
+            locale={locale}
           />
         )}
       </div>
@@ -479,6 +495,7 @@ interface FlowTooltipProps {
   /** Formats with the privacy mode; `table` without the symbol ("3.500.000"). */
   readonly money: (minor: bigint, context?: 'amount' | 'table') => string;
   readonly share: (bps: number) => string;
+  readonly locale: Locale;
 }
 
 /**
@@ -486,7 +503,7 @@ interface FlowTooltipProps {
  * the income, the transactions with their average, the budget, and "Klik untuk lihat N transaksi". Positioned
  * through the CSSOM (no `style` attribute) next to the node.
  */
-function FlowTooltip({ hover, width, name, parent, nodeById, dashboard, money, share }: FlowTooltipProps) {
+function FlowTooltip({ hover, width, name, parent, nodeById, dashboard, money, share, locale }: FlowTooltipProps) {
   const { node } = hover;
   const categoryId = node.id.startsWith('category:') ? (node.id.split(':')[1] as string) : null;
   const spending =
@@ -519,10 +536,7 @@ function FlowTooltip({ hover, width, name, parent, nodeById, dashboard, money, s
     ]);
   }
   if (budget !== undefined) {
-    rows.push([
-      m.overview_flow_tip_budget(),
-      `${money(budget.spentMinor)} / ${money(budget.limitMinor, 'table')}`,
-    ]);
+    rows.push([m.overview_flow_tip_budget(), `${money(budget.spentMinor)} / ${money(budget.limitMinor, 'table')}`]);
   }
   return (
     <div
@@ -536,7 +550,13 @@ function FlowTooltip({ hover, width, name, parent, nodeById, dashboard, money, s
             ? name(node.id)
             : `${name(parentNode.id)} → ${name(node.id)}`}
         </span>
-        <span className="font-mono text-[15px] font-semibold text-fg">{money(node.valueMinor)}</span>
+        <Money
+          minor={node.valueMinor}
+          currency={dashboard.baseCurrency}
+          context="amount"
+          locale={locale}
+          className="text-[15px] font-semibold text-fg"
+        />
       </div>
       <dl className="flex flex-col gap-1.5 px-3 py-2.5">
         {rows.map(([label, value]) => (
