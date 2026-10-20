@@ -13,7 +13,7 @@ import type { Dek } from '@wf/crypto/envelope';
 import type { BuiltInCategoryKey } from '@wf/domain/categories';
 import { DESIGN_SEED, type DesignSeed } from '@wf/domain/seed';
 import { parseLocalDate, periodStartDay, type YearMonth } from '@wf/domain/period';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import { createAccounts } from './accounts.ts';
 import { createBudgets } from './budgets.ts';
 import { createCategories } from './categories.ts';
@@ -70,8 +70,11 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     const [existing] = await tx.select({ id: accounts.id }).from(accounts).limit(1);
     if (existing !== undefined) throw new SeedTargetNotEmptyError();
     // Visiting the app creates the period rows from the current one on (the first row is the first visit's period),
-    // which would leave no room for the closed September before it. Without accounts they hold nothing.
-    await tx.delete(periods).where(eq(periods.userId, userId));
+    // which would leave no room for a closed period of the seed before it. Without accounts they hold nothing.
+    const firstClosed = seed.closedPeriods.map((closed) => parseLocalDate(closed.start)).sort()[0];
+    if (firstClosed !== undefined) {
+      await tx.delete(periods).where(and(eq(periods.userId, userId), gt(periods.startDate, firstClosed)));
+    }
     await tx
       .update(users)
       .set({
