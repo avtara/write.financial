@@ -47,7 +47,8 @@
     "./period-close": "./src/period-close.ts",
     "./budget-alerts": "./src/budget-alerts.ts",
     "./balance-checks": "./src/balance-checks.ts",
-    "./detect-recurring": "./src/detect-recurring.ts"
+    "./detect-recurring": "./src/detect-recurring.ts",
+    "./onboarding": "./src/onboarding.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

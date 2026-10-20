@@ -41,9 +41,10 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./transactions` | `createTransactions(db, { getDek })` → create (idempotent per `client_id`), get, update, soft delete + restore, duplicate, split/unsplit, bulk edits, attachments |
 | `./transaction-query` | `createTransactionQuery(db, { getDek })` → Transactions page list, by-day/by-category groups, summary |
 | `./fx-rates` | `createFxRates(db)` → manual rates, `referenceRate`; worker: `upsertGlobal`, `latestGlobal`, `currenciesInUse` |
-| `./drafts`, `./recent-items`, `./goals`, `./activity` | Encrypted form drafts, ⌘K recently opened, minimal goals, per-entity timeline |
+| `./drafts`, `./recent-items`, `./goals`, `./activity` | Encrypted form drafts, ⌘K recently opened, minimal goals (with the "Simpan di" account), per-entity timeline |
+| `./onboarding` | `createOnboarding(db, { now? })` → FR-A4 progress: `progress`, `completeStep` (resume step moves forward only), `finish` ("Ke Ringkasan"), `setBaseCurrency` (refused once an account exists) |
 | `./periods` | `createPeriods(db)` → materialized periods (FR-P1–P3): `list`, `get`, `covering`, `previewStartDay`/`changeStartDay` (FR-P2 (a) next period with a transition, (b) recalculate), `lock` (period close, worker) |
-| `./budgets` | `createBudgets(db)` → versioned budgets (FR-B1–B5): `status` of a period, `history`, `saveVersion`, `setLine`, `removeLine`, `fillFromAverage`, `moveLeftover`/`undoMove`, `dismissAlert`/`restoreAlert` |
+| `./budgets` | `createBudgets(db)` → versioned budgets (FR-B1–B5): `status` of a period, `history`, `saveVersion` (without `lines`: only the expected income), `setLine`, `removeLine`, `fillFromAverage`, `moveLeftover`/`undoMove`, `dismissAlert`/`restoreAlert` |
 | `./dashboard` | `createDashboard(db)` → `get` for a week, period, year, or custom range (FR-D1/D2, FR-S7): KPIs + comparison, money flow, categories, trend, calendar, account flows, budget card |
 | `./occurrences` | Shared schedule core (app + worker, no ledger writes): `MATERIALIZE_DAYS` (90), `userClockIn`, `materializeIn` (idempotent per source + due date; 09.00-local `remind_at`), `pruneFutureIn` (app only), `recordPastChargeIn`, `RecurrenceTemplate` + `encodeTemplate`/`decodeTemplate`, `recurrenceDueDates`/`subscriptionDueDates` |
 | `./schedules` | `createSchedules(db)` → recurrences (FR-T6/L8: create/update/stop/undo, 3-date preview), subscriptions (FR-SUB1–SUB6: overview, CRUD, change account, pause, cancel, reactivate, usage rating, billing history), detected candidates (FR-SUB4), calendar `listScheduled` (FR-C2) |
@@ -99,7 +100,7 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `notifications`                                            | S, U(`read_at`), D             | S I          | –                 | –                        | own rows; `wf_migrate`: retention purge                  |
 | `notification_outbox`                                      | –                              | S I, U(`sent_at`, `attempts`, `last_error`) | – | –               | own rows                                                 |
 
-¹ `name, image, nickname, timezone, locale, base_currency, onboarding_completed_at, deletion_requested_at, updated_at`
+¹ `name, image, nickname, timezone, locale, base_currency, onboarding_completed_at, onboarding_step, deletion_requested_at, updated_at`
 (not `role`, `email`, `email_verified`, `two_factor_enabled`). ² Everything the setup wizard (FR-OP1) writes, including
 `smtp_password_enc` and `instance_dek_wrapped`; the wizard runs as the admin it just created. ³ No `smtp_password_enc`,
 no `instance_dek_wrapped`.
@@ -115,7 +116,8 @@ Functions: the SECURITY DEFINER functions are `wf_maintenance_purge_auth(timesta
 or were used more than 30 days ago, as of the given time capped at the server's `now()`, and returns the counts per
 table. `wf_migrate` has SELECT and DELETE policies on those three tables that match only such dead rows, so even the
 function cannot remove a live session. `fx_currencies_in_use` returns only the currency codes in use (accounts, base
-currencies, manual rates) for the fx job; `wf_migrate` has SELECT policies on `accounts`, `users`, and `fx_rates` for it.
+currencies, the "Mata uang tambahan" in `user_preferences.extra_currencies`, manual rates) for the fx job; `wf_migrate`
+has SELECT policies on `accounts`, `users`, `user_preferences`, and `fx_rates` for it.
 M3 adds four for the worker's scanners: `wf_worker_users() → (user_id, time_zone)` (users not being deleted),
 `wf_due_reminders(now, limit) → (user_id, occurrence_id)` (reminders due and not sent), `wf_pending_outbox(now, limit)
 → (user_id, outbox_id)` (unsent emails with fewer than 5 attempts), and `wf_maintenance_purge_notifications(now) →

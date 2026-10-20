@@ -32,6 +32,7 @@ const ADMIN: Viewer = {
   timezone: 'Asia/Jakarta',
   role: 'admin',
   twoFactorEnabled: false,
+  onboardingStep: null,
 };
 
 function beforeLoad(viewer: Viewer | null): unknown {

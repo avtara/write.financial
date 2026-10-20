@@ -347,6 +347,13 @@ describe('saveVersion', () => {
     );
     expect(third).toMatchObject({ expectedIncomeMinor: null, totalMinor: 400_000n });
     expect(third.lines.map((line) => line.categoryId)).toEqual([shopping]);
+
+    // Onboarding step 2: only the expected income; the lines stay.
+    const income = await asApp(() =>
+      budgets.saveVersion(userId, { effectiveFrom: ym('2026-10'), expectedIncomeMinor: 25_800_000n }),
+    );
+    expect(income).toMatchObject({ id: first.id, expectedIncomeMinor: 25_800_000n, totalMinor: 400_000n });
+    expect(income.lines.map((line) => line.categoryId)).toEqual([shopping]);
   });
 
   it('refuses a change that reaches a closed period; the next version bounds it', async () => {

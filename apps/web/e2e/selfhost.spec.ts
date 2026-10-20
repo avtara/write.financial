@@ -5,7 +5,17 @@
  * the admin's sign-in with password and TOTP. Runs with `playwright.selfhost.config.ts`; CI measures the time from
  * `docker compose up` to the end of this spec.
  */
-import { enterCode, expect, freshPassword, signInWithPassword, signOut, test, totp, type Account } from './support.ts';
+import {
+  enterCode,
+  expect,
+  freshPassword,
+  signInWithPassword,
+  signOut,
+  skipOnboarding,
+  test,
+  totp,
+  type Account,
+} from './support.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -59,7 +69,7 @@ test('the wizard creates the admin with mandatory 2FA and the instance settings'
     .getByRole('link', { name: 'Ke Ringkasan' })
     .or(page.getByRole('button', { name: 'Ke Ringkasan' }))
     .click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
+  await skipOnboarding(page);
   await signOut(page);
 
   // Setup is complete: the wizard is gone for good.

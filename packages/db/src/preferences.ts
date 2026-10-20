@@ -16,6 +16,7 @@ const COLUMNS = {
   dashboardLayout: userPreferences.dashboardLayout,
   tablePrefs: userPreferences.tablePrefs,
   ccPaymentPriority: userPreferences.ccPaymentPriority,
+  extraCurrencies: userPreferences.extraCurrencies,
 };
 
 export type Preferences = Readonly<Omit<typeof userPreferences.$inferSelect, 'userId' | 'createdAt' | 'updatedAt'>>;
@@ -34,6 +35,7 @@ export const DEFAULT_PREFERENCES: Preferences = Object.freeze({
   dashboardLayout: {},
   tablePrefs: {},
   ccPaymentPriority: [],
+  extraCurrencies: [],
 });
 
 export interface PreferencesRepository {

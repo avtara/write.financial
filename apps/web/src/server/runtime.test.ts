@@ -56,6 +56,8 @@ describe('createServices', () => {
     expect(created.review.confirm).toBeTypeOf('function');
     expect(created.notifications.list).toBeTypeOf('function');
     expect(created.schedules.listSubscriptions).toBeTypeOf('function');
+    expect(created.onboarding.progress).toBeTypeOf('function');
+    expect(created.goals.create).toBeTypeOf('function');
   });
 
   it('logs Valkey connection errors', async () => {

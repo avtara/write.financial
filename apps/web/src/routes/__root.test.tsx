@@ -22,6 +22,7 @@ const VIEWER = {
   timezone: 'Asia/Jakarta',
   role: 'user',
   twoFactorEnabled: true,
+  onboardingStep: null,
 } as const;
 const gate = (overrides: Partial<Gate> = {}): Gate => ({
   setup: 'complete',

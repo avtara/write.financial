@@ -181,3 +181,25 @@ export async function seedDesignPersona(email: string): Promise<void> {
     },
   );
 }
+
+/**
+ * FR-A4: walks the onboarding the quickest way, through the real UI and keyboard-free of data: the profile as
+ * prefilled, the period start (tanggal 1) without an income, no accounts, "Lewati" for the goal, and "Ke Ringkasan".
+ * For the specs whose users only need to get past it (the design persona's ledger comes from `seedDesignPersona`).
+ */
+export async function skipOnboarding(page: Page): Promise<void> {
+  // Each step's heading, not only its URL: the address changes before the next step has rendered.
+  const steps = [
+    ['profile', /^Halo, .+! Lengkapi profilmu$/, 'Lanjut'],
+    ['period', 'Kapan bulanmu dimulai?', 'Lanjut'],
+    ['accounts', 'Rekening yang kamu pakai', 'Lanjut'],
+    ['goal', 'Mulai satu tujuan tabungan', 'Lewati'],
+    ['done', 'Siap! write.financial sudah diatur', 'Ke Ringkasan'],
+  ] as const;
+  for (const [step, heading, action] of steps) {
+    await expect(page).toHaveURL(new RegExp(`/onboarding/${step}$`));
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    await page.getByRole('button', { name: action }).click();
+  }
+  await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
+}

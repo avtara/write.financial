@@ -155,6 +155,8 @@ export interface AccountFormProps {
   readonly account?: AccountView;
   /** The type a new account starts with. */
   readonly defaultType?: AccountType;
+  /** Values that replace the starting ones (onboarding's quick rows open "Detail" with what was typed). */
+  readonly initial?: Partial<Pick<AccountDraft, 'type' | 'providerName' | 'displayName' | 'openingMinor' | 'color'>>;
   /** The user's base currency, the default for a new account. */
   readonly baseCurrency: string;
   readonly today: LocalDate;
@@ -170,6 +172,7 @@ export interface AccountFormProps {
 export function AccountForm({
   account,
   defaultType = 'bank',
+  initial,
   baseCurrency,
   today,
   cardHolders,
@@ -180,7 +183,10 @@ export function AccountForm({
 }: AccountFormProps) {
   const { preferences } = usePreferences();
   const { locale } = preferences;
-  const [draft, setDraft] = useState<AccountDraft>(() => draftOf(account, defaultType, today, baseCurrency));
+  const [draft, setDraft] = useState<AccountDraft>(() => ({
+    ...draftOf(account, initial?.type ?? defaultType, today, baseCurrency),
+    ...initial,
+  }));
   const [errors, setErrors] = useState<DraftErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [pending, setPending] = useState(false);

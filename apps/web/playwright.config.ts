@@ -21,7 +21,10 @@ const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse
  * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed,
  * - `cmdk`: the ⌘K palette, keyboard only, as the invited user with the design persona's ledger (`seedDesignPersona`),
  * - `transactions`: the Transactions page (FR-L1–L6: filters, views, bulk, detail edit, split, delete + Urungkan,
- *   keyboard, 1440/1024/768) as the invited user.
+ *   keyboard, 1440/1024/768) as the invited user,
+ * - `onboarding`: the 5-step onboarding (FR-A4) for new users the admin invites (keyboard-only at 1440, skipping the
+ *   goal at 1024, the quick path at 768). Last, so its extra users and admin sessions touch no other spec. (`m0`
+ *   itself takes the admin and the invited user through the onboarding's quick path.)
  *
  * The server, Postgres, the browsers, and the TOTP codes run on one clock that starts at E2E_NOW (the design persona's
  * day), so the seed's goldens hold whatever the real date is.
@@ -93,6 +96,12 @@ export default defineConfig({
       name: 'transactions',
       testMatch: 'transactions.spec.ts',
       dependencies: ['record'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      name: 'onboarding',
+      testMatch: 'onboarding.spec.ts',
+      dependencies: ['transactions', 'cmdk'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
   ],

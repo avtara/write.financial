@@ -43,6 +43,7 @@ export const VIEWER: Viewer = {
   timezone: 'Asia/Jakarta',
   role: 'user',
   twoFactorEnabled: true,
+  onboardingStep: null,
 };
 
 export function fakeGate(overrides: Partial<Gate> = {}): Gate {

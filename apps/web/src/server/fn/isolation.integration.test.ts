@@ -75,6 +75,17 @@ import * as categories from './categories.ts';
 import * as gate from './gate.ts';
 import * as ledger from './ledger.ts';
 import * as notifications from './notifications.ts';
+// Named: the module also exports constants, which are not server functions.
+import {
+  finishOnboarding,
+  getOnboarding,
+  saveOnboardingAccounts,
+  saveOnboardingGoal,
+  saveOnboardingPeriod,
+  saveOnboardingProfile,
+  skipOnboardingGoal,
+  type OnboardingView,
+} from './onboarding.ts';
 import * as review from './review.ts';
 import * as schedules from './schedules.ts';
 import * as search from './search.ts';
@@ -212,6 +223,13 @@ const FUNCTIONS = {
   removeAttachment,
   saveTablePrefs,
   countPeriodTransactions,
+  getOnboarding,
+  saveOnboardingProfile,
+  saveOnboardingPeriod,
+  saveOnboardingAccounts,
+  saveOnboardingGoal,
+  skipOnboardingGoal,
+  finishOnboarding,
 };
 type Name = keyof typeof FUNCTIONS;
 
@@ -365,6 +383,17 @@ const spareId = async (userId: string) =>
     })
   ).id;
 /** A's budgets, overrides, dismissed warnings, periods, and start day as stored; B's budget writes leave them alone. */
+/** A user's FR-A4 progress and step data as stored (`users`, extra currencies, goals, recurrences). */
+const onboardingRows = async (userId: string) => ({
+  user: (
+    await superuser`
+      SELECT onboarding_step, onboarding_completed_at, base_currency, name, nickname FROM users WHERE id = ${userId}`
+  )[0],
+  extras: await superuser`SELECT extra_currencies FROM user_preferences WHERE user_id = ${userId}`,
+  goals: await superuser`SELECT * FROM goals WHERE user_id = ${userId} ORDER BY id`,
+  recurrences: await superuser`SELECT * FROM recurrences WHERE user_id = ${userId} ORDER BY id`,
+  budgets: await superuser`SELECT * FROM budget_versions WHERE user_id = ${userId} ORDER BY id`,
+});
 const aBudgetRows = async () => ({
   versions: await superuser`SELECT * FROM budget_versions WHERE user_id = ${aId} ORDER BY id`,
   lines: await superuser`SELECT * FROM budget_lines WHERE user_id = ${aId} ORDER BY version_id, category_id`,
@@ -914,6 +943,8 @@ const MATRIX: Record<Name, Case> = {
           timezone: 'Asia/Jakarta',
           role: 'user',
           twoFactorEnabled: true,
+          // FR-A4: B has not started the onboarding yet (the onboarding cases come last).
+          onboardingStep: 'profile',
         },
         instanceName: INSTANCE_NAME,
         registrationMode: 'invite',
@@ -2346,6 +2377,152 @@ const MATRIX: Record<Name, Case> = {
         `user_id = '${bId}' AND deleted_at IS NULL AND local_date BETWEEN '${current.start}' AND '${current.end}'`,
       );
       expect(await as('B', 'countPeriodTransactions')).toEqual(ok(own));
+    },
+  },
+  // FR-A4 (last: they move B through and out of the onboarding; A, the admin, never started it).
+  getOnboarding: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<OnboardingView>>('B', 'getOnboarding');
+      if (!ofB.ok) throw new Error(`getOnboarding failed: ${ofB.code}`);
+      expect(ofB.value).toMatchObject({
+        email: B.email,
+        progress: { step: 'profile', completedAt: null },
+        signIn: { google: false, password: true },
+      });
+      expect(ofB.value.accounts.accounts.map((account) => account.id)).toEqual(
+        await idsOf('accounts', bId, `status = 'active'`),
+      );
+    },
+  },
+  saveOnboardingProfile: {
+    input: () => ({
+      name: 'Budi S.',
+      nickname: 'Budi',
+      locale: 'id',
+      timezone: 'Asia/Jakarta',
+      baseCurrency: 'IDR',
+      extraCurrencies: ['USD', 'SGD'],
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await onboardingRows(aId);
+      expect(await as('B', 'saveOnboardingProfile', input)).toMatchObject(ok({ step: 'period' }));
+      expect(await onboardingRows(bId)).toMatchObject({
+        user: { onboarding_step: 2, base_currency: 'IDR', nickname: 'Budi' },
+        extras: [{ extra_currencies: ['USD', 'SGD'] }],
+      });
+      // B has accounts: another base currency is refused (FR-ST1).
+      expect(await as('B', 'saveOnboardingProfile', { ...(input as object), baseCurrency: 'SGD' })).toEqual({
+        ok: false,
+        code: 'ACCOUNT_LOCKED',
+      });
+      expect(await onboardingRows(aId)).toEqual(a);
+    },
+  },
+  saveOnboardingPeriod: {
+    input: () => ({ day: 1, expectedIncomeMinor: 25_800_000n }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = { budget: await aBudgetRows(), onboarding: await onboardingRows(aId) };
+      expect(await as('B', 'saveOnboardingPeriod', input)).toMatchObject(ok({ step: 'accounts' }));
+      const { current } = await services.periods.list(bId);
+      expect(await services.budgets.status(bId)).toMatchObject({
+        version: { effectiveFrom: current.label, expectedIncomeMinor: 25_800_000n },
+      });
+      expect({ budget: await aBudgetRows(), onboarding: await onboardingRows(aId) }).toEqual(a);
+    },
+  },
+  saveOnboardingAccounts: {
+    input: () => ({
+      accounts: [
+        {
+          id: aAccountId,
+          type: 'bank',
+          providerName: 'BCA',
+          displayName: 'Pwned',
+          currency: 'IDR',
+          openingBalanceMinor: 1n,
+          color: 'blue',
+        },
+      ],
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const before = await aLedger();
+      await notFoundForB('saveOnboardingAccounts', input);
+      const row = { type: 'ewallet', providerName: 'GoPay', currency: 'IDR', color: 'green' };
+      expect(
+        await as('B', 'saveOnboardingAccounts', {
+          accounts: [{ ...row, displayName: 'GoPay B', openingBalanceMinor: 412_000n }],
+        }),
+      ).toMatchObject(ok({ baseCurrency: 'IDR' }));
+      expect(await bAccountNames()).toContain('GoPay B:active');
+      expect(await onboardingRows(bId)).toMatchObject({ user: { onboarding_step: 4 } });
+      expect(await aLedger()).toEqual(before);
+    },
+  },
+  saveOnboardingGoal: {
+    input: () => ({
+      preset: 'emergency',
+      name: 'Dana Darurat',
+      targetMinor: 54_000_000n,
+      accountId: aAccountId,
+      contribution: null,
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await onboardingRows(aId);
+      // A's account is no account of B's: neither "Simpan di" nor the source of a contribution.
+      expect(await as('B', 'saveOnboardingGoal', input)).toEqual({ ok: false, code: 'INVALID_GOAL' });
+      expect(
+        await as('B', 'saveOnboardingGoal', {
+          ...(input as object),
+          accountId: bAccountId,
+          contribution: { amountMinor: 500_000n, monthDay: 1, fromAccountId: aAccountId },
+        }),
+      ).toEqual({ ok: false, code: 'INVALID_RECURRENCE' });
+      expect(await count('goals', `user_id = '${bId}'`)).toBe(0);
+      const gopay = (await idsOf('accounts', bId, `display_name = 'GoPay B'`))[0];
+      expect(
+        await as('B', 'saveOnboardingGoal', {
+          ...(input as object),
+          accountId: bAccountId,
+          contribution: { amountMinor: 50_000n, monthDay: 1, fromAccountId: gopay },
+        }),
+      ).toMatchObject(ok({ name: 'Dana Darurat', accountId: bAccountId }));
+      const rows = await onboardingRows(bId);
+      expect(rows.goals).toHaveLength(1);
+      expect(rows.recurrences.at(-1)).toMatchObject({
+        template: expect.objectContaining({
+          type: 'transfer',
+          fromAccountId: gopay,
+          toAccountId: bAccountId,
+        }) as object,
+      });
+      expect(await onboardingRows(aId)).toEqual(a);
+    },
+  },
+  skipOnboardingGoal: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await onboardingRows(aId);
+      expect(await as('B', 'skipOnboardingGoal')).toMatchObject(ok({ step: 'done', completedAt: null }));
+      expect(await onboardingRows(aId)).toEqual(a);
+    },
+  },
+  finishOnboarding: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await onboardingRows(aId);
+      expect(await as('B', 'finishOnboarding')).toMatchObject(
+        ok({ step: 'done', completedAt: expect.any(Date) as Date }),
+      );
+      expect((await onboardingRows(bId)).user?.['onboarding_completed_at']).toBeInstanceOf(Date);
+      expect(await onboardingRows(aId)).toEqual(a);
+      expect((await onboardingRows(aId)).user?.['onboarding_completed_at']).toBeNull();
+      // Completed: the onboarding writes are closed to B.
+      expect(await as('B', 'skipOnboardingGoal')).toEqual(FORBIDDEN);
     },
   },
 };
