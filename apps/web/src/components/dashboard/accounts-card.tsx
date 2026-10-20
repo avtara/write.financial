@@ -137,7 +137,9 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
               </span>
             </span>
             <span className="flex items-baseline gap-1 text-[17px] font-semibold text-fg">
-              {totals.foreignCurrencies.length > 0 ? <span aria-hidden="true">≈</span> : null}
+              {totals.foreignCurrencies.length > 0 ? (
+                <span aria-hidden="true">{m.overview_accounts_approx()}</span>
+              ) : null}
               <Money minor={totals.investmentsMinor} currency={baseCurrency} context="amount" locale={locale} />
             </span>
             {footer(investments)}

@@ -31,7 +31,8 @@ export type DashboardSearch = z.infer<typeof DASHBOARD_SEARCH>;
 export function dashboardRequestOf(search: DashboardSearch, periods: readonly PeriodView[]): DashboardRequest {
   if (search.range !== undefined) return { scope: 'range', ...rangeOf(search.range) };
   if (search.scope === 'week') return { scope: 'week' };
-  if (search.scope === 'year') return search.year === undefined ? { scope: 'year' } : { scope: 'year', year: search.year };
+  if (search.scope === 'year')
+    return search.year === undefined ? { scope: 'year' } : { scope: 'year', year: search.year };
   const id = periods.find((period) => period.label === search.period)?.id ?? null;
   return id === null ? { scope: 'month' } : { scope: 'month', periodId: id };
 }

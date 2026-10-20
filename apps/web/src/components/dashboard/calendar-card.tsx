@@ -6,20 +6,21 @@
  * (or a range over two months) shows mini months instead, with the year's insights. The arrows step the whole
  * Overview to the period before / after. The day grid is one Tab stop; arrow keys move between days.
  */
-import { Link, type LinkProps } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import type { CategoryView } from '@wf/db/categories';
 import type { Dashboard } from '@wf/db/dashboard';
 import type { ScheduledItem } from '@wf/db/schedules';
 import type { TransactionRow } from '@wf/db/transaction-query';
 import { countDays, type LocalDate, type YearMonth } from '@wf/domain/period';
-import { formatPercent } from '@wf/i18n/format';
+import { formatNumber } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { formatTime, weekdayNames } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { DashboardSearch } from '../../lib/dashboard-search.ts';
+import { RichMessage } from '../rich-message.tsx';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { rangeParamOf } from '../../lib/transactions-search.ts';
 import { listTransactionRows } from '../../server/fn/transactions.ts';
@@ -62,13 +63,13 @@ const HEAT: Readonly<Record<HeatLevel, string>> = {
 const NAV =
   'flex size-7 items-center justify-center rounded-[7px] border border-border text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring aria-disabled:pointer-events-none aria-disabled:opacity-40';
 
+/** The loaded transactions of `date`; a breakdown of another date means the chosen one is still loading. */
 type Breakdown = { readonly date: LocalDate } & (
-  | { readonly status: 'loading' }
   | { readonly status: 'ready'; readonly rows: readonly TransactionRow[]; readonly total: number }
   | { readonly status: 'failed' }
 );
 
-function NavLink({ search, label, children }: { search: DashboardSearch | null; label: string; children: LinkProps['children'] }) {
+function NavLink({ search, label, children }: { search: DashboardSearch | null; label: string; children: ReactNode }) {
   if (search === null) {
     return (
       <span role="link" aria-disabled="true" aria-label={label} className={NAV}>
@@ -110,7 +111,6 @@ export function CalendarCard({
   useEffect(() => {
     if (selected === null || months) return;
     let current = true;
-    setBreakdown({ date: selected, status: 'loading' });
     void listTransactionRows({ data: { range: rangeParamOf(selected, selected), offset: 0 } }).then(
       (result) => {
         if (!current) return;
@@ -134,7 +134,7 @@ export function CalendarCard({
   const move = (event: KeyboardEvent) => {
     const steps: Readonly<Record<string, number>> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
     const index = days.findIndex((day) => day.date === active);
-    let target = index;
+    let target: number;
     if (event.key in steps) target = index + (steps[event.key] as number);
     else if (event.key === 'Home') target = 0;
     else if (event.key === 'End') target = days.length - 1;
@@ -145,16 +145,29 @@ export function CalendarCard({
     grid.current?.querySelector<HTMLButtonElement>(`[data-date="${day.date}"]`)?.focus();
   };
 
-  const title = scope === 'year' ? m.overview_calendar_title_year({ year: ranges.full.from.slice(0, 4) }) : m.overview_calendar_title();
+  const title =
+    scope === 'year'
+      ? m.overview_calendar_title_year({ year: ranges.full.from.slice(0, 4) })
+      : m.overview_calendar_title();
   return (
-    <section aria-labelledby="overview-calendar" className="flex flex-col gap-4 rounded-[12px] border border-border bg-card px-6 py-5">
+    <section
+      aria-labelledby="overview-calendar"
+      className="flex flex-col gap-4 rounded-[12px] border border-border bg-card px-6 py-5"
+    >
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h2 id="overview-calendar" className="text-[15px] font-semibold text-fg">
             {title}
           </h2>
           <p className="text-[12.5px] text-muted-fg">
-            <RichAverage minor={calendar.averageDailySpendMinor} currency={currency} locale={locale} />
+            <RichMessage
+              message={m.overview_calendar_average}
+              slots={{
+                amount: (
+                  <Money minor={calendar.averageDailySpendMinor} currency={currency} context="amount" locale={locale} />
+                ),
+              }}
+            />
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -169,11 +182,7 @@ export function CalendarCard({
       </div>
 
       {months ? (
-        <YearView
-          dashboard={dashboard}
-          periodLabels={periodLabels}
-          locale={locale}
-        />
+        <YearView dashboard={dashboard} periodLabels={periodLabels} locale={locale} />
       ) : (
         <div ref={grid} role="grid" aria-label={title} onKeyDown={move} className="flex flex-col gap-1.5">
           <div role="row" className="grid grid-cols-7 gap-1.5">
@@ -205,7 +214,10 @@ export function CalendarCard({
                       }}
                     />
                   ) : (
-                    <span aria-hidden="true" className="flex h-[68px] items-start rounded-[8px] p-2 text-[12px] text-text-faint">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-[68px] items-start rounded-[8px] p-2 text-[12px] text-text-faint"
+                    >
                       {Number(day.date.slice(8))}
                     </span>
                   )}
@@ -216,7 +228,10 @@ export function CalendarCard({
         </div>
       )}
 
-      <ul aria-label={m.overview_calendar_legend()} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-subtle">
+      <ul
+        aria-label={m.overview_calendar_legend()}
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-subtle"
+      >
         <li className="flex items-center gap-1">
           {m.overview_calendar_little()}
           {([1, 2, 3, 4] as const).map((level) => (
@@ -237,7 +252,9 @@ export function CalendarCard({
       </ul>
 
       {months || selected === null ? (
-        months ? null : <p className="text-[12.5px] text-subtle">{m.overview_calendar_pick()}</p>
+        months ? null : (
+          <p className="text-[12.5px] text-subtle">{m.overview_calendar_pick()}</p>
+        )
       ) : (
         <DayBreakdown
           date={selected}
@@ -254,16 +271,6 @@ export function CalendarCard({
         />
       )}
     </section>
-  );
-}
-
-function RichAverage({ minor, currency, locale }: { minor: bigint; currency: string; locale: Locale }) {
-  return (
-    <>
-      {m.overview_calendar_average_prefix()}{' '}
-      <Money minor={minor} currency={currency} context="amount" locale={locale} />
-      {m.overview_cashflow_per_day_suffix()}
-    </>
   );
 }
 
@@ -293,9 +300,13 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
       className={`flex w-full flex-col justify-between gap-1 rounded-[8px] p-2 text-left focus-visible:outline-2 focus-visible:outline-ring ${tall ? 'h-[104px]' : 'h-[68px]'} ${background} ${selected ? 'ring-1 ring-fg' : isToday ? 'ring-1 ring-blue' : ''}`}
     >
       <span className="flex items-center justify-between gap-1">
-        <span className={`text-[12px] font-medium ${day.future ? 'text-subtle' : 'text-fg'}`}>{Number(day.date.slice(8))}</span>
+        <span className={`text-[12px] font-medium ${day.future ? 'text-subtle' : 'text-fg'}`}>
+          {Number(day.date.slice(8))}
+        </span>
         {isToday ? (
-          <span className="rounded-[4px] bg-blue px-1 text-[9.5px] font-medium text-on-accent">{m.overview_calendar_today()}</span>
+          <span className="rounded-[4px] bg-blue px-1 text-[9.5px] font-medium text-on-accent">
+            {m.overview_calendar_today()}
+          </span>
         ) : null}
       </span>
       {day.future ? (
@@ -309,9 +320,21 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
           </span>
         )
       ) : surplus ? (
-        <Money minor={day.inMinor - day.outMinor} currency={currency} context="delta" locale={locale} className="truncate text-[11.5px]" />
+        <Money
+          minor={day.inMinor - day.outMinor}
+          currency={currency}
+          context="delta"
+          locale={locale}
+          className="truncate text-[11.5px]"
+        />
       ) : day.outMinor > 0n ? (
-        <Money minor={day.outMinor} currency={currency} context="table" locale={locale} className="truncate !text-left text-[11.5px] text-fg" />
+        <Money
+          minor={day.outMinor}
+          currency={currency}
+          context="table"
+          locale={locale}
+          className="truncate !text-left text-[11.5px] text-fg"
+        />
       ) : null}
     </button>
   );
@@ -332,7 +355,19 @@ interface DayBreakdownProps {
 }
 
 /** The chosen day: its totals, how it compares, and its transactions (or the bills due on it). */
-function DayBreakdown({ date, breakdown, day, costliest, averageMinor, scope, bills, byId, currency, locale, timeZone }: DayBreakdownProps) {
+function DayBreakdown({
+  date,
+  breakdown,
+  day,
+  costliest,
+  averageMinor,
+  scope,
+  bills,
+  byId,
+  currency,
+  locale,
+  timeZone,
+}: DayBreakdownProps) {
   const times = averageMinor > 0n ? Number(day.outMinor) / Number(averageMinor) : 0;
   const ready = breakdown?.date === date && breakdown.status === 'ready' ? breakdown : null;
   return (
@@ -342,7 +377,13 @@ function DayBreakdown({ date, breakdown, day, costliest, averageMinor, scope, bi
         <span className="text-[12px] text-subtle">{m.overview_calendar_count({ count: day.count })}</span>
         <span className="ml-auto flex items-center gap-2">
           {day.outMinor > 0n ? (
-            <Money minor={-day.outMinor} currency={currency} context="amount" locale={locale} className="text-[13px] font-medium text-fg" />
+            <Money
+              minor={-day.outMinor}
+              currency={currency}
+              context="amount"
+              locale={locale}
+              className="text-[13px] font-medium text-fg"
+            />
           ) : null}
           {costliest ? (
             <span className="rounded-[4px] bg-amber-tint-2 px-1.5 py-px text-[11px] text-amber-fg">
@@ -350,7 +391,7 @@ function DayBreakdown({ date, breakdown, day, costliest, averageMinor, scope, bi
             </span>
           ) : times >= 2 ? (
             <span className="rounded-[4px] bg-red-tint-2 px-1.5 py-px text-[11px] text-red-fg">
-              {m.overview_calendar_times_average({ times: formatPercent(times / 100, locale, { maximumFractionDigits: 0 }).replace('%', '') })}
+              {m.overview_calendar_times_average({ times: formatNumber(Math.round(times), locale) })}
             </span>
           ) : null}
         </span>
@@ -364,12 +405,18 @@ function DayBreakdown({ date, breakdown, day, costliest, averageMinor, scope, bi
               <li key={`${bill.sourceId}-${bill.dueDate}`} className="flex items-center gap-3 px-4 py-3 text-[13px]">
                 <span aria-hidden="true" className="size-1.5 rounded-full bg-red" />
                 <span className="flex-1 text-fg">{bill.name ?? m.overview_calendar_bill()}</span>
-                <Money minor={-bill.expectedMinor} currency={bill.currency} context="amount" locale={locale} className="text-fg" />
+                <Money
+                  minor={-bill.expectedMinor}
+                  currency={bill.currency}
+                  context="amount"
+                  locale={locale}
+                  className="text-fg"
+                />
               </li>
             ))
           )}
         </ul>
-      ) : breakdown === null || breakdown.date !== date || breakdown.status === 'loading' ? (
+      ) : breakdown === null || breakdown.date !== date ? (
         <p role="status" className="px-4 py-3 text-[12.5px] text-subtle">
           {m.overview_calendar_loading()}
         </p>
@@ -403,7 +450,10 @@ function DayBreakdown({ date, breakdown, day, costliest, averageMinor, scope, bi
                     {row.tags.length === 0 ? null : (
                       <span className="flex flex-wrap gap-1">
                         {row.tags.map((tag) => (
-                          <span key={tag} className="rounded-[4px] border border-border px-1 font-mono text-[10.5px] text-subtle">
+                          <span
+                            key={tag}
+                            className="rounded-[4px] border border-border px-1 font-mono text-[10.5px] text-subtle"
+                          >
                             #{tag}
                           </span>
                         ))}
@@ -411,9 +461,15 @@ function DayBreakdown({ date, breakdown, day, costliest, averageMinor, scope, bi
                     )}
                   </span>
                   <span className="w-[130px] truncate text-[12px] text-muted-fg max-md:hidden">
-                    {row.type === 'transfer' ? m.record_type_transfer() : category === undefined ? m.overview_flow_uncategorized() : categoryName(category)}
+                    {row.type === 'transfer'
+                      ? m.record_type_transfer()
+                      : category === undefined
+                        ? m.overview_flow_uncategorized()
+                        : categoryName(category)}
                   </span>
-                  <span className="font-mono text-[12px] text-subtle">{formatTime(row.occurredAt, timeZone, locale)}</span>
+                  <span className="font-mono text-[12px] text-subtle">
+                    {formatTime(row.occurredAt, timeZone, locale)}
+                  </span>
                   <Money
                     minor={row.amountBaseMinor}
                     currency={currency}
@@ -457,7 +513,13 @@ function YearView({ dashboard, periodLabels, locale }: YearViewProps) {
                 {month.future ? (
                   <span className="text-[11px] text-subtle">—</span>
                 ) : (
-                  <Money minor={-month.outMinor} currency={currency} context="amount" locale={locale} className="text-[11px] text-subtle" />
+                  <Money
+                    minor={-month.outMinor}
+                    currency={currency}
+                    context="amount"
+                    locale={locale}
+                    className="text-[11px] text-subtle"
+                  />
                 )}
               </span>
               <span aria-hidden="true" className="grid grid-cols-7 gap-[3px]">
@@ -475,7 +537,11 @@ function YearView({ dashboard, periodLabels, locale }: YearViewProps) {
           return (
             <li key={month.label}>
               {linked ? (
-                <Link to="/" search={{ period: month.label }} className={`${classes} hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring`}>
+                <Link
+                  to="/"
+                  search={{ period: month.label }}
+                  className={`${classes} hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring`}
+                >
                   {body}
                 </Link>
               ) : (
@@ -518,7 +584,7 @@ function YearView({ dashboard, periodLabels, locale }: YearViewProps) {
             {ratio === null
               ? '—'
               : m.overview_calendar_weekend_value({
-                  times: new Intl.NumberFormat(locale === 'id' ? 'id-ID' : 'en-US', { maximumFractionDigits: 1 }).format(ratio),
+                  times: formatNumber(ratio, locale, { maximumFractionDigits: 1 }),
                 })}
           </dd>
         </div>

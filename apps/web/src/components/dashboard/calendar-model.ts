@@ -75,7 +75,7 @@ export interface CalendarMonth {
 /** The year view: each calendar month from `range.from`'s to `range.to`'s, the heat relative to the whole range. */
 export function calendarMonths(range: DateRange, days: readonly DayGroup[], today: LocalDate): CalendarMonth[] {
   const months: CalendarMonth[] = [];
-  for (let first = `${range.from.slice(0, 7)}-01` as LocalDate; first <= range.to; ) {
+  for (let first = `${range.from.slice(0, 7)}-01` as LocalDate; first <= range.to;) {
     const next = `${addDays(first, 31).slice(0, 7)}-01` as LocalDate;
     const end = addDays(next, -1);
     const inMonth = days.filter((day) => first <= day.date && day.date <= end);

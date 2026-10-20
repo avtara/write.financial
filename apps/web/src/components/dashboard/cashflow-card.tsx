@@ -14,6 +14,7 @@ import { Money } from '@wf/ui/money';
 import { usePrivacy } from '@wf/ui/privacy';
 import { useState, type ReactNode } from 'react';
 import { useElementWidth } from '../../lib/use-element-width.ts';
+import { RichMessage } from '../rich-message.tsx';
 import {
   averageSpending,
   axisTicks,
@@ -66,10 +67,8 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
         ? m.overview_cashflow_net_week()
         : year
           ? m.overview_cashflow_net_year({ year: dashboard.ranges.full.from.slice(0, 4) })
-          : m.overview_cashflow_net(),
-      value: (
-        <Money minor={dashboard.kpis.current.savedMinor} currency={currency} context="delta" locale={locale} />
-      ),
+          : m.overview_cashflow_net({ what: columns.find((column) => column.current)?.label ?? '' }),
+      value: <Money minor={dashboard.kpis.current.savedMinor} currency={currency} context="delta" locale={locale} />,
     },
     {
       label: week
@@ -91,10 +90,12 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
       ? {
           label: m.overview_cashflow_average(),
           value: (
-            <>
-              <Money minor={averageSpending(columns)} currency={currency} context="amount" locale={locale} />
-              {week ? m.overview_cashflow_per_day_suffix() : m.overview_cashflow_per_month_suffix()}
-            </>
+            <RichMessage
+              message={week ? m.overview_cashflow_per_day_amount : m.overview_cashflow_per_month_amount}
+              slots={{
+                amount: <Money minor={averageSpending(columns)} currency={currency} context="amount" locale={locale} />,
+              }}
+            />
           ),
         }
       : {
@@ -108,6 +109,17 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
 
   const slot = width === null ? 0 : (width - AXIS) / columns.length;
   const bar = Math.min(Math.max(slot * 0.22, 6), 26);
+  // Geometry and the accessible name of each column, computed before rendering (amounts reach the DOM as text only
+  // through `money`, which honours the privacy mode).
+  const bars = columns.map((column, index) => ({
+    column,
+    x: AXIS + slot * index + slot / 2,
+    incomeY: y(column.incomeMinor),
+    expenseY: y(column.expenseMinor),
+    label: column.future
+      ? column.title
+      : `${column.title}: ${m.overview_kpi_income()} ${money(column.incomeMinor)}, ${m.overview_kpi_expense()} ${money(column.expenseMinor)}`,
+  }));
 
   return (
     <section
@@ -124,9 +136,19 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
             {week || year ? null : (
               <>
                 {' · '}
-                {m.overview_cashflow_average_saved_prefix()}{' '}
-                <Money minor={dashboard.trend.averageSavedMinor} currency={currency} context="amount" locale={locale} />
-                {m.overview_cashflow_per_month_suffix()}
+                <RichMessage
+                  message={m.overview_cashflow_average_saved}
+                  slots={{
+                    amount: (
+                      <Money
+                        minor={dashboard.trend.averageSavedMinor}
+                        currency={currency}
+                        context="amount"
+                        locale={locale}
+                      />
+                    ),
+                  }}
+                />
               </>
             )}
           </p>
@@ -150,22 +172,33 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
             <g aria-hidden="true">
               {ticks.map((tick) => (
                 <g key={String(tick)}>
-                  <line x1={AXIS} x2={width} y1={y(tick)} y2={y(tick)} className="stroke-border" strokeDasharray={tick === 0n ? undefined : '2 4'} />
-                  <text x={AXIS - 10} y={y(tick)} textAnchor="end" dominantBaseline="middle" className="fill-subtle font-mono text-[10.5px]">
+                  <line
+                    x1={AXIS}
+                    x2={width}
+                    y1={y(tick)}
+                    y2={y(tick)}
+                    className="stroke-border"
+                    strokeDasharray={tick === 0n ? undefined : '2 4'}
+                  />
+                  <text
+                    x={AXIS - 10}
+                    y={y(tick)}
+                    textAnchor="end"
+                    dominantBaseline="middle"
+                    className="fill-subtle font-mono text-[10.5px]"
+                  >
                     {money(tick, 'table')}
                   </text>
                 </g>
               ))}
             </g>
-            {columns.map((column, index) => {
-              const x = AXIS + slot * index + slot / 2;
-              const label = `${column.title}: ${m.overview_kpi_income()} ${money(column.incomeMinor)}, ${m.overview_kpi_expense()} ${money(column.expenseMinor)}`;
+            {bars.map(({ column, x, incomeY, expenseY, label }, index) => {
               return (
                 <g
                   key={column.key}
                   tabIndex={column.future ? undefined : 0}
                   role="img"
-                  aria-label={column.future ? column.title : label}
+                  aria-label={label}
                   onMouseEnter={() => {
                     setActive(index);
                   }}
@@ -202,17 +235,17 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
                     <>
                       <rect
                         x={x - bar - 2}
-                        y={y(column.incomeMinor)}
+                        y={incomeY}
                         width={bar}
-                        height={TOP + PLOT - y(column.incomeMinor)}
+                        height={TOP + PLOT - incomeY}
                         rx={2}
                         className={column.current ? 'fill-fg' : 'fill-neutral-strong'}
                       />
                       <rect
                         x={x + 2}
-                        y={y(column.expenseMinor)}
+                        y={expenseY}
                         width={bar}
-                        height={TOP + PLOT - y(column.expenseMinor)}
+                        height={TOP + PLOT - expenseY}
                         rx={2}
                         className={column.current ? 'fill-red' : 'fill-heat-red'}
                       />
@@ -237,7 +270,7 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
             index={active}
             x={AXIS + slot * active + slot}
             width={width}
-            money={money}
+            currency={currency}
             locale={locale}
           />
         )}
@@ -260,12 +293,12 @@ interface CashflowTooltipProps {
   /** Right edge of the column, in the chart's coordinates. */
   readonly x: number;
   readonly width: number;
-  readonly money: (minor: bigint, context?: 'amount' | 'table' | 'delta') => string;
+  readonly currency: string;
   readonly locale: Locale;
 }
 
 /** Design `SGcTm`: "September 2026 · selisih +Rp7.500.000 · …· Rasio tabung 29% · vs Agustus +8,3% belanja". */
-function CashflowTooltip({ columns, index, x, width, money, locale }: CashflowTooltipProps) {
+function CashflowTooltip({ columns, index, x, width, currency, locale }: CashflowTooltipProps) {
   const column = columns[index] as CashflowColumn;
   const previous = index > 0 ? columns[index - 1] : undefined;
   const savedMinor = column.incomeMinor - column.expenseMinor;
@@ -286,17 +319,33 @@ function CashflowTooltip({ columns, index, x, width, money, locale }: CashflowTo
         <span className="font-medium text-fg">{column.title}</span>
         <span className="text-[11px] text-subtle">
           {m.overview_cashflow_tip_difference()}{' '}
-          <span className="font-mono text-fg">{money(savedMinor, 'delta')}</span>
+          <Money minor={savedMinor} currency={currency} context="delta" locale={locale} className="text-fg" />
         </span>
       </div>
       <dl className="flex flex-col gap-1">
         <div className="flex justify-between gap-2">
           <dt className="text-muted-fg">{m.overview_kpi_income()}</dt>
-          <dd className="font-mono text-fg">{money(column.incomeMinor)}</dd>
+          <dd>
+            <Money
+              minor={column.incomeMinor}
+              currency={currency}
+              context="amount"
+              locale={locale}
+              className="text-fg"
+            />
+          </dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-muted-fg">{m.overview_kpi_expense()}</dt>
-          <dd className="font-mono text-fg">{money(column.expenseMinor)}</dd>
+          <dd>
+            <Money
+              minor={column.expenseMinor}
+              currency={currency}
+              context="amount"
+              locale={locale}
+              className="text-fg"
+            />
+          </dd>
         </div>
         {rate === null ? null : (
           <div className="flex justify-between gap-2">
