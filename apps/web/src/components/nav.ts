@@ -5,7 +5,7 @@
  */
 import { m } from '@wf/i18n/messages';
 import type { KbdKey } from '@wf/ui/kbd-hint';
-import { LayoutDashboard, LayoutGrid, PiggyBank, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, LayoutDashboard, LayoutGrid, PiggyBank, Wallet, type LucideIcon } from 'lucide-react';
 import type { FileRouteTypes } from '../generated/routeTree.gen.ts';
 
 export interface NavItem {
@@ -17,6 +17,14 @@ export interface NavItem {
   readonly railIcon: LucideIcon;
   /** `G` + letter navigation (design "Pintasan keyboard", NAVIGASI); pages the design gives no letter have none. */
   readonly shortcut?: readonly KbdKey[];
+  /** Count shown next to the entry ("Transaksi 128"), from the `_app` loader's {@link NavCounts}. */
+  readonly badge?: keyof NavCounts;
+}
+
+/** Counts the `_app` loader provides for nav badges; `null` when they could not be loaded. */
+export interface NavCounts {
+  /** Live transactions in the current period. */
+  readonly transactions: number;
 }
 
 export interface NavGroup {
@@ -29,6 +37,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: m.nav_menu,
     items: [
       { to: '/', label: m.nav_overview, icon: LayoutDashboard, railIcon: LayoutGrid, shortcut: ['G', 'R'] },
+      {
+        to: '/transactions',
+        label: m.nav_transactions,
+        icon: ArrowLeftRight,
+        railIcon: ArrowLeftRight,
+        shortcut: ['G', 'T'],
+        badge: 'transactions',
+      },
       { to: '/budget', label: m.nav_budget, icon: PiggyBank, railIcon: PiggyBank, shortcut: ['G', 'A'] },
     ],
   },

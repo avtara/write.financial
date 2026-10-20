@@ -5,7 +5,7 @@
  * shortcut that runs the same action. Compose `<DropdownMenu><DropdownMenuTrigger asChild>…</DropdownMenuTrigger>
  * <DropdownMenuContent>…</DropdownMenuContent></DropdownMenu>`.
  */
-import { Check, type LucideIcon } from 'lucide-react';
+import { Check, ChevronRight, type LucideIcon } from 'lucide-react';
 import { DropdownMenu as MenuPrimitive } from 'radix-ui';
 import type { ComponentProps, ReactNode } from 'react';
 import { KbdHint, type KbdKey, type Platform } from './kbd-hint.tsx';
@@ -134,5 +134,45 @@ export function DropdownMenuRadioItem({
         <Check aria-hidden="true" className="size-3.5 text-fg" />
       </MenuPrimitive.ItemIndicator>
     </MenuPrimitive.RadioItem>
+  );
+}
+
+/** A nested menu ("Ubah kategori ▸"): `<DropdownMenuSub><DropdownMenuSubTrigger>…<DropdownMenuSubContent>…`. */
+export const DropdownMenuSub = MenuPrimitive.Sub;
+
+export interface DropdownMenuSubTriggerProps extends ComponentProps<typeof MenuPrimitive.SubTrigger> {
+  icon?: LucideIcon;
+}
+
+/** Opens its submenu on hover, ArrowRight, Enter, or Space; ArrowLeft in the submenu comes back. */
+export function DropdownMenuSubTrigger({
+  icon: Icon,
+  className = '',
+  children,
+  ...props
+}: DropdownMenuSubTriggerProps) {
+  return (
+    <MenuPrimitive.SubTrigger className={`${ITEM} data-[state=open]:bg-muted ${className}`} {...props}>
+      {Icon === undefined ? null : <Icon aria-hidden="true" className="size-3.5 shrink-0" />}
+      <span className="flex-1">{children}</span>
+      <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+    </MenuPrimitive.SubTrigger>
+  );
+}
+
+export function DropdownMenuSubContent({
+  className = '',
+  sideOffset = 6,
+  ...props
+}: ComponentProps<typeof MenuPrimitive.SubContent>) {
+  return (
+    <MenuPrimitive.Portal>
+      <MenuPrimitive.SubContent
+        sideOffset={sideOffset}
+        collisionPadding={8}
+        className={`${POPOVER_SURFACE} min-w-[200px] ${className}`}
+        {...props}
+      />
+    </MenuPrimitive.Portal>
   );
 }

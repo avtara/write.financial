@@ -3,7 +3,7 @@ import type { AuthSession } from '@wf/auth/auth';
 import { ReauthenticationRequiredError, TwoFactorRequiredError, UnauthenticatedError } from '@wf/auth/session';
 import { describe, expect, it } from 'vitest';
 import { fakeSession, NOW } from '../../test/fixtures.ts';
-import { attempt, EXPECTED_CODES, ForbiddenError, ok, requireSession } from './access.ts';
+import { attempt, EXPECTED_CODES, ForbiddenError, ok, requireSession, UploadRejectedError } from './access.ts';
 import { MailFailedError } from './setup.ts';
 
 const as = (session: AuthSession | null) => () => Promise.resolve(session);
@@ -38,6 +38,11 @@ describe('attempt', () => {
 
   it('turns expected typed errors into codes, with a detail when there is one', async () => {
     expect(await attempt(() => Promise.reject(new ForbiddenError()))).toEqual({ ok: false, code: 'FORBIDDEN' });
+    expect(await attempt(() => Promise.reject(new UploadRejectedError('corrupt')))).toEqual({
+      ok: false,
+      code: 'IMAGE_REJECTED',
+      detail: 'corrupt',
+    });
     expect(await attempt(() => Promise.reject(new MailFailedError(new Error('535 auth failed'))))).toEqual({
       ok: false,
       code: 'MAIL_FAILED',

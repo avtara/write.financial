@@ -29,7 +29,17 @@ import {
 } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { NOTE_PURPOSE } from './ledger-core.ts';
-import { attachments, postings, tagAliases, tags, transactions, transactionTags, transferMeta } from './schema.ts';
+import {
+  accounts,
+  attachments,
+  balanceAdjustments,
+  postings,
+  tagAliases,
+  tags,
+  transactions,
+  transactionTags,
+  transferMeta,
+} from './schema.ts';
 
 /** Filters of the Transactions page; all given filters must match. Empty arrays mean "no filter". */
 export interface TransactionFilter {
@@ -130,6 +140,17 @@ export interface CategoryGroup {
   readonly shareBps: number;
 }
 
+/** Amounts are in the base currency, with the In/Out semantics of {@link DayGroup}. */
+export interface AccountGroup {
+  readonly accountId: string;
+  /** Transactions with a posting on the account (a transfer counts on both sides). */
+  readonly count: number;
+  /** Income principal on the account. */
+  readonly inMinor: bigint;
+  /** Expense principal + transfer fees + FX-difference losses on the account. */
+  readonly outMinor: bigint;
+}
+
 /** FR-L1 cards; transfers are shown but not counted as In or Out. */
 export interface TransactionSummary {
   readonly inMinor: bigint;
@@ -152,6 +173,18 @@ export interface TransactionQueryRepository {
   /** Largest total first; the expense side includes fee and FX-difference postings under their own category. */
   groupByCategory: (userId: string, filter: TransactionFilter) => Promise<CategoryGroup[]>;
   summary: (userId: string, filter: TransactionFilter) => Promise<TransactionSummary>;
+  /** Most transactions first; every account with a posting of a matching transaction. */
+  groupByAccount: (userId: string, filter: TransactionFilter) => Promise<AccountGroup[]>;
+  /**
+   * "Saldo berjalan": transaction id → the account's balance (account currency) right after it, i.e. the opening
+   * balance + the account's postings of live transactions up to it (by `occurred_at`, then id) + the balance
+   * adjustments created by then. Ids without a live posting on the account are left out.
+   */
+  balancesAfter: (
+    userId: string,
+    accountId: string,
+    transactionIds: readonly string[],
+  ) => Promise<Record<string, bigint>>;
 }
 
 const DEFAULT_LIMIT = 50;
@@ -491,5 +524,57 @@ export function createTransactionQuery(
           averageDailySpendMinor: dailySpend.length === 0 ? 0n : outMinor / BigInt(dailySpend.length),
         };
       }),
+
+    groupByAccount: (userId, filter) =>
+      query(userId, filter, (tx, where) => {
+        const count = sql<number>`count(distinct ${transactions.id})::int`;
+        return tx
+          .select({
+            accountId: postings.accountId,
+            count,
+            inMinor: sumIn.mapWith(BigInt),
+            outMinor: sumOut.mapWith(BigInt),
+          })
+          .from(transactions)
+          .innerJoin(postings, eq(postings.transactionId, transactions.id))
+          .where(where)
+          .groupBy(postings.accountId)
+          .orderBy(desc(count), asc(postings.accountId));
+      }),
+
+    balancesAfter: async (userId, accountId, transactionIds) => {
+      if (transactionIds.length === 0) return {};
+      return withUser(db, userId, async (tx) => {
+        const net = tx
+          .select({
+            id: transactions.id,
+            occurredAt: transactions.occurredAt,
+            netMinor: sql<string>`sum(${postings.amountMinor})`.as('net_minor'),
+          })
+          .from(postings)
+          .innerJoin(transactions, and(eq(transactions.id, postings.transactionId), isNull(transactions.deletedAt)))
+          .where(eq(postings.accountId, accountId))
+          .groupBy(transactions.id)
+          .as('net');
+        const running = tx
+          .select({
+            id: net.id,
+            balanceMinor:
+              sql<string>`((select ${accounts.openingBalanceMinor} from ${accounts} where ${accounts.id} = ${accountId})
+              + sum(${net.netMinor}) over (order by ${net.occurredAt}, ${net.id})
+              + (select coalesce(sum(${balanceAdjustments.amountMinor}), 0) from ${balanceAdjustments}
+                 where ${balanceAdjustments.accountId} = ${accountId} and ${balanceAdjustments.createdAt} <= ${net.occurredAt}))::text`.as(
+                'balance_minor',
+              ),
+          })
+          .from(net)
+          .as('running');
+        const rows = await tx
+          .select({ id: running.id, balanceMinor: running.balanceMinor })
+          .from(running)
+          .where(inArray(running.id, [...transactionIds]));
+        return Object.fromEntries(rows.map((row) => [row.id, BigInt(row.balanceMinor)]));
+      });
+    },
   };
 }

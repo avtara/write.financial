@@ -123,6 +123,9 @@ describe('AccountDetailPanel', () => {
     await expect.element(screen.getByText('+24.700.000')).toBeVisible();
     await expect.element(screen.getByText('Transfer masuk')).not.toBeInTheDocument();
     const recent = screen.getByRole('region', { name: 'Transaksi terakhir' });
+    await expect
+      .element(recent.getByRole('link', { name: 'Lihat semua' }))
+      .toHaveAttribute('href', `/transactions?account=${BCA.id}`);
     const titles = recent
       .getByRole('listitem')
       .elements()

@@ -126,6 +126,14 @@ describe('AccountList', () => {
     expect(onArchive).toHaveBeenCalledWith(BCA);
   });
 
+  it('opens the account’s transactions from the ⋮ menu', async () => {
+    const { screen, router } = await renderList();
+    await userEvent.click(screen.getByRole('button', { name: 'Menu BCA Tahapan' }));
+    await userEvent.click(page.getByRole('menuitem', { name: 'Lihat transaksi' }));
+    await expect.poll(() => router.state.location.pathname).toBe('/transactions');
+    expect(router.state.location.search).toEqual({ account: BCA.id });
+  });
+
   it('disables "Tampil sebagai kartu" when the cards are full', async () => {
     const { screen } = await renderList({ cardsFull: true });
     await userEvent.click(screen.getByRole('button', { name: 'Menu Mandiri' }));

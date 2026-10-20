@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Tag, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -14,6 +14,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './dropdown-menu.tsx';
 
@@ -120,5 +123,44 @@ describe('DropdownMenu', () => {
     await expect.element(hide).toBeChecked();
     expect(hide.element().querySelector('[aria-hidden="true"]')?.className).toContain('bg-fg');
     await expect.element(page.getByRole('separator')).toBeInTheDocument();
+  });
+
+  it('opens a submenu with the keyboard and runs its item', async () => {
+    const onPick = vi.fn();
+    const screen = await render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>Aksi</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuGroup>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger icon={Tag}>Ubah kategori</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-[220px]">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onSelect={onPick}>Transportasi</DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Tanpa ikon</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent />
+            </DropdownMenuSub>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Aksi' }));
+    const trigger = page.getByRole('menuitem', { name: 'Ubah kategori' });
+    await expect.element(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger.element().querySelectorAll('svg')).toHaveLength(2);
+    expect(page.getByRole('menuitem', { name: 'Tanpa ikon' }).element().querySelectorAll('svg')).toHaveLength(1);
+    await userEvent.keyboard('{ArrowDown}');
+    await expect.element(trigger).toHaveFocus();
+    await userEvent.keyboard('{ArrowRight}');
+    const item = page.getByRole('menuitem', { name: 'Transportasi' });
+    await expect.element(item).toHaveFocus();
+    expect(page.getByRole('menu').elements()).toHaveLength(2);
+    await expect.element(trigger).toHaveAttribute('data-state', 'open');
+    await userEvent.keyboard('{Enter}');
+    expect(onPick).toHaveBeenCalledOnce();
   });
 });

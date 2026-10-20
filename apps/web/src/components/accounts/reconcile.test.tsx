@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { LocalDate } from '@wf/domain/period';
+import { toLocalDate } from '@wf/ui/dates';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { render } from 'vitest-browser-react';
@@ -164,6 +165,29 @@ describe('ReconcileDialog', () => {
     await expect.element(dialog.getByRole('button', { name: 'Sesuaikan' })).toBeDisabled();
     form?.requestSubmit();
     expect(server.reconcileAccount).not.toHaveBeenCalled();
+  });
+
+  it('looks for missed transactions since the last reconciliation, closing the dialog', async () => {
+    const today = toLocalDate(new Date(), 'Asia/Jakarta');
+    const { dialog, actual, router, onOpenChange } = await renderDialog();
+    await userEvent.fill(actual, '42.795.000');
+    const missed = dialog.getByRole('button', { name: /Ada transaksi yang terlewat/ });
+    await expect
+      .element(missed)
+      .toMatchTextContent('Buka daftar transaksi BCA Tahapan sejak 1 Okt untuk dicatat manual');
+    await userEvent.click(missed);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    await expect.poll(() => router.state.location.pathname).toBe('/transactions');
+    expect(router.state.location.search).toEqual({ account: BCA.id, range: `2026-10-01..${today}` });
+  });
+
+  it('looks for missed transactions since the start of the month when never reconciled', async () => {
+    const today = toLocalDate(new Date(), 'Asia/Jakarta');
+    const { dialog, actual, router } = await renderDialog({ ...BCA, lastReconciledAt: null });
+    await userEvent.fill(actual, '42.900.000');
+    await userEvent.click(dialog.getByRole('button', { name: /Ada transaksi yang terlewat/ }));
+    await expect.poll(() => router.state.location.pathname).toBe('/transactions');
+    expect(router.state.location.search).toEqual({ account: BCA.id, range: `${today.slice(0, 8)}01..${today}` });
   });
 });
 

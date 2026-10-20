@@ -36,7 +36,18 @@ import {
   DropdownMenuTrigger,
 } from '@wf/ui/dropdown-menu';
 import { Money } from '@wf/ui/money';
-import { Archive, ArchiveRestore, EllipsisVertical, GripVertical, Info, Pencil, Scale, Trash2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeftRight,
+  EllipsisVertical,
+  GripVertical,
+  Info,
+  Pencil,
+  Scale,
+  Trash2,
+} from 'lucide-react';
 import { useId, useMemo } from 'react';
 import { accountMeta, groupByType, type AccountGroup } from '../../lib/accounts.ts';
 import { accountTypeLabel } from '../../lib/ledger-labels.ts';
@@ -203,6 +214,7 @@ function SortableRow({
   onToggle,
 }: AccountActions & { account: AccountView; selected: boolean; cardsFull: boolean }) {
   const { preferences } = usePreferences();
+  const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: account.id,
   });
@@ -276,6 +288,14 @@ function SortableRow({
                 }}
               >
                 {m.accounts_adjust()}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                icon={ArrowLeftRight}
+                onSelect={() => {
+                  void navigate({ to: '/transactions', search: { account: account.id } });
+                }}
+              >
+                {m.accounts_view_transactions()}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

@@ -8,7 +8,7 @@
  * warning); `<ReconcileProvider>` is mounted once in the `_app` layout, loads the account and categories on open, and
  * refreshes the route data after saving.
  */
-import { useRouter } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import type { AccountView } from '@wf/db/accounts';
 import type { CategoryView } from '@wf/db/categories';
 import type { LocalDate } from '@wf/domain/period';
@@ -16,11 +16,11 @@ import { m } from '@wf/i18n/messages';
 import { AmountInput } from '@wf/ui/amount-input';
 import { DateLabel } from '@wf/ui/date-label';
 import { DatePicker } from '@wf/ui/date-picker';
-import { toLocalDate } from '@wf/ui/dates';
+import { formatDate, toLocalDate } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { Select } from '@wf/ui/select';
 import { toast } from '@wf/ui/toast';
-import { ArrowDownRight, ArrowUpRight, Check, History } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Check, History, Search } from 'lucide-react';
 import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { DEFAULT_SHORTFALL_CATEGORY, differenceCategories } from '../../lib/accounts.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
@@ -51,6 +51,12 @@ export function ReconcileDialog({ account, categories, timeZone, onOpenChange, o
   const { preferences } = usePreferences();
   const { locale } = preferences;
   const [today] = useState(() => toLocalDate(new Date(), timeZone));
+  const navigate = useNavigate();
+  // "Ada transaksi yang terlewat": since the last reconciliation, else the start of the month.
+  const since =
+    account.lastReconciledAt === null
+      ? (`${today.slice(0, 8)}01` as LocalDate)
+      : toLocalDate(account.lastReconciledAt, timeZone);
   const [clientId] = useState(() => crypto.randomUUID());
   const [actual, setActual] = useState<bigint | null>(null);
   const [mode, setMode] = useState<Mode>('transaction');
@@ -225,6 +231,25 @@ export function ReconcileDialog({ account, categories, timeZone, onOpenChange, o
                 />
               </div>
             ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                void navigate({ to: '/transactions', search: { account: account.id, range: `${since}..${today}` } });
+              }}
+              className="flex items-start gap-3 rounded-[10px] border border-border p-3 text-left hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <Search aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-fg" />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-[13px] font-medium text-fg">{m.accounts_reconcile_find_missed()}</span>
+                <span className="text-[11.5px] text-subtle">
+                  {m.accounts_reconcile_find_missed_hint({
+                    name: account.displayName,
+                    date: formatDate(since, locale, 'day'),
+                  })}
+                </span>
+              </span>
+            </button>
             {radio('correction', m.accounts_reconcile_correction(), m.accounts_reconcile_correction_hint())}
           </fieldset>
         )}

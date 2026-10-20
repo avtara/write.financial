@@ -87,6 +87,8 @@ export interface AttachmentView {
   readonly kind: AttachmentKind;
   readonly objectKey: string;
   readonly thumbnailKey: string | null;
+  /** SHA-256 of the `objectKey` plaintext, lowercase hex (the thumbnail has none). */
+  readonly sha256: string;
   /** Original file name (decrypted). */
   readonly name: string | null;
   readonly createdAt: Date;
@@ -328,6 +330,7 @@ async function loadIn(tx: Transaction, id: string): Promise<StoredDetail> {
       kind: attachments.kind,
       objectKey: attachments.objectKey,
       thumbnailKey: attachments.thumbnailKey,
+      sha256: attachments.sha256,
       nameEnc: attachments.nameEnc,
       createdAt: attachments.createdAt,
     })

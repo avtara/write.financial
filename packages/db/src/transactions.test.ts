@@ -613,6 +613,7 @@ describe('attachments', () => {
         kind: 'receipt',
         objectKey: named.objectKey,
         thumbnailKey: named.thumbnailKey,
+        sha256: named.sha256,
         name: 'struk-kopi.jpg',
         createdAt: expect.any(Date) as Date,
       },

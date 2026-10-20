@@ -4,6 +4,7 @@
  * balance, flags, the 6-month chart, this month's flows, and the latest transactions. Savings allocations arrive
  * with Savings (M4). Loads its data on the client (the chart can only render there).
  */
+import { Link } from '@tanstack/react-router';
 import type { AccountFlows, AccountView } from '@wf/db/accounts';
 import { m } from '@wf/i18n/messages';
 import { DateLabel } from '@wf/ui/date-label';
@@ -206,7 +207,16 @@ export function AccountDetailPanel({
 
       {loaded?.ok === true ? (
         <section aria-label={m.accounts_recent()} className="flex flex-col gap-2 border-b border-border p-5">
-          <h3 className="text-[12.5px] text-muted-fg">{m.accounts_recent()}</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-[12.5px] text-muted-fg">{m.accounts_recent()}</h3>
+            <Link
+              to="/transactions"
+              search={{ account: account.id }}
+              className="rounded-[6px] px-1.5 py-0.5 text-[12px] text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {m.accounts_view_transactions_all()}
+            </Link>
+          </div>
           {loaded.value.recent.length === 0 ? (
             <p className="text-[12.5px] text-subtle">{m.accounts_recent_empty()}</p>
           ) : (

@@ -31,6 +31,8 @@ vi.mock('../server/fn/budget.ts', () => ({
 afterEach(() => {
   vi.restoreAllMocks();
 });
+const transactions = vi.hoisted(() => ({ countPeriodTransactions: vi.fn() }));
+vi.mock('../server/fn/transactions.ts', () => transactions);
 // The reconcile provider's server functions only run when it opens.
 vi.mock('../server/fn/accounts.ts', () => ({ reconcileAccount: vi.fn() }));
 
@@ -73,6 +75,16 @@ describe('/_app layout', () => {
     expect(beforeLoad(VIEWER)).toEqual({ viewer: VIEWER });
     const admin = { ...VIEWER, role: 'admin', twoFactorEnabled: true } as const;
     expect(beforeLoad(admin)).toEqual({ viewer: admin });
+  });
+
+  it('loads the nav badge counts, none when they fail', async () => {
+    const loader = Route.options.loader;
+    if (typeof loader !== 'function') throw new Error('_app loader missing');
+    transactions.countPeriodTransactions.mockResolvedValue({ ok: true, value: 128 });
+    expect(await loader({} as never)).toEqual({ navCounts: { transactions: 128 } });
+    expect(transactions.countPeriodTransactions).toHaveBeenCalledWith();
+    transactions.countPeriodTransactions.mockResolvedValue({ ok: false, code: 'INTERNAL' });
+    expect(await loader({} as never)).toEqual({ navCounts: null });
   });
 
   it('wraps its pages in the app shell, with one toast region and the Record Transaction sheet (N)', async () => {

@@ -34,6 +34,12 @@ describe('Rail', () => {
     await expect.element(screen.getByRole('button', { name: 'Menu pengguna' })).toBeVisible();
   });
 
+  it('lists Transactions and keeps an entry active whatever its search params', async () => {
+    const { screen } = await renderApp(rail, { path: '/?period=2026-10' });
+    await expect.element(screen.getByRole('link', { name: 'Ringkasan' })).toHaveAttribute('data-status', 'active');
+    await expect.element(screen.getByRole('link', { name: 'Transaksi' })).toHaveAttribute('href', '/transactions');
+  });
+
   it('names each icon in a tooltip on hover', async () => {
     const { screen } = await renderApp(rail);
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument();

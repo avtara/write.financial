@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link, useRouteContext } from '@tanstack/react-router';
+import { Link, useMatch, useRouteContext } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
 import { KbdHint } from '@wf/ui/kbd-hint';
 import { Search } from 'lucide-react';
 import { useCommandPalette } from './command-palette/command-palette.tsx';
 import { LogoTile } from './logo-mark.tsx';
-import { NAV_GROUPS } from './nav.ts';
+import { NAV_GROUPS, type NavCounts } from './nav.ts';
 import { usePreferences } from './preferences.tsx';
 import { UserMenu } from './user-menu.tsx';
 
@@ -21,6 +21,11 @@ function Wordmark() {
   );
 }
 
+/** The nav badge counts of the `_app` loader (`null` outside `_app` or when they failed to load). */
+export function useNavCounts(): NavCounts | null {
+  return useMatch({ from: '/_app', shouldThrow: false })?.loaderData?.navCounts ?? null;
+}
+
 /**
  * Desktop sidebar (≥ 1280 px, design `qjLGK`): 248 px, brand, the ⌘K search field, navigation groups, user menu at
  * the bottom.
@@ -30,6 +35,7 @@ export function Sidebar() {
   const { viewer } = useRouteContext({ strict: false });
   const palette = useCommandPalette();
   const { platform } = usePreferences().preferences;
+  const counts = useNavCounts();
   return (
     <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-6 border-r border-border px-4 py-5 xl:flex">
       <div className="flex items-center gap-2.5 px-2">
@@ -55,11 +61,16 @@ export function Sidebar() {
                 <li key={item.to}>
                   <Link
                     to={item.to}
-                    activeOptions={{ exact: true }}
+                    activeOptions={{ exact: true, includeSearch: false }}
                     className="flex h-[34px] items-center gap-2.5 rounded-[6px] px-2.5 text-[13.5px] text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring data-[status=active]:bg-muted data-[status=active]:font-medium data-[status=active]:text-fg"
                   >
                     <item.icon aria-hidden="true" className="size-4 shrink-0" />
                     {item.label()}
+                    {item.badge === undefined || counts === null ? null : (
+                      <span className="ml-auto rounded-[4px] px-1.5 font-mono text-[11px] font-normal text-subtle">
+                        {counts[item.badge]}
+                      </span>
+                    )}
                   </Link>
                 </li>
               ))}

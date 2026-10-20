@@ -43,7 +43,7 @@ export function Rail() {
                 <Link
                   to={item.to}
                   aria-label={item.label()}
-                  activeOptions={{ exact: true }}
+                  activeOptions={{ exact: true, includeSearch: false }}
                   className="flex size-10 items-center justify-center rounded-[9px] text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring data-[status=active]:bg-muted data-[status=active]:text-fg"
                 >
                   <item.railIcon aria-hidden="true" className="size-[17px]" />

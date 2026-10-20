@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { TransferView } from '@wf/db/transactions';
 import type { LocalDate } from '@wf/domain/period';
 import { describe, expect, it } from 'vitest';
 import {
@@ -14,6 +15,7 @@ import {
   categoryId,
   userCategory,
 } from '../../../test/ledger-fixtures.ts';
+import { posting, transactionDetail } from '../../../test/transaction-fixtures.ts';
 import {
   activeAccounts,
   balancesAfter,
@@ -33,6 +35,7 @@ import {
   transferAccounts,
   unitValue,
   validate,
+  valuesFromDetail,
   wallTime,
   zonedInstant,
   type TransactionFormValues,
@@ -344,6 +347,143 @@ describe('datePresets', () => {
     expect(datePresets('2026-10-17' as LocalDate).lastSaturday).toBe('2026-10-10');
     expect(datePresets('2026-10-18' as LocalDate).lastSaturday).toBe('2026-10-17');
     expect(datePresets('2026-11-02' as LocalDate)).toMatchObject({ yesterday: '2026-11-01', monthStart: '2026-11-01' });
+  });
+});
+
+describe('valuesFromDetail', () => {
+  const id = { timeZone: 'Asia/Jakarta', locale: 'id' } as const;
+  /** Rp3.000.000 from BCA, US$182,10 into Gotrade at a manual Rp16.474,5, Rp6.500 fee. */
+  const FX: TransferView = {
+    sentMinor: 3_000_000n,
+    sentCurrency: 'IDR',
+    receivedMinor: 18_210n,
+    receivedCurrency: 'USD',
+    referenceRate: '16474.5',
+    rateBase: 'USD',
+    rateQuote: 'IDR',
+    rateSource: 'manual',
+    rateAsOf: '2026-10-15' as LocalDate,
+    fxDiffBaseMinor: -22_665n,
+  };
+  const fxTransferDetail = (transfer: Partial<TransferView> = {}) =>
+    transactionDetail('tx-fx', {
+      type: 'transfer',
+      categoryId: null,
+      postings: [
+        posting(BCA.id, -3_000_000n),
+        posting(GOTRADE.id, 18_210n, { currency: 'USD', amountBaseMinor: 2_977_335n }),
+        posting(BCA.id, -6_500n, { role: 'fee', categoryId: categoryId('system:bank_fee') }),
+      ],
+      transfer: { ...FX, ...transfer },
+    });
+
+  it('fills an expense from its outgoing posting, on the wall clock of the time zone', () => {
+    const detail = transactionDetail('tx-1', { description: 'Makan siang', note: 'Bareng tim', tags: ['kantor'] });
+    expect(valuesFromDetail(detail, id)).toEqual({
+      ...emptyValues({ accountId: BCA.id, date: '2026-10-15' as LocalDate, time: '12:41' }),
+      amountMinor: 10_000n,
+      categoryId: categoryId('system:food'),
+      description: 'Makan siang',
+      note: 'Bareng tim',
+      tags: ['kantor'],
+    });
+    // A copy of the tags, not the detail's array.
+    expect(valuesFromDetail(detail, id).tags).not.toBe(detail.tags);
+  });
+
+  it('fills an income from its only (incoming) posting', () => {
+    const detail = transactionDetail('tx-2', {
+      type: 'income',
+      categoryId: categoryId('system:salary'),
+      postings: [posting(JAGO.id, 8_500_000n)],
+    });
+    expect(valuesFromDetail(detail, id)).toMatchObject({
+      type: 'income',
+      amountMinor: 8_500_000n,
+      categoryId: categoryId('system:salary'),
+      accountId: JAGO.id,
+      toAccountId: null,
+      description: '',
+      note: '',
+    });
+  });
+
+  it('dates a copy at `at` instead (a duplicate is dated now)', () => {
+    const values = valuesFromDetail(transactionDetail('tx-3'), { ...id, at: new Date('2026-10-19T17:05:00Z') });
+    expect(values).toMatchObject({ date: '2026-10-20', time: '00:05' });
+  });
+
+  it('has neither account nor amount without postings', () => {
+    expect(valuesFromDetail(transactionDetail('tx-4', { postings: [] }), id)).toMatchObject({
+      amountMinor: null,
+      accountId: null,
+    });
+  });
+
+  it('fills a same-currency transfer: both accounts, no category, no received amount or rate', () => {
+    const detail = transactionDetail('tx-5', {
+      type: 'transfer',
+      categoryId: null,
+      postings: [posting(BCA.id, -500_000n), posting(OVO.id, 500_000n)],
+      transfer: {
+        ...FX,
+        sentMinor: 500_000n,
+        receivedMinor: 500_000n,
+        receivedCurrency: 'IDR',
+        referenceRate: null,
+        rateBase: null,
+        rateQuote: null,
+        rateSource: null,
+        rateAsOf: null,
+        fxDiffBaseMinor: 0n,
+      },
+    });
+    expect(valuesFromDetail(detail, id)).toMatchObject({
+      type: 'transfer',
+      amountMinor: 500_000n,
+      categoryId: null,
+      accountId: BCA.id,
+      toAccountId: OVO.id,
+      receivedMinor: null,
+      rateMode: 'reference',
+      manualRate: '',
+      feeMinor: null,
+      feeCategoryId: null,
+    });
+  });
+
+  it('fills a cross-currency transfer with its fee and manual rate, typed in the locale’s decimal format', () => {
+    const expected = {
+      type: 'transfer',
+      amountMinor: 3_000_000n,
+      accountId: BCA.id,
+      toAccountId: GOTRADE.id,
+      receivedMinor: 18_210n,
+      rateMode: 'manual',
+      feeMinor: 6_500n,
+      feeCategoryId: categoryId('system:bank_fee'),
+    };
+    expect(valuesFromDetail(fxTransferDetail(), id)).toMatchObject({ ...expected, manualRate: '16474,5' });
+    expect(valuesFromDetail(fxTransferDetail(), { ...id, locale: 'en' })).toMatchObject({
+      ...expected,
+      manualRate: '16474.5',
+    });
+  });
+
+  it('uses the reference rate unless the transfer kept a manual one', () => {
+    for (const transfer of [{ rateSource: 'frankfurter' }, { rateSource: 'manual', referenceRate: null }]) {
+      expect(valuesFromDetail(fxTransferDetail(transfer), id)).toMatchObject({ rateMode: 'reference', manualRate: '' });
+    }
+  });
+
+  it('keeps a fee without a category, and a transfer missing its destination posting', () => {
+    const detail = transactionDetail('tx-6', {
+      type: 'transfer',
+      categoryId: null,
+      postings: [posting(BCA.id, -500_000n), posting(BCA.id, -2_500n, { role: 'fee' })],
+      transfer: { ...FX, receivedCurrency: 'IDR', rateSource: null },
+    });
+    expect(valuesFromDetail(detail, id)).toMatchObject({ toAccountId: null, feeMinor: 2_500n, feeCategoryId: null });
   });
 });
 

@@ -23,6 +23,7 @@ import { createInvitations } from '@wf/db/invitations';
 import { createNotifications, type NotificationsRepository } from '@wf/db/notifications';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-items';
+import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
 import { createReview, type ReviewRepository } from '@wf/db/review';
 import { createSchedules, type SchedulesRepository } from '@wf/db/schedules';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
@@ -89,6 +90,8 @@ export interface Services extends BaseRuntime {
   readonly transactions: TransactionsRepository;
   readonly transactionQuery: TransactionQueryRepository;
   readonly drafts: DraftsRepository;
+  /** `user_preferences` (table prefs), on `wf_app`. */
+  readonly preferences: PreferencesRepository;
   /** Receipts and other transaction attachments (encrypted per user). */
   readonly attachmentStore: ObjectStore;
   /** Uploaded account logos (FR-R1), in the avatars bucket (encrypted per user). */
@@ -148,6 +151,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     transactions: createTransactions(appDb, { getDek, now }),
     transactionQuery: createTransactionQuery(appDb, { getDek }),
     drafts: createDrafts(appDb, { getDek }),
+    preferences: createPreferences(appDb),
     attachmentStore: createObjectStore({ s3: config.s3, bucket: 'attachments', getDek }),
     logoStore: createObjectStore({ s3: config.s3, bucket: 'avatars', getDek }),
     review: createReview(appDb, { getDek, now }),

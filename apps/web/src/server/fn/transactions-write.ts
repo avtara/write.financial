@@ -61,7 +61,7 @@ const TRANSACTION_IDS = z.object({ ids: z.array(z.uuid()).min(1).max(200) });
 const DRAFT_KIND = z.enum(['transaction']);
 
 /** `value` without its `undefined` properties, as the repositories' exact optional properties require. */
-function defined<T extends object>(value: T): { [K in keyof T]: Exclude<T[K], undefined> } {
+export function defined<T extends object>(value: T): { [K in keyof T]: Exclude<T[K], undefined> } {
   return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined)) as {
     [K in keyof T]: Exclude<T[K], undefined>;
   };
