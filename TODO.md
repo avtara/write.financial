@@ -11,7 +11,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Free + BYOK market data research
 - [x] Public repo, AGPL-3.0 license, secret scanning + push protection, Dependabot
 - [x] Google Cloud project `write-financial`: OAuth client, Gmail API, Pub/Sub topic `gmail-push`
-- [ ] Confirm runtime versions: Node 24 LTS + pnpm 12 + TypeScript 6.0 (see implementation plan §2)
+- [x] Confirm runtime versions: Node 24 LTS + pnpm 12 + TypeScript 6.0 (see implementation plan §2)
 - [ ] VPS details: specs, Postgres version, dedicated or shared Redis, Docker, disk encryption
 - [ ] DNS for `write.financial` and email provider (SPF/DKIM/DMARC) — before staging
 - [ ] Off-site backup bucket (Backblaze B2 / Cloudflare R2)
@@ -43,13 +43,13 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M1 — Ledger
 
-- [ ] 5-step onboarding
-- [ ] Accounts + balance reconciliation
-- [ ] Categories + tags
-- [ ] Record Transaction (sheet + Quick Add bar), transfers with exchange rates
-- [ ] Transactions page: filters, views, bulk actions, detail, split, delete + undo
-- [ ] ⌘K command palette
-- [ ] M1 unit tests: 100% per-file coverage gate green
+- [x] 5-step onboarding
+- [x] Accounts + balance reconciliation
+- [x] Categories + tags
+- [x] Record Transaction (sheet + Quick Add bar), transfers with exchange rates
+- [x] Transactions page: filters, views, bulk actions, detail, split, delete + undo
+- [x] ⌘K command palette
+- [x] M1 unit tests: 100% per-file coverage gate green
 
 ## M2 — Periods, budget, dashboard
 
