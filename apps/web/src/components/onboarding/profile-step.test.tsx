@@ -98,7 +98,10 @@ describe('ProfileStep', () => {
   });
 
   it('adds and removes additional currencies, never the base one, up to the limit', async () => {
-    const { screen } = await renderStep(onboardingView({ profile: { ...onboardingView().profile, timezone: 'UTC' } }));
+    // A saved zone no test machine runs in, so the device's differs.
+    const { screen } = await renderStep(
+      onboardingView({ profile: { ...onboardingView().profile, timezone: 'Pacific/Chatham' } }),
+    );
     const add = screen.getByRole('combobox', { name: 'Tambah mata uang' });
     await userEvent.selectOptions(add, 'USD');
     await userEvent.selectOptions(add, 'SGD');
