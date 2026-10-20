@@ -63,11 +63,10 @@ const HEAT: Readonly<Record<HeatLevel, string>> = {
 const NAV =
   'flex size-7 items-center justify-center rounded-[7px] border border-border text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring aria-disabled:pointer-events-none aria-disabled:opacity-40';
 
-/** The loaded transactions of `date`; a breakdown of another date means the chosen one is still loading. */
-type Breakdown = { readonly date: LocalDate } & (
+/** A day's loaded transactions; none yet while they load. */
+type Breakdown =
   | { readonly status: 'ready'; readonly rows: readonly TransactionRow[]; readonly total: number }
-  | { readonly status: 'failed' }
-);
+  | { readonly status: 'failed' };
 
 function NavLink({ search, label, children }: { search: DashboardSearch | null; label: string; children: ReactNode }) {
   if (search === null) {
@@ -98,8 +97,9 @@ export function CalendarCard({
   const months = scope === 'year' || countDays(ranges.full.from, ranges.full.to) > 62;
   const costliest = costliestDay(calendar.days);
   const [selected, setSelected] = useState<LocalDate | null>(costliest?.date ?? null);
-  const [active, setActive] = useState<LocalDate>(costliest?.date ?? (today < ranges.full.to ? today : ranges.full.to));
-  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
+  const [active, setActive] = useState<LocalDate>(costliest?.date ?? ranges.full.from);
+  // Per date, so a slow answer for an earlier choice never shows under a later one.
+  const [loaded, setLoaded] = useState<Readonly<Record<string, Breakdown>>>({});
   const grid = useRef<HTMLDivElement>(null);
   const byId = new Map(categories.map((category) => [category.id, category]));
   const billsOn = new Map<LocalDate, ScheduledItem[]>();
@@ -110,23 +110,19 @@ export function CalendarCard({
 
   useEffect(() => {
     if (selected === null || months) return;
-    let current = true;
+    const keep = (breakdown: Breakdown) => {
+      setLoaded((previous) => ({ ...previous, [selected]: breakdown }));
+    };
     void listTransactionRows({ data: { range: rangeParamOf(selected, selected), offset: 0 } }).then(
       (result) => {
-        if (!current) return;
-        setBreakdown(
-          result.ok
-            ? { date: selected, status: 'ready', rows: result.value.rows, total: result.value.total }
-            : { date: selected, status: 'failed' },
+        keep(
+          result.ok ? { status: 'ready', rows: result.value.rows, total: result.value.total } : { status: 'failed' },
         );
       },
       () => {
-        if (current) setBreakdown({ date: selected, status: 'failed' });
+        keep({ status: 'failed' });
       },
     );
-    return () => {
-      current = false;
-    };
   }, [selected, months]);
 
   const weeks = months ? [] : calendarWeeks(ranges.full, calendar.days, today);
@@ -258,7 +254,7 @@ export function CalendarCard({
       ) : (
         <DayBreakdown
           date={selected}
-          breakdown={breakdown}
+          breakdown={loaded[selected]}
           day={days.find((day) => day.date === selected) as CalendarDay}
           costliest={costliest?.date === selected}
           averageMinor={calendar.averageDailySpendMinor}
@@ -290,6 +286,7 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
   const isToday = day.date === today;
   const surplus = day.surplus && !day.future;
   const background = day.future ? 'bg-transparent border border-border' : surplus ? 'bg-heat-green' : HEAT[day.heat];
+  const [first, ...rest] = bills;
   return (
     <button
       type="button"
@@ -310,12 +307,12 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
         ) : null}
       </span>
       {day.future ? (
-        bills.length === 0 ? null : (
+        first === undefined ? null : (
           <span className="flex min-w-0 items-center gap-1 text-[10.5px] text-muted-fg">
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-red" />
             <span className="truncate">
-              {bills[0]?.name ?? m.overview_calendar_bill()}
-              {bills.length > 1 ? ` +${String(bills.length - 1)}` : ''}
+              {first.name ?? m.overview_calendar_bill()}
+              {rest.length > 0 ? ` +${String(rest.length)}` : ''}
             </span>
           </span>
         )
@@ -342,7 +339,7 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
 
 interface DayBreakdownProps {
   readonly date: LocalDate;
-  readonly breakdown: Breakdown | null;
+  readonly breakdown: Breakdown | undefined;
   readonly day: CalendarDay;
   readonly costliest: boolean;
   readonly averageMinor: bigint;
@@ -369,7 +366,7 @@ function DayBreakdown({
   timeZone,
 }: DayBreakdownProps) {
   const times = averageMinor > 0n ? Number(day.outMinor) / Number(averageMinor) : 0;
-  const ready = breakdown?.date === date && breakdown.status === 'ready' ? breakdown : null;
+  const ready = breakdown?.status === 'ready' ? breakdown : null;
   return (
     <div aria-live="polite" className="flex flex-col rounded-[10px] border border-border">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
@@ -416,7 +413,7 @@ function DayBreakdown({
             ))
           )}
         </ul>
-      ) : breakdown === null || breakdown.date !== date ? (
+      ) : breakdown === undefined ? (
         <p role="status" className="px-4 py-3 text-[12.5px] text-subtle">
           {m.overview_calendar_loading()}
         </p>

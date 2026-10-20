@@ -9,6 +9,7 @@ import type { AccountsOverview, AccountView } from '@wf/db/accounts';
 import type { Dashboard } from '@wf/db/dashboard';
 import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
+import { usePrivacy } from '@wf/ui/privacy';
 import { ArrowDownLeft, ArrowUpRight, ChartLine, Minus, Wallet } from 'lucide-react';
 import { accountTotals, cardSlots } from '../../lib/accounts.ts';
 import { transactionsDatesOf } from '../../lib/dashboard-search.ts';
@@ -28,6 +29,7 @@ const CARD =
 export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
   const { preferences } = usePreferences();
   const { locale } = preferences;
+  const { hidden } = usePrivacy();
   const navigate = useNavigate();
   const { baseCurrency } = overview;
   const active = overview.accounts.filter((account) => account.status === 'active');
@@ -42,12 +44,14 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
     const single = accounts.length === 1 ? accounts[0] : undefined;
     const counted = single === undefined ? accounts.filter((a) => a.currency === baseCurrency) : accounts;
     const netMinor = counted.reduce((total, account) => total + (nets.get(account.id) ?? 0n), 0n);
-    const Icon = netMinor > 0n ? ArrowDownLeft : netMinor < 0n ? ArrowUpRight : Minus;
+    // In privacy mode the arrow and its colour would give the direction away (`<Money>` drops its colour too).
+    const direction = hidden ? 0 : Number(netMinor > 0n) - Number(netMinor < 0n);
+    const Icon = direction > 0 ? ArrowDownLeft : direction < 0 ? ArrowUpRight : Minus;
     return (
       <span className="mt-auto flex items-center gap-1.5 border-t border-border pt-2 text-[11px] text-subtle">
         <Icon
           aria-hidden="true"
-          className={`size-3 ${netMinor > 0n ? 'text-green-fg' : netMinor < 0n ? 'text-red-fg' : ''}`}
+          className={`size-3 ${direction > 0 ? 'text-green-fg' : direction < 0 ? 'text-red-fg' : ''}`}
         />
         <Money
           minor={netMinor}

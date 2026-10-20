@@ -286,8 +286,7 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
             : (await coveringIn(tx, { from: addDays(trendEnd, -6 * 31), to: trendEnd }, startDay)).slice(-6);
         const trend: TrendPeriod[] = [];
         for (const item of trendPeriods) {
-          const kpis =
-            item.start > today ? null : await kpisIn(tx, userId, { from: item.start, to: item.end });
+          const kpis = item.start > today ? null : await kpisIn(tx, userId, { from: item.start, to: item.end });
           trend.push({
             label: item.label,
             start: item.start,

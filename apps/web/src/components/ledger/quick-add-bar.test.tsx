@@ -52,7 +52,9 @@ async function renderBar(data: LedgerData = LEDGER) {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  // The note field shows from 1280 px (FR-TB2).
+  await page.viewport(1440, 900);
   writes.recordTransaction.mockResolvedValue({ ok: true, value: { id: 'tx-1' } });
   writes.listTransactionDays.mockResolvedValue({ ok: true, value: [] });
   ledger.getReferenceRate.mockResolvedValue({ ok: true, value: null });

@@ -38,7 +38,7 @@ test.beforeAll(async () => {
 /** The sheet, opened with `N`. */
 async function openSheet(page: Page): Promise<Locator> {
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Selamat (pagi|siang|sore|malam), / })).toBeVisible();
   // Wait for hydration: the Quick Add bar is interactive once its amount field is.
   await expect(page.getByRole('form', { name: 'Catat cepat' })).toBeVisible();
   await page.locator('body').press('n');

@@ -136,7 +136,7 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   const layout =
     width === null || graph.nodes.length === 0
       ? null
-      : layoutFlow(graph, { left: LEFT, top: 16, right: width - RIGHT, bottom: height - 16 }, 18);
+      : { width, ...layoutFlow(graph, { left: LEFT, top: 16, right: width - RIGHT, bottom: height - 16 }, 18) };
   // Each node's label texts (formatted with the privacy mode), accessible name, and label centre; the two-line labels
   // of the left column are pushed apart where small nodes sit close.
   const texts = new Map<string, { value: string; label: string; middle: number }>();
@@ -159,16 +159,16 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   const dimmed = (id: string) =>
     wide && focus !== null && id !== focus && id !== 'total' && !id.startsWith('source:') && parentOf.get(id) !== focus;
 
-  const focusNode = focus === null ? null : (nodeById.get(focus) ?? null);
+  // A focused group missing from newer data reads as no focus.
+  const focusNode = focus === null ? undefined : nodeById.get(focus);
   const updated = `${formatDate(toLocalDate(loadedAt, timeZone), locale, 'date')}, ${formatTime(loadedAt, timeZone, locale)}`;
   const filename = `${m.overview_flow_title().toLowerCase().replace(/\s+/g, '-')}-${dashboard.ranges.current.from}-${dashboard.ranges.current.to}.png`;
 
   const exportPng = async (action: 'download' | 'copy') => {
-    const svg = svgRef.current;
-    if (svg === null) return;
+    // The export items are enabled only while the diagram is drawn.
+    const svg = svgRef.current as SVGSVGElement;
     try {
-      const card = getComputedStyle(svg).getPropertyValue('--card');
-      const blob = await flowPng(svg, card === '' ? '#141414' : card);
+      const blob = await flowPng(svg, getComputedStyle(svg).getPropertyValue('--card'));
       if (action === 'download') {
         download(blob, filename);
       } else {
@@ -205,7 +205,7 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
             </span>
           </h2>
           <p className="text-[12.5px] text-muted-fg">
-            {focusNode === null ? (
+            {focusNode === undefined ? (
               flow.incomeMinor > 0n ? (
                 <RichMessage
                   message={m.overview_flow_subtitle}
@@ -356,9 +356,9 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
             ref={svgRef}
             role="group"
             aria-label={m.overview_flow_chart()}
-            width={width ?? 0}
+            width={layout.width}
             height={height}
-            viewBox={`0 0 ${String(width)} ${String(height)}`}
+            viewBox={`0 0 ${String(layout.width)} ${String(height)}`}
             className="block font-sans"
           >
             <g aria-hidden="true">
@@ -467,7 +467,7 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
         {hover === null || layout === null ? null : (
           <FlowTooltip
             hover={hover}
-            width={width ?? 0}
+            width={layout.width}
             name={name}
             parent={parentOf.get(hover.node.id) ?? null}
             nodeById={nodeById}

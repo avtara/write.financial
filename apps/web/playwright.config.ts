@@ -18,6 +18,8 @@ const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse
  * - `accounts`: "Rekening & dompet" with the design persona seeded for the invited user (M1),
  * - `budget`: Anggaran, Settings › Periode bulanan, and the Record sheet's budget impact (FR-B1–B5, P1–P3, T3) on the
  *   seed's untouched October (it restores what it changes),
+ * - `dashboard`: Ringkasan (FR-D1/D2/D4, FR-S7): the seed's October KPIs, Week/Year, the custom range, 1440/1024/768,
+ *   keyboard only, offline (read-only, before `record` moves the totals),
  * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed,
  * - `cmdk`: the ⌘K palette, keyboard only, as the invited user with the design persona's ledger (`seedDesignPersona`),
  * - `transactions`: the Transactions page (FR-L1–L6: filters, views, bulk, detail edit, split, delete + Urungkan,
@@ -80,10 +82,16 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {
-      // After `accounts` (through `budget`), which asserts the seed's exact balances; recording moves them.
+      name: 'dashboard',
+      testMatch: 'dashboard.spec.ts',
+      dependencies: ['budget'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      // After `accounts` (through `budget` and `dashboard`), which assert the seed's exact figures; recording moves them.
       name: 'record',
       testMatch: 'record-transaction.spec.ts',
-      dependencies: ['budget'],
+      dependencies: ['dashboard'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {

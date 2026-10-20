@@ -30,7 +30,8 @@ export function BudgetCard({ dashboard, categories, locale }: BudgetCardProps) {
   const { budget, scope } = dashboard;
   const lines = (budget?.lines ?? [])
     .filter((line) => byId.has(line.categoryId))
-    .toSorted((a, b) => (b.usedBps ?? 0) - (a.usedBps ?? 0))
+    // `Number(null)` is 0: a line without a limit sorts as unused.
+    .toSorted((a, b) => Number(b.usedBps) - Number(a.usedBps))
     .slice(0, MAX_LINES);
   const title =
     scope === 'week'
