@@ -48,7 +48,8 @@ export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits
         aside: <Money minor={hit.amountMinor} currency={hit.currency} context="amount" locale={locale} />,
       };
     },
-    open: (_hit, navigate) => navigate({ to: '/' }),
+    // Until the Transactions page exists: the account the transaction moved money on.
+    open: (hit, navigate) => navigate({ to: '/accounts', search: { account: hit.accountId } }),
   },
   accounts: {
     heading: m.cmdk_group_accounts,
@@ -59,7 +60,7 @@ export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits
       detail: withArchived(`${hit.providerName} · ${accountTypeLabel(hit.type)}`, hit.archived),
       aside: <Money minor={hit.balanceMinor} currency={hit.currency} context="amount" locale={locale} />,
     }),
-    open: (_hit, navigate) => navigate({ to: '/' }),
+    open: (hit, navigate) => navigate({ to: '/accounts', search: { account: hit.id } }),
   },
   categories: {
     heading: m.cmdk_group_categories,

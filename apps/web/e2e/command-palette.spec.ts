@@ -2,10 +2,10 @@
 /**
  * ⌘K (FR-S4), keyboard only, as the invited user with the design persona's ledger: open with Ctrl+K, find a seeded
  * transaction by merchant, open it, find it again under "Baru dibuka", record an unmatched query through the Record
- * Transaction sheet, the `G` navigation sequence, the tablet rail's search button, and a category result opening
- * Settings › Kategori.
+ * Transaction sheet, the `G` navigation sequence, the tablet rail's search button, and account and category results
+ * opening their pages.
  */
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, loadAccount, seedDesignPersona, test, USER_STATE } from './support.ts';
 
 test.use({ storageState: USER_STATE });
@@ -16,6 +16,16 @@ test.beforeAll(async () => {
 });
 
 const PALETTE = 'Cari atau jalankan perintah';
+
+/** Moves the active result down to `option` with ↓ and opens it with ↵. */
+async function selectAndOpen(page: Page, option: Locator) {
+  await expect(option).toBeVisible();
+  for (let step = 0; step < 12 && (await option.getAttribute('aria-selected')) !== 'true'; step++) {
+    await page.keyboard.press('ArrowDown');
+  }
+  await expect(option).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Enter');
+}
 
 /** Opens `path` and waits until the page is hydrated: shortcuts are bound on the client. */
 async function visit(page: Page, path: string) {
@@ -91,16 +101,21 @@ test('navigates with the G sequence, and opens from the tablet rail', async ({ p
   await page.keyboard.press('Escape');
   await expect(search).toBeFocused();
 
+  // An account opens it on "Rekening & dompet".
+  await page.keyboard.press('Control+k');
+  await expect(dialog.getByRole('combobox')).toBeFocused();
+  await page.keyboard.type('bca tahapan');
+  await selectAndOpen(
+    page,
+    dialog.getByRole('group', { name: /^Rekening/ }).getByRole('option', { name: /^BCA Tahapan/ }),
+  );
+  await expect(page).toHaveURL(/\/accounts\?account=[\w-]+$/);
+
   // A category opens Settings › Kategori.
   await page.keyboard.press('Control+k');
   await expect(dialog.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('makan');
   const category = dialog.getByRole('group', { name: /^Kategori/ }).getByRole('option', { name: /Makan & Dapur/ });
-  await expect(category).toBeVisible();
-  for (let step = 0; step < 12 && (await category.getAttribute('aria-selected')) !== 'true'; step++) {
-    await page.keyboard.press('ArrowDown');
-  }
-  await expect(category).toHaveAttribute('aria-selected', 'true');
-  await page.keyboard.press('Enter');
+  await selectAndOpen(page, category);
   await expect(page).toHaveURL(/\/settings\/categories$/);
 });

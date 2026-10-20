@@ -133,6 +133,9 @@ describe('Palette', () => {
     expect(recent.getByRole('option').elements()).toHaveLength(3);
     const pages = dialog().getByRole('group', { name: 'Halaman' });
     await expect.element(pages.getByRole('option', { name: /Ringkasan/ })).toHaveTextContent('RingkasanGR');
+    // Pages without a `G` letter show no shortcut.
+    const accounts = pages.getByRole('option', { name: /Rekening/ });
+    expect(accounts.element().textContent).toBe('Rekening & dompet');
     expect(dialog().element().textContent).toContain('↑↓pilih↵buka');
 
     await userEvent.keyboard('{Escape}');
@@ -162,7 +165,7 @@ describe('Palette', () => {
     await expect.element(dialog()).not.toBeInTheDocument();
     expect(server.touchRecent).toHaveBeenCalledWith({ data: { kind: 'transaction', ref: 'tx-aug' } });
     await vi.waitFor(() => {
-      expect(router.state.location.pathname).toBe('/');
+      expect(router.state.location.href).toBe('/accounts?account=acc-bca');
     });
   });
 
@@ -189,7 +192,11 @@ describe('Palette', () => {
   it('opens a page from the page group or the recent items, remembering it', async () => {
     const { router } = await renderPalette();
     await userEvent.keyboard('{Meta>}k{/Meta}');
-    await userEvent.click(dialog().getByRole('group', { name: 'Halaman' }).getByRole('option'));
+    await userEvent.click(
+      dialog()
+        .getByRole('group', { name: 'Halaman' })
+        .getByRole('option', { name: /Ringkasan/ }),
+    );
     expect(server.touchRecent).toHaveBeenCalledWith({ data: { kind: 'page', ref: '/' } });
     await vi.waitFor(() => {
       expect(router.state.location.pathname).toBe('/');

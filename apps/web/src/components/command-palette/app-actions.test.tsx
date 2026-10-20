@@ -29,13 +29,15 @@ async function openPalette() {
   await expect.element(dialog().getByRole('combobox')).toHaveFocus();
 }
 
+let router: Awaited<ReturnType<typeof renderApp>>['router'];
+
 beforeEach(async () => {
   vi.clearAllMocks();
-  await renderApp(
+  ({ router } = await renderApp(
     <CommandPaletteProvider>
       <AppCommandActions />
     </CommandPaletteProvider>,
-  );
+  ));
 });
 
 describe('AppCommandActions', () => {
@@ -49,6 +51,15 @@ describe('AppCommandActions', () => {
     await openPalette();
     await userEvent.click(dialog().getByRole('option', { name: 'Catat transfer' }));
     expect(record.open).toHaveBeenLastCalledWith({ type: 'transfer' });
+  });
+
+  it('adds an account from "Aksi cepat"', async () => {
+    await openPalette();
+    await userEvent.type(dialog().getByRole('combobox'), 'rekening');
+    await userEvent.click(dialog().getByRole('option', { name: 'Tambah rekening' }));
+    await vi.waitFor(() => {
+      expect(router.state.location.href).toBe('/accounts?new=bank');
+    });
   });
 
   it('records an unmatched query as a transaction description', async () => {
