@@ -64,6 +64,7 @@ describe('getRouter', () => {
       '/admin/queues/$',
       '/api/account-logo/$id',
       '/api/auth/$',
+      '/budget',
       '/forgot',
       '/healthz',
       '/reset-password',
