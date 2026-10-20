@@ -20,7 +20,7 @@ import { ValkeyContainer, type StartedValkeyContainer } from '@testcontainers/va
 import { loadConfig } from '@wf/config';
 import { createKeyFile, loadKeyring } from '@wf/crypto/keyring';
 import type { AccountsOverview } from '@wf/db/accounts';
-import type { BudgetStatus } from '@wf/db/budgets';
+import type { BudgetHistoryEntry, BudgetStatus, BudgetVersionView } from '@wf/db/budgets';
 import type { CategoryView } from '@wf/db/categories';
 import type { Dashboard } from '@wf/db/dashboard';
 import type { DraftView } from '@wf/db/drafts';
@@ -37,7 +37,7 @@ import {
 import { createOccurrenceJobs } from '@wf/db/occurrence-jobs';
 import type { ConfirmResult, ReviewCounts, ReviewItemView } from '@wf/db/review';
 import { bootstrapRoles, ROLES, type RoleName } from '@wf/db/roles';
-import type { PeriodsOverview } from '@wf/db/periods';
+import type { Payday, PeriodsOverview, StartDayPreview } from '@wf/db/periods';
 import type {
   ChangeAccountResult,
   DetectedOverview,
@@ -47,7 +47,9 @@ import type {
   SubscriptionView,
 } from '@wf/db/schedules';
 import type { TagView } from '@wf/db/tags';
+import type { CategoryGroup } from '@wf/db/transaction-query';
 import { createUserKeys } from '@wf/db/user-keys';
+import type { LimitDelta } from '@wf/domain/budget';
 import { addDays } from '@wf/domain/period';
 import { pino } from 'pino';
 import postgres from 'postgres';
@@ -65,7 +67,9 @@ import * as account from './account.ts';
 import type { AccountDetail } from './accounts.ts';
 import * as accounts from './accounts.ts';
 import * as admin from './admin.ts';
+import * as budgetWrite from './budget-write.ts';
 import * as budget from './budget.ts';
+import type { BudgetCategoryDetail } from './budget.ts';
 import * as categories from './categories.ts';
 import * as gate from './gate.ts';
 import * as ledger from './ledger.ts';
@@ -156,6 +160,7 @@ const FUNCTIONS = {
   ...accounts,
   ...admin,
   ...budget,
+  ...budgetWrite,
   ...categories,
   ...gate,
   ...ledger,
@@ -309,6 +314,31 @@ const aLedgerRows = async () => ({
   tagged: await superuser`SELECT tt.* FROM transaction_tags tt JOIN tags t ON t.id = tt.tag_id
     WHERE t.user_id = ${aId} ORDER BY 1, 2`,
 });
+/** A user's current period. */
+const currentPeriod = async (userId: string) => (await services.periods.list(userId)).current;
+/** The category of the budget line each user gets in `beforeAll`. */
+const budgetedId = (userId: string) => categoryId(userId, `Anggaran ${userId === aId ? A_LEDGER.tag : 'tag-b'}`);
+/** A second expense category for budget writes, so the line of {@link budgetedId} stays the only one between cases. */
+const spareId = async (userId: string) =>
+  (await categoryId(userId, 'Anggaran cadangan')) ||
+  (
+    await services.categories.create(userId, {
+      kind: 'expense',
+      group: 'wants',
+      name: 'Anggaran cadangan',
+      icon: 'wallet',
+      color: 'green',
+    })
+  ).id;
+/** A's budgets, overrides, dismissed warnings, periods, and start day as stored; B's budget writes leave them alone. */
+const aBudgetRows = async () => ({
+  versions: await superuser`SELECT * FROM budget_versions WHERE user_id = ${aId} ORDER BY id`,
+  lines: await superuser`SELECT * FROM budget_lines WHERE user_id = ${aId} ORDER BY version_id, category_id`,
+  overrides: await superuser`SELECT * FROM budget_period_overrides WHERE user_id = ${aId} ORDER BY id`,
+  dismissals: await superuser`SELECT * FROM budget_alert_dismissals WHERE user_id = ${aId} ORDER BY 1, 2, 3`,
+  periods: await superuser`SELECT * FROM periods WHERE user_id = ${aId} ORDER BY start_date`,
+  preferences: await superuser`SELECT period_start_day, period_mode FROM user_preferences WHERE user_id = ${aId}`,
+});
 /** Any id: the signed-out request is refused before it is looked up. */
 const SOME_ID = '0192a6c4-0000-7000-8000-000000000000';
 /** The id of a user's subscription by name, or `''`. */
@@ -375,6 +405,7 @@ const bAccountNames = async () =>
 const FORBIDDEN = { ok: false, code: 'FORBIDDEN' };
 const ok = <T>(value: T) => ({ ok: true, value });
 const NOT_FOUND = { ok: false, code: 'NOT_FOUND' };
+const INVALID_CATEGORY = { ok: false, code: 'INVALID_CATEGORY' };
 
 beforeAll(async () => {
   [pg, valkey] = await Promise.all([
@@ -1796,6 +1827,265 @@ const MATRIX: Record<Name, Case> = {
         ok: false,
         code: 'INVALID_PERIOD',
       });
+    },
+  },
+  getBudgetHistory: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<BudgetHistoryEntry[]>>('B', 'getBudgetHistory');
+      expect(ofB).toMatchObject(ok([{ totalMinor: 500_000n, lineCount: 1, changes: null }]));
+      expect(await ledgerIds(bId)).toContain(ofB.ok && ofB.value[0]?.versionId);
+    },
+  },
+  getBudgetFill: {
+    input: () => ({ periodId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      // B has no spending before the current period, so nothing to suggest.
+      expect(await as('B', 'getBudgetFill', { periodId: (await currentPeriod(bId)).id })).toEqual(ok([]));
+      expect(await as('B', 'getBudgetFill', { periodId: (await currentPeriod(aId)).id })).toEqual(NOT_FOUND);
+    },
+  },
+  listPeriodSpending: {
+    input: () => ({ periodId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<CategoryGroup[]>>('B', 'listPeriodSpending', {
+        periodId: (await currentPeriod(bId)).id,
+      });
+      const ids = await ledgerIds(bId);
+      expect(ofB.ok && ofB.value.filter((group) => group.kind !== 'expense')).toEqual([]);
+      expect(
+        ofB.ok && ofB.value.filter((group) => group.categoryId !== null && !ids.includes(group.categoryId)),
+      ).toEqual([]);
+      expect(await as('B', 'listPeriodSpending', { periodId: (await currentPeriod(aId)).id })).toEqual(NOT_FOUND);
+    },
+  },
+  getBudgetCategory: {
+    input: () => ({ periodId: SOME_ID, categoryId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const period = await currentPeriod(bId);
+      const ofB = await as<Result<BudgetCategoryDetail>>('B', 'getBudgetCategory', {
+        periodId: period.id,
+        categoryId: await budgetedId(bId),
+      });
+      expect(ofB).toMatchObject(
+        ok({ months: [{ label: period.label, spentMinor: 0n, current: true }], transactions: [], transactionCount: 0 }),
+      );
+      expect(ofB.ok && ofB.value.daily.length).toBe(period.days);
+      expect(
+        await as('B', 'getBudgetCategory', {
+          periodId: (await currentPeriod(aId)).id,
+          categoryId: await budgetedId(bId),
+        }),
+      ).toEqual(NOT_FOUND);
+      // A's category filters B's own transactions down to none.
+      expect(
+        await as('B', 'getBudgetCategory', { periodId: period.id, categoryId: await budgetedId(aId) }),
+      ).toMatchObject(ok({ transactions: [], transactionCount: 0 }));
+    },
+  },
+  getPeriodSettings: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<{ overview: PeriodsOverview; payday: Payday }>>('B', 'getPeriodSettings');
+      const ids = await ledgerIds(bId);
+      expect(ofB.ok && ofB.value.overview.periods.filter((period) => !ids.includes(period.id as string))).toEqual([]);
+      expect(ofB.ok && ids).toContain(ofB.ok && ofB.value.overview.current.id);
+      expect(ofB.ok && ofB.value.payday).toEqual({ day: null, merchant: null, count: 0 });
+    },
+  },
+  saveBudgetVersion: {
+    input: () => ({ effectiveFrom: '2026-10', lines: [] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aBudgetRows();
+      const { label } = await currentPeriod(bId);
+      const own = { categoryId: await budgetedId(bId), limitMinor: 500_000n };
+      const foreign = { categoryId: await budgetedId(aId), limitMinor: 1n };
+      expect(await as('B', 'saveBudgetVersion', { effectiveFrom: label, lines: [own, foreign] })).toEqual(
+        INVALID_CATEGORY,
+      );
+      const spare = { categoryId: await spareId(bId), limitMinor: 200_000n, rollover: true, alertPct: 80 };
+      const saved = await as<Result<BudgetVersionView>>('B', 'saveBudgetVersion', {
+        effectiveFrom: label,
+        lines: [own, spare],
+      });
+      expect(saved).toMatchObject(ok({ effectiveFrom: label, totalMinor: 700_000n }));
+      expect(await ledgerIds(bId)).toContain(saved.ok && saved.value.id);
+      // Back to the single line of `beforeAll`.
+      expect(await as('B', 'saveBudgetVersion', { effectiveFrom: label, lines: [own] })).toMatchObject(
+        ok({ totalMinor: 500_000n }),
+      );
+      expect(await aBudgetRows()).toEqual(a);
+    },
+  },
+  setBudgetLine: {
+    input: () => ({ periodId: SOME_ID, categoryId: SOME_ID, limitMinor: 1n }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aBudgetRows();
+      const periodId = (await currentPeriod(bId)).id as string;
+      const spare = await spareId(bId);
+      expect(
+        await as('B', 'setBudgetLine', { periodId: (await currentPeriod(aId)).id, categoryId: spare, limitMinor: 1n }),
+      ).toEqual(NOT_FOUND);
+      expect(await as('B', 'setBudgetLine', { periodId, categoryId: await budgetedId(aId), limitMinor: 1n })).toEqual(
+        INVALID_CATEGORY,
+      );
+      expect(
+        await as('B', 'setBudgetLine', { periodId, categoryId: spare, limitMinor: 300_000n, alertPct: 100 }),
+      ).toMatchObject(ok({ totalMinor: 800_000n }));
+      await services.budgets.removeLine(bId, periodId, spare);
+      expect(await aBudgetRows()).toEqual(a);
+    },
+  },
+  removeBudgetLine: {
+    input: () => ({ periodId: SOME_ID, categoryId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aBudgetRows();
+      const periodId = (await currentPeriod(bId)).id as string;
+      const spare = await spareId(bId);
+      await services.budgets.setLine(bId, periodId, { categoryId: spare, limitMinor: 100_000n });
+      const aPeriod = (await currentPeriod(aId)).id;
+      expect(await as('B', 'removeBudgetLine', { periodId: aPeriod, categoryId: await budgetedId(aId) })).toEqual(
+        NOT_FOUND,
+      );
+      expect(await as('B', 'removeBudgetLine', { periodId, categoryId: await budgetedId(aId) })).toEqual(NOT_FOUND);
+      expect(await as('B', 'removeBudgetLine', { periodId, categoryId: spare })).toMatchObject(
+        ok({ totalMinor: 500_000n }),
+      );
+      expect(await aBudgetRows()).toEqual(a);
+    },
+  },
+  moveBudgetLeftover: {
+    input: () => ({
+      periodId: SOME_ID,
+      targetCategoryId: SOME_ID,
+      sources: [{ categoryId: SOME_ID, amountMinor: 1n }],
+    }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aBudgetRows();
+      const periodId = (await currentPeriod(bId)).id as string;
+      const spare = await spareId(bId);
+      await services.budgets.setLine(bId, periodId, { categoryId: spare, limitMinor: 100_000n });
+      const sources = [{ categoryId: await budgetedId(bId), amountMinor: 50_000n }];
+      expect(
+        await as('B', 'moveBudgetLeftover', {
+          periodId: (await currentPeriod(aId)).id,
+          targetCategoryId: spare,
+          sources,
+        }),
+      ).toEqual(NOT_FOUND);
+      expect(
+        await as('B', 'moveBudgetLeftover', { periodId, targetCategoryId: await budgetedId(aId), sources }),
+      ).toEqual({ ok: false, code: 'INVALID_BUDGET' });
+      const moved = await as<Result<{ moveId: string; deltas: LimitDelta[] }>>('B', 'moveBudgetLeftover', {
+        periodId,
+        targetCategoryId: spare,
+        sources,
+      });
+      expect(moved.ok && moved.value.deltas).toEqual(
+        expect.arrayContaining([
+          { categoryId: spare, deltaMinor: 50_000n },
+          { categoryId: sources[0]?.categoryId, deltaMinor: -50_000n },
+        ]),
+      );
+      await services.budgets.undoMove(bId, moved.ok ? moved.value.moveId : '');
+      await services.budgets.removeLine(bId, periodId, spare);
+      expect(await aBudgetRows()).toEqual(a);
+    },
+  },
+  undoBudgetMove: {
+    input: () => ({ moveId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      // A move of each user: from the budgeted line into the spare one.
+      const moves = new Map<string, string>();
+      for (const userId of [aId, bId]) {
+        const periodId = (await currentPeriod(userId)).id as string;
+        const spare = await spareId(userId);
+        await services.budgets.setLine(userId, periodId, { categoryId: spare, limitMinor: 100_000n });
+        const { moveId } = await services.budgets.moveLeftover(userId, periodId, {
+          targetCategoryId: spare,
+          sources: [{ categoryId: await budgetedId(userId), amountMinor: 10_000n }],
+        });
+        moves.set(userId, moveId);
+      }
+      const a = await aBudgetRows();
+      expect(await as('B', 'undoBudgetMove', { moveId: moves.get(aId) })).toEqual(NOT_FOUND);
+      expect(await aBudgetRows()).toEqual(a);
+      expect(await as('B', 'undoBudgetMove', { moveId: moves.get(bId) })).toEqual(ok({ removed: 2 }));
+      expect(await count('budget_period_overrides', `user_id = '${bId}'`)).toBe(0);
+      await services.budgets.removeLine(bId, (await currentPeriod(bId)).id as string, await spareId(bId));
+    },
+  },
+  dismissBudgetAlert: {
+    input: () => ({ periodId: SOME_ID, categoryId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aBudgetRows();
+      const periodId = (await currentPeriod(bId)).id as string;
+      const categoryId = await budgetedId(bId);
+      expect(await as('B', 'dismissBudgetAlert', { periodId: (await currentPeriod(aId)).id, categoryId })).toEqual(
+        NOT_FOUND,
+      );
+      expect(await as('B', 'dismissBudgetAlert', { periodId, categoryId: await budgetedId(aId) })).toEqual(
+        INVALID_CATEGORY,
+      );
+      expect(await as('B', 'dismissBudgetAlert', { periodId, categoryId })).toEqual(ok(null));
+      const status = await services.budgets.status(bId, { periodId });
+      expect(status.lines.map((line) => [line.categoryId, line.dismissed])).toEqual([[categoryId, true]]);
+      await services.budgets.restoreAlert(bId, periodId, categoryId);
+      expect(await aBudgetRows()).toEqual(a);
+    },
+  },
+  restoreBudgetAlert: {
+    input: () => ({ periodId: SOME_ID, categoryId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const periodId = (await currentPeriod(bId)).id as string;
+      const aPeriod = (await currentPeriod(aId)).id as string;
+      const categoryId = await budgetedId(bId);
+      await services.budgets.dismissAlert(bId, periodId, categoryId);
+      await services.budgets.dismissAlert(aId, aPeriod, await budgetedId(aId));
+      const a = await aBudgetRows();
+      expect(a.dismissals).toHaveLength(1);
+      expect(await as('B', 'restoreBudgetAlert', { periodId: aPeriod, categoryId: await budgetedId(aId) })).toEqual(
+        NOT_FOUND,
+      );
+      // B's period with A's category: the delete reaches none of A's rows.
+      expect(await as('B', 'restoreBudgetAlert', { periodId, categoryId: await budgetedId(aId) })).toEqual(ok(null));
+      expect(await aBudgetRows()).toEqual(a);
+      expect(await as('B', 'restoreBudgetAlert', { periodId, categoryId })).toEqual(ok(null));
+      expect(await count('budget_alert_dismissals', `user_id = '${bId}'`)).toBe(0);
+    },
+  },
+  previewPeriodStart: {
+    input: () => ({ day: 25, apply: 'next_period' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await aBudgetRows();
+      const ofB = await as<Result<StartDayPreview>>('B', 'previewPeriodStart', input);
+      expect(ofB).toMatchObject(ok({ apply: 'next_period', fromDay: 1, toDay: 25 }));
+      expect(ofB.ok && ofB.value.transition?.limitMinor).toBe(500_000n);
+      expect(await services.periods.list(bId)).toMatchObject({ startDay: 1, mode: 'fixed_day' });
+      expect(await aBudgetRows()).toEqual(a);
+    },
+  },
+  // Last of the period cases: B's start day changes (and is set back).
+  changePeriodStart: {
+    input: () => ({ day: 25, apply: 'next_period' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await aBudgetRows();
+      expect(await as('B', 'changePeriodStart', input)).toMatchObject(ok({ apply: 'next_period', toDay: 25 }));
+      expect(await services.periods.list(bId)).toMatchObject({ startDay: 25 });
+      expect(await aBudgetRows()).toEqual(a);
+      await services.periods.changeStartDay(bId, { day: 1, apply: 'next_period' });
     },
   },
   getPreferences: {

@@ -16,6 +16,7 @@ import { Route as SetupRouteImport } from './../routes/setup.tsx';
 import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup.tsx';
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
 import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
+import { Route as AppBudgetRouteImport } from './../routes/_app/budget.tsx';
 import { Route as Auth2faRouteImport } from './../routes/_auth/2fa.tsx';
 import { Route as AuthForgotRouteImport } from './../routes/_auth/forgot.tsx';
 import { Route as AuthResetPasswordRouteImport } from './../routes/_auth/reset-password.tsx';
@@ -58,6 +59,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppAccountsRoute = AppAccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppBudgetRoute = AppBudgetRouteImport.update({
+  id: '/budget',
+  path: '/budget',
   getParentRoute: () => AppRoute,
 } as any);
 const Auth2faRoute = Auth2faRouteImport.update({
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute;
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
+  '/budget': typeof AppBudgetRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute;
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
+  '/budget': typeof AppBudgetRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute;
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/_app/accounts': typeof AppAccountsRoute;
+  '/_app/budget': typeof AppBudgetRoute;
   '/_auth/2fa': typeof Auth2faRoute;
   '/_auth/forgot': typeof AuthForgotRoute;
   '/_auth/reset-password': typeof AuthResetPasswordRoute;
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/two-factor-setup'
     | '/accounts'
+    | '/budget'
     | '/2fa'
     | '/forgot'
     | '/reset-password'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/two-factor-setup'
     | '/accounts'
+    | '/budget'
     | '/2fa'
     | '/forgot'
     | '/reset-password'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/two-factor-setup'
     | '/_app/accounts'
+    | '/_app/budget'
     | '/_auth/2fa'
     | '/_auth/forgot'
     | '/_auth/reset-password'
@@ -281,6 +293,13 @@ declare module '@tanstack/react-router' {
       path: '/accounts';
       fullPath: '/accounts';
       preLoaderRoute: typeof AppAccountsRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/budget': {
+      id: '/_app/budget';
+      path: '/budget';
+      fullPath: '/budget';
+      preLoaderRoute: typeof AppBudgetRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_auth/2fa': {
@@ -358,12 +377,14 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute;
+  AppBudgetRoute: typeof AppBudgetRoute;
   AppIndexRoute: typeof AppIndexRoute;
   AppSettingsSectionRoute: typeof AppSettingsSectionRoute;
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
+  AppBudgetRoute: AppBudgetRoute,
   AppIndexRoute: AppIndexRoute,
   AppSettingsSectionRoute: AppSettingsSectionRoute,
 };

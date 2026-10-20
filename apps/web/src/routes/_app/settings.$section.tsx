@@ -5,6 +5,7 @@ import { FormError } from '../../components/form.tsx';
 import { usePreferences } from '../../components/preferences.tsx';
 import { CategoriesSection } from '../../components/settings/categories-section.tsx';
 import { InstanceSection } from '../../components/settings/instance-section.tsx';
+import { PeriodSection } from '../../components/settings/period-section.tsx';
 import { ProfileSection } from '../../components/settings/profile-section.tsx';
 import { SecuritySection } from '../../components/settings/security-section.tsx';
 import { canOpenSection, SettingsLayout } from '../../components/settings/settings-layout.tsx';
@@ -12,14 +13,15 @@ import { TagsSection } from '../../components/settings/tags-section.tsx';
 import { authErrorMessage } from '../../lib/auth-errors.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
+import { getPeriodSettings } from '../../server/fn/budget.ts';
 import { listCategories, listTags } from '../../server/fn/ledger.ts';
 import { listSimilarTags } from '../../server/fn/tags.ts';
 
 /**
- * `/settings/profile`, `/settings/categories`, `/settings/tags`, `/settings/security`, and (admins)
- * `/settings/instance`. Profile also loads the security overview for its sign-in methods (Google linked, password
- * set); categories include archived ones; tags come with the similar-tag pairs; the instance section loads its own
- * data.
+ * `/settings/profile`, `/settings/period`, `/settings/categories`, `/settings/tags`, `/settings/security`, and
+ * (admins) `/settings/instance`. Profile also loads the security overview for its sign-in methods (Google linked,
+ * password set); the period section loads the periods and the payday the salary suggests; categories include archived
+ * ones; tags come with the similar-tag pairs; the instance section loads its own data.
  */
 export const Route = createFileRoute('/_app/settings/$section')({
   loader: async ({ params, context }) => {
@@ -30,6 +32,7 @@ export const Route = createFileRoute('/_app/settings/$section')({
       return { section, profile, security };
     }
     if (section === 'security') return { section, security: await getSecurity() };
+    if (section === 'period') return { section, period: await getPeriodSettings() };
     if (section === 'categories')
       return { section, categories: await listCategories({ data: { includeArchived: true } }) };
     if (section === 'tags') {
@@ -50,6 +53,12 @@ function SettingsPage() {
   let content;
   if (data.section === 'instance') {
     content = <InstanceSection />;
+  } else if (data.section === 'period') {
+    content = data.period.ok ? (
+      <PeriodSection {...data.period.value} />
+    ) : (
+      <FormError>{ledgerErrorMessage(data.period.code, preferences.locale)}</FormError>
+    );
   } else if (data.section === 'categories') {
     content = data.categories.ok ? (
       <CategoriesSection categories={data.categories.value} />

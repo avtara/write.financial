@@ -64,6 +64,8 @@ export interface MovedTransaction {
 
 export interface StartDayPreview {
   readonly apply: StartDayApply;
+  /** The currency of the transition totals and the moved amounts. */
+  readonly baseCurrency: string;
   readonly fromDay: PeriodStartDay;
   readonly toDay: PeriodStartDay;
   /** Day the salary usually arrives (FR-P1/P2 "Gaji PT Kinarya biasanya masuk tgl 1"); `null` without salary. */
@@ -80,6 +82,7 @@ export interface StartDayPreview {
 
 export interface PeriodsOverview {
   readonly startDay: PeriodStartDay;
+  readonly baseCurrency: string;
   readonly mode: PeriodMode;
   readonly today: LocalDate;
   /** The open period containing today. */
@@ -88,6 +91,16 @@ export interface PeriodsOverview {
   readonly periods: PeriodView[];
   /** The next two periods to come (computed; the first may be a transition). */
   readonly upcoming: Period[];
+}
+
+/** FR-P1 "Saran dari transaksi": the payday the latest salary incomes (category "Gaji") suggest. */
+export interface Payday {
+  /** Their most frequent day of the month, capped at 28; `null` without salary. */
+  readonly day: PeriodStartDay | null;
+  /** The payer of the latest one ("PT Kinarya"), when recorded. */
+  readonly merchant: string | null;
+  /** Salary incomes looked at (the latest six). */
+  readonly count: number;
 }
 
 export interface PeriodsRepository {
@@ -101,6 +114,8 @@ export interface PeriodsRepository {
   previewStartDay: (userId: string, change: StartDayChange) => Promise<StartDayPreview>;
   /** FR-P2: applies the change and returns the preview it applied. @throws {LedgerError} `INVALID_PERIOD` */
   changeStartDay: (userId: string, change: StartDayChange) => Promise<StartDayPreview>;
+  /** FR-P1 "Ikuti gajian": the payday derived from the latest salary incomes (recurrences arrive in M3). */
+  payday: (userId: string) => Promise<Payday>;
   /**
    * FR-P3/P4 (period close, M3 worker): marks an ended period closed and materializes the periods up to today.
    * Idempotent: `locked` is `false` when it was already closed.
@@ -125,11 +140,13 @@ export interface PeriodSettings {
   readonly mode: PeriodMode;
   readonly timezone: string;
   readonly today: LocalDate;
+  /** The currency of every amount in a preview or overview. */
+  readonly baseCurrency: string;
 }
 
-/** Start day and mode (defaults before the first preference change), time zone, and today in it. */
+/** Start day and mode (defaults before the first preference change), time zone, today in it, and the base currency. */
 export async function settingsIn(tx: Transaction, userId: string, now: Date): Promise<PeriodSettings> {
-  const { timezone } = await userContextIn(tx, userId);
+  const { timezone, baseCurrency } = await userContextIn(tx, userId);
   const [row] = await tx
     .select({ startDay: userPreferences.periodStartDay, mode: userPreferences.periodMode })
     .from(userPreferences)
@@ -139,6 +156,7 @@ export async function settingsIn(tx: Transaction, userId: string, now: Date): Pr
     mode: row?.mode ?? 'fixed_day',
     timezone,
     today: localDateOf(now, timezone),
+    baseCurrency,
   };
 }
 
@@ -227,16 +245,15 @@ async function budgetTotalsIn(tx: Transaction, label: YearMonth, days: number) {
   };
 }
 
-/** Dates of the latest salary incomes (built-in category "Gaji"). */
-async function salaryDatesIn(tx: Transaction): Promise<LocalDate[]> {
-  const rows = await tx
-    .select({ localDate: transactions.localDate })
+/** The latest salary incomes (built-in category "Gaji"), newest first. */
+async function salariesIn(tx: Transaction): Promise<{ localDate: LocalDate; merchant: string | null }[]> {
+  return tx
+    .select({ localDate: transactions.localDate, merchant: transactions.merchant })
     .from(transactions)
     .innerJoin(categories, eq(categories.id, transactions.categoryId))
     .where(and(eq(categories.name, 'system:salary'), isNull(transactions.deletedAt)))
     .orderBy(desc(transactions.localDate))
     .limit(6);
-  return rows.map((row) => row.localDate);
 }
 
 interface Plan {
@@ -253,18 +270,23 @@ async function planIn(tx: Transaction, userId: string, change: StartDayChange, n
     throw new LedgerError('INVALID_PERIOD', 'The start day must be 1–28');
   }
   const settings = await settingsIn(tx, userId, now);
-  if (toDay === settings.startDay) throw new LedgerError('INVALID_PERIOD', 'The start day is unchanged');
+  // Only the mode may change ("Ikuti gajian" on the payday already in use); then nothing is reshaped.
+  const sameDay = toDay === settings.startDay;
+  if (sameDay && (change.mode ?? settings.mode) === settings.mode) {
+    throw new LedgerError('INVALID_PERIOD', 'The start day is unchanged');
+  }
+  const apply: StartDayApply = sameDay ? 'next_period' : change.apply;
   const { today } = settings;
   await ensureIn(tx, userId, today, settings.startDay);
   const current = (await periodOnIn(tx, today)) as PeriodView;
-  const replacement = change.apply === 'recalculate' ? recalculatedPeriods(current, toDay, today) : [current];
+  const replacement = apply === 'recalculate' ? recalculatedPeriods(current, toDay, today) : [current];
   const containing = replacement.at(-1) as Period;
   const following = periodAfter(containing, toDay);
   const shown = [...replacement, following, periodAfter(following, toDay)].slice(0, 3);
   const transitionPeriod = shown.find((period) => period.kind === 'transition') ?? null;
 
   let moved: StartDayPreview['moved'] = { count: 0, largest: [] };
-  if (change.apply === 'recalculate') {
+  if (apply === 'recalculate') {
     const inOld = sql`${transactions.localDate} between ${current.start} and ${current.end}`;
     const inNew = sql`${transactions.localDate} between ${containing.start} and ${containing.end}`;
     const amount = sql`max(abs(${postings.amountBaseMinor}))`;
@@ -298,10 +320,11 @@ async function planIn(tx: Transaction, userId: string, change: StartDayChange, n
   return {
     replacement,
     preview: {
-      apply: change.apply,
+      apply,
+      baseCurrency: settings.baseCurrency,
       fromDay: settings.startDay,
       toDay,
-      paydayDay: detectPayday(await salaryDatesIn(tx)),
+      paydayDay: detectPayday((await salariesIn(tx)).map((row) => row.localDate)),
       current,
       periods: shown,
       transition:
@@ -333,12 +356,13 @@ export function createPeriods(db: Database, options: { readonly now?: () => Date
   return {
     list: (userId) =>
       withUser(db, userId, async (tx) => {
-        const { startDay, mode, today } = await settingsIn(tx, userId, now());
+        const { startDay, mode, today, baseCurrency } = await settingsIn(tx, userId, now());
         await ensureIn(tx, userId, today, startDay);
         const rows = await tx.select(VIEW).from(periods).orderBy(desc(periods.startDate));
         const next = periodAfter(rows[0] as PeriodView, startDay);
         return {
           startDay,
+          baseCurrency,
           mode,
           today,
           current: (await periodOnIn(tx, today)) as PeriodView,
@@ -365,7 +389,7 @@ export function createPeriods(db: Database, options: { readonly now?: () => Date
         const { current } = preview;
         // Rows still to come follow the new start day (`ensureIn` recreates them when their time comes).
         await tx.delete(periods).where(gt(periods.startDate, current.end));
-        if (change.apply === 'recalculate') {
+        if (preview.apply === 'recalculate') {
           const [first, second] = replacement as [Period, Period | undefined];
           if (first.start < current.start) {
             const [previous] = await tx
@@ -410,6 +434,16 @@ export function createPeriods(db: Database, options: { readonly now?: () => Date
           .values({ ...preference, userId })
           .onConflictDoUpdate({ target: userPreferences.userId, set: { ...preference, updatedAt: new Date() } });
         return preview;
+      }),
+
+    payday: (userId) =>
+      withUser(db, userId, async (tx) => {
+        const salaries = await salariesIn(tx);
+        return {
+          day: detectPayday(salaries.map((row) => row.localDate)),
+          merchant: salaries[0]?.merchant ?? null,
+          count: salaries.length,
+        };
       }),
 
     lock: (userId, periodId) =>

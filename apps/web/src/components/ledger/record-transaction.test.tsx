@@ -5,6 +5,7 @@ import { Toaster } from '@wf/ui/toast';
 import { Component, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
+import { budgetStatus, RECORD_BUDGET } from '../../../test/budget-fixtures.ts';
 import { ACCOUNTS, BCA, CATEGORIES, categoryId, OVO, TAGS } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import {
@@ -34,6 +35,8 @@ const writes = vi.hoisted(() => ({
 vi.mock('../../server/fn/transactions-write.ts', () => writes);
 const reconcile = vi.hoisted(() => ({ openReconcile: vi.fn() }));
 vi.mock('../accounts/reconcile.tsx', () => ({ useReconcile: () => reconcile }));
+const budget = vi.hoisted(() => ({ getBudgetStatus: vi.fn() }));
+vi.mock('../../server/fn/budget.ts', () => budget);
 
 const ZONE = 'Asia/Jakarta';
 
@@ -95,6 +98,7 @@ beforeEach(() => {
   writes.recordTransaction.mockResolvedValue({ ok: true, value: { id: 'tx-1' } });
   writes.removeDraft.mockResolvedValue({ ok: true, value: undefined });
   writes.saveDraft.mockResolvedValue({ ok: true, value: { id: 'draft-new' } });
+  budget.getBudgetStatus.mockResolvedValue({ ok: false, code: 'NOT_FOUND' });
 });
 
 afterEach(() => {
@@ -200,6 +204,30 @@ describe('RecordTransactionProvider', () => {
     expect(writes.removeTransactions).toHaveBeenCalledWith({ data: { ids: ['tx-1'] } });
     await expect.element(toast).toMatchTextContent('Transaksi dibatalkan');
     expect(invalidate).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the budget impact once the budget loads, and goes without it when it cannot', async () => {
+    budget.getBudgetStatus.mockResolvedValueOnce({
+      ok: true,
+      value: budgetStatus({ lines: [...RECORD_BUDGET.lines] }),
+    });
+    const first = await open();
+    expect(budget.getBudgetStatus).toHaveBeenCalledWith({ data: {} });
+    await userEvent.fill(first.amount, '25000');
+    await userEvent.click(first.sheet.getByRole('button', { name: 'Makan & Dapur' }));
+    await expect
+      .element(first.sheet.getByText(/^Anggaran Makan & Dapur jadi/))
+      .toHaveTextContent('Anggaran Makan & Dapur jadi 92% · Rp3.225.000 / 3.500.000');
+    await first.screen.unmount();
+
+    budget.getBudgetStatus.mockRejectedValueOnce(new Error('offline'));
+    const second = await open();
+    await userEvent.fill(second.amount, '25000');
+    await userEvent.click(second.sheet.getByRole('button', { name: 'Makan & Dapur' }));
+    await expect
+      .element(second.sheet.getByRole('button', { name: 'Makan & Dapur' }))
+      .toHaveAttribute('aria-pressed', 'true');
+    expect(second.sheet.getByText(/^Anggaran /).query()).toBeNull();
   });
 
   it('says when undoing failed', async () => {

@@ -197,6 +197,23 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     await expect(asApp(() => seedLedger(test.db, userId, options))).rejects.toBeInstanceOf(SeedTargetNotEmptyError);
   });
 
+  it('replaces the period rows an app visit created before the seed, so September can be closed', async () => {
+    // The first visit's period (October) became the first row; September could not precede it.
+    await test.query(
+      `INSERT INTO periods (user_id, label, start_date, end_date, days) VALUES ($1, '2026-10', '2026-10-01', '2026-10-31', 31)`,
+      [userId],
+    );
+    const closedAt = '2026-10-01T00:05:00+07:00';
+    const seed = tiny({ closedPeriods: [{ start: '2026-09-01', end: '2026-09-30', closedAt }] });
+    await expect(asApp(() => seedLedger(test.db, userId, { ...options, seed }))).resolves.toMatchObject({
+      closedPeriods: 1,
+    });
+    expect(await test.query(`SELECT label, status FROM periods ORDER BY start_date`)).toEqual([
+      { label: '2026-09', status: 'closed' },
+      { label: '2026-10', status: 'open' },
+    ]);
+  });
+
   it('fails on a fixture that references a missing category or account', async () => {
     const [account] = DESIGN_SEED.accounts;
     const expense = DESIGN_SEED.transactions.find(

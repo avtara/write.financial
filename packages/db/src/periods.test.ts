@@ -175,6 +175,9 @@ describe('previewStartDay', () => {
       code: 'INVALID_PERIOD',
       message: 'The start day is unchanged',
     });
+    await expect(
+      asApp(() => periods.previewStartDay(userId, { day: 1, apply: 'next_period', mode: 'fixed_day' })),
+    ).rejects.toMatchObject({ code: 'INVALID_PERIOD', message: 'The start day is unchanged' });
   });
 
   it('shows the transition period with its prorated budget and the payday, changing nothing', async () => {
@@ -261,6 +264,25 @@ describe('previewStartDay', () => {
   });
 });
 
+describe('payday', () => {
+  it('derives the payday and the payer from the latest six salary incomes', async () => {
+    expect(await asApp(() => periodsAt('2026-10-15').payday(userId))).toEqual({ day: null, merchant: null, count: 0 });
+    const salary = ledger.category('system:salary');
+    await ledger.entry('income', '2026-03-25', 20_000_000n, salary, { merchant: 'PT Lama' });
+    for (const month of ['04', '05', '06', '07', '08']) {
+      await ledger.entry('income', `2026-${month}-01`, 20_000_000n, salary, { merchant: 'PT Lama' });
+    }
+    await ledger.entry('income', '2026-10-01', 20_000_000n, salary, { merchant: 'PT Kinarya' });
+    // Other incomes do not count.
+    await ledger.entry('income', '2026-10-09', 5_000_000n, ledger.category('system:freelance'));
+    expect(await asApp(() => periodsAt('2026-10-15').payday(userId))).toEqual({
+      day: 1,
+      merchant: 'PT Kinarya',
+      count: 6,
+    });
+  });
+});
+
 describe('changeStartDay', () => {
   it('next period: stores the day and mode and drops rows still to come', async () => {
     await asApp(() => periodsAt('2026-10-15').list(userId));
@@ -278,6 +300,17 @@ describe('changeStartDay', () => {
     // Without a mode the stored one stays.
     await asApp(() => periodsAt('2026-10-15').changeStartDay(userId, { day: 10, apply: 'next_period' }));
     expect(await preferences()).toEqual([{ day: 10, mode: 'follow_payday' }]);
+  });
+
+  it('changes only the mode on the start day in use, reshaping nothing even when asked to recalculate', async () => {
+    const before = await asApp(() => periodsAt('2026-10-15').list(userId));
+    const preview = await asApp(() =>
+      periodsAt('2026-10-15').changeStartDay(userId, { day: 1, apply: 'recalculate', mode: 'follow_payday' }),
+    );
+    expect(preview).toMatchObject({ apply: 'next_period', fromDay: 1, toDay: 1, transition: null });
+    expect(preview.periods.map(({ start }) => start)).toEqual(['2026-10-01', '2026-11-01', '2026-12-01']);
+    expect(await preferences()).toEqual([{ day: 1, mode: 'follow_payday' }]);
+    expect((await asApp(() => periodsAt('2026-10-15').list(userId))).periods).toEqual(before.periods);
   });
 
   it('recalculate earlier: trims an open previous period', async () => {

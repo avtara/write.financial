@@ -23,6 +23,7 @@ import { FileClock, Trash2 } from 'lucide-react';
 import { createContext, use, useMemo, useState, type ReactNode } from 'react';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
+import { getBudgetStatus } from '../../server/fn/budget.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
 import {
   listDrafts,
@@ -141,8 +142,10 @@ export function RecordTransactionProvider({
       listCategories({ data: {} }),
       listTags({ data: {} }),
       listDrafts({ data: { kind: 'transaction' } }),
+      // The budget only adds notes (FR-T2/T3): recording works without it.
+      getBudgetStatus({ data: {} }).catch(() => null),
     ]).then(
-      ([accounts, categories, tags, drafts]) => {
+      ([accounts, categories, tags, drafts, budget]) => {
         const fail = (code: string) => {
           setLoaded({ status: 'failed', message: ledgerErrorMessage(code, preferences.locale) });
         };
@@ -158,6 +161,9 @@ export function RecordTransactionProvider({
               accounts: accounts.value.accounts,
               categories: categories.value,
               tags: tags.value,
+              ...(budget?.ok === true
+                ? { budget: { lines: budget.value.lines, currency: budget.value.baseCurrency } }
+                : {}),
             },
             drafts: drafts.value,
           });

@@ -2,12 +2,13 @@
 import type { LocalDate } from '@wf/domain/period';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
+import { RECORD_BUDGET } from '../../../test/budget-fixtures.ts';
 import { BCA, categoryId, GOTRADE, JAGO, LEDGER, OVO } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import type { RecordTransactionInput } from '../../server/fn/transactions-write.ts';
 import { emptyValues, type TransactionFormValues } from './transaction-draft.ts';
 import { TransactionForm, TransactionFormFields } from './transaction-form.tsx';
-import { useTransactionForm } from './use-transaction-form.ts';
+import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 
 const server = vi.hoisted(() => ({
   getReferenceRate: vi.fn(),
@@ -27,14 +28,19 @@ function values(overrides: Partial<TransactionFormValues> = {}): TransactionForm
   return { ...emptyValues({ accountId: BCA.id, date: TODAY, time: '09:30' }), ...overrides };
 }
 
+/** {@link LEDGER} with October's budget for Makan & Dapur and Transportasi. */
+const BUDGETED: LedgerData = { ...LEDGER, budget: RECORD_BUDGET };
+
 async function renderForm({
   mode = 'create',
   initial = values(),
+  data = LEDGER,
   onSubmit = vi.fn<(input: RecordTransactionInput) => Promise<string | null>>().mockResolvedValue(null),
   onCancel = vi.fn(),
 }: {
   mode?: 'create' | 'edit';
   initial?: TransactionFormValues;
+  data?: LedgerData;
   onSubmit?: (input: RecordTransactionInput) => Promise<string | null>;
   onCancel?: () => void;
 } = {}) {
@@ -42,7 +48,7 @@ async function renderForm({
     <TransactionForm
       mode={mode}
       initial={initial}
-      data={LEDGER}
+      data={data}
       locale="id"
       timeZone={ZONE}
       today={TODAY}
@@ -211,6 +217,44 @@ describe('TransactionForm', () => {
     expect(screen.getByRole('button', { name: 'Catat pemasukan dulu' }).query()).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Tetap simpan' }));
     expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it('notes the budget beside expense categories and shows the impact of the amount', async () => {
+    const { screen, amount } = await renderForm({
+      data: BUDGETED,
+      initial: values({ amountMinor: 25_000n, categoryId: categoryId('system:food') }),
+    });
+    const impact = screen.getByText(/^Anggaran Makan & Dapur jadi/);
+    await expect.element(impact).toHaveTextContent('Anggaran Makan & Dapur jadi 92% · Rp3.225.000 / 3.500.000');
+    await userEvent.fill(amount, '400000');
+    await expect.element(impact).toHaveTextContent('Anggaran Makan & Dapur jadi 103% · Rp3.600.000 / 3.500.000');
+    await userEvent.click(screen.getByRole('button', { name: 'Lihat semua' }));
+    await expect
+      .element(page.getByRole('option', { name: /^Makan & Dapur/ }))
+      .toMatchTextContent('akan lewat Rp100.000');
+    await expect.element(page.getByRole('option', { name: /^Transportasi/ })).toMatchTextContent('sisa Rp400.000');
+    await expect.element(page.getByRole('option', { name: /^Kesehatan/ })).not.toMatchTextContent(/sisa|lewat/);
+  });
+
+  it('leaves the budget out for another currency and for income', async () => {
+    const usd = await renderForm({
+      data: BUDGETED,
+      initial: values({ accountId: GOTRADE.id, amountMinor: 5_000n, categoryId: categoryId('system:food') }),
+    });
+    await userEvent.click(usd.screen.getByRole('button', { name: 'Lihat semua' }));
+    // A dollar amount is not counted against the rupiah budget.
+    await expect.element(page.getByRole('option', { name: /^Makan & Dapur/ })).toMatchTextContent('sisa Rp300.000');
+    await userEvent.keyboard('{Escape}');
+    expect(usd.screen.getByText(/^Anggaran Makan & Dapur jadi/).query()).toBeNull();
+    await usd.screen.unmount();
+
+    const income = await renderForm({
+      data: BUDGETED,
+      initial: values({ type: 'income', amountMinor: 25_000n }),
+    });
+    await userEvent.click(income.screen.getByRole('button', { name: 'Lihat semua' }));
+    await expect.element(page.getByRole('option', { name: /^Gaji/ })).not.toMatchTextContent(/sisa|lewat/);
+    expect(income.screen.getByText(/^Anggaran /).query()).toBeNull();
   });
 });
 

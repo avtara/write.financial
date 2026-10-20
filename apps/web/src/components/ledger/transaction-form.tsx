@@ -17,6 +17,7 @@ import { useId, useState } from 'react';
 import type { RecordTransactionInput } from '../../server/fn/transactions-write.ts';
 import { Button, Field, FormError } from '../form.tsx';
 import { AccountPicker, AccountTrigger } from './account-picker.tsx';
+import { BudgetImpact, budgetNotes } from '../budget/budget-note.tsx';
 import { CategoryPicker } from './category-picker.tsx';
 import { DateTimeField } from './date-time-field.tsx';
 import { TagInput } from './tag-input.tsx';
@@ -68,6 +69,9 @@ export function TransactionFormFields({
   const currency = account?.currency ?? data.baseCurrency;
   const short = form.shortfall;
   const impact = values.type === 'transfer' ? undefined : balancesAfter(values, data.accounts, figures)[0];
+  // FR-T2/T3: the typed amount counts against the budget when it is in the base currency.
+  const typedBaseMinor = account?.currency === data.baseCurrency ? values.amountMinor : null;
+  const notes = values.type === 'expense' ? budgetNotes(data.budget, typedBaseMinor ?? 0n, locale) : undefined;
 
   const warning =
     short === null ? null : (
@@ -209,6 +213,7 @@ export function TransactionFormFields({
             }
             invalid={error('category') !== undefined}
             describedBy={error('category') === undefined ? undefined : ids.category}
+            {...(notes === undefined ? {} : { budgetNote: notes })}
           />
           {error('category') === undefined ? null : (
             <ErrorText id={ids.category}>{m.record_error_category()}</ErrorText>
@@ -335,6 +340,9 @@ export function TransactionFormFields({
           </span>
         </p>
       )}
+      {values.type === 'expense' ? (
+        <BudgetImpact budget={data.budget} categoryId={values.categoryId} typedMinor={typedBaseMinor} locale={locale} />
+      ) : null}
     </>
   );
 }

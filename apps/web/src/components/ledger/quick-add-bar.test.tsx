@@ -3,6 +3,7 @@ import type { LocalDate } from '@wf/domain/period';
 import { Toaster } from '@wf/ui/toast';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
+import { RECORD_BUDGET } from '../../../test/budget-fixtures.ts';
 import { BCA, categoryId, GOTRADE, JAGO, LEDGER } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { QuickAddBar } from './quick-add-bar.tsx';
@@ -25,6 +26,8 @@ const writes = vi.hoisted(() => ({
   listTransactionDays: vi.fn(),
 }));
 vi.mock('../../server/fn/transactions-write.ts', () => writes);
+// The Record sheet loads the budget for its notes; the bar gets it through `data`.
+vi.mock('../../server/fn/budget.ts', () => ({ getBudgetStatus: vi.fn() }));
 // The record sheet's "Sesuaikan saldo" action (FR-R4) is not part of these tests.
 vi.mock('../accounts/reconcile.tsx', () => ({ useReconcile: () => ({ openReconcile: vi.fn() }) }));
 
@@ -223,5 +226,25 @@ describe('QuickAddBar', () => {
     await expect.element(category).toHaveTextContent('Makan & Dapur');
     await userEvent.keyboard('{Enter}');
     expect(writes.recordTransaction).not.toHaveBeenCalled();
+  });
+
+  it('notes the budget beside expense categories, counting a rupiah amount', async () => {
+    const { amount, category } = await renderBar({ ...LEDGER, budget: RECORD_BUDGET });
+    await userEvent.click(category);
+    await expect.element(page.getByRole('option', { name: /^Makan & Dapur/ })).toMatchTextContent('sisa Rp300.000');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.fill(amount, '400000');
+    await userEvent.click(category);
+    await expect
+      .element(page.getByRole('option', { name: /^Makan & Dapur/ }))
+      .toMatchTextContent('akan lewat Rp100.000');
+    await expect.element(page.getByRole('option', { name: /^Transportasi/ })).toMatchTextContent('sisa Rp400.000');
+  });
+
+  it('does not count an amount in another currency against the budget', async () => {
+    const { amount, category } = await renderBar({ ...LEDGER, accounts: [GOTRADE], budget: RECORD_BUDGET });
+    await userEvent.fill(amount, '5000');
+    await userEvent.click(category);
+    await expect.element(page.getByRole('option', { name: /^Makan & Dapur/ })).toMatchTextContent('sisa Rp300.000');
   });
 });
