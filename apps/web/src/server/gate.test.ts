@@ -16,8 +16,17 @@ describe('toViewer', () => {
       timezone: 'Asia/Jakarta',
       role: 'admin',
       twoFactorEnabled: true,
+      onboardingStep: null,
     });
     expect(JSON.stringify(viewer)).not.toContain('session-token');
+  });
+
+  it('carries the onboarding step to resume at until the onboarding is completed', () => {
+    const session = fakeSession();
+    const user = { ...session.user, onboardingCompletedAt: null };
+    expect(toViewer({ ...session, user: { ...user, onboardingStep: 3 } }).onboardingStep).toBe('accounts');
+    // Before the column existed in a session (or a user Better Auth created without it): the first step.
+    expect(toViewer({ ...session, user: { ...user, onboardingStep: undefined } }).onboardingStep).toBe('profile');
   });
 
   it('falls back for unknown or missing values', () => {

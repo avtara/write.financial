@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Savings goals, minimal for onboarding step 4 (FR-A4); M4 adds funding sources and plans. */
 import type { LocalDate, YearMonth } from '@wf/domain/period';
-import { asc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, sql, type SQL } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { resolveTagsIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
-import { goals, tags } from './schema.ts';
+import { accounts, goals, tags } from './schema.ts';
 
 export interface GoalView {
   readonly id: string;
@@ -17,6 +17,8 @@ export interface GoalView {
   readonly deadlineMonth: YearMonth | null;
   /** Slug of the goal's tag. */
   readonly tag: string | null;
+  /** "Simpan di": the account the goal is kept in (onboarding step 4). */
+  readonly accountId: string | null;
   readonly sortOrder: number;
   readonly archivedAt: Date | null;
 }
@@ -33,12 +35,14 @@ export interface GoalInput {
   readonly deadlineMonth: YearMonth | null;
   /** Tag input (`#Dana Darurat`, `dana-darurat`); created when missing. */
   readonly tag: string | null;
+  /** "Simpan di": one of the user's active accounts; default none. */
+  readonly accountId?: string | null;
 }
 
 export interface GoalsRepository {
   /** Goals by their order, then creation. */
   list: (userId: string) => Promise<GoalView[]>;
-  /** @throws {LedgerError} `INVALID_GOAL`, `INVALID_TAG` */
+  /** @throws {LedgerError} `INVALID_GOAL` (also for an unknown or archived account), `INVALID_TAG` */
   create: (userId: string, input: GoalInput) => Promise<GoalView>;
 }
 
@@ -57,6 +61,7 @@ function viewsIn(tx: Transaction, where?: SQL): Promise<GoalView[]> {
       currency: goals.currency,
       deadlineMonth: sql<YearMonth | null>`to_char(${goals.deadlineMonth}, 'YYYY-MM')`,
       tag: tags.slug,
+      accountId: goals.accountId,
       sortOrder: goals.sortOrder,
       archivedAt: goals.archivedAt,
     })
@@ -79,6 +84,14 @@ export function createGoals(db: Database): GoalsRepository {
         if (input.deadlineMonth !== null && !YEAR_MONTH.test(input.deadlineMonth)) {
           throw new LedgerError('INVALID_GOAL', 'The deadline must be YYYY-MM');
         }
+        const accountId = input.accountId ?? null;
+        if (accountId !== null) {
+          const [account] = await tx
+            .select({ id: accounts.id })
+            .from(accounts)
+            .where(and(eq(accounts.id, accountId), eq(accounts.status, 'active')));
+          if (account === undefined) throw new LedgerError('INVALID_GOAL', 'No such active account');
+        }
         const [tagId = null] = input.tag === null ? [] : await resolveTagsIn(tx, userId, [input.tag]);
         const sortOrder = firstRow(
           await tx
@@ -99,6 +112,7 @@ export function createGoals(db: Database): GoalsRepository {
               // Stored as the first day of the month (`goals_deadline_check`).
               deadlineMonth: input.deadlineMonth === null ? null : (`${input.deadlineMonth}-01` as LocalDate),
               tagId,
+              accountId,
               sortOrder,
             })
             .returning({ id: goals.id }),

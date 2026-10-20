@@ -24,6 +24,7 @@ import { Route as AuthResetPasswordRouteImport } from './../routes/_auth/reset-p
 import { Route as AuthSignInRouteImport } from './../routes/_auth/sign-in.tsx';
 import { Route as AuthSignUpRouteImport } from './../routes/_auth/sign-up.tsx';
 import { Route as AdminQueuesRouteImport } from './../routes/admin/queues.ts';
+import { Route as OnboardingStepRouteImport } from './../routes/onboarding.$step.tsx';
 import { Route as AppSettingsSectionRouteImport } from './../routes/_app/settings.$section.tsx';
 import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$.ts';
 import { Route as ApiAccountLogoIdRouteImport } from './../routes/api/account-logo.$id.ts';
@@ -103,6 +104,11 @@ const AdminQueuesRoute = AdminQueuesRouteImport.update({
   path: '/admin/queues',
   getParentRoute: () => rootRouteImport,
 } as any);
+const OnboardingStepRoute = OnboardingStepRouteImport.update({
+  id: '/onboarding/$step',
+  path: '/onboarding/$step',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const AppSettingsSectionRoute = AppSettingsSectionRouteImport.update({
   id: '/settings/$section',
   path: '/settings/$section',
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof AuthSignInRoute;
   '/sign-up': typeof AuthSignUpRoute;
   '/admin/queues': typeof AdminQueuesRouteWithChildren;
+  '/onboarding/$step': typeof OnboardingStepRoute;
   '/settings/$section': typeof AppSettingsSectionRoute;
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof AuthSignInRoute;
   '/sign-up': typeof AuthSignUpRoute;
   '/admin/queues': typeof AdminQueuesRouteWithChildren;
+  '/onboarding/$step': typeof OnboardingStepRoute;
   '/settings/$section': typeof AppSettingsSectionRoute;
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/_auth/sign-in': typeof AuthSignInRoute;
   '/_auth/sign-up': typeof AuthSignUpRoute;
   '/admin/queues': typeof AdminQueuesRouteWithChildren;
+  '/onboarding/$step': typeof OnboardingStepRoute;
   '/_app/': typeof AppIndexRoute;
   '/_app/settings/$section': typeof AppSettingsSectionRoute;
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/admin/queues'
+    | '/onboarding/$step'
     | '/settings/$section'
     | '/admin/queues/$'
     | '/api/account-logo/$id'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/admin/queues'
+    | '/onboarding/$step'
     | '/settings/$section'
     | '/admin/queues/$'
     | '/api/account-logo/$id'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/_auth/sign-in'
     | '/_auth/sign-up'
     | '/admin/queues'
+    | '/onboarding/$step'
     | '/_app/'
     | '/_app/settings/$section'
     | '/admin/queues/$'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute;
   TwoFactorSetupRoute: typeof TwoFactorSetupRoute;
   AdminQueuesRoute: typeof AdminQueuesRouteWithChildren;
+  OnboardingStepRoute: typeof OnboardingStepRoute;
   ApiAccountLogoIdRoute: typeof ApiAccountLogoIdRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
   ApiTransactionsIdAttachmentsAttachmentIdRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -377,6 +390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminQueuesRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/onboarding/$step': {
+      id: '/onboarding/$step';
+      path: '/onboarding/$step';
+      fullPath: '/onboarding/$step';
+      preLoaderRoute: typeof OnboardingStepRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/_app/settings/$section': {
       id: '/_app/settings/$section';
       path: '/settings/$section';
@@ -470,6 +490,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   TwoFactorSetupRoute: TwoFactorSetupRoute,
   AdminQueuesRoute: AdminQueuesRouteWithChildren,
+  OnboardingStepRoute: OnboardingStepRoute,
   ApiAccountLogoIdRoute: ApiAccountLogoIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiTransactionsIdAttachmentsAttachmentIdRoute:

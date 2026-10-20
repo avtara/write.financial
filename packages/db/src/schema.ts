@@ -90,10 +90,15 @@ export const users = pgTable(
     baseCurrency: char('base_currency', { length: 3 }).notNull().default('IDR'),
     role: userRole('role').notNull().default('user'),
     onboardingCompletedAt: timestamptz('onboarding_completed_at'),
+    /** FR-A4: the onboarding step to resume at (1 Profil … 5 Selesai) while `onboarding_completed_at` is null. */
+    onboardingStep: smallint('onboarding_step').notNull().default(1),
     /** Start of the 7-day deletion grace period (FR-A11). */
     deletionRequestedAt: timestamptz('deletion_requested_at'),
   },
-  (table) => [check('users_base_currency_check', sql`${table.baseCurrency} ~ '^[A-Z]{3}$'`)],
+  (table) => [
+    check('users_base_currency_check', sql`${table.baseCurrency} ~ '^[A-Z]{3}$'`),
+    check('users_onboarding_step_check', sql`${table.onboardingStep} between 1 and 5`),
+  ],
 );
 
 export const sessions = pgTable(
@@ -216,12 +221,24 @@ export const userPreferences = pgTable(
     tablePrefs: jsonb('table_prefs').$type<JsonObject>().notNull().default({}),
     /** Account ids in payment order. */
     ccPaymentPriority: jsonb('cc_payment_priority').$type<readonly string[]>().notNull().default([]),
+    /**
+     * FR-ST1 "Mata uang tambahan" (onboarding step 1): currencies besides the base one the user wants rates for,
+     * even before an account uses them. ISO 4217 codes, at most 20.
+     */
+    extraCurrencies: char('extra_currencies', { length: 3 })
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     check('user_preferences_period_start_day_check', sql`${table.periodStartDay} between 1 and 28`),
     check('user_preferences_cc_payment_priority_check', sql`jsonb_typeof(${table.ccPaymentPriority}) = 'array'`),
+    check(
+      'user_preferences_extra_currencies_check',
+      sql`cardinality(${table.extraCurrencies}) <= 20 and array_to_string(${table.extraCurrencies}, ',') ~ '^([A-Z]{3}(,[A-Z]{3})*)?$'`,
+    ),
   ],
 );
 
@@ -814,6 +831,8 @@ export const goals = pgTable(
     /** First day of the deadline month. */
     deadlineMonth: localDate('deadline_month'),
     tagId: uuid('tag_id'),
+    /** "Simpan di" (onboarding step 4): the account the goal's money is kept in; M4 adds mixed funding sources. */
+    accountId: uuid('account_id'),
     sortOrder: integer('sort_order').notNull().default(0),
     archivedAt: timestamptz('archived_at'),
     createdAt: createdAt(),
@@ -826,6 +845,11 @@ export const goals = pgTable(
       name: 'goals_tag_fk',
       columns: [table.userId, table.tagId],
       foreignColumns: [tags.userId, tags.id],
+    }),
+    foreignKey({
+      name: 'goals_account_fk',
+      columns: [table.userId, table.accountId],
+      foreignColumns: [accounts.userId, accounts.id],
     }),
     currencyCheck('goals_currency_check', table.currency),
     check('goals_target_check', sql`${table.targetMinor} > 0`),

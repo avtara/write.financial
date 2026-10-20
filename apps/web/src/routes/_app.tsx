@@ -12,7 +12,8 @@ import { countPeriodTransactions } from '../server/fn/transactions.ts';
 
 /**
  * Pathless layout for every signed-in page. Signed-out visitors go to sign-in (and come back afterwards); admins
- * without two-step verification must enroll first, because 2FA is mandatory for admins (PRD §9.1, FR-A9). Toasts
+ * without two-step verification must enroll first, because 2FA is mandatory for admins (PRD §9.1, FR-A9); then a
+ * user who has not finished the onboarding resumes it at the step they are on (FR-A4, `/onboarding/$step`). Toasts
  * (`toast()` from `@wf/ui/toast`) appear in the one `<Toaster>` mounted here, and the Record Transaction sheet (`N`,
  * FR-T1), "Sesuaikan saldo" (`useReconcile()`, FR-R4), and the ⌘K palette (`<CommandPaletteProvider>`, inside both so
  * its app-wide actions can use them) are mounted here once for every page. The loader provides the nav badge counts
@@ -23,6 +24,9 @@ export const Route = createFileRoute('/_app')({
     const { viewer } = context.gate;
     if (viewer === null) throw redirect({ to: '/sign-in', search: { redirect: location.href } });
     if (viewer.role === 'admin' && !viewer.twoFactorEnabled) throw redirect({ to: '/two-factor-setup' });
+    if (viewer.onboardingStep !== null) {
+      throw redirect({ to: '/onboarding/$step', params: { step: viewer.onboardingStep } });
+    }
     return { viewer };
   },
   loader: async (): Promise<{ navCounts: NavCounts | null }> => {

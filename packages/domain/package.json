@@ -11,6 +11,7 @@
     "./fx": "./src/fx.ts",
     "./ledger": "./src/ledger.ts",
     "./money": "./src/money.ts",
+    "./onboarding": "./src/onboarding.ts",
     "./period": "./src/period.ts",
     "./recurrence": "./src/recurrence.ts",
     "./seed": "./src/seed.ts",

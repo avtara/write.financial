@@ -10,6 +10,7 @@ import { m } from '@wf/i18n/messages';
 import { LOCALES, type Locale } from '@wf/i18n/locale';
 import { useMemo, useState } from 'react';
 import { authErrorMessage } from '../../lib/auth-errors.ts';
+import { timeZoneLabel } from '../../lib/time-zones.ts';
 import { updateProfile } from '../../server/fn/account.ts';
 import type { Viewer } from '../../server/gate.ts';
 import { Button, FormError, Select, TextInput } from '../form.tsx';
@@ -19,19 +20,6 @@ import { useReauthentication } from './reauth.tsx';
 import { SettingsGroup, SettingsRow } from './settings-ui.tsx';
 
 const LOCALE_NAME: Readonly<Record<Locale, () => string>> = { id: m.language_name_id, en: m.language_name_en };
-
-/**
- * `Asia/Jakarta (WIB)` where the locale has a short name for the zone; just `Europe/Berlin` where it only has an
- * offset (`GMT+2`).
- */
-export function timeZoneLabel(zone: string, locale: Locale, at: Date): string {
-  const text = new Intl.DateTimeFormat(locale === 'id' ? 'id-ID' : 'en-US', {
-    timeZone: zone,
-    timeZoneName: 'short',
-  }).format(at);
-  const short = text.slice(text.lastIndexOf(' ') + 1);
-  return /^(GMT|UTC)/.test(short) ? zone : `${zone} (${short})`;
-}
 
 export interface SignInMethods {
   readonly hasPassword: boolean;

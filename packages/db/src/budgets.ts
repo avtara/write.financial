@@ -182,7 +182,8 @@ export interface BudgetsRepository {
   /** FR-B1 "Riwayat perubahan", newest version first. */
   history: (userId: string) => Promise<BudgetHistoryEntry[]>;
   /**
-   * FR-B1 "Atur anggaran · berlaku mulai …": sets the lines of the version effective from `effectiveFrom`.
+   * FR-B1 "Atur anggaran · berlaku mulai …": sets the lines of the version effective from `effectiveFrom`. Without
+   * `lines` only the expected income changes (onboarding step 2, "Pemasukan bulanan rata-rata"); the lines stay.
    * @throws {LedgerError} `INVALID_BUDGET`, `INVALID_CATEGORY`, `PERIOD_CLOSED` (it would change a closed period)
    */
   saveVersion: (
@@ -190,7 +191,7 @@ export interface BudgetsRepository {
     input: {
       readonly effectiveFrom: YearMonth;
       readonly expectedIncomeMinor?: bigint | null;
-      readonly lines: readonly BudgetLineInput[];
+      readonly lines?: readonly BudgetLineInput[];
     },
   ) => Promise<BudgetVersionView>;
   /**
@@ -581,9 +582,10 @@ export function createBudgets(db: Database, options: { readonly now?: () => Date
         if (input.expectedIncomeMinor != null && input.expectedIncomeMinor < 0n) {
           throw invalid('The expected income must not be negative');
         }
-        const ids = input.lines.map((line) => line.categoryId);
+        const lines = input.lines;
+        const ids = (lines ?? []).map((line) => line.categoryId);
         if (new Set(ids).size !== ids.length) throw invalid('A category appears twice');
-        input.lines.forEach(checkLine);
+        lines?.forEach(checkLine);
         const categoryRows = await budgetCategoriesIn(tx, ids);
         const versionId = await versionFromIn(tx, userId, input.effectiveFrom);
         if (input.expectedIncomeMinor !== undefined) {
@@ -592,6 +594,7 @@ export function createBudgets(db: Database, options: { readonly now?: () => Date
             .set({ expectedIncomeMinor: input.expectedIncomeMinor, updatedAt: now() })
             .where(eq(budgetVersions.id, versionId));
         }
+        if (lines === undefined) return versionViewIn(tx, versionId);
         const existing = new Map((await linesIn(tx, versionId)).map((line) => [line.categoryId, line]));
         const removed = [...existing.keys()].filter((id) => !ids.includes(id));
         if (removed.length > 0) {
@@ -599,7 +602,7 @@ export function createBudgets(db: Database, options: { readonly now?: () => Date
             .delete(budgetLines)
             .where(and(eq(budgetLines.versionId, versionId), inArray(budgetLines.categoryId, removed)));
         }
-        for (const [index, line] of input.lines.entries()) {
+        for (const [index, line] of lines.entries()) {
           const values = {
             limitMinor: line.limitMinor,
             rollover: line.rollover ?? false,

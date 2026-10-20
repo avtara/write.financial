@@ -11,6 +11,8 @@ export interface FakeSessionOptions {
   /** Minutes between sign-in and {@link NOW}. */
   readonly ageMinutes?: number;
   readonly locale?: string;
+  /** Whether the user completed the onboarding (FR-A4); default yes, as the app shell's tests need. */
+  readonly onboarded?: boolean;
 }
 
 /** A session shaped like `auth.getSession()`'s answer (only the fields the app reads are meaningful). */
@@ -19,6 +21,7 @@ export function fakeSession({
   twoFactorEnabled = true,
   ageMinutes = 1,
   locale = 'id',
+  onboarded = true,
 }: FakeSessionOptions = {}): AuthSession {
   const createdAt = new Date(NOW.getTime() - ageMinutes * 60_000);
   return {
@@ -34,7 +37,8 @@ export function fakeSession({
       locale,
       timezone: 'Asia/Jakarta',
       twoFactorEnabled,
-      onboardingCompletedAt: null,
+      onboardingCompletedAt: onboarded ? createdAt : null,
+      onboardingStep: onboarded ? 5 : 1,
       deletionRequestedAt: null,
     },
     session: {

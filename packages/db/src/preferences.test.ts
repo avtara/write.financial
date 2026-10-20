@@ -54,9 +54,20 @@ describe('preferences', () => {
       notif: { weeklySummary: true },
     });
 
-    const updated = await asApp(() => preferences.update(alice, { hideBalances: true, ccPaymentPriority: ['a', 'b'] }));
-    expect(updated).toEqual({ ...created, hideBalances: true, ccPaymentPriority: ['a', 'b'] });
+    const updated = await asApp(() =>
+      preferences.update(alice, { hideBalances: true, ccPaymentPriority: ['a', 'b'], extraCurrencies: ['USD', 'SGD'] }),
+    );
+    expect(updated).toEqual({
+      ...created,
+      hideBalances: true,
+      ccPaymentPriority: ['a', 'b'],
+      extraCurrencies: ['USD', 'SGD'],
+    });
     expect(await asApp(() => preferences.get(alice))).toEqual(updated);
+    // FR-ST1: ISO codes only, at most 20.
+    await expect(asApp(() => preferences.update(alice, { extraCurrencies: ['usd'] }))).rejects.toMatchObject(
+      pgError(/user_preferences_extra_currencies_check/),
+    );
   });
 
   it('keeps users apart', async () => {

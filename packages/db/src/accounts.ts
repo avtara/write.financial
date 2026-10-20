@@ -17,7 +17,7 @@ import { logActivity } from './activity.ts';
 import { referenceRateIn } from './fx-rates.ts';
 import { localDateOf, recordTransactionIn, userContextIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
-import { accounts, attachments, balanceAdjustments, postings, transactions } from './schema.ts';
+import { accounts, attachments, balanceAdjustments, goals, postings, transactions } from './schema.ts';
 
 const ACCOUNT_COLUMNS = {
   id: accounts.id,
@@ -518,6 +518,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
           deletedTransactions = deleted.length;
         }
         await tx.update(accounts).set({ parentAccountId: null }).where(eq(accounts.parentAccountId, id));
+        await tx.update(goals).set({ accountId: null }).where(eq(goals.accountId, id));
         await tx.delete(accounts).where(eq(accounts.id, id));
         return { deletedTransactions, objectKeys: [...new Set(objectKeys)] };
       }),

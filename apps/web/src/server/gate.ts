@@ -6,6 +6,7 @@
  */
 import type { AuthSession } from '@wf/auth/auth';
 import type { InstanceSettings, RegistrationMode } from '@wf/db/instance-settings';
+import { stepAt, type OnboardingStep } from '@wf/domain/onboarding';
 import { isLocale, type Locale } from '@wf/i18n/locale';
 
 /** The signed-in user as the app shows it. */
@@ -20,6 +21,8 @@ export interface Viewer {
   readonly timezone: string;
   readonly role: 'admin' | 'user';
   readonly twoFactorEnabled: boolean;
+  /** FR-A4: the onboarding step to resume at; `null` once the onboarding is completed. */
+  readonly onboardingStep: OnboardingStep | null;
 }
 
 /**
@@ -49,6 +52,7 @@ export function toViewer({ user, session }: AuthSession): Viewer {
     timezone: user.timezone ?? 'Asia/Jakarta',
     role: user.role === 'admin' ? 'admin' : 'user',
     twoFactorEnabled: user.twoFactorEnabled === true,
+    onboardingStep: user.onboardingCompletedAt == null ? stepAt(user.onboardingStep ?? 1) : null,
   };
 }
 

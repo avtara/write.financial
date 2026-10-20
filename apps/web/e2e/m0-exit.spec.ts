@@ -20,6 +20,7 @@ import {
   SETUP_TOKEN,
   signInWithPassword,
   signOut,
+  skipOnboarding,
   test,
   totp,
   USER_STATE,
@@ -108,7 +109,8 @@ test('the wizard creates the admin with mandatory 2FA and the instance settings'
     .getByRole('link', { name: 'Ke Ringkasan' })
     .or(page.getByRole('button', { name: 'Ke Ringkasan' }))
     .click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
+  // The admin is a user too: the onboarding comes next (FR-A4), once.
+  await skipOnboarding(page);
   saveAccount('admin', admin);
 
   // Setup is complete: the wizard is gone for good.
@@ -236,7 +238,7 @@ test('Bull Board opens for the admin, and an invited user gets 403', async ({ pa
   await invited.getByLabel('Email').fill(user.email);
   await invited.getByLabel('Kata sandi', { exact: true }).fill(user.password);
   await invited.getByRole('button', { name: 'Buat akun' }).click();
-  await expect(invited.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
+  await skipOnboarding(invited);
   expect((await invited.goto('/admin/queues'))?.status()).toBe(403);
   await context.storageState({ path: USER_STATE });
   saveAccount('user', user);

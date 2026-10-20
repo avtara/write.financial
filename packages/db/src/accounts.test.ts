@@ -477,12 +477,21 @@ describe('deletePermanently', () => {
 
   it('deletes an archived account without transactions and hides other users', async () => {
     const account = await asApp(() => repo.create(alice, plain()));
+    // A goal kept in the account ("Simpan di") loses the link, not the goal.
+    await test.query(
+      `INSERT INTO goals (user_id, name, icon, color, target_minor, currency, account_id)
+       VALUES ($1, 'Dana Darurat', 'shield', 'green', 54000000, 'IDR', $2)`,
+      [alice, account.id],
+    );
     await expect(asApp(() => repo.deletePermanently(bob, account.id))).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await asApp(() => repo.archive(alice, account.id));
     expect(await asApp(() => repo.deletePermanently(alice, account.id))).toEqual({
       deletedTransactions: 0,
       objectKeys: [],
     });
+    expect(await test.query('SELECT name, account_id FROM goals')).toEqual([
+      { name: 'Dana Darurat', account_id: null },
+    ]);
   });
 });
 

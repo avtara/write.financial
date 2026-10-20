@@ -152,6 +152,25 @@ describe('AccountForm', () => {
     expect(onSaved).toHaveBeenCalledWith(SAVED);
   });
 
+  it('starts from the given values (onboarding "Detail" of a quick row)', async () => {
+    const { screen, submit } = await renderForm({
+      initial: { type: 'ewallet', providerName: 'GoPay', displayName: 'GoPay', openingMinor: 412_000n, color: 'green' },
+    });
+    await expect.element(screen.getByRole('radio', { name: 'E-Wallet' })).toBeChecked();
+    await expect.element(screen.getByRole('textbox', { name: 'Nama tampilan' })).toHaveValue('GoPay');
+    await userEvent.click(submit);
+    expect(server.createAccount).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'ewallet',
+        providerName: 'GoPay',
+        displayName: 'GoPay',
+        openingBalanceMinor: 412_000n,
+        color: 'green',
+        includeInAvailable: true,
+      }) as object,
+    });
+  });
+
   it('shows field errors instead of saving', async () => {
     const { screen, submit } = await renderForm();
     await userEvent.fill(screen.getByRole('textbox', { name: '4 digit akhir' }), '12');

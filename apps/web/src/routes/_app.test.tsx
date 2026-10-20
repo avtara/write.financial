@@ -46,6 +46,7 @@ const VIEWER: Viewer = {
   timezone: 'Asia/Jakarta',
   role: 'user',
   twoFactorEnabled: false,
+  onboardingStep: null,
 };
 
 function beforeLoad(viewer: Viewer | null, href = '/settings/security?x=1') {
@@ -69,6 +70,15 @@ describe('/_app layout', () => {
     const redirect = beforeLoad({ ...VIEWER, role: 'admin' });
     expect(isRedirect(redirect)).toBe(true);
     expect(redirect).toMatchObject({ options: { to: '/two-factor-setup' } });
+  });
+
+  it('sends a user who has not finished the onboarding to the step they are on, after the admin 2FA gate', () => {
+    const redirect = beforeLoad({ ...VIEWER, onboardingStep: 'accounts' });
+    expect(isRedirect(redirect)).toBe(true);
+    expect(redirect).toMatchObject({ options: { to: '/onboarding/$step', params: { step: 'accounts' } } });
+    expect(beforeLoad({ ...VIEWER, role: 'admin', onboardingStep: 'profile' })).toMatchObject({
+      options: { to: '/two-factor-setup' },
+    });
   });
 
   it('lets users (2FA optional) and enrolled admins in, with the viewer in the context', () => {

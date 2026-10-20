@@ -89,6 +89,29 @@ describe('goals', () => {
     await expect(asApp(() => repo.create(alice, input({ tag: '#' })))).rejects.toMatchObject({ code: 'INVALID_TAG' });
   });
 
+  it('keeps the "Simpan di" account: only an active account of the user', async () => {
+    const account = async (userId: string, status: 'active' | 'archived') =>
+      (
+        await test.query<{ id: string }>(
+          `INSERT INTO accounts (user_id, type, provider_name, display_name, currency, opening_date, color, status,
+             archived_at)
+           VALUES ($1, 'bank', 'Bank Jago', 'Bank Jago', 'IDR', '2026-10-15', 'orange', $2::account_status,
+             CASE WHEN $2::account_status = 'archived' THEN now() END) RETURNING id`,
+          [userId, status],
+        )
+      )[0]?.id ?? '';
+    const jago = await account(alice, 'active');
+    expect(await asApp(() => repo.create(alice, input({ accountId: jago })))).toMatchObject({ accountId: jago });
+    expect(await asApp(() => repo.create(alice, input({ name: 'Laptop', tag: null })))).toMatchObject({
+      accountId: null,
+    });
+    for (const other of [await account(bob, 'active'), await account(alice, 'archived')]) {
+      await expect(asApp(() => repo.create(alice, input({ accountId: other })))).rejects.toMatchObject({
+        code: 'INVALID_GOAL',
+      });
+    }
+  });
+
   it('cannot be written by the worker', async () => {
     await expect(test.as('wf_worker', () => repo.create(alice, input({ tag: null })))).rejects.toMatchObject(
       pgError(/permission denied/),

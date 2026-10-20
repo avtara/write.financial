@@ -16,7 +16,7 @@ const OPS_SETTINGS_COLUMNS =
   'default_locale,default_timezone,instance_name,public_url,registration_mode,setup_completed_at,singleton,smtp_from,' +
   'smtp_host,smtp_port,smtp_secure,smtp_username,updated_at';
 const PROFILE_COLUMNS =
-  'base_currency,deletion_requested_at,image,locale,name,nickname,onboarding_completed_at,timezone,updated_at';
+  'base_currency,deletion_requested_at,image,locale,name,nickname,onboarding_completed_at,onboarding_step,timezone,updated_at';
 
 /** Ledger tables (M1): the app reads and writes them, the worker only reads them (D14). */
 const LEDGER = { wf_app: ALL, wf_worker: 'SELECT' };

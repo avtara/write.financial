@@ -6,7 +6,7 @@ import { userEvent } from 'vitest/browser';
 import { fakeAuthActions, VIEWER } from '../../../test/fake-auth.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { AuthActionsProvider } from '../auth-actions.tsx';
-import { ProfileSection, timeZoneLabel, type SignInMethods } from './profile-section.tsx';
+import { ProfileSection, type SignInMethods } from './profile-section.tsx';
 
 const server = vi.hoisted(() => ({ updateProfile: vi.fn(), revokeDevice: vi.fn() }));
 vi.mock('../../server/fn/account.ts', () => server);
@@ -37,16 +37,6 @@ async function renderProfile(
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-describe('timeZoneLabel', () => {
-  it('adds the short name where the locale has one, not a bare offset', () => {
-    const at = new Date('2026-10-18T09:00:00Z');
-    expect(timeZoneLabel('Asia/Jakarta', 'id', at)).toBe('Asia/Jakarta (WIB)');
-    expect(timeZoneLabel('America/New_York', 'en', at)).toBe('America/New_York (EDT)');
-    expect(timeZoneLabel('Asia/Jakarta', 'en', at)).toBe('Asia/Jakarta');
-    expect(timeZoneLabel('UTC', 'en', at)).toBe('UTC');
-  });
 });
 
 describe('ProfileSection', () => {

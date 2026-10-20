@@ -137,6 +137,7 @@ const USER_FIELDS = {
   },
   timezone: { type: 'string', required: false, input: false },
   onboardingCompletedAt: { type: 'date', required: false, input: false },
+  onboardingStep: { type: 'number', required: false, input: false },
   deletionRequestedAt: { type: 'date', required: false, input: false },
 } as const satisfies NonNullable<NonNullable<BetterAuthOptions['user']>['additionalFields']>;
 

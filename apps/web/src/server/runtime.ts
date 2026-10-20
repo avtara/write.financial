@@ -18,9 +18,11 @@ import { createDashboard, type DashboardRepository } from '@wf/db/dashboard';
 import { createDb } from '@wf/db/db';
 import { createDrafts, type DraftsRepository } from '@wf/db/drafts';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
+import { createGoals, type GoalsRepository } from '@wf/db/goals';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
 import { createNotifications, type NotificationsRepository } from '@wf/db/notifications';
+import { createOnboarding, type OnboardingRepository } from '@wf/db/onboarding';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-items';
 import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
@@ -102,6 +104,9 @@ export interface Services extends BaseRuntime {
   readonly schedules: SchedulesRepository;
   /** ⌘K "Baru dibuka". */
   readonly recentItems: RecentItemsRepository;
+  /** FR-A4 onboarding progress and the first savings goal (step 4), on `wf_app`. */
+  readonly onboarding: OnboardingRepository;
+  readonly goals: GoalsRepository;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -158,6 +163,8 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     notifications: createNotifications(appDb, { now }),
     schedules: createSchedules(appDb, { now }),
     recentItems: createRecentItems(appDb, { now }),
+    onboarding: createOnboarding(appDb, { now }),
+    goals: createGoals(appDb),
     mailer,
     sendWith,
     invite: createInviter({

@@ -84,7 +84,9 @@ describe('built-in rates (worker)', () => {
       [alice, bob],
     );
     await asApp(() => fx.upsertManual(bob, { base: 'EUR', quote: 'JPY', rate: '160', asOf: day('2026-10-01') }));
-    expect(await asWorker(() => fx.currenciesInUse())).toEqual(['EUR', 'IDR', 'JPY', 'SGD', 'USD']);
+    // FR-ST1 "Mata uang tambahan" picked in onboarding, before any account uses them.
+    await test.query(`INSERT INTO user_preferences (user_id, extra_currencies) VALUES ($1, '{HKD,USD}')`, [alice]);
+    expect(await asWorker(() => fx.currenciesInUse())).toEqual(['EUR', 'HKD', 'IDR', 'JPY', 'SGD', 'USD']);
     await expect(asApp(() => fx.currenciesInUse())).rejects.toMatchObject(pgError(/permission denied/));
   });
 });
