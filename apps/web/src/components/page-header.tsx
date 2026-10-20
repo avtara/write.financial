@@ -43,7 +43,7 @@ export interface PageHeaderProps {
 export function PageHeader({ breadcrumb, title, description, actions }: PageHeaderProps) {
   const { preferences } = usePreferences();
   return (
-    <header className="flex items-end gap-3 pb-2">
+    <header className="flex flex-wrap items-end gap-3 pb-2">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <nav aria-label={m.breadcrumb_label()}>
           <ol className="flex items-center gap-1.5 text-[12.5px] text-subtle">

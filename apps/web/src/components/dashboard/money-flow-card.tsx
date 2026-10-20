@@ -62,7 +62,7 @@ const GROUP_TONE: Readonly<Record<string, { fill: string; stroke: string; dot: s
 };
 const NEUTRAL = { fill: 'fill-neutral-mid', stroke: 'stroke-neutral-mid', dot: 'bg-neutral-mid' };
 
-const LEFT = 150;
+const LEFT = 170;
 const RIGHT = 230;
 const ROW = 34;
 
@@ -136,21 +136,25 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   const layout =
     width === null || graph.nodes.length === 0
       ? null
-      : layoutFlow(graph, { left: LEFT, top: 12, right: width - RIGHT, bottom: height - 12 }, 14);
-  // Each node's label texts (formatted with the privacy mode) and accessible name.
-  const texts = new Map(
-    (layout?.nodes ?? []).map((node) => {
-      const amount = money(node.valueMinor);
-      const percent = share(node.shareBps);
-      return [
-        node.id,
-        {
-          value: shown === 'amount' ? `${amount}  ${percent}` : percent,
-          label: `${name(node.id)}, ${shown === 'amount' ? `${amount} ` : ''}${percent}`,
-        },
-      ];
-    }),
-  );
+      : layoutFlow(graph, { left: LEFT, top: 16, right: width - RIGHT, bottom: height - 16 }, 18);
+  // Each node's label texts (formatted with the privacy mode), accessible name, and label centre; the two-line labels
+  // of the left column are pushed apart where small nodes sit close.
+  const texts = new Map<string, { value: string; label: string; middle: number }>();
+  let previousLeft = -Infinity;
+  for (const node of layout?.nodes ?? []) {
+    const amount = money(node.valueMinor);
+    const percent = share(node.shareBps);
+    let middle = (node.y0 + node.y1) / 2;
+    if (node.column === firstColumn) {
+      middle = Math.max(middle, previousLeft + 32);
+      previousLeft = middle;
+    }
+    texts.set(node.id, {
+      value: shown === 'amount' ? `${amount}  ${percent}` : percent,
+      label: `${name(node.id)}, ${shown === 'amount' ? `${amount} ` : ''}${percent}`,
+      middle,
+    });
+  }
   /** Dimmed when a group is focused and the node or band is not on its path. */
   const dimmed = (id: string) =>
     wide && focus !== null && id !== focus && id !== 'total' && !id.startsWith('source:') && parentOf.get(id) !== focus;
@@ -386,9 +390,10 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
             {layout.nodes.map((node) => {
               const left = node.column === firstColumn;
               const tone = node.id === 'total' ? { fill: 'fill-fg' } : toneOf(node.id);
-              const middle = (node.y0 + node.y1) / 2;
-              const inline = node.column === 3 || node.y1 - node.y0 < 26;
-              const { value, label } = texts.get(node.id) as { value: string; label: string };
+              // Sources keep two lines (their labels sit left, where a long one would be cut); small nodes elsewhere
+              // get one line.
+              const inline = !left && (node.column === 3 || node.y1 - node.y0 < 26);
+              const { value, label, middle } = texts.get(node.id) as { value: string; label: string; middle: number };
               const interactive = node.column !== 1;
               return (
                 <g
