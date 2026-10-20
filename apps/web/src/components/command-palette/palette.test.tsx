@@ -151,7 +151,8 @@ describe('Palette', () => {
     server.searchEverything.mockResolvedValue({ ok: true, value: NETFLIX });
     const { router } = await renderPalette();
     await userEvent.click(page.getByRole('button', { name: 'buka palet' }));
-    await userEvent.type(input(), 'netflix');
+    // One input event: per-key typing on a loaded CI runner can pause longer than the debounce between keys.
+    await userEvent.fill(input(), 'netflix');
     await expect.element(dialog().getByRole('group', { name: 'Transaksi · 2' })).toBeVisible();
     expect(server.searchEverything).toHaveBeenCalledTimes(1);
     expect(server.searchEverything).toHaveBeenCalledWith({ data: { query: 'netflix' } });
