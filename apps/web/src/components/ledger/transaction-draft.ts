@@ -7,6 +7,7 @@
 import type { AccountView } from '@wf/db/accounts';
 import type { CategoryView } from '@wf/db/categories';
 import type { JsonObject } from '@wf/db/schema';
+import type { TransactionDetail } from '@wf/db/transactions';
 import {
   convert,
   effectiveRate,
@@ -18,6 +19,7 @@ import {
 } from '@wf/domain/fx';
 import { currencyInfo, type Locale } from '@wf/domain/money';
 import { addDays, parseLocalDate, type LocalDate } from '@wf/domain/period';
+import { toLocalDate } from '@wf/ui/dates';
 import type { RecordTransactionInput } from '../../server/fn/transactions-write.ts';
 
 export type EntryKind = 'expense' | 'income' | 'transfer';
@@ -85,6 +87,43 @@ export function emptyValues(start: {
     description: '',
     note: '',
     tags: [],
+  };
+}
+
+/**
+ * The form values of a recorded transaction (FR-L4 edit, FR-L6 duplicate): accounts and amounts from its postings
+ * (a transfer's fee and its manual rate, typed back in `locale`'s decimal format), date and time on the wall clock
+ * of `timeZone`. `at` replaces the date and time (a duplicate is dated now).
+ */
+export function valuesFromDetail(
+  detail: TransactionDetail,
+  context: { readonly timeZone: string; readonly locale: Locale; readonly at?: Date },
+): TransactionFormValues {
+  const instant = context.at ?? detail.occurredAt;
+  const principal = detail.postings.filter((posting) => posting.role === 'principal');
+  const fee = detail.postings.find((posting) => posting.role === 'fee');
+  const from = principal.find((posting) => posting.amountMinor < 0n) ?? principal[0];
+  const to = principal.find((posting) => posting.amountMinor > 0n && posting !== from);
+  const transfer = detail.type === 'transfer' ? detail.transfer : null;
+  const manual = transfer?.rateSource === 'manual' && transfer.referenceRate !== null ? transfer.referenceRate : null;
+  const amount = from === undefined ? null : from.amountMinor < 0n ? -from.amountMinor : from.amountMinor;
+  return {
+    type: detail.type === 'income' || detail.type === 'transfer' ? detail.type : 'expense',
+    amountMinor: transfer === null ? amount : transfer.sentMinor,
+    categoryId: detail.type === 'transfer' ? null : detail.categoryId,
+    accountId: from?.accountId ?? null,
+    toAccountId: detail.type === 'transfer' ? (to?.accountId ?? null) : null,
+    receivedMinor:
+      transfer === null || transfer.receivedCurrency === transfer.sentCurrency ? null : transfer.receivedMinor,
+    rateMode: manual === null ? 'reference' : 'manual',
+    manualRate: manual === null ? '' : context.locale === 'id' ? manual.replace('.', ',') : manual,
+    feeMinor: fee === undefined ? null : -fee.amountMinor,
+    feeCategoryId: fee?.categoryId ?? null,
+    date: toLocalDate(instant, context.timeZone),
+    time: wallTime(instant, context.timeZone),
+    description: detail.description ?? '',
+    note: detail.note ?? '',
+    tags: [...detail.tags],
   };
 }
 

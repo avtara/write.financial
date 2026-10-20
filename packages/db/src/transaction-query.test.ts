@@ -10,11 +10,12 @@ import { testKeyring } from '../test/keys.ts';
 import { insertUser, pgError, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { withUser } from './db.ts';
 import { builtInCategoryIn, recordTransactionIn, type TransactionDraft } from './ledger-core.ts';
-import { accounts, transactions } from './schema.ts';
+import { accounts, balanceAdjustments, transactions } from './schema.ts';
 import {
   categoryTotalsIn,
   createTransactionQuery,
   dayTotalsIn,
+  type AccountGroup,
   type TransactionFilter,
   type TransactionListOptions,
   type TransactionQueryRepository,
@@ -37,6 +38,7 @@ const account: Record<string, string> = {};
 const category: Partial<Record<BuiltInCategoryKey, string>> = {};
 let fxLossMinor = 0n;
 let bobAccount = '';
+let bobTransaction = '';
 
 const asApp = <T>(fn: () => Promise<T>) => test.as('wf_app', fn);
 
@@ -192,7 +194,7 @@ async function seedBob() {
   const { bca } = await insertAccounts(bob, [{ key: 'bca', currency: 'IDR' }]);
   bobAccount = bca ?? '';
   await withUser(test.db, bob, async (t) => {
-    await recordTransactionIn(
+    const { id } = await recordTransactionIn(
       t,
       bob,
       {
@@ -208,6 +210,7 @@ async function seedBob() {
       null,
       NOW,
     );
+    bobTransaction = id;
   });
 }
 
@@ -552,6 +555,92 @@ describe('summary', () => {
       { date: '2026-10-02', outMinor: 0n },
     ]);
     expect(ranged.averageDailySpendMinor).toBe(0n);
+  });
+});
+
+describe('groupByAccount', () => {
+  const byName = (groups: readonly AccountGroup[]) =>
+    Object.fromEntries(
+      groups.map(({ accountId, ...group }) => [
+        Object.entries(account).find(([, id]) => id === accountId)?.[0] ?? accountId,
+        group,
+      ]),
+    );
+
+  it('counts transactions per account (transfers on both sides) with In/Out like groupByDay, most first', async () => {
+    const groups = await asApp(() => query.groupByAccount(alice, {}));
+    expect(groups[0]?.accountId).toBe(account.bca);
+    expect(byName(groups)).toEqual({
+      // t1, t3, t4 (sent + fee), t5 (sent), t7, t9; t8 is deleted.
+      bca: { count: 6, inMinor: 10_000_000n, outMinor: 50_000n + 2_500n + 75_000n + 40_000n },
+      // t2, t4 (received).
+      gopay: { count: 2, inMinor: 0n, outMinor: 25_000n },
+      // t5 (received, with the FX loss), t6.
+      gotrade: { count: 2, inMinor: 0n, outMinor: 163_500n - fxLossMinor },
+    });
+    expect(fxLossMinor).toBe(-22_660n);
+  });
+
+  it('applies the filter, listing the other side of matching transfers', async () => {
+    expect(byName(await asApp(() => query.groupByAccount(alice, { accountIds: [account.gopay ?? ''] })))).toEqual({
+      gopay: { count: 2, inMinor: 0n, outMinor: 25_000n },
+      bca: { count: 1, inMinor: 0n, outMinor: 2_500n },
+    });
+    expect(await asApp(() => query.groupByAccount(alice, { search: 'nothing-matches' }))).toEqual([]);
+  });
+});
+
+describe('balancesAfter', () => {
+  it('gives the running balance after each live transaction on the account, by time', async () => {
+    const ids = ['t1', 't3', 't4', 't5', 't7', 't9'].map((name) => tx[name] ?? '');
+    const balances = await asApp(() => query.balancesAfter(alice, account.bca ?? '', ids));
+    expect(Object.fromEntries(Object.entries(balances).map(([id, minor]) => [nameOf.get(id), minor]))).toEqual({
+      t1: -50_000n,
+      t3: 9_950_000n,
+      t4: 9_747_500n,
+      t5: 6_747_500n,
+      t7: 6_672_500n,
+      t9: 6_632_500n,
+    });
+  });
+
+  it('leaves out deleted transactions and those not on the account; nothing for no ids', async () => {
+    const balances = await asApp(() =>
+      query.balancesAfter(alice, account.bca ?? '', [tx.t9 ?? '', tx.t8 ?? '', tx.t2 ?? '']),
+    );
+    expect(balances).toEqual({ [tx.t9 ?? '']: 6_632_500n });
+    expect(await asApp(() => query.balancesAfter(alice, account.bca ?? '', []))).toEqual({});
+  });
+
+  it('starts from the opening balance and adds the balance adjustments made by then', async () => {
+    await asApp(() =>
+      withUser(test.db, bob, async (t) => {
+        await t.update(accounts).set({ openingBalanceMinor: 500_000n }).where(eq(accounts.id, bobAccount));
+        await t.insert(balanceAdjustments).values([
+          {
+            userId: bob,
+            accountId: bobAccount,
+            amountMinor: 1_000n,
+            actualBalanceMinor: 501_000n,
+            createdAt: at(1, '08:00'),
+          },
+          {
+            userId: bob,
+            accountId: bobAccount,
+            amountMinor: 7n,
+            actualBalanceMinor: 402_007n,
+            createdAt: at(5, '08:00'),
+          },
+        ]);
+      }),
+    );
+    expect(await asApp(() => query.balancesAfter(bob, bobAccount, [bobTransaction]))).toEqual({
+      [bobTransaction]: 402_000n,
+    });
+  });
+
+  it("never reads another user's account", async () => {
+    expect(await asApp(() => query.balancesAfter(alice, bobAccount, [bobTransaction]))).toEqual({});
   });
 });
 

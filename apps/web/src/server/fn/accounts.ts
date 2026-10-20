@@ -14,7 +14,7 @@ import { parseLocalDate, type LocalDate } from '@wf/domain/period';
 import { ImageRejectedError, prepareImageUpload } from '@wf/integrations/image';
 import * as z from 'zod';
 import { isColor } from '../../lib/colors.ts';
-import { attempt, requireSession, type Result } from '../access.ts';
+import { attempt, requireSession, UploadRejectedError, type Result } from '../access.ts';
 import type { RequestContext } from '../request-middleware.ts';
 import { services, type Services } from '../runtime.ts';
 
@@ -264,17 +264,6 @@ export const getAccountDetail = createServerFn({ method: 'GET' })
     }),
   );
 
-/** An upload the image pipeline refused; `detail` is the {@link ImageRejectedError} reason. */
-class LogoRejectedError extends Error {
-  readonly code = 'IMAGE_REJECTED';
-  readonly detail: string;
-
-  constructor(reason: string) {
-    super('The logo image was rejected');
-    this.detail = reason;
-  }
-}
-
 /**
  * FR-R1 "Unggah PNG": replaces the account's logo with the uploaded image (`file` in the form data, re-encoded and
  * stripped by the image pipeline, at most 320 px) stored encrypted in the avatars bucket.
@@ -290,7 +279,7 @@ export const setAccountLogo = createServerFn({ method: 'POST' })
       try {
         ({ thumbnail } = await prepareImageUpload(new Uint8Array(await file.arrayBuffer())));
       } catch (error) {
-        if (error instanceof ImageRejectedError) throw new LogoRejectedError(error.reason);
+        if (error instanceof ImageRejectedError) throw new UploadRejectedError(error.reason);
         throw error;
       }
       const { key } = await logoStore.put(userId, thumbnail.bytes, thumbnail.mime);

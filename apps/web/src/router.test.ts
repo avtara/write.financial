@@ -64,6 +64,7 @@ describe('getRouter', () => {
       '/admin/queues/$',
       '/api/account-logo/$id',
       '/api/auth/$',
+      '/api/transactions/$id/attachments/$attachmentId',
       '/budget',
       '/forgot',
       '/healthz',
@@ -72,6 +73,7 @@ describe('getRouter', () => {
       '/setup',
       '/sign-in',
       '/sign-up',
+      '/transactions',
       '/two-factor-setup',
     ]);
   });

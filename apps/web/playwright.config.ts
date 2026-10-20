@@ -19,7 +19,9 @@ const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse
  * - `budget`: Anggaran, Settings › Periode bulanan, and the Record sheet's budget impact (FR-B1–B5, P1–P3, T3) on the
  *   seed's untouched October (it restores what it changes),
  * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9) as the invited user with the design seed,
- * - `cmdk`: the ⌘K palette, keyboard only, as the invited user with the design persona's ledger (`seedDesignPersona`).
+ * - `cmdk`: the ⌘K palette, keyboard only, as the invited user with the design persona's ledger (`seedDesignPersona`),
+ * - `transactions`: the Transactions page (FR-L1–L6: filters, views, bulk, detail edit, split, delete + Urungkan,
+ *   keyboard, 1440/1024/768) as the invited user.
  *
  * The server, Postgres, the browsers, and the TOTP codes run on one clock that starts at E2E_NOW (the design persona's
  * day), so the seed's goldens hold whatever the real date is.
@@ -85,6 +87,12 @@ export default defineConfig({
       name: 'cmdk',
       testMatch: 'command-palette.spec.ts',
       dependencies: ['app'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      name: 'transactions',
+      testMatch: 'transactions.spec.ts',
+      dependencies: ['record'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
   ],

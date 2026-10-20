@@ -1,0 +1,161 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+/**
+ * "Rekening & dompet · Klik kartu untuk memfilter tabel" (FR-L1, design `t7l0Cj`, `NCqkQ`, `aCSAu`, `h26Rk`): the
+ * available balance, the account cards, and "N lainnya". A card filters the table to its account (pressed again, or
+ * "Saldo tersedia", clears it); "N lainnya" opens the other everyday accounts, where one or all of them can be picked.
+ */
+import { Link } from '@tanstack/react-router';
+import type { AccountView } from '@wf/db/accounts';
+import { m } from '@wf/i18n/messages';
+import { Money } from '@wf/ui/money';
+import { Popover, PopoverAnchor, PopoverContent } from '@wf/ui/popover';
+import { Settings2, Wallet } from 'lucide-react';
+import { useState } from 'react';
+import { cardSlots } from '../../lib/accounts.ts';
+import { accountTypeLabel } from '../../lib/ledger-labels.ts';
+import { listParamOf, listValues } from '../../lib/transactions-search.ts';
+import type { TransactionsView } from '../../server/fn/transactions.ts';
+import { AccountCards } from '../accounts/account-cards.tsx';
+import { AccountLogo } from '../accounts/account-logo.tsx';
+import { usePreferences } from '../preferences.tsx';
+
+export interface AccountStripProps {
+  readonly accounts: readonly AccountView[];
+  readonly baseCurrency: string;
+  /** "Saldo tersedia" (accounts counted as available, without investments). */
+  readonly availableMinor: bigint;
+  readonly view: TransactionsView;
+  /** The `account` search param. */
+  readonly selected: string | undefined;
+  readonly onSelect: (account: string | undefined) => void;
+}
+
+const OPTION =
+  'flex w-full items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-left hover:bg-tint-06 focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-tint-06';
+
+export function AccountStrip({ accounts, baseCurrency, availableMinor, view, selected, onSelect }: AccountStripProps) {
+  const { preferences } = usePreferences();
+  const { locale } = preferences;
+  const [othersOpen, setOthersOpen] = useState(false);
+  const ids = listValues(selected);
+  const { others } = cardSlots(accounts);
+  const counts = new Map(view.accounts.map((group) => [group.accountId, group.count]));
+  const selectedCard = ids.length === 1 ? ids[0] : undefined;
+  const allOthers = others.map((account) => account.id);
+  return (
+    <section aria-labelledby="transactions-accounts" className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2">
+        <h2 id="transactions-accounts" className="text-[13.5px] font-semibold text-fg">
+          {m.accounts_title()}
+        </h2>
+        <p className="text-[12px] text-subtle">{m.transactions_accounts_hint()}</p>
+        <Link
+          to="/accounts"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[12.5px] text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Settings2 aria-hidden="true" className="size-3.5" />
+          {m.transactions_accounts_manage()}
+        </Link>
+      </div>
+      <Popover open={othersOpen} onOpenChange={setOthersOpen}>
+        <PopoverAnchor asChild>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              aria-pressed={ids.length === 0}
+              onClick={() => {
+                onSelect(undefined);
+              }}
+              className="flex w-[188px] shrink-0 flex-col gap-2 rounded-[10px] border border-border bg-card p-3.5 text-left hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-fg"
+            >
+              <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-tint-06 text-muted-fg">
+                <Wallet aria-hidden="true" className="size-3.5" />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-[13px] font-medium text-fg">{m.transactions_accounts_available()}</span>
+                <span className="font-mono text-[11px] text-subtle">{m.transactions_accounts_available_note()}</span>
+              </span>
+              <Money
+                minor={availableMinor}
+                currency={baseCurrency}
+                context="amount"
+                locale={locale}
+                className="text-[17px] font-semibold text-fg"
+              />
+            </button>
+            <div className="min-w-0 flex-1">
+              <AccountCards
+                accounts={accounts}
+                baseCurrency={baseCurrency}
+                selectedId={selectedCard ?? null}
+                onSelect={(account) => {
+                  onSelect(selectedCard === account.id ? undefined : account.id);
+                }}
+                onShowOthers={() => {
+                  setOthersOpen(true);
+                }}
+              />
+            </div>
+          </div>
+        </PopoverAnchor>
+        <PopoverContent align="end" className="w-[320px] p-1.5" aria-label={m.transactions_accounts_others_title()}>
+          <div className="flex items-baseline justify-between px-2 pt-1 pb-2">
+            <h3 className="text-[13px] font-semibold text-fg">{m.transactions_accounts_others_title()}</h3>
+            <span className="text-[11.5px] text-subtle">{m.transactions_accounts_hint()}</span>
+          </div>
+          <ul className="flex flex-col gap-0.5">
+            <li>
+              <button
+                type="button"
+                aria-pressed={
+                  allOthers.length > 0 && allOthers.every((id) => ids.includes(id)) && ids.length === allOthers.length
+                }
+                className={OPTION}
+                onClick={() => {
+                  onSelect(listParamOf(allOthers));
+                  setOthersOpen(false);
+                }}
+              >
+                <span className="flex-1 text-[13px] text-fg">{m.transactions_accounts_others_all()}</span>
+                <span className="text-[11.5px] text-subtle">
+                  {m.transactions_summary_count({
+                    count: allOthers.reduce((sum, id) => sum + (counts.get(id) ?? 0), 0),
+                  })}
+                </span>
+              </button>
+            </li>
+            {others.map((account) => (
+              <li key={account.id}>
+                <button
+                  type="button"
+                  aria-pressed={ids.length === 1 && ids[0] === account.id}
+                  className={OPTION}
+                  onClick={() => {
+                    onSelect(account.id);
+                    setOthersOpen(false);
+                  }}
+                >
+                  <AccountLogo account={account} size="sm" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] text-fg">{account.displayName}</span>
+                    <span className="text-[11.5px] text-subtle">
+                      {accountTypeLabel(account.type)} ·{' '}
+                      {m.transactions_summary_count({ count: counts.get(account.id) ?? 0 })}
+                    </span>
+                  </span>
+                  <Money
+                    minor={account.balanceMinor}
+                    currency={account.currency}
+                    context="amount"
+                    locale={locale}
+                    className="text-[12.5px] text-fg"
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </PopoverContent>
+      </Popover>
+    </section>
+  );
+}

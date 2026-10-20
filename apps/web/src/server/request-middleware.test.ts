@@ -186,6 +186,17 @@ describe('requestMiddleware', () => {
     expect(await response.text()).toBe('{"status":"ok"}');
   });
 
+  it("keeps a handler's caching and enforces its policy next to the app's", async () => {
+    const { response } = await run(
+      {},
+      new Response('x', {
+        headers: { 'Cache-Control': 'private, max-age=31536000, immutable', 'Content-Security-Policy': 'sandbox' },
+      }),
+    );
+    expect(response.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+    expect(response.headers.get('content-security-policy')).toMatch(/^sandbox, default-src 'self'; /);
+  });
+
   it('sets the locale cookie on pages whose request cookie disagrees with the rendered locale', async () => {
     const { response } = await run({ 'accept-language': 'en' }, html());
     expect(response.headers.get('set-cookie')).toBe('wf_locale=en; Path=/; Max-Age=34560000; SameSite=Lax');

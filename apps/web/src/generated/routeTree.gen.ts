@@ -17,6 +17,7 @@ import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
 import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
 import { Route as AppBudgetRouteImport } from './../routes/_app/budget.tsx';
+import { Route as AppTransactionsRouteImport } from './../routes/_app/transactions.tsx';
 import { Route as Auth2faRouteImport } from './../routes/_auth/2fa.tsx';
 import { Route as AuthForgotRouteImport } from './../routes/_auth/forgot.tsx';
 import { Route as AuthResetPasswordRouteImport } from './../routes/_auth/reset-password.tsx';
@@ -27,6 +28,7 @@ import { Route as AppSettingsSectionRouteImport } from './../routes/_app/setting
 import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$.ts';
 import { Route as ApiAccountLogoIdRouteImport } from './../routes/api/account-logo.$id.ts';
 import { Route as ApiAuthSplatRouteImport } from './../routes/api/auth/$.ts';
+import { Route as ApiTransactionsIdAttachmentsAttachmentIdRouteImport } from './../routes/api/transactions.$id.attachments.$attachmentId.ts';
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -64,6 +66,11 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
 const AppBudgetRoute = AppBudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppTransactionsRoute = AppTransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
   getParentRoute: () => AppRoute,
 } as any);
 const Auth2faRoute = Auth2faRouteImport.update({
@@ -116,6 +123,12 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ApiTransactionsIdAttachmentsAttachmentIdRoute =
+  ApiTransactionsIdAttachmentsAttachmentIdRouteImport.update({
+    id: '/api/transactions/$id/attachments/$attachmentId',
+    path: '/api/transactions/$id/attachments/$attachmentId',
+    getParentRoute: () => rootRouteImport,
+  } as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute;
@@ -124,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/transactions': typeof AppTransactionsRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
@@ -134,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute;
@@ -142,6 +157,7 @@ export interface FileRoutesByTo {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/transactions': typeof AppTransactionsRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
@@ -152,6 +168,7 @@ export interface FileRoutesByTo {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -162,6 +179,7 @@ export interface FileRoutesById {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/_app/accounts': typeof AppAccountsRoute;
   '/_app/budget': typeof AppBudgetRoute;
+  '/_app/transactions': typeof AppTransactionsRoute;
   '/_auth/2fa': typeof Auth2faRoute;
   '/_auth/forgot': typeof AuthForgotRoute;
   '/_auth/reset-password': typeof AuthResetPasswordRoute;
@@ -173,6 +191,7 @@ export interface FileRoutesById {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -183,6 +202,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/transactions'
     | '/2fa'
     | '/forgot'
     | '/reset-password'
@@ -192,7 +212,8 @@ export interface FileRouteTypes {
     | '/settings/$section'
     | '/admin/queues/$'
     | '/api/account-logo/$id'
-    | '/api/auth/$';
+    | '/api/auth/$'
+    | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -201,6 +222,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/transactions'
     | '/2fa'
     | '/forgot'
     | '/reset-password'
@@ -210,7 +232,8 @@ export interface FileRouteTypes {
     | '/settings/$section'
     | '/admin/queues/$'
     | '/api/account-logo/$id'
-    | '/api/auth/$';
+    | '/api/auth/$'
+    | '/api/transactions/$id/attachments/$attachmentId';
   id:
     | '__root__'
     | '/_app'
@@ -220,6 +243,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/_app/accounts'
     | '/_app/budget'
+    | '/_app/transactions'
     | '/_auth/2fa'
     | '/_auth/forgot'
     | '/_auth/reset-password'
@@ -230,7 +254,8 @@ export interface FileRouteTypes {
     | '/_app/settings/$section'
     | '/admin/queues/$'
     | '/api/account-logo/$id'
-    | '/api/auth/$';
+    | '/api/auth/$'
+    | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -242,6 +267,7 @@ export interface RootRouteChildren {
   AdminQueuesRoute: typeof AdminQueuesRouteWithChildren;
   ApiAccountLogoIdRoute: typeof ApiAccountLogoIdRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
+  ApiTransactionsIdAttachmentsAttachmentIdRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -300,6 +326,13 @@ declare module '@tanstack/react-router' {
       path: '/budget';
       fullPath: '/budget';
       preLoaderRoute: typeof AppBudgetRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/transactions': {
+      id: '/_app/transactions';
+      path: '/transactions';
+      fullPath: '/transactions';
+      preLoaderRoute: typeof AppTransactionsRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_auth/2fa': {
@@ -372,12 +405,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/api/transactions/$id/attachments/$attachmentId': {
+      id: '/api/transactions/$id/attachments/$attachmentId';
+      path: '/api/transactions/$id/attachments/$attachmentId';
+      fullPath: '/api/transactions/$id/attachments/$attachmentId';
+      preLoaderRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
 interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute;
   AppBudgetRoute: typeof AppBudgetRoute;
+  AppTransactionsRoute: typeof AppTransactionsRoute;
   AppIndexRoute: typeof AppIndexRoute;
   AppSettingsSectionRoute: typeof AppSettingsSectionRoute;
 }
@@ -385,6 +426,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
   AppBudgetRoute: AppBudgetRoute,
+  AppTransactionsRoute: AppTransactionsRoute,
   AppIndexRoute: AppIndexRoute,
   AppSettingsSectionRoute: AppSettingsSectionRoute,
 };
@@ -430,6 +472,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminQueuesRoute: AdminQueuesRouteWithChildren,
   ApiAccountLogoIdRoute: ApiAccountLogoIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiTransactionsIdAttachmentsAttachmentIdRoute:
+    ApiTransactionsIdAttachmentsAttachmentIdRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

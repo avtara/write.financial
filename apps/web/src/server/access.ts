@@ -23,6 +23,18 @@ export class ForbiddenError extends Error {
   }
 }
 
+/** An upload refused before storing; `detail` is the reason (`too-large`, `unsupported-type`, `too-many-pixels`, `corrupt`). */
+export class UploadRejectedError extends Error {
+  override readonly name = 'UploadRejectedError';
+  readonly code = 'IMAGE_REJECTED';
+  readonly detail: string;
+
+  constructor(reason: string) {
+    super('The upload was rejected');
+    this.detail = reason;
+  }
+}
+
 export interface AccessRule {
   /** Admins only. */
   readonly admin?: boolean;
@@ -76,6 +88,8 @@ export const EXPECTED_CODES: readonly string[] = [
     'INVALID_PROFILE',
     // An uploaded image the image pipeline refused (`detail`: the reason).
     'IMAGE_REJECTED',
+    // A transaction already has the most attachments of that kind (FR-L4).
+    'ATTACHMENT_LIMIT',
     // Ledger repositories (`LedgerError`).
     ...LEDGER_ERROR_CODES,
   ]),

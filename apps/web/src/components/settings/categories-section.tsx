@@ -6,7 +6,7 @@
  * pickers use. The ⋯ menu edits, moves to another group, merges, archives, or deletes; system categories only edit.
  * Every change is saved at once.
  */
-import { useRouter } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import type { CategoryView } from '@wf/db/categories';
 import type { CategoryGroup } from '@wf/domain/categories';
 import { m } from '@wf/i18n/messages';
@@ -31,6 +31,7 @@ import {
   Merge,
   Pencil,
   Plus,
+  ReceiptText,
   Trash2,
 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -96,6 +97,7 @@ function CategoryRow({
   onDelete,
   reorderHint,
 }: RowProps) {
+  const navigate = useNavigate();
   const name = categoryName(category);
   const archived = category.archivedAt !== null;
   const count =
@@ -173,6 +175,14 @@ function CategoryRow({
           <DropdownMenuGroup>
             <DropdownMenuItem icon={Pencil} onSelect={onEdit}>
               {m.category_menu_edit()}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              icon={ReceiptText}
+              onSelect={() => {
+                void navigate({ to: '/transactions', search: { category: category.id } });
+              }}
+            >
+              {m.category_menu_view_transactions()}
             </DropdownMenuItem>
             {category.isSystem || archived
               ? null

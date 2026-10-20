@@ -190,11 +190,24 @@ describe('CategoriesSection', () => {
     });
   });
 
-  it('offers only Edit for system categories', async () => {
+  it('offers only Edit and the transactions for system categories', async () => {
     const { screen } = await renderApp(<Harness />);
     await screen.getByRole('button', { name: 'Menu Biaya bank' }).click();
     await expect.element(screen.getByRole('menuitem', { name: 'Edit kategori' })).toBeVisible();
-    expect(screen.getByRole('menuitem').elements()).toHaveLength(1);
+    expect(
+      screen
+        .getByRole('menuitem')
+        .elements()
+        .map((item) => item.textContent),
+    ).toEqual(['Edit kategori', 'Lihat transaksi']);
+  });
+
+  it('opens the category’s transactions from the menu', async () => {
+    const { screen, router } = await renderApp(<Harness />);
+    await screen.getByRole('button', { name: 'Menu Makan & Dapur' }).click();
+    await screen.getByRole('menuitem', { name: 'Lihat transaksi' }).click();
+    await expect.poll(() => router.state.location.pathname).toBe('/transactions');
+    expect(router.state.location.search).toEqual({ category: 'food' });
   });
 
   it('merges into another category', async () => {

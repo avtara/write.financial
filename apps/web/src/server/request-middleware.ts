@@ -87,7 +87,11 @@ export const requestMiddleware = createMiddleware().server(async ({ request, nex
     dev: import.meta.env.DEV,
     queueBoard,
   })) {
-    headers.set(name, value);
+    // A handler serving immutable files (logos, attachments) sets its own caching, and may add a policy of its own
+    // (`sandbox`), which is enforced together with the app's.
+    if (name === 'Cache-Control' && response.headers.has(name)) continue;
+    if (name === 'Content-Security-Policy' && response.headers.has(name)) headers.append(name, value);
+    else headers.set(name, value);
   }
   for (const cookie of cookies) headers.append('Set-Cookie', cookie);
   if (localeCookieStale && headers.get('content-type')?.startsWith('text/html')) {
