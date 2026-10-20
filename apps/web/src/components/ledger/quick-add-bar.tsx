@@ -258,7 +258,8 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
             {...(values.date === today ? { triggerLabel: m.date_preset_today() } : {})}
           />
         </div>
-        <label className="flex h-9 min-w-[160px] flex-1 items-center gap-2 rounded-[9px] border border-border-input bg-input px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring">
+        {/* FR-TB2: no note on a tablet; the Record sheet (N) has it. */}
+        <label className="flex h-9 min-w-[160px] flex-1 items-center gap-2 rounded-[9px] border border-border-input bg-input px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring max-xl:hidden">
           <PenLine aria-hidden="true" className="size-3.5 shrink-0 text-muted-fg" />
           <span className="sr-only">{m.record_description()}</span>
           <input

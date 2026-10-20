@@ -101,11 +101,12 @@ export function costliestDay(days: readonly DayGroup[]): DayGroup | null {
   return costliest;
 }
 
-/** "Bulan terhemat": the month with the least spending among those already over. */
+/** "Bulan terhemat": the month with the least spending among those already over that had any. */
 export function cheapestMonth(months: readonly CalendarMonth[], today: LocalDate): CalendarMonth | null {
   let cheapest: CalendarMonth | null = null;
   for (const month of months) {
-    if (month.end < today && (cheapest === null || month.outMinor < cheapest.outMinor)) cheapest = month;
+    if (month.end >= today || month.outMinor === 0n) continue;
+    if (cheapest === null || month.outMinor < cheapest.outMinor) cheapest = month;
   }
   return cheapest;
 }

@@ -31,7 +31,15 @@ export interface FlowGraph {
 
 /** The nodes and links of `flow` that `levels` shows, ordered so bands do not cross. */
 export function flowGraph(flow: Pick<MoneyFlow, 'nodes' | 'links'>, levels: FlowLevels): FlowGraph {
-  const parentOf = new Map(flow.links.filter((link) => link.from.startsWith('group:')).map((l) => [l.to, l.from]));
+  // The domain adds one total → group link per category; a band is one link per pair.
+  const byPair = new Map<string, MoneyFlowLink>();
+  for (const link of flow.links) {
+    const key = `${link.from}>${link.to}`;
+    const known = byPair.get(key);
+    byPair.set(key, known === undefined ? link : { ...link, valueMinor: known.valueMinor + link.valueMinor });
+  }
+  const all = [...byPair.values()];
+  const parentOf = new Map(all.filter((link) => link.from.startsWith('group:')).map((l) => [l.to, l.from]));
   // Column 2 holds the groups; every column-3 node has one group feeding it.
   const rank = (node: MoneyFlowNode): number =>
     GROUP_RANK[node.column === 2 ? node.id : (parentOf.get(node.id) as string)] ?? 5;
@@ -41,14 +49,14 @@ export function flowGraph(flow: Pick<MoneyFlow, 'nodes' | 'links'>, levels: Flow
       (a.column >= 2 ? rank(a) - rank(b) : 0) ||
       (a.column === 3 && b.valueMinor !== a.valueMinor ? (b.valueMinor > a.valueMinor ? 1 : -1) : 0),
   );
-  if (levels === 'full') return { nodes: ordered, links: flow.links };
+  if (levels === 'full') return { nodes: ordered, links: all };
   if (levels === 'groups') {
     return {
       nodes: ordered.filter((node) => node.column <= 2),
-      links: flow.links.filter((link) => !link.from.startsWith('group:')),
+      links: all.filter((link) => !link.from.startsWith('group:')),
     };
   }
-  const links = flow.links.filter((link) => link.from === levels.group);
+  const links = all.filter((link) => link.from === levels.group);
   const ids = new Set([levels.group, ...links.map((link) => link.to)]);
   return { nodes: ordered.filter((node) => ids.has(node.id)), links };
 }
