@@ -95,6 +95,11 @@ describe('/_app layout', () => {
     expect(transactions.countPeriodTransactions).toHaveBeenCalledWith();
     transactions.countPeriodTransactions.mockResolvedValue({ ok: false, code: 'INTERNAL' });
     expect(await loader({} as never)).toEqual({ navCounts: null });
+    // Offline (FR-D4): no badges instead of a failed page; other failures still fail.
+    transactions.countPeriodTransactions.mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await loader({} as never)).toEqual({ navCounts: null });
+    transactions.countPeriodTransactions.mockRejectedValue(new Error('boom'));
+    await expect(loader({} as never)).rejects.toThrow('boom');
   });
 
   it('wraps its pages in the app shell, with one toast region and the Record Transaction sheet (N)', async () => {

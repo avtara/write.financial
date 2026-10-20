@@ -30,8 +30,12 @@ export const Route = createFileRoute('/_app')({
     return { viewer };
   },
   loader: async (): Promise<{ navCounts: NavCounts | null }> => {
-    const transactions = await countPeriodTransactions();
-    return { navCounts: transactions.ok ? { transactions: transactions.value } : null };
+    // Offline (FR-D4) the badges are left out rather than failing the page.
+    const transactions = await countPeriodTransactions().catch((error: unknown) => {
+      if (error instanceof TypeError) return null;
+      throw error;
+    });
+    return { navCounts: transactions?.ok === true ? { transactions: transactions.value } : null };
   },
   component: AppLayout,
 });

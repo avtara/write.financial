@@ -64,7 +64,7 @@ test('locale switch changes the text and <html lang> without a reload, and persi
 
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.getByText('No data yet')).toBeVisible();
+  await expect(page.getByText('No data yet. Add your first account to start.')).toBeVisible();
 
   await switchLanguage(page, 'Bahasa Indonesia');
   await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
