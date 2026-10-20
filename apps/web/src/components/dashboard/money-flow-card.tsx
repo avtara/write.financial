@@ -155,6 +155,8 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
       middle,
     });
   }
+  // Room for the second line of the lowest pushed-down source label.
+  const drawnHeight = Math.max(height, previousLeft + 24);
   /** Dimmed when a group is focused and the node or band is not on its path. */
   const dimmed = (id: string) =>
     wide && focus !== null && id !== focus && id !== 'total' && !id.startsWith('source:') && parentOf.get(id) !== focus;
@@ -357,8 +359,8 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
             role="group"
             aria-label={m.overview_flow_chart()}
             width={layout.width}
-            height={height}
-            viewBox={`0 0 ${String(layout.width)} ${String(height)}`}
+            height={drawnHeight}
+            viewBox={`0 0 ${String(layout.width)} ${String(drawnHeight)}`}
             className="block font-sans"
           >
             <g aria-hidden="true">

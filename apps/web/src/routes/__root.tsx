@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createRootRoute, Outlet, redirect } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { m } from '@wf/i18n/messages';
 import type { Locale } from '@wf/i18n/locale';
 import { Document } from '../components/document.tsx';
 import { NotFoundPage } from '../components/not-found-page.tsx';
 import { PreferencesProvider } from '../components/preferences.tsx';
 import { saveLocale } from '../server/fn/account.ts';
+import { lastKnown, remember } from '../lib/last-known.ts';
 import { getGate } from '../server/fn/gate.ts';
 import { getPreferences } from '../server/get-preferences.ts';
 import appCss from '../styles.css?url';
@@ -17,9 +19,9 @@ const syncLocale = (locale: Locale) => {
 
 export const Route = createRootRoute({
   // Every navigation: who is signed in, and whether the instance is set up (FR-OP1: until an admin exists, every
-  // page leads to the setup wizard).
+  // page leads to the setup wizard). Offline, the last answer stands (FR-D4).
   beforeLoad: async ({ location }) => {
-    const gate = await getGate();
+    const gate = await lastKnown('gate', getGate);
     if (gate.setup === 'pending' && location.pathname !== '/setup') throw redirect({ to: '/setup' });
     return { gate };
   },
@@ -44,6 +46,10 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   const { gate } = Route.useRouteContext();
+  // The first page's answer came from the server render; offline navigations fall back to it.
+  useEffect(() => {
+    remember('gate', gate);
+  }, [gate]);
   return (
     <PreferencesProvider
       initial={Route.useLoaderData()}
