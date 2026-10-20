@@ -6,7 +6,7 @@ import { createDb } from './db.ts';
 import { migrate } from './migrate.ts';
 import { bootstrapRoles, ROLES, type RolePasswords } from './roles.ts';
 import { users } from './schema.ts';
-import { seedLedger } from './seed.ts';
+import { seedAutomation, seedLedger } from './seed.ts';
 import { createUserKeys } from './user-keys.ts';
 
 export interface Output {
@@ -34,7 +34,10 @@ async function userIdByEmail(authUrl: string, email: string): Promise<string> {
   }
 }
 
-/** `seed --email <user>`: loads the design persona into the user's empty ledger as `wf_app`. */
+/**
+ * `seed --email <user>`: loads the design persona into the user's empty ledger as `wf_app`, then creates what the
+ * scheduled jobs would have by now (review items, notifications) as `wf_worker`.
+ */
 async function seed(args: readonly string[], config: Config, output: Output): Promise<void> {
   const at = args.indexOf('--email');
   const email = at === -1 ? undefined : args[at + 1];
@@ -42,14 +45,20 @@ async function seed(args: readonly string[], config: Config, output: Output): Pr
   const userId = await userIdByEmail(config.db.authUrl, email);
   const keyring = await loadKeyring(config.crypto.kekFile);
   const db = createDb(config.db.appUrl, { max: 1 });
+  const workerDb = createDb(config.db.workerUrl, { max: 1 });
   try {
     const result = await seedLedger(db, userId, { getDek: createUserKeys(db, keyring).getOrCreateDek });
+    const automation = await seedAutomation(workerDb, userId, {
+      getDek: createUserKeys(workerDb, keyring).getOrCreateDek,
+    });
     output.log(
       `Seeded ${result.balances.size} accounts, ${result.transactions} transactions, ${result.closedPeriods} closed ` +
-        `period, a budget, and ${result.goals} goals; available balance ${result.availableMinor} (minor units).`,
+        `period, a budget, ${result.goals} goals, ${result.subscriptions} subscriptions, ${result.recurrences} ` +
+        `recurring transfers, and ${automation.reviewItems} review items; available balance ` +
+        `${result.availableMinor} (minor units).`,
     );
   } finally {
-    await db.$client.end();
+    await Promise.all([db.$client.end(), workerDb.$client.end()]);
   }
 }
 

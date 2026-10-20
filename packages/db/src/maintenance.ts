@@ -16,6 +16,11 @@ export interface Maintenance {
    * tables). `now` later than the database clock counts as the database clock. Idempotent.
    */
   purgeExpiredAuth: (now: Date) => Promise<AuthPurgeCounts>;
+  /**
+   * FR-S5 retention: deletes every user's notifications older than 90 days before `now` (capped at the database
+   * clock), with their outbox rows, through `wf_maintenance_purge_notifications`. Returns how many. Idempotent.
+   */
+  purgeNotifications: (now: Date) => Promise<number>;
 }
 
 /** Maintenance operations of the `maintenance` job; connect as `wf_worker`, the only role allowed to run them. */
@@ -26,6 +31,13 @@ export function createMaintenance(db: Database): Maintenance {
         sql`select wf_maintenance_purge_auth(${now.toISOString()}::timestamptz) as counts`,
       );
       return firstRow(rows, 'maintenance result').counts;
+    },
+
+    purgeNotifications: async (now) => {
+      const rows = await db.execute<{ deleted: string }>(
+        sql`select wf_maintenance_purge_notifications(${now.toISOString()}::timestamptz) as deleted`,
+      );
+      return Number(firstRow(rows, 'maintenance result').deleted);
     },
   };
 }

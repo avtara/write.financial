@@ -7,19 +7,10 @@ import { createServerFn } from '@tanstack/react-start';
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { Dashboard } from '@wf/db/dashboard';
 import type { PeriodsOverview } from '@wf/db/periods';
-import { parseLocalDate } from '@wf/domain/period';
 import * as z from 'zod';
 import { attempt, requireSession, type Result } from '../access.ts';
+import { localDate } from '../inputs.ts';
 import { services } from '../runtime.ts';
-
-const localDate = z.string().transform((value, context) => {
-  try {
-    return parseLocalDate(value);
-  } catch {
-    context.addIssue({ code: 'custom', message: 'Expected a date YYYY-MM-DD' });
-    return z.NEVER;
-  }
-});
 
 /** FR-P1: the periods up to today (rows newest first), the current one, and the next two. */
 export const listPeriods = createServerFn({ method: 'GET' }).handler(

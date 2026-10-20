@@ -11,10 +11,12 @@ import { createDb } from '@wf/db/db';
 import { createFxRates } from '@wf/db/fx-rates';
 import { migrate } from '@wf/db/migrate';
 import { bootstrapRoles, ROLES, type RoleName } from '@wf/db/roles';
+import { parseKeyring } from '@wf/crypto/keyring';
 import { parseLocalDate } from '@wf/domain/period';
 import type { FxProvider, FxQuery } from '@wf/integrations/fx/provider';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fakeDeps } from '../../test/fakes.ts';
 import { openWorkerDb, type WorkerDbConnection } from '../worker-db.ts';
 import { createFxProcessor } from './fx.ts';
 
@@ -52,7 +54,10 @@ beforeAll(async () => {
     INSERT INTO accounts (user_id, type, provider_name, display_name, currency, opening_date, color) VALUES
       (${userA}, 'bank', 'Kasikorn', 'Kasikorn THB', 'THB', '2026-01-01', '#000000'),
       (${userB}, 'cash', 'Dompet', 'Won', 'KRW', '2026-01-01', '#000000')`;
-  worker = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker));
+  worker = openWorkerDb(
+    urlAs(ROLES.worker, PASSWORDS.worker),
+    parseKeyring(`v1:${randomBytes(32).toString('base64')}\n`),
+  );
 });
 
 afterAll(async () => {
@@ -87,12 +92,12 @@ const job = { id: 'fx.2026-10-19', data: {}, attemptsMade: 0 };
 describe('fx job (wf_worker → fx_rates)', () => {
   it("fetches every user's currencies and writes global rows, idempotently per publication day", async () => {
     const queries: FxQuery[] = [];
-    const run = createFxProcessor({ db: worker.db, now: () => new Date() }, [fakeSource('17948.00000000', queries)]);
+    const run = createFxProcessor(fakeDeps({ db: worker.db }), [fakeSource('17948.00000000', queries)]);
     expect(await run(job)).toEqual({ written: { frankfurter: 10 }, missing: [], failures: [] });
     expect(queries[0]?.bases).toEqual(['AUD', 'CNY', 'EUR', 'GBP', 'JPY', 'KRW', 'MYR', 'SGD', 'THB', 'USD']);
 
     // A second run the same day (retry, manual refresh) updates the rows instead of adding more.
-    const rerun = createFxProcessor({ db: worker.db, now: () => new Date() }, [fakeSource('17950.5')]);
+    const rerun = createFxProcessor(fakeDeps({ db: worker.db }), [fakeSource('17950.5')]);
     await rerun(job);
     const rows = await superuser<{ base: string; rate: string; user_id: string | null; rate_type: string }[]>`
       SELECT base, rate::text, user_id, rate_type::text FROM fx_rates ORDER BY base`;

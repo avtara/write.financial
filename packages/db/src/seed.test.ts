@@ -3,7 +3,9 @@ import { generateDek } from '@wf/crypto/envelope';
 import { DESIGN_SEED, seedClosingBalances, type DesignSeed, type SeedTransaction } from '@wf/domain/seed';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { insertUser, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
-import { SeedMismatchError, seedLedger, SeedTargetNotEmptyError } from './seed.ts';
+import { createReview } from './review.ts';
+import { createSchedules } from './schedules.ts';
+import { SeedMismatchError, seedAutomation, seedLedger, SeedTargetNotEmptyError } from './seed.ts';
 
 let test: TestDatabase;
 let userId: string;
@@ -21,6 +23,8 @@ const tiny = (overrides: Partial<DesignSeed>): DesignSeed => ({
   budgets: [],
   goals: [],
   fxRates: [],
+  subscriptions: [],
+  recurrences: [],
   ...overrides,
 });
 
@@ -51,6 +55,8 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
       transactions: 249,
       closedPeriods: 1,
       goals: DESIGN_SEED.goals.length,
+      subscriptions: 11,
+      recurrences: 4,
       availableMinor: 55_023_000n,
     });
     expect(
@@ -90,6 +96,100 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     expect(await test.query('SELECT count(*)::int AS n FROM users WHERE onboarding_completed_at IS NOT NULL')).toEqual([
       { n: 1 },
     ]);
+  });
+
+  it('M3: subscriptions, recurring transfers, and what the jobs created by 15 Okt; balances untouched', async () => {
+    const result = await asApp(() => seedLedger(test.db, userId, options));
+    expect(result.availableMinor).toBe(55_023_000n);
+    expect(result.balances).toEqual(seedClosingBalances(DESIGN_SEED));
+    // The jobs as the worker would have run them: iCloud+ (9 Okt) is overdue, September's leftover is proposed.
+    expect(await test.as('wf_worker', () => seedAutomation(test.db, userId, options))).toEqual({ reviewItems: 2 });
+    // A rerun (a restarted worker) creates nothing more.
+    expect(await test.as('wf_worker', () => seedAutomation(test.db, userId, options))).toEqual({ reviewItems: 0 });
+
+    const overview = await asApp(() => createSchedules(test.db, options).listSubscriptions(userId));
+    expect(overview.counts).toEqual({ active: 7, paused: 1, cancelled: 3 });
+    expect(overview.totals).toEqual({
+      monthlyMinor: 904_900n,
+      yearlyMinor: 11_519_700n,
+      approxYearlyMinor: 11_520_000n,
+    });
+    expect(overview.remainingThisMonth).toEqual({
+      totalMinor: 660_900n,
+      count: 4,
+      firstDue: '2026-10-18',
+      lastDue: '2026-10-28',
+    });
+    expect(overview.cancelledSavedMinor).toBe(1_195_000n);
+    const netflix = overview.subscriptions.find((subscription) => subscription.name === 'Netflix');
+    expect(netflix).toMatchObject({ nextBillingDate: '2026-10-18', paidCount: 1, remindDaysBefore: 1 });
+    // H-1 at 09.00 WIB.
+    expect(
+      await test.query(
+        `SELECT o.due_date::text AS due, o.status, o.remind_at FROM scheduled_occurrences o
+         JOIN subscriptions s ON s.id = o.source_id WHERE s.name = 'Netflix' ORDER BY o.due_date LIMIT 2`,
+      ),
+    ).toEqual([
+      { due: '2026-09-18', status: 'confirmed', remind_at: null },
+      { due: '2026-10-18', status: 'scheduled', remind_at: new Date('2026-10-17T02:00:00Z') },
+    ]);
+    const recurrences = await asApp(() => createSchedules(test.db, options).listRecurrences(userId));
+    expect(recurrences.map((recurrence) => [recurrence.monthDay, recurrence.nextDue?.dueDate])).toEqual(
+      expect.arrayContaining([
+        [1, '2026-11-01'],
+        [14, '2026-11-14'],
+        [25, '2026-10-25'],
+      ]),
+    );
+
+    const review = createReview(test.db, { getDek: options.getDek, now: options.now });
+    const { items } = await asApp(() => review.list(userId));
+    expect(items.map((item) => [item.reason, item.payload.kind])).toEqual(
+      expect.arrayContaining([
+        ['due_occurrence', 'transaction'],
+        ['period_close_proposal', 'leftover'],
+      ]),
+    );
+    const leftover = items.find((item) => item.payload.kind === 'leftover');
+    expect(leftover?.payload).toMatchObject({ kind: 'leftover', amountMinor: 1_150_000n });
+    // Nothing applied before a confirmation (D14).
+    expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 249 }]);
+    expect(await test.query('SELECT count(*)::int AS n FROM budget_period_overrides')).toEqual([{ n: 0 }]);
+  });
+
+  it('M3: fails on a bill, goal, or closed period the fixture does not have', async () => {
+    const [subscription] = DESIGN_SEED.subscriptions;
+    const [, , , sisihkan] = DESIGN_SEED.recurrences;
+    if (subscription === undefined || sisihkan === undefined) throw new Error('fixture changed');
+    await expect(
+      asApp(() => seedLedger(test.db, userId, { ...options, seed: tiny({ subscriptions: [subscription] }) })),
+    ).rejects.toBeInstanceOf(SeedMismatchError);
+    const other = await insertUser(test, 'other@example.test');
+    await expect(
+      asApp(() =>
+        seedLedger(test.db, other, {
+          ...options,
+          seed: tiny({
+            accounts: DESIGN_SEED.accounts,
+            recurrences: [{ ...sisihkan, allocations: [{ goal: 'Nope', amountMinor: 1n }] }],
+          }),
+        }),
+      ),
+    ).rejects.toBeInstanceOf(SeedMismatchError);
+    const third = await insertUser(test, 'third@example.test');
+    await asApp(() => seedLedger(test.db, third, { ...options, seed: tiny({}) }));
+    // The real clock by default; nothing is due for a ledger without schedules.
+    expect(
+      await test.as('wf_worker', () => seedAutomation(test.db, third, { getDek: options.getDek, seed: tiny({}) })),
+    ).toEqual({ reviewItems: 0 });
+    await expect(
+      test.as('wf_worker', () =>
+        seedAutomation(test.db, third, {
+          ...options,
+          seed: tiny({ closedPeriods: [{ start: '2026-08-01', end: '2026-08-31', closedAt: '2026-09-01T00:05:00Z' }] }),
+        }),
+      ),
+    ).rejects.toBeInstanceOf(SeedMismatchError);
   });
 
   it('only fills an empty ledger', async () => {

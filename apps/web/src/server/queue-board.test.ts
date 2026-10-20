@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import path from 'node:path';
 import type { AppControllerRoute, BullBoardRequest } from '@bull-board/api/typings/app';
+import { JOBS } from '@wf/jobs/queues';
 import { describe, expect, it, vi } from 'vitest';
 // `vi.mock` calls are hoisted above this import.
 import { assetsOf, createQueueBoard, entryPage, escapeHtml, queueBoardHandler, WebAdapter } from './queue-board.ts';
@@ -180,10 +181,10 @@ describe('createQueueBoard', () => {
     const logger = { error: vi.fn() };
     const queueBoard = createQueueBoard({ redis: 'redis://127.0.0.1:6379', logger });
     const connection = expect.anything() as unknown;
-    expect(created.queues).toEqual([
-      { name: 'maintenance', opts: { connection, prefix: 'wf' } },
-      { name: 'fx', opts: { connection, prefix: 'wf' } },
-    ]);
+    expect(created.queues).toEqual(Object.keys(JOBS).map((name) => ({ name, opts: { connection, prefix: 'wf' } })));
+    expect(created.queues.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(['maintenance', 'fx', 'dispatch', 'notify']),
+    );
     const err = expect.any(Error) as unknown;
     expect(logger.error).toHaveBeenCalledWith({ err }, 'queue board redis connection error');
     const page = await (await queueBoard.handle(get('/admin/queues'), 'n0nce')).text();

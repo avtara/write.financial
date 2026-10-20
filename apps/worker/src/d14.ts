@@ -11,9 +11,21 @@
 /**
  * Repositories processors may use. Plan §6 allows `review_items`, `scheduled_occurrences`, `notifications`,
  * `notification_outbox`, `market_quotes`, `user_quotes`, `fx_rates`, `snapshots`, `reports`, `periods.lock`,
- * `job_status`, and logs; each is added here when its processor lands. M1 adds the built-in rows of `fx_rates`.
+ * `job_status`, and logs; each is added here when its processor lands. M1 adds the built-in rows of `fx_rates`; M3 the
+ * schedules automation (occurrences, review items, notifications, outbox, subscription candidates, period close).
  */
-export const WORKER_REPOSITORIES = ['maintenance', 'fxRates'] as const;
+export const WORKER_REPOSITORIES = [
+  'maintenance',
+  'fxRates',
+  'dispatch',
+  'occurrences',
+  'periods',
+  'periodClose',
+  'budgetAlerts',
+  'balanceChecks',
+  'detectRecurring',
+  'outbox',
+] as const;
 
 export type WorkerRepository = (typeof WORKER_REPOSITORIES)[number];
 
@@ -24,9 +36,17 @@ export type WorkerRepository = (typeof WORKER_REPOSITORIES)[number];
 export const FORBIDDEN_IMPORTS: readonly { readonly module: string; readonly reason: string }[] = [
   { module: '@wf/auth', reason: 'the worker has no access to sessions or credentials (it connects as wf_worker)' },
   { module: '@wf/db/transactions', reason: 'D14: only a user confirmation creates or changes transactions' },
+  { module: '@wf/db/ledger-core', reason: 'D14: ledger-core records and changes transactions' },
   { module: '@wf/db/postings', reason: 'D14: postings belong to confirmed transactions' },
   { module: '@wf/db/budgets', reason: 'D14: the worker proposes budget changes as review items' },
+  { module: '@wf/db/budget-core', reason: 'D14: budget versions and lines change only by a user' },
   { module: '@wf/db/goals', reason: 'D14: the worker proposes goal contributions as review items' },
+  { module: '@wf/db/review', reason: 'D14: confirming a review item creates transactions; only the user confirms' },
+  { module: '@wf/db/accounts', reason: 'D14: account changes (reconcile adjustments) are user actions' },
+  { module: '@wf/db/schedules', reason: 'D14: schedules and subscriptions change only by a user' },
+  { module: '@wf/db/categories', reason: 'D14: deleting a category reassigns transactions' },
+  { module: '@wf/db/transaction-query', reason: 'the worker reads the ledger only through its repositories' },
+  { module: '@wf/db/dashboard', reason: 'the worker reads the ledger only through its repositories' },
   { module: '@wf/db/schema', reason: 'raw tables bypass the WorkerDb repositories' },
   { module: 'drizzle-orm', reason: 'only @wf/db queries Postgres (plan §3)' },
   { module: 'postgres', reason: 'only @wf/db opens Postgres connections (plan §3)' },

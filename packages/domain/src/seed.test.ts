@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { BUILT_IN_CATEGORIES, type BuiltInCategory, type BuiltInCategoryKey } from './categories.ts';
 import { availableBalance } from './ledger.ts';
 import { DESIGN_SEED, seedClosingBalances, type DesignSeed, type SeedTransaction } from './seed.ts';
+import type { LocalDate } from './period.ts';
+import { cancelledSavings, remainingInMonth, subscriptionTotals } from './subscriptions.ts';
 import { TAG_SLUG_PATTERN } from './tags.ts';
 
 type Flow = Extract<SeedTransaction, { kind: 'expense' | 'income' }>;
@@ -295,6 +297,114 @@ describe('DESIGN_SEED goals (Section 00 card "Tujuan tabungan")', () => {
       ['Perpanjang STNK', 850_000n, '2027-02'],
     ]);
     for (const goal of DESIGN_SEED.goals) expect(goal.tag).toMatch(TAG_SLUG_PATTERN);
+  });
+});
+
+describe('DESIGN_SEED subscriptions (Section 07 "Langganan", 15 Okt)', () => {
+  const { subscriptions } = DESIGN_SEED;
+  const active = subscriptions.filter((subscription) => subscription.state.status === 'active');
+  const today = '2026-10-15' as LocalDate;
+
+  it('golden: 7 active Rp904.900/bulan, Rp11.520.000/tahun (≈), 1 paused, 3 cancelled', () => {
+    expect(active.map((subscription) => subscription.name)).toEqual([
+      'Netflix',
+      'Spotify',
+      'YouTube Premium',
+      'ChatGPT',
+      'Fit Hub',
+      'iCloud+',
+      'Niagahoster',
+    ]);
+    expect(subscriptionTotals(active)).toEqual({
+      monthlyMinor: 904_900n,
+      yearlyMinor: 11_519_700n,
+      approxYearlyMinor: 11_520_000n,
+    });
+    expect(subscriptions.filter((subscription) => subscription.state.status === 'paused')).toHaveLength(1);
+    expect(subscriptions.filter((subscription) => subscription.state.status === 'cancelled')).toHaveLength(3);
+  });
+
+  it('golden: Oktober still to pay Rp660.900 in 4 bills, 18–28 Okt (iCloud+ 9 Okt is overdue, not counted)', () => {
+    const bills = active.map((subscription) => ({
+      dueDate: subscription.nextBillingDate as LocalDate,
+      amountMinor: subscription.priceMinor,
+      status: subscription.nextBillingDate < today ? ('unconfirmed' as const) : ('scheduled' as const),
+    }));
+    expect(remainingInMonth(bills, today)).toEqual({
+      totalMinor: 660_900n,
+      count: 4,
+      firstDue: '2026-10-18',
+      lastDue: '2026-10-28',
+    });
+  });
+
+  it('golden: the cancelled ones saved Rp1.195.000 so far', () => {
+    const cancelled = subscriptions.flatMap((subscription) =>
+      subscription.state.status === 'cancelled'
+        ? [
+            {
+              priceMinor: subscription.priceMinor,
+              cycle: subscription.cycle,
+              endsOn: subscription.state.endsOn as LocalDate,
+            },
+          ]
+        : [],
+    );
+    expect(cancelledSavings(cancelled, today).totalMinor).toBe(1_195_000n);
+  });
+
+  it('golden: Netflix Rp186.000 on the 18th from BCA with an H-1 reminder; earlier bills paid by seed transactions', () => {
+    expect(subscriptions[0]).toMatchObject({
+      name: 'Netflix',
+      priceMinor: 186_000n,
+      nextBillingDate: '2026-10-18',
+      accountKey: 'bca',
+      remindDaysBefore: 1,
+    });
+    const everything = [...DESIGN_SEED.septemberTransactions, ...DESIGN_SEED.transactions];
+    for (const { name, priceMinor, paid } of subscriptions) {
+      for (const bill of paid) {
+        expect(
+          everything.filter(
+            (row) =>
+              row.kind === 'expense' &&
+              row.occurredAt === bill.occurredAt &&
+              row.merchant === name &&
+              row.amountMinor === priceMinor,
+          ),
+        ).toHaveLength(1);
+      }
+    }
+  });
+});
+
+describe('DESIGN_SEED recurrences (Section 00 "Setoran rutin & investasi")', () => {
+  it('golden: 1st Kantong darurat 500.000 + Gotrade 6.000.000, 14th Bibit 3.000.000, 25th Sisihkan 1.150.000', () => {
+    expect(
+      DESIGN_SEED.recurrences.map((recurrence) => [recurrence.monthDay, recurrence.toAccountKey, recurrence.sentMinor]),
+    ).toEqual([
+      [1, 'jago', 500_000n],
+      [1, 'gotrade', 6_000_000n],
+      [14, 'bibit', 3_000_000n],
+      [25, 'jago', 1_150_000n],
+    ]);
+    const [, , , sisihkan] = DESIGN_SEED.recurrences;
+    expect(sisihkan?.allocations.reduce((sum, allocation) => sum + allocation.amountMinor, 0n)).toBe(1_150_000n);
+    const goals = new Set(DESIGN_SEED.goals.map((goal) => goal.name));
+    for (const allocation of sisihkan?.allocations ?? []) expect(goals.has(allocation.goal)).toBe(true);
+  });
+
+  it('points every paid occurrence at the seed transfer that paid it', () => {
+    const everything = [...DESIGN_SEED.septemberTransactions, ...DESIGN_SEED.transactions];
+    for (const recurrence of DESIGN_SEED.recurrences) {
+      for (const bill of recurrence.paid) {
+        const transfer = everything.find((row) => row.kind === 'transfer' && row.occurredAt === bill.occurredAt);
+        expect(transfer).toMatchObject({
+          fromAccountKey: recurrence.fromAccountKey,
+          toAccountKey: recurrence.toAccountKey,
+        });
+      }
+    }
   });
 });
 

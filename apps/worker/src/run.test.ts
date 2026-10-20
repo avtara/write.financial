@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { EventEmitter } from 'node:events';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createKeyFile } from '@wf/crypto/keyring';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureLog, fakeBroker, type FakeBroker, type LogCapture } from '../test/fakes.ts';
 import { heartbeatKey } from './heartbeat.ts';
 import type { ConnectOptions } from './platform.ts';
 import type { Broker } from './runtime.ts';
 import { run, SHUTDOWN_TIMEOUT_MS, type RunDeps } from './run.ts';
+
+const KEK_FILE = path.join(mkdtempSync(path.join(tmpdir(), 'wf-worker-')), 'kek');
+await createKeyFile(KEK_FILE);
 
 const ENV = {
   PUBLIC_URL: 'http://localhost:3000',
@@ -17,10 +24,23 @@ const ENV = {
   S3_ENDPOINT: 'http://127.0.0.1:8333',
   S3_ACCESS_KEY_ID: 'access',
   S3_SECRET_ACCESS_KEY: 'secret',
-  KEK_FILE: '/nonexistent/kek',
+  KEK_FILE,
   AUTH_SECRET: 'a'.repeat(32),
   LOG_LEVEL: 'info',
 };
+
+const QUEUES = [
+  'maintenance',
+  'fx',
+  'dispatch',
+  'occurrences',
+  'reminders',
+  'budget-alerts',
+  'balance-checks',
+  'period-close',
+  'notify',
+  'detect-recurring',
+];
 
 const KEY = heartbeatKey('host-1');
 
@@ -112,13 +132,23 @@ describe('worker', () => {
     signals.emit(signal);
     expect(await exit).toBe(0);
     expect(log.messages()).toEqual([
-      ...Array<string>(3).fill('job scheduler registered'),
+      ...Array<string>(4).fill('job scheduler registered'),
       'worker started',
       'shutting down',
       'worker stopped',
     ]);
-    expect(log.lines[4]).toMatchObject({ signal });
-    expect(broker.closed).toEqual(['worker:maintenance', 'worker:fx', 'queue:maintenance', 'queue:fx', 'broker']);
+    expect(log.lines[5]).toMatchObject({ signal });
+    expect(broker.closed).toEqual([
+      ...QUEUES.map((queue) => `worker:${queue}`),
+      ...QUEUES.map((queue) => `queue:${queue}`),
+      'broker',
+    ]);
+  });
+
+  it('exits 1 before connecting when the key file cannot be read', async () => {
+    expect(await run([], { ...ENV, KEK_FILE: '/nonexistent/kek' }, deps())).toBe(1);
+    expect(log.lines.at(-1)).toMatchObject({ level: 60, msg: 'cannot load the key file' });
+    expect(connections).toEqual([]);
   });
 
   it('logs Redis connection errors', async () => {
@@ -154,7 +184,7 @@ describe('worker', () => {
     };
     const exit = run([], ENV, deps({}, unreachable));
     await vi.waitFor(() => {
-      expect(broker.queues.size).toBe(2);
+      expect(broker.queues.size).toBe(QUEUES.length);
     });
     signals.emit('SIGINT');
     expect(await exit).toBe(1);
@@ -207,7 +237,7 @@ describe('worker', () => {
     expect(await exit).toBe(1);
     expect(log.messages().slice(-2)).toEqual(['shutdown failed', 'shutdown did not finish cleanly']);
     expect(log.lines.at(-1)).toMatchObject({ reason: 'failed' });
-    expect(broker.closed).toEqual(['queue:maintenance', 'queue:fx', 'broker']);
+    expect(broker.closed).toEqual([...QUEUES.map((queue) => `queue:${queue}`), 'broker']);
   });
 
   it('defaults to the host name, the wall clock, and the standard heartbeat', async () => {

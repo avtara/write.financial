@@ -2,10 +2,11 @@
 /** In-memory stand-ins for the worker's ports (Redis, BullMQ, the database, the log). */
 import type { BuiltInRateInput } from '@wf/db/fx-rates';
 import type { AuthPurgeCounts } from '@wf/db/maintenance';
+import type { MailMessage, Mailer } from '@wf/integrations/mailer';
 import type { JobQueue } from '@wf/jobs/queues';
 import type { DestinationStream } from 'pino';
 import type { HeartbeatStore } from '../src/heartbeat.ts';
-import type { Processor, ProcessorJob } from '../src/processors.ts';
+import type { Processor, ProcessorDeps, ProcessorJob } from '../src/processors.ts';
 import type { Broker } from '../src/runtime.ts';
 import type { WorkerDb } from '../src/worker-db.ts';
 
@@ -40,6 +41,8 @@ export function fakeStore(): FakeStore {
 
 export interface FakeQueue {
   readonly schedulers: Map<string, { repeat: object; template: object }>;
+  /** Jobs added by id, as BullMQ keeps them: adding an existing id again is ignored. */
+  readonly jobs: Map<string, { name: string; data: object }>;
   readonly onError: (error: Error) => void;
   closed: boolean;
 }
@@ -84,12 +87,16 @@ export function fakeBroker(nextRun: NextRun = NEXT_RUN): FakeBroker {
     workers,
     closed,
     createQueue: (name, onError) => {
-      const queue: FakeQueue = { schedulers: new Map(), onError, closed: false };
+      const queue: FakeQueue = { schedulers: new Map(), jobs: new Map(), onError, closed: false };
       queues.set(name, queue);
       return {
         upsertJobScheduler: async (id, repeat, template) => {
           queue.schedulers.set(id, { repeat, template });
           return Promise.resolve(nextRun);
+        },
+        add: async (jobName, data, { jobId }) => {
+          if (!queue.jobs.has(jobId)) queue.jobs.set(jobId, { name: jobName, data });
+          return Promise.resolve();
         },
         close: async () => {
           queue.closed = true;
@@ -134,6 +141,8 @@ export interface FakeDb extends WorkerDb {
   readonly purgeCalls: Date[];
   /** Every batch passed to `fxRates.upsertGlobal`. */
   readonly fxUpserts: (readonly BuiltInRateInput[])[];
+  /** Calls of the M3 repositories, `repository.method` with the arguments, in order. */
+  readonly calls: { readonly method: string; readonly args: readonly unknown[] }[];
 }
 
 export function fakeDb(
@@ -142,14 +151,24 @@ export function fakeDb(
 ): FakeDb {
   const purgeCalls: Date[] = [];
   const fxUpserts: (readonly BuiltInRateInput[])[] = [];
+  const calls: { method: string; args: readonly unknown[] }[] = [];
+  /** A repository method that records its call and resolves to `result`. */
+  const method =
+    <R>(name: string, result: R) =>
+    async (...args: unknown[]): Promise<R> => {
+      calls.push({ method: name, args });
+      return Promise.resolve(result);
+    };
   return {
     purgeCalls,
     fxUpserts,
+    calls,
     maintenance: {
       purgeExpiredAuth: async (now) => {
         purgeCalls.push(now);
         return Promise.resolve(counts);
       },
+      purgeNotifications: method('maintenance.purgeNotifications', 5),
     },
     fxRates: {
       currenciesInUse: async () => Promise.resolve([...currenciesInUse]),
@@ -158,6 +177,71 @@ export function fakeDb(
         return Promise.resolve(rows.length);
       },
     },
+    dispatch: {
+      users: method('dispatch.users', []),
+      dueReminders: method('dispatch.dueReminders', []),
+      pendingOutbox: method('dispatch.pendingOutbox', []),
+    },
+    occurrences: {
+      advance: method('occurrences.advance', { materialized: 3, due: 1, overdue: 0, notifications: 1 }),
+      remind: method('occurrences.remind', { reminded: true, emailed: true }),
+    },
+    periods: { lock: method('periods.lock', { locked: true }) },
+    periodClose: {
+      endedPeriods: method('periodClose.endedPeriods', []),
+      propose: method('periodClose.propose', { rollovers: 1, leftover: true, created: 2 }),
+    },
+    budgetAlerts: { check: method('budgetAlerts.check', { created: 2 }) },
+    balanceChecks: { check: method('balanceChecks.check', { lowBalance: 1, unchecked: 0, insufficient: 0 }) },
+    detectRecurring: { detect: method('detectRecurring.detect', { created: 1, updated: 0 }) },
+    outbox: {
+      get: method('outbox.get', null),
+      markSent: method('outbox.markSent', true),
+      markFailed: method('outbox.markFailed', undefined),
+    },
+  };
+}
+
+export interface FakeMailer extends Mailer {
+  /** Every message sent, in order. */
+  readonly sent: MailMessage[];
+}
+
+/** A mailer that keeps every message (or fails with `failure`). */
+export function fakeMailer(failure?: Error): FakeMailer {
+  const sent: MailMessage[] = [];
+  return {
+    sent,
+    configured: true,
+    send: async (message) => {
+      if (failure !== undefined) throw failure;
+      sent.push(message);
+      return Promise.resolve();
+    },
+    close: () => undefined,
+  };
+}
+
+export interface FakeDeps extends ProcessorDeps {
+  readonly db: FakeDb;
+  readonly mailer: FakeMailer;
+  /** Every `enqueue` call. */
+  readonly enqueued: { readonly queue: JobQueue; readonly payload: object; readonly jobId: string }[];
+}
+
+export function fakeDeps(overrides: Partial<ProcessorDeps> = {}, now = new Date('2026-10-18T02:00:00Z')): FakeDeps {
+  const enqueued: { queue: JobQueue; payload: object; jobId: string }[] = [];
+  return {
+    db: fakeDb(),
+    now: () => now,
+    mailer: fakeMailer(),
+    publicUrl: 'https://uang.example/',
+    enqueue: async (queue, payload, { jobId }) => {
+      enqueued.push({ queue, payload, jobId });
+      return Promise.resolve();
+    },
+    enqueued,
+    ...(overrides as Partial<FakeDeps>),
   };
 }
 

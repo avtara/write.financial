@@ -101,7 +101,7 @@ describe('M2 exit on the design seed', () => {
     expect(pct(status.totals.usedBps)).toBe('94%');
     expect(status.close.leftoverMinor).toBe(1_150_000n);
 
-    const categories = await asApp(() => createCategories(test.db).list(userId));
+    const categories = await asApp(() => createCategories(test.db, { getDek }).list(userId));
     const food = categories.find((category) => category.builtInKey === 'system:food')?.id as string;
     const [account] = (await test.query<{ id: string }>(`SELECT id FROM accounts ORDER BY sort_order LIMIT 1`)) as [
       { id: string },

@@ -263,14 +263,17 @@ const OUTFLOW = bigintSql(
 );
 const LIVE_POSTINGS = and(eq(transactions.id, postings.transactionId), isNull(transactions.deletedAt));
 
-interface Views {
+export interface Views {
   readonly baseCurrency: string;
   readonly views: AccountView[];
   readonly missing: ReadonlySet<string>;
 }
 
-/** Accounts matching `where` with balances (one aggregate query) and their base-currency values. */
-async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<Views> {
+/**
+ * Accounts matching `where` with balances (one aggregate query) and their base-currency values. Read-only, so the
+ * worker's balance checks (`balance-checks.ts`) share it.
+ */
+export async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<Views> {
   const posted = tx
     .select({
       accountId: postings.accountId,

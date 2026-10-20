@@ -6,11 +6,12 @@ import { createLogger } from './logger.ts';
 import { registerSchedules, SCHEDULES } from './schedules.ts';
 
 describe('SCHEDULES', () => {
-  it('runs maintenance daily at 03:30 and FX at 17:00 with a 08:00 retry, Jakarta time (WIB)', () => {
+  it('runs maintenance daily at 03:30, FX at 17:00 with a 08:00 retry (WIB), and the dispatch every minute', () => {
     expect(SCHEDULES).toEqual([
       { id: 'maintenance-daily', queue: 'maintenance', pattern: '30 3 * * *', tz: 'Asia/Jakarta', data: {} },
       { id: 'fx-daily', queue: 'fx', pattern: '0 17 * * *', tz: 'Asia/Jakarta', data: {} },
       { id: 'fx-retry', queue: 'fx', pattern: '0 8 * * *', tz: 'Asia/Jakarta', data: {} },
+      { id: 'dispatch-minute', queue: 'dispatch', pattern: '* * * * *', tz: 'Asia/Jakarta', data: {} },
     ]);
   });
 });
@@ -21,9 +22,21 @@ describe('registerSchedules', () => {
     const queues = {
       maintenance: broker.createQueue('maintenance', () => undefined),
       fx: broker.createQueue('fx', () => undefined),
+      dispatch: broker.createQueue('dispatch', () => undefined),
     };
     const log = captureLog();
-    await registerSchedules((name) => queues[name], createLogger('info', log));
+    await registerSchedules((name) => queues[name as keyof typeof queues], createLogger('info', log));
+    expect(broker.queues.get('dispatch')?.schedulers).toEqual(
+      new Map([
+        [
+          'dispatch-minute',
+          {
+            repeat: { pattern: '* * * * *', tz: 'Asia/Jakarta' },
+            template: { name: 'dispatch', data: {}, opts: DEFAULT_JOB_OPTIONS },
+          },
+        ],
+      ]),
+    );
     expect(broker.queues.get('maintenance')?.schedulers).toEqual(
       new Map([
         [
@@ -63,7 +76,12 @@ describe('registerSchedules', () => {
         nextRunAt: '2026-10-18T19:30:00.000Z',
       }),
     );
-    expect(log.lines.map((line) => line['scheduler'])).toEqual(['maintenance-daily', 'fx-daily', 'fx-retry']);
+    expect(log.lines.map((line) => line['scheduler'])).toEqual([
+      'maintenance-daily',
+      'fx-daily',
+      'fx-retry',
+      'dispatch-minute',
+    ]);
   });
 
   it('falls back to the delay when the next job carries no slot time', async () => {

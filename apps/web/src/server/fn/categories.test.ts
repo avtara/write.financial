@@ -25,7 +25,7 @@ const fake = vi.hoisted(() => {
       merge: vi.fn(() => Promise.resolve({ moved: 3 })),
       archive: vi.fn(() => Promise.resolve(view)),
       unarchive: vi.fn(() => Promise.resolve(view)),
-      remove: vi.fn(() => Promise.resolve({ uncategorized: 12 })),
+      remove: vi.fn(() => Promise.resolve({ uncategorized: 12, reviewItems: 12 })),
       reorder: vi.fn(() => Promise.resolve()),
     },
   };
@@ -73,7 +73,7 @@ describe('category writes', () => {
 
     expect(await call(deleteCategory, { context: signedIn(), data: { id: ID } })).toEqual({
       ok: true,
-      value: { uncategorized: 12 },
+      value: { uncategorized: 12, reviewItems: 12 },
     });
     expect(fake.categories.remove).toHaveBeenCalledWith(USER_ID, ID);
 

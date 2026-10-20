@@ -9,6 +9,7 @@
 import type { AlertPct } from './budget.ts';
 import type { BuiltInCategoryKey } from './categories.ts';
 import type { AccountType } from './ledger.ts';
+import type { CancelMode, SubscriptionCycle, UsageRating } from './subscriptions.ts';
 
 export interface SeedAccount {
   readonly key: string;
@@ -87,6 +88,53 @@ export interface SeedBudgetVersion {
   }[];
 }
 
+/** A bill of a seed subscription or recurrence that a seed transaction already paid (a confirmed occurrence). */
+export interface SeedPaidBill {
+  readonly dueDate: string;
+  /** `occurredAt` of the seed transaction that paid it. */
+  readonly occurredAt: string;
+}
+
+/** A subscription (FR-SUB1) as of 15 Okt 2026 (design Section 07 "Langganan"). */
+export interface SeedSubscription {
+  readonly name: string;
+  readonly plan: string | null;
+  readonly icon: string;
+  readonly description: string | null;
+  readonly priceMinor: bigint;
+  readonly currency: 'IDR';
+  readonly cycle: SubscriptionCycle;
+  /** The next bill not yet paid on 15 Okt (iCloud+: 9 Okt, overdue and unconfirmed). */
+  readonly nextBillingDate: string;
+  readonly accountKey: string;
+  readonly categoryKey: BuiltInCategoryKey;
+  /** `null` = no reminder. */
+  readonly remindDaysBefore: number | null;
+  readonly startedOn: string;
+  readonly usageRating: UsageRating | null;
+  readonly state:
+    | { readonly status: 'active' }
+    | { readonly status: 'paused'; readonly pausedOn: string; readonly pausedUntil: string }
+    | { readonly status: 'cancelled'; readonly endsOn: string; readonly cancelMode: CancelMode };
+  readonly paid: readonly SeedPaidBill[];
+}
+
+/** A monthly recurring transfer (FR-T6), Section 00 "Setoran rutin & investasi". */
+export interface SeedRecurrence {
+  readonly description: string;
+  readonly fromAccountKey: string;
+  readonly toAccountKey: string;
+  readonly sentMinor: bigint;
+  readonly receivedMinor: bigint;
+  readonly tags: readonly string[];
+  /** Goal split shown in the Review queue ("DIBAGI KE"), by goal name. */
+  readonly allocations: readonly { readonly goal: string; readonly amountMinor: bigint }[];
+  readonly monthDay: number;
+  readonly startOn: string;
+  readonly remindOffsetDays: number;
+  readonly paid: readonly SeedPaidBill[];
+}
+
 export interface DesignSeed {
   readonly baseCurrency: 'IDR';
   readonly timezone: 'Asia/Jakarta';
@@ -102,6 +150,9 @@ export interface DesignSeed {
   readonly budgets: readonly SeedBudgetVersion[];
   readonly fxRates: readonly SeedFxRate[];
   readonly goals: readonly SeedGoal[];
+  /** 7 active (Rp904.900/bulan + Niagahoster Rp660.900/tahun), 1 paused, 3 cancelled. */
+  readonly subscriptions: readonly SeedSubscription[];
+  readonly recurrences: readonly SeedRecurrence[];
 }
 
 /** The balances of {@link ACCOUNTS} are as of this day; the seed opens the accounts a month earlier. */
@@ -708,6 +759,280 @@ function openedOn31August(): SeedAccount[] {
   }));
 }
 
+const ACTIVE = { status: 'active' } as const;
+
+/**
+ * Section 07 "Langganan" on 15 Okt: 7 active (Rp904.900/bulan + Niagahoster Rp660.900/tahun; remaining in Oktober
+ * Netflix, Spotify, YouTube, ChatGPT = Rp660.900), Headspace paused since 1 Sep, 3 cancelled (Rp1.195.000 saved).
+ * Earlier bills point at the September/October seed transactions that paid them; ChatGPT's history predates the seed.
+ */
+const SUBSCRIPTIONS: readonly SeedSubscription[] = [
+  {
+    name: 'Netflix',
+    plan: 'Premium 4K',
+    icon: 'tv',
+    description: null,
+    priceMinor: 186_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-10-18',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    // "Pengingat H-1 · 17 Okt" (the M3 exit reminder).
+    remindDaysBefore: 1,
+    startedOn: '2024-01-18',
+    usageRating: 'sometimes',
+    state: ACTIVE,
+    paid: [{ dueDate: '2026-09-18', occurredAt: '2026-09-18T09:00:00+07:00' }],
+  },
+  {
+    name: 'Spotify',
+    plan: 'Family',
+    icon: 'music',
+    description: '4 akun',
+    priceMinor: 86_900n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-10-20',
+    accountKey: 'gopay',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2026-06-20',
+    usageRating: 'often',
+    state: ACTIVE,
+    paid: [{ dueDate: '2026-09-20', occurredAt: '2026-09-24T09:00:00+07:00' }],
+  },
+  {
+    name: 'YouTube Premium',
+    plan: 'Individu',
+    icon: 'play',
+    description: null,
+    priceMinor: 59_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-10-22',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2026-09-22',
+    // "6 / 7 dinilai": YouTube Premium is the one still to rate.
+    usageRating: null,
+    state: ACTIVE,
+    paid: [{ dueDate: '2026-09-22', occurredAt: '2026-09-22T09:00:00+07:00' }],
+  },
+  {
+    name: 'ChatGPT',
+    plan: 'Plus',
+    icon: 'bot',
+    description: 'Akun kerja, dipakai bareng tim desain',
+    priceMinor: 329_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-10-28',
+    accountKey: 'jago',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2025-03-28',
+    usageRating: 'often',
+    state: ACTIVE,
+    paid: [],
+  },
+  {
+    name: 'Fit Hub',
+    plan: 'Gym bulanan',
+    icon: 'dumbbell',
+    description: null,
+    priceMinor: 199_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-11-03',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2025-11-03',
+    usageRating: 'sometimes',
+    state: ACTIVE,
+    paid: [
+      { dueDate: '2026-09-03', occurredAt: '2026-09-03T08:30:00+07:00' },
+      { dueDate: '2026-10-03', occurredAt: '2026-10-03T08:30:00+07:00' },
+    ],
+  },
+  {
+    name: 'iCloud+',
+    plan: '200 GB',
+    icon: 'cloud',
+    description: null,
+    priceMinor: 45_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    // "iCloud+ Rp45.000 seharusnya ditagih 9 Okt" — overdue and unconfirmed on 15 Okt.
+    nextBillingDate: '2026-10-09',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2025-01-09',
+    usageRating: 'often',
+    state: ACTIVE,
+    paid: [{ dueDate: '2026-09-09', occurredAt: '2026-09-09T09:00:00+07:00' }],
+  },
+  {
+    name: 'Niagahoster',
+    plan: 'Hosting + domain',
+    icon: 'server',
+    description: null,
+    priceMinor: 660_900n,
+    currency: 'IDR',
+    cycle: 'yearly',
+    nextBillingDate: '2027-10-05',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2024-10-05',
+    usageRating: 'often',
+    state: ACTIVE,
+    paid: [{ dueDate: '2026-10-05', occurredAt: '2026-10-05T08:00:00+07:00' }],
+  },
+  {
+    name: 'Headspace',
+    plan: 'Tahunan dibayar bulanan',
+    icon: 'brain',
+    description: null,
+    priceMinor: 70_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    // "Lanjut 1 Des 2026 · dijeda sejak 1 Sep · hemat Rp140.000 sejauh ini".
+    nextBillingDate: '2026-12-01',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2025-06-01',
+    usageRating: null,
+    state: { status: 'paused', pausedOn: '2026-09-01', pausedUntil: '2026-12-01' },
+    paid: [],
+  },
+  {
+    name: 'Canva Pro',
+    plan: 'Individu',
+    icon: 'palette',
+    description: null,
+    priceMinor: 95_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-04-01',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2024-04-01',
+    usageRating: null,
+    state: { status: 'cancelled', endsOn: '2026-03-31', cancelMode: 'now' },
+    paid: [],
+  },
+  {
+    name: 'Apple Music',
+    plan: 'Individu',
+    icon: 'music',
+    description: 'diganti Spotify',
+    priceMinor: 55_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-05-01',
+    accountKey: 'bca',
+    categoryKey: 'system:subscriptions',
+    remindDaysBefore: 3,
+    startedOn: '2024-05-01',
+    usageRating: null,
+    state: { status: 'cancelled', endsOn: '2026-04-30', cancelMode: 'now' },
+    paid: [],
+  },
+  {
+    name: 'Gojek Plus',
+    plan: 'Paket hemat',
+    icon: 'bike',
+    description: null,
+    priceMinor: 25_000n,
+    currency: 'IDR',
+    cycle: 'monthly',
+    nextBillingDate: '2026-03-01',
+    accountKey: 'gopay',
+    categoryKey: 'system:transport',
+    remindDaysBefore: 3,
+    startedOn: '2025-03-01',
+    usageRating: null,
+    state: { status: 'cancelled', endsOn: '2026-02-28', cancelMode: 'now' },
+    paid: [],
+  },
+];
+
+/**
+ * Section 00 "Setoran rutin & investasi": the monthly transfers, H-1 reminders. September and October transfers of
+ * the seed paid the earlier occurrences; "Sisihkan dana tidak rutin" (25th) splits Rp1.150.000 over three goals.
+ */
+const RECURRENCES: readonly SeedRecurrence[] = [
+  {
+    description: 'Kantong darurat',
+    fromAccountKey: 'bca',
+    toAccountKey: 'jago',
+    sentMinor: 500_000n,
+    receivedMinor: 500_000n,
+    tags: ['dana-darurat'],
+    allocations: [],
+    monthDay: 1,
+    startOn: '2026-09-01',
+    remindOffsetDays: 1,
+    paid: [
+      { dueDate: '2026-09-01', occurredAt: '2026-09-01T08:35:00+07:00' },
+      { dueDate: '2026-10-01', occurredAt: '2026-10-01T08:35:00+07:00' },
+    ],
+  },
+  {
+    description: 'DCA SPY 4.000.000 + SCHD 2.000.000',
+    fromAccountKey: 'bca',
+    toAccountKey: 'gotrade',
+    sentMinor: 6_000_000n,
+    receivedMinor: 36_697n,
+    tags: ['dp-rumah', 'dana-pensiun'],
+    allocations: [],
+    monthDay: 1,
+    startOn: '2026-09-01',
+    remindOffsetDays: 1,
+    paid: [
+      { dueDate: '2026-09-01', occurredAt: '2026-09-01T08:30:00+07:00' },
+      { dueDate: '2026-10-01', occurredAt: '2026-10-01T08:30:00+07:00' },
+    ],
+  },
+  {
+    description: 'Setor dana darurat · Bibit RDPU',
+    fromAccountKey: 'bca',
+    toAccountKey: 'bibit',
+    sentMinor: 3_000_000n,
+    receivedMinor: 3_000_000n,
+    tags: ['dana-darurat'],
+    allocations: [],
+    monthDay: 14,
+    // "sejak Okt; Sep → Jago 2.000.000".
+    startOn: '2026-10-14',
+    remindOffsetDays: 1,
+    paid: [{ dueDate: '2026-10-14', occurredAt: '2026-10-14T19:30:00+07:00' }],
+  },
+  {
+    description: 'Sisihkan dana tidak rutin',
+    fromAccountKey: 'bca',
+    toAccountKey: 'jago',
+    sentMinor: 1_150_000n,
+    receivedMinor: 1_150_000n,
+    tags: [],
+    allocations: [
+      { goal: 'Liburan Bali', amountMinor: 867_000n },
+      { goal: 'Servis motor', amountMinor: 240_000n },
+      { goal: 'Perpanjang STNK', amountMinor: 43_000n },
+    ],
+    monthDay: 25,
+    startOn: '2026-10-25',
+    remindOffsetDays: 1,
+    paid: [],
+  },
+];
+
 export const DESIGN_SEED: DesignSeed = {
   baseCurrency: 'IDR',
   timezone: 'Asia/Jakarta',
@@ -779,6 +1104,8 @@ export const DESIGN_SEED: DesignSeed = {
       tag: 'perpanjang-stnk',
     },
   ],
+  subscriptions: SUBSCRIPTIONS,
+  recurrences: RECURRENCES,
 };
 
 /**

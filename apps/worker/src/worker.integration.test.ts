@@ -7,9 +7,13 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { ValkeyContainer, type StartedValkeyContainer } from '@testcontainers/valkey';
+import { createKeyFile } from '@wf/crypto/keyring';
 import { migrate } from '@wf/db/migrate';
 import { bootstrapRoles, ROLES, type RoleName } from '@wf/db/roles';
 import { parseLocalDate } from '@wf/domain/period';
@@ -63,6 +67,8 @@ beforeAll(async () => {
   // As in deploy/dev: BullMQ needs keys never to be evicted.
   await redis.config('SET', 'maxmemory-policy', 'noeviction');
   queue = new Queue('maintenance', { connection: redis, prefix: QUEUE_PREFIX });
+  const kekFile = path.join(mkdtempSync(path.join(tmpdir(), 'wf-worker-')), 'kek');
+  await createKeyFile(kekFile);
 
   env = {
     PATH: process.env['PATH'] ?? '',
@@ -75,7 +81,7 @@ beforeAll(async () => {
     S3_ENDPOINT: 'http://127.0.0.1:8333',
     S3_ACCESS_KEY_ID: 'unused',
     S3_SECRET_ACCESS_KEY: password('s3'),
-    KEK_FILE: '/nonexistent/kek',
+    KEK_FILE: kekFile,
     AUTH_SECRET: password('auth-secret').padEnd(40, 'x'),
     LOG_LEVEL: 'info',
   };
@@ -206,6 +212,7 @@ describe('worker process', () => {
     await enqueue('maintenance', {}, { jobId: first });
     expect((await finishedJob(first)).returnvalue).toEqual({
       purged: { verifications: 1, sessions: 1, invitations: 2 },
+      notifications: 0,
     });
     expect(await superuser`SELECT identifier FROM verifications`).toEqual([{ identifier: 'v-live' }]);
     expect(await superuser`SELECT token FROM sessions`).toEqual([{ token: 's-live' }]);
@@ -220,6 +227,7 @@ describe('worker process', () => {
     await enqueue('maintenance', {}, { jobId: second });
     expect((await finishedJob(second)).returnvalue).toEqual({
       purged: { verifications: 0, sessions: 0, invitations: 0 },
+      notifications: 0,
     });
     expect(worker.logs.filter((line) => line['msg'] === 'job started' && line['jobId'] === first)).toHaveLength(1);
 
@@ -242,7 +250,7 @@ describe('worker process', () => {
       await superuser`GRANT EXECUTE ON FUNCTION wf_maintenance_purge_auth(timestamptz) TO wf_worker`;
     }
     const { returnvalue, attemptsMade } = await finishedJob('mt.retry');
-    expect(returnvalue).toEqual({ purged: { verifications: 0, sessions: 0, invitations: 0 } });
+    expect(returnvalue).toEqual({ purged: { verifications: 0, sessions: 0, invitations: 0 }, notifications: 0 });
     expect(attemptsMade).toBeGreaterThanOrEqual(3);
 
     const failures = worker.logs.filter((line) => line['msg'] === 'job failed' && line['jobId'] === 'mt.retry');
@@ -289,7 +297,10 @@ describe('worker process', () => {
     release.resolve(undefined);
     await holder;
     expect(await worker.exited).toBe(0);
-    expect((await finishedJob(id)).returnvalue).toEqual({ purged: { verifications: 1, sessions: 0, invitations: 0 } });
+    expect((await finishedJob(id)).returnvalue).toEqual({
+      purged: { verifications: 1, sessions: 0, invitations: 0 },
+      notifications: 0,
+    });
     const messages = worker.logs.map((line) => line['msg']);
     expect(messages.indexOf('job completed')).toBeLessThan(messages.indexOf('worker stopped'));
   });

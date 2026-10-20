@@ -113,7 +113,8 @@ describe('M1 ledger on PostgreSQL 18', () => {
       differenceBaseMinor: -22_660n,
     });
     const detail = await transactions.get(userId, transfer.id);
-    const fxCategory = (await createCategories(app).list(userId)).find(
+    const categories = createCategories(app, { getDek: createUserKeys(app, keyring).getOrCreateDek });
+    const fxCategory = (await categories.list(userId)).find(
       (category) => category.builtInKey === FX_DIFFERENCE_CATEGORY,
     );
     expect(detail.postings.filter((posting) => posting.role === 'fx_diff')).toMatchObject([

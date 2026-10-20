@@ -15,6 +15,7 @@ const TEMPLATES: readonly EmailTemplate[] = [
   { kind: 'new_device_sign_in', url: URL_, device: 'Firefox on Linux', at, timeZone: 'Asia/Jakarta' },
   { kind: 'invitation', url: URL_, inviterName: 'Sari', expiresAt: at, timeZone: 'Asia/Jakarta' },
   { kind: 'smtp_test', url: URL_ },
+  { kind: 'bill_reminder', url: URL_, name: 'Netflix', dueDate: '2026-10-18', amount: null },
 ];
 
 describe('renderEmail', () => {
@@ -34,6 +35,34 @@ describe('renderEmail', () => {
     const email = await renderEmail({ kind: 'smtp_test', url: 'https://wf.example/' }, id);
     expect(email.subject).toBe('Email uji dari Keuangan Keluarga');
     expect(email.text).toContain('Pengaturan SMTP Keuangan Keluarga sudah benar');
+  });
+
+  it('reminds of a bill with its amount, or without it in privacy mode', async () => {
+    const bill = {
+      kind: 'bill_reminder',
+      url: 'https://wf.example/subscriptions',
+      name: 'Netflix',
+      dueDate: '2026-10-18',
+      amount: { amountMinor: 186_000n, currency: 'IDR' },
+    } as const;
+    const email = await renderEmail(bill, id);
+    expect(email.subject).toBe('Netflix ditagih 18 Okt 2026');
+    expect(email.text).toContain('Tagihan Netflix sebesar Rp186.000 jatuh tempo 18 Okt 2026.');
+    expect(email.text).toContain('Tidak ada yang dicatat otomatis');
+    const hidden = await renderEmail({ ...bill, amount: null }, en);
+    expect(hidden.subject).toBe('Netflix due Oct 18, 2026');
+    expect(hidden.text).toContain('Your Netflix bill is due Oct 18, 2026.');
+    expect(hidden.text).not.toMatch(/Rp|186/);
+  });
+
+  it('names a schedule after its built-in category in the recipient language', async () => {
+    const bill = { kind: 'bill_reminder', url: URL_, dueDate: '2026-10-18', amount: null } as const;
+    expect((await renderEmail({ ...bill, name: 'system:bills' }, id)).subject).toBe(
+      'Tagihan & Utilitas ditagih 18 Okt 2026',
+    );
+    expect((await renderEmail({ ...bill, name: 'system:unknown' }, en)).subject).toBe(
+      'system:unknown due Oct 18, 2026',
+    );
   });
 
   it('writes the verification email in the recipient language', async () => {

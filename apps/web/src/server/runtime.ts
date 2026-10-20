@@ -20,7 +20,10 @@ import { createDrafts, type DraftsRepository } from '@wf/db/drafts';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
+import { createNotifications, type NotificationsRepository } from '@wf/db/notifications';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
+import { createReview, type ReviewRepository } from '@wf/db/review';
+import { createSchedules, type SchedulesRepository } from '@wf/db/schedules';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
 import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
 import { createTags, type TagsRepository } from '@wf/db/tags';
@@ -29,13 +32,13 @@ import { createTransactions, type TransactionsRepository } from '@wf/db/transact
 import { createUserKeys } from '@wf/db/user-keys';
 import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
+import { createInstanceMailer, instanceSmtp, sendWith } from '@wf/integrations/instance-mailer';
 import type { Mailer } from '@wf/integrations/mailer';
 import { createObjectStore, type ObjectStore } from '@wf/integrations/objectstore';
 import { Redis } from 'ioredis';
 import { pino, type Logger } from 'pino';
 import { createInstanceStore, type InstanceStore } from './instance-store.ts';
 import { createLogger } from './logger.ts';
-import { createInstanceMailer, instanceSmtp, sendWith } from './mailer.ts';
 import { createQueueBoard, type QueueBoard } from './queue-board.ts';
 
 export interface LocaleStore {
@@ -89,6 +92,10 @@ export interface Services extends BaseRuntime {
   readonly attachmentStore: ObjectStore;
   /** Uploaded account logos (FR-R1), in the avatars bucket (encrypted per user). */
   readonly logoStore: ObjectStore;
+  /** Review queue, notifications, recurrences, and subscriptions (M3), on `wf_app`. */
+  readonly review: ReviewRepository;
+  readonly notifications: NotificationsRepository;
+  readonly schedules: SchedulesRepository;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -129,7 +136,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     profiles: createProfiles(appDb),
     securityEvents: createSecurityEvents(appDb),
     accounts: createAccounts(appDb, { now }),
-    categories: createCategories(appDb),
+    categories: createCategories(appDb, { getDek }),
     tags: createTags(appDb),
     fxRates: createFxRates(appDb),
     periods: createPeriods(appDb, { now }),
@@ -140,6 +147,9 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     drafts: createDrafts(appDb, { getDek }),
     attachmentStore: createObjectStore({ s3: config.s3, bucket: 'attachments', getDek }),
     logoStore: createObjectStore({ s3: config.s3, bucket: 'avatars', getDek }),
+    review: createReview(appDb, { getDek, now }),
+    notifications: createNotifications(appDb, { now }),
+    schedules: createSchedules(appDb, { now }),
     mailer,
     sendWith,
     invite: createInviter({
