@@ -107,7 +107,11 @@ export interface Dashboard {
   readonly categories: CategorySpending[];
   /** Bucket starts of {@link CategorySpending.series}. */
   readonly buckets: LocalDate[];
-  /** Six periods up to the one containing the end of the current range, oldest first ("6 bulan terakhir"). */
+  /**
+   * Income vs expense per period, oldest first: the six up to the one containing the end of the current range
+   * ("6 bulan terakhir"), or a year's twelve ("Per bulan, Januari–Desember"; periods after today are empty).
+   * `averageSavedMinor` averages the periods that have started.
+   */
   readonly trend: { readonly periods: TrendPeriod[]; readonly averageSavedMinor: bigint };
   /** Spending calendar of the current range, newest day first, and the daily average ("rata-rata harian"). */
   readonly calendar: { readonly days: DayGroup[]; readonly averageDailySpendMinor: bigint };
@@ -274,23 +278,26 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
           };
         });
 
-        // Six periods of income vs expense.
+        // Income vs expense per period: six up to the end of the range, or the year's twelve.
         const trendEnd = current.to;
-        const trendPeriods = (await coveringIn(tx, { from: addDays(trendEnd, -6 * 31), to: trendEnd }, startDay)).slice(
-          -6,
-        );
+        const trendPeriods =
+          request.scope === 'year'
+            ? covering
+            : (await coveringIn(tx, { from: addDays(trendEnd, -6 * 31), to: trendEnd }, startDay)).slice(-6);
         const trend: TrendPeriod[] = [];
         for (const item of trendPeriods) {
-          const kpis = await kpisIn(tx, userId, { from: item.start, to: item.end });
+          const kpis =
+            item.start > today ? null : await kpisIn(tx, userId, { from: item.start, to: item.end });
           trend.push({
             label: item.label,
             start: item.start,
             end: item.end,
-            incomeMinor: kpis.incomeMinor,
-            expenseMinor: kpis.expenseMinor,
-            savedMinor: kpis.savedMinor,
+            incomeMinor: kpis?.incomeMinor ?? 0n,
+            expenseMinor: kpis?.expenseMinor ?? 0n,
+            savedMinor: kpis?.savedMinor ?? 0n,
           });
         }
+        const started = trend.filter((item) => item.start <= today);
 
         const days = await dayTotalsIn(tx, userId, current);
         const accountFlows = await tx
@@ -365,8 +372,8 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
           buckets: starts,
           trend: {
             periods: trend,
-            // Never empty: the periods covering a range always include at least one.
-            averageSavedMinor: trend.reduce((total, item) => total + item.savedMinor, 0n) / BigInt(trend.length),
+            averageSavedMinor:
+              started.reduce((total, item) => total + item.savedMinor, 0n) / BigInt(Math.max(started.length, 1)),
           },
           calendar: {
             days,
