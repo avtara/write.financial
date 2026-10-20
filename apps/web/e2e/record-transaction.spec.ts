@@ -35,6 +35,12 @@ test.beforeAll(async () => {
     await db`
       UPDATE fx_rates SET rate = '16350.0275'
       WHERE base = 'USD' AND quote = 'IDR' AND user_id = (SELECT id FROM users WHERE email = ${email})`;
+    // The `accounts` project may have moved the default quick-entry account; these tests expect BCA Tahapan.
+    const owner = db`(SELECT id FROM users WHERE email = ${email})`;
+    await db`UPDATE accounts SET is_default_quick_entry = false WHERE user_id = ${owner}`;
+    await db`
+      UPDATE accounts SET is_default_quick_entry = true
+      WHERE user_id = ${owner} AND display_name = 'BCA Tahapan' AND status = 'active'`;
   } finally {
     await db.end();
   }
