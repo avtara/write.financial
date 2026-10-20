@@ -208,7 +208,7 @@ export function Palette({ registered, close }: { registered: readonly CommandAct
                 key={page.to}
                 value={`page:${page.to}`}
                 icon={page.icon}
-                aside={<KbdHint keys={page.shortcut} platform={platform} />}
+                aside={page.shortcut === undefined ? undefined : <KbdHint keys={page.shortcut} platform={platform} />}
                 onSelect={() => {
                   openItem({ kind: 'page', ref: page.to }, (to) => to({ to: page.to }));
                 }}
