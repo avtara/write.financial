@@ -23,7 +23,11 @@ describe('WorkerDb (D14)', () => {
     const { db } = connection;
     expect(Object.keys(db)).toEqual([...WORKER_REPOSITORIES]);
     expect(Object.isFrozen(db)).toBe(true);
-    expect(Object.fromEntries(Object.entries(db).map(([key, repository]: [string, object]) => [key, Object.keys(repository)]))).toEqual({
+    expect(
+      Object.fromEntries(
+        Object.entries(db).map(([key, repository]: [string, object]) => [key, Object.keys(repository)]),
+      ),
+    ).toEqual({
       maintenance: ['purgeExpiredAuth', 'purgeNotifications'],
       // Only the built-in side of fx_rates: no manual-rate reads or writes.
       fxRates: ['currenciesInUse', 'upsertGlobal'],
