@@ -2,9 +2,11 @@
 /**
  * Loads the design persona (`DESIGN_SEED`: September 2026 closed, 1–15 Oktober 2026) into an existing user's empty
  * ledger through the repositories, as the app would: manual rates, built-in categories, accounts, 121 September and
- * 128 October transactions, the period start day, the budget, the closed September period, and goals. Used by
- * `wf-db seed --email <user>` and the exit E2Es. The result has every account's balance by seed key, to compare with
- * `seedClosingBalances`.
+ * 128 October transactions, the period start day, the budget, the closed September period, goals, and (M3) the
+ * subscriptions and recurring transfers with their earlier bills linked to the seed transactions that paid them. Used
+ * by `wf-db seed --email <user>` and the exit E2Es. The result has every account's balance by seed key, to compare
+ * with `seedClosingBalances`. {@link seedAutomation} then runs, as the worker, what the scheduled jobs would have
+ * produced by now (review items for due bills, the September close proposals).
  */
 import { randomUUID } from 'node:crypto';
 import type { Dek } from '@wf/crypto/envelope';
@@ -18,8 +20,12 @@ import { createCategories } from './categories.ts';
 import { firstRow, withUser, type Database } from './db.ts';
 import { createFxRates } from './fx-rates.ts';
 import { createGoals } from './goals.ts';
+import { recordPastChargeIn, type ScheduleSourceType } from './occurrences.ts';
+import { createOccurrenceJobs } from './occurrence-jobs.ts';
+import { createPeriodClose } from './period-close.ts';
 import { createPeriods, ensureIn } from './periods.ts';
 import { createPreferences } from './preferences.ts';
+import { createSchedules } from './schedules.ts';
 import { accounts, users } from './schema.ts';
 import { createTransactions } from './transactions.ts';
 
@@ -31,6 +37,9 @@ export interface SeedResult {
   /** Periods closed by the seed (September). */
   readonly closedPeriods: number;
   readonly goals: number;
+  /** Subscriptions in any state (7 active, 1 paused, 3 cancelled). */
+  readonly subscriptions: number;
+  readonly recurrences: number;
   /** "Saldo tersedia" after seeding (Rp55.023.000 for the design seed). */
   readonly availableMinor: bigint;
 }
@@ -76,7 +85,7 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     await fxRates.upsertManual(userId, { ...rate, asOf: parseLocalDate(rate.asOf) });
   }
 
-  const categories = createCategories(db);
+  const categories = createCategories(db, { getDek });
   await categories.ensureBuiltIns(userId);
   const categoryIds = new Map(
     (await categories.list(userId)).flatMap((category) =>
@@ -102,6 +111,8 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
   };
 
   const transactions = createTransactions(db, { getDek, now });
+  /** Transaction id by `occurredAt` and merchant (expenses) or destination account key (transfers): what bills they paid. */
+  const paidBy = new Map<string, string>();
   for (const entry of [...seed.septemberTransactions, ...seed.transactions]) {
     const common = {
       clientId: randomUUID(),
@@ -109,7 +120,7 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
       description: entry.description,
       tags: entry.tags,
     };
-    await transactions.create(
+    const { id } = await transactions.create(
       userId,
       entry.kind === 'transfer'
         ? {
@@ -129,6 +140,7 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
             merchant: entry.merchant,
           },
     );
+    paidBy.set(`${entry.occurredAt}|${entry.kind === 'transfer' ? entry.toAccountKey : entry.merchant}`, id);
   }
 
   // M2: periods start on the 1st, the budget in force since September, and September closed (FR-P3: closing makes
@@ -154,9 +166,81 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
   }
 
   const goals = createGoals(db);
+  const goalIds = new Map<string, string>();
   for (const goal of seed.goals) {
     // Fixture months are `YYYY-MM`; goals.create validates them.
-    await goals.create(userId, { ...goal, deadlineMonth: goal.deadlineMonth as YearMonth | null });
+    const created = await goals.create(userId, { ...goal, deadlineMonth: goal.deadlineMonth as YearMonth | null });
+    goalIds.set(goal.name, created.id);
+  }
+
+  // M3: subscriptions and recurring transfers. Paused and cancelled ones are created and changed on the day it
+  // happened, so their dates are the design's; earlier bills point at the seed transactions that paid them.
+  const schedules = createSchedules(db, { now });
+  const schedulesOn = (date: string) => createSchedules(db, { now: () => new Date(`${date}T12:00:00+07:00`) });
+  const linkPaid = async (
+    sourceType: ScheduleSourceType,
+    sourceId: string,
+    bill: { readonly dueDate: string; readonly occurredAt: string },
+    payee: string,
+    amountMinor: bigint,
+  ) => {
+    const transactionId = paidBy.get(`${bill.occurredAt}|${payee}`);
+    if (transactionId === undefined) throw new SeedMismatchError(`No seed transaction paid ${payee} ${bill.dueDate}`);
+    await withUser(db, userId, (tx) =>
+      recordPastChargeIn(tx, userId, {
+        sourceType,
+        sourceId,
+        dueDate: parseLocalDate(bill.dueDate),
+        transactionId,
+        amountMinor,
+        currency: seed.baseCurrency,
+      }),
+    );
+  };
+  for (const { state, paid, accountKey, categoryKey, usageRating, ...subscription } of seed.subscriptions) {
+    const changedOn = state.status === 'paused' ? state.pausedOn : state.status === 'cancelled' ? state.endsOn : null;
+    const repo = changedOn === null ? schedules : schedulesOn(changedOn);
+    const { id } = await repo.createSubscription(userId, {
+      ...subscription,
+      nextBillingDate: parseLocalDate(state.status === 'paused' ? state.pausedOn : subscription.nextBillingDate),
+      startedOn: parseLocalDate(subscription.startedOn),
+      payFromAccountId: accountOf(accountKey),
+      categoryId: categoryOf(categoryKey),
+    });
+    if (state.status === 'paused') {
+      await repo.pause(userId, id, { until: parseLocalDate(state.pausedUntil) }, { remindDaysBefore: 3 });
+    } else if (state.status === 'cancelled') {
+      await repo.cancel(userId, id, state.cancelMode);
+    }
+    if (usageRating !== null) await schedules.rateUsage(userId, id, usageRating);
+    for (const bill of paid) await linkPaid('subscription', id, bill, subscription.name, subscription.priceMinor);
+  }
+  const goalOf = (name: string) => {
+    const goalId = goalIds.get(name);
+    if (goalId === undefined) throw new SeedMismatchError(`Seed goal ${name} is missing`);
+    return goalId;
+  };
+  for (const recurrence of seed.recurrences) {
+    const { id } = await schedules.createRecurrence(userId, {
+      template: {
+        type: 'transfer',
+        fromAccountId: accountOf(recurrence.fromAccountKey),
+        toAccountId: accountOf(recurrence.toAccountKey),
+        sentMinor: recurrence.sentMinor,
+        receivedMinor: recurrence.receivedMinor,
+        description: recurrence.description,
+        tags: recurrence.tags,
+        allocations: recurrence.allocations.map(({ goal, amountMinor }) => ({ goalId: goalOf(goal), amountMinor })),
+      },
+      freq: 'monthly',
+      startOn: parseLocalDate(recurrence.startOn),
+      monthDay: recurrence.monthDay,
+      end: { type: 'never' },
+      remindOffsetDays: recurrence.remindOffsetDays,
+    });
+    for (const bill of recurrence.paid) {
+      await linkPaid('recurrence', id, bill, recurrence.toAccountKey, recurrence.sentMinor);
+    }
   }
 
   const overview = await accountRepo.list(userId);
@@ -170,6 +254,38 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     transactions: seed.septemberTransactions.length + seed.transactions.length,
     closedPeriods: seed.closedPeriods.length,
     goals: seed.goals.length,
+    subscriptions: seed.subscriptions.length,
+    recurrences: seed.recurrences.length,
     availableMinor: overview.availableMinor,
   };
+}
+
+export interface SeedAutomationResult {
+  /** Review items the jobs created (due/overdue bills, the September close proposals). */
+  readonly reviewItems: number;
+}
+
+/**
+ * What the worker's scheduled jobs would have created by `now` for a freshly seeded user: the daily occurrences job
+ * (due and overdue bills → review items; iCloud+ 9 Okt is overdue on 15 Okt) and the period-close proposals of the
+ * seed's closed periods ("pindah sisa Rp1.150.000 ke Dana Darurat"). Must run on a `wf_worker` connection, as the
+ * worker does (D14: it creates review items and notifications, never transactions or budget rows).
+ */
+export async function seedAutomation(
+  workerDb: Database,
+  userId: string,
+  options: Pick<SeedOptions, 'getDek' | 'now' | 'seed'>,
+): Promise<SeedAutomationResult> {
+  const { getDek, now = () => new Date(), seed = DESIGN_SEED } = options;
+  const advanced = await createOccurrenceJobs(workerDb, { getDek }).advance(userId, now());
+  const periodClose = createPeriodClose(workerDb, { getDek });
+  const periods = createPeriods(workerDb, { now });
+  let proposals = 0;
+  for (const closed of seed.closedPeriods) {
+    const end = parseLocalDate(closed.end);
+    const [period] = await periods.covering(userId, { from: end, to: end });
+    if (period?.id == null) throw new SeedMismatchError(`No period ${closed.start}`);
+    proposals += (await periodClose.propose(userId, period.id, now())).created;
+  }
+  return { reviewItems: advanced.due + proposals };
 }

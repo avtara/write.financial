@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Outgoing mail for the web process. SMTP comes from the instance settings when the admin configured it in the setup
- * wizard (FR-OP1), otherwise from the environment (`SMTP_URL`/`MAIL_FROM`); without either, sending throws
- * `MailNotConfiguredError`, which the auth module logs instead of failing.
+ * Outgoing mail of the web process and the worker. SMTP comes from the instance settings when the admin configured it
+ * in the setup wizard (FR-OP1), otherwise from the environment (`SMTP_URL`/`MAIL_FROM`); without either, sending throws
+ * `MailNotConfiguredError`, which each caller handles (the auth module logs it, the `notify` job records it).
  */
 import type { Config } from '@wf/config';
-import type { InstanceSettings, SmtpSettings } from '@wf/db/instance-settings';
-import { createMailer, type MailMessage, type Mailer } from '@wf/integrations/mailer';
+import { createMailer, type MailMessage, type Mailer } from './mailer.ts';
+
+/** The SMTP part of the instance settings (`@wf/db/instance-settings`), without the password. */
+export interface SmtpSettings {
+  readonly host: string;
+  readonly port: number;
+  /** Implicit TLS (usually port 465); otherwise STARTTLS. */
+  readonly secure: boolean;
+  readonly username: string | null;
+  /** Sender, `addr@example.com` or `Name <addr@example.com>`. */
+  readonly from: string;
+}
 
 /** SMTP settings plus the password, as entered in the wizard or decrypted from the instance settings. */
 export interface SmtpConnection extends SmtpSettings {
@@ -34,7 +44,7 @@ export async function sendWith(connection: SmtpConnection, message: MailMessage)
 
 /** The saved instance SMTP settings with the decrypted password, or `null` when none are saved. */
 export function instanceSmtp(store: {
-  readonly get: () => Promise<InstanceSettings>;
+  readonly get: () => Promise<{ readonly smtp: (SmtpSettings & { readonly hasPassword: boolean }) | null }>;
   readonly smtpPassword: () => Promise<string | null>;
 }): () => Promise<SmtpConnection | null> {
   return async () => {

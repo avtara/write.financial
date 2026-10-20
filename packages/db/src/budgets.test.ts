@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import type { YearMonth } from '@wf/domain/period';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ledgerFixture, type LedgerFixture } from '../test/ledger-fixture.ts';
+import { fixtureGetDek, ledgerFixture, type LedgerFixture } from '../test/ledger-fixture.ts';
 import { PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { createBudgets, type BudgetLineView, type BudgetsRepository } from './budgets.ts';
 import { createCategories } from './categories.ts';
@@ -81,7 +81,7 @@ describe('status', () => {
   it('lines with states, overrides, dismissals, groups, and attention', async () => {
     const kopi = (
       await asApp(() =>
-        createCategories(test.db).create(userId, {
+        createCategories(test.db, { getDek: fixtureGetDek }).create(userId, {
           kind: 'expense',
           group: 'wants',
           name: 'Kopi',
@@ -492,7 +492,7 @@ describe('removeLine', () => {
   it('leaves out the lines of deleted categories', async () => {
     const kopi = (
       await asApp(() =>
-        createCategories(test.db).create(userId, {
+        createCategories(test.db, { getDek: fixtureGetDek }).create(userId, {
           kind: 'expense',
           group: 'wants',
           name: 'Kopi',
@@ -510,7 +510,7 @@ describe('removeLine', () => {
         ],
       }),
     );
-    await asApp(() => createCategories(test.db).remove(userId, kopi));
+    await asApp(() => createCategories(test.db, { getDek: fixtureGetDek }).remove(userId, kopi));
     expect((await asApp(() => budgets.status(userId))).lines.map((line) => line.categoryId)).toEqual([food]);
   });
 });

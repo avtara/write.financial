@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
-import type { MailMessage } from '@wf/integrations/mailer';
-import { MailNotConfiguredError } from '@wf/integrations/mailer';
 import { SMTPServer } from 'smtp-server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createInstanceMailer, instanceSmtp, sendWith, smtpUrl, type SmtpConnection } from './mailer.ts';
-import { SETTINGS } from '../../test/fixtures.ts';
+import { createInstanceMailer, instanceSmtp, sendWith, smtpUrl, type SmtpConnection } from './instance-mailer.ts';
+import { MailNotConfiguredError, type MailMessage } from './mailer.ts';
+
+const SETTINGS = { smtp: null };
 
 const MESSAGE: MailMessage = {
   to: 'budi@example.test',

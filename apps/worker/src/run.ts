@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { hostname } from 'node:os';
 import { loadConfig, type Config } from '@wf/config';
+import { loadKeyring, type Keyring } from '@wf/crypto/keyring';
+import { createInstanceMailer, sendWith } from '@wf/integrations/instance-mailer';
 import type { DestinationStream } from 'pino';
 import { HEARTBEAT, heartbeatKey, isHealthy, type HeartbeatSettings } from './heartbeat.ts';
 import { createLogger } from './logger.ts';
@@ -84,6 +86,14 @@ async function work(
   now: () => number,
 ): Promise<number> {
   const logger = createLogger(config.log.level, deps.log);
+  // User DEKs (encrypted review items) and the instance DEK (SMTP password) are wrapped with the KEK.
+  let keyring: Keyring;
+  try {
+    keyring = await loadKeyring(config.crypto.kekFile);
+  } catch (error) {
+    logger.fatal({ err: error }, 'cannot load the key file');
+    return 1;
+  }
   const stop = Promise.withResolvers<ShutdownSignal>();
   const force = Promise.withResolvers<'forced'>();
   let stopping = false;
@@ -102,13 +112,24 @@ async function work(
       logger.error({ err: error }, 'redis connection error');
     },
   });
-  const database = openWorkerDb(config.db.workerUrl);
+  const database = openWorkerDb(config.db.workerUrl, keyring);
+  // SMTP of the setup wizard when saved (looked up per email), else SMTP_URL/MAIL_FROM.
+  const mailer = createInstanceMailer({ env: config.mail, smtp: database.smtp, send: sendWith });
   const closeConnections = async () => {
+    mailer.close();
     await Promise.allSettled([broker.close(), database.close()]);
   };
 
   // A signal while starting (e.g. Redis not reachable yet) stops the start instead of waiting for it.
-  const starting = startWorker({ broker, db: database.db, logger, now, heartbeat });
+  const starting = startWorker({
+    broker,
+    db: database.db,
+    mailer,
+    publicUrl: config.publicUrl,
+    logger,
+    now,
+    heartbeat,
+  });
   let runtime: Runtime | null;
   try {
     runtime = await Promise.race([starting, stopRequested.then(() => null)]);

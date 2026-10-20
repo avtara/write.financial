@@ -2,12 +2,14 @@
 /**
  * Transactional emails (React Email 1.0), rendered in the recipient's locale with the `@wf/i18n` catalog
  * (D26). Every email has an HTML and a plain-text part, a single call to action, and the link spelled out for
- * clients that do not render buttons. Emails never contain amounts or other financial data.
+ * clients that do not render buttons. Emails carry no financial data, except the amount of a bill reminder, and only
+ * when the recipient's privacy mode is off (the worker leaves it out of the outbox payload otherwise).
  *
  * Written with `createElement` instead of JSX so the file runs under Node's type stripping (no build step).
  */
 import { Body, Button, Container, Head, Hr, Html, Link, Preview, Section, Text, render } from '@react-email/components';
-import { formatDateTime } from '@wf/i18n/format';
+import { BUILT_IN_PREFIX } from '@wf/domain/categories';
+import { formatDate, formatDateTime, formatMoney } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { createElement as h, type ReactElement } from 'react';
@@ -34,7 +36,19 @@ export type EmailTemplate =
       readonly timeZone: string;
     }
   /** "Kirim email uji" in the setup wizard (FR-OP1): proves the SMTP settings work; links to the instance. */
-  | { readonly kind: 'smtp_test'; readonly url: string };
+  | { readonly kind: 'smtp_test'; readonly url: string }
+  /** Bill reminder of a scheduled occurrence (FR-ST3, FR-SUB6); nothing is recorded until the user confirms it. */
+  | {
+      readonly kind: 'bill_reminder';
+      /** Subscription or schedule name; a built-in category key (`system:bills`) is shown in the locale. */
+      readonly name: string;
+      /** `YYYY-MM-DD`. */
+      readonly dueDate: string;
+      /** `null` with privacy mode on. */
+      readonly amount: { readonly amountMinor: bigint; readonly currency: string } | null;
+      /** The app page to open (subscriptions, calendar). */
+      readonly url: string;
+    };
 
 export interface EmailContext {
   readonly locale: Locale;
@@ -128,7 +142,44 @@ function content(template: EmailTemplate, { locale, instanceName }: EmailContext
         action: { label: m.email_smtp_test_action({}, o), url: template.url },
         hint: m.email_smtp_test_hint({}, o),
       };
+    case 'bill_reminder': {
+      const params = {
+        name: displayName(template.name, locale),
+        date: formatDate(new Date(`${template.dueDate}T00:00:00Z`), locale),
+      };
+      return {
+        subject: m.email_bill_reminder_subject(params, o),
+        paragraphs: [
+          template.amount === null
+            ? m.email_bill_reminder_body_private(params, o)
+            : m.email_bill_reminder_body(
+                {
+                  ...params,
+                  amount: formatMoney(template.amount.amountMinor, template.amount.currency, {
+                    locale,
+                    context: 'amount',
+                  }),
+                },
+                o,
+              ),
+          m.email_bill_reminder_note({}, o),
+        ],
+        action: { label: m.email_bill_reminder_action({}, o), url: template.url },
+        hint: m.email_bill_reminder_hint({}, o),
+      };
+    }
   }
+}
+
+/** A built-in category key (`system:bills`, a schedule named after its category) in `locale`; other names as typed. */
+function displayName(name: string, locale: Locale): string {
+  if (!name.startsWith(BUILT_IN_PREFIX)) return name;
+  const messages = m as unknown as Record<
+    string,
+    ((params: object, options: { locale: Locale }) => string) | undefined
+  >;
+  const message = messages[`category_builtin_${name.slice(BUILT_IN_PREFIX.length)}`];
+  return message === undefined ? name : message({}, { locale });
 }
 
 const BODY = { backgroundColor: '#f4f4f5', fontFamily: 'Helvetica, Arial, sans-serif', margin: 0, padding: '24px 0' };

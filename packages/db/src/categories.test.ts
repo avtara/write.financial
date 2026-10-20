@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from 'node:crypto';
+import { generateDek } from '@wf/crypto/envelope';
 import { BUILT_IN_CATEGORIES, type BuiltInCategoryKey } from '@wf/domain/categories';
 import { parseLocalDate } from '@wf/domain/period';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -9,8 +10,10 @@ import { createActivity } from './activity.ts';
 import { createCategories, type CategoriesRepository, type CategoryInput, type CategoryView } from './categories.ts';
 import { withUser } from './db.ts';
 import { builtInCategoryIn, recordTransactionIn, type TransactionDraft } from './ledger-core.ts';
+import { readReviewPayload } from './review-items.ts';
 
 const NOW = new Date('2026-10-15T10:00:00+07:00');
+const dek = generateDek();
 
 let test: TestDatabase;
 let repo: CategoriesRepository;
@@ -21,7 +24,7 @@ let jago: string;
 
 beforeAll(async () => {
   test = await startMigrated();
-  repo = createCategories(test.db);
+  repo = createCategories(test.db, { getDek: () => Promise.resolve(dek) });
 }, PGLITE_HOOK_TIMEOUT);
 
 afterAll(async () => {
@@ -287,16 +290,44 @@ describe('category menu', () => {
     const food = await builtIn(alice, 'system:food');
     const kept = await spend(food);
     await softDelete(await spend(food));
-    expect(await asApp(() => repo.remove(alice, food))).toEqual({ uncategorized: 1 });
+    expect(await asApp(() => repo.remove(alice, food))).toEqual({ uncategorized: 1, reviewItems: 1 });
     expect(await test.query('SELECT id FROM transactions WHERE category_id IS NULL AND deleted_at IS NULL')).toEqual([
       { id: kept },
     ]);
+    // FR-L7 reason 2: one pending "Perlu kategori" item per live transaction that lost its category.
+    const items = await test.query<{
+      reason: string;
+      source: string;
+      dedupe_key: string;
+      subject_transaction_id: string;
+      due: string;
+      status: string;
+      payload_enc: Uint8Array;
+    }>(
+      'SELECT reason, source, dedupe_key, subject_transaction_id, due_date::text AS due, status, payload_enc FROM review_items',
+    );
+    expect(items).toMatchObject([
+      {
+        reason: 'category_deleted',
+        source: 'system',
+        dedupe_key: `catdel.${food}.${kept}`,
+        subject_transaction_id: kept,
+        due: '2026-10-15',
+        status: 'pending',
+      },
+    ]);
+    expect(readReviewPayload(dek, alice, items[0]?.payload_enc as Uint8Array)).toEqual({
+      kind: 'category',
+      transactionId: kept,
+      previousCategoryId: food,
+      previousCategoryName: 'system:food',
+    });
     await expect(asApp(() => repo.remove(alice, food))).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
     const cardFee = (await asApp(() => repo.create(alice, input({ kind: 'fee', group: 'financial', name: 'Kartu' }))))
       .id;
     await transferWithFee(cardFee);
-    expect(await asApp(() => repo.remove(alice, cardFee))).toEqual({ uncategorized: 0 });
+    expect(await asApp(() => repo.remove(alice, cardFee))).toEqual({ uncategorized: 0, reviewItems: 0 });
     expect(await test.query("SELECT category_id FROM postings WHERE role = 'fee'")).toEqual([{ category_id: null }]);
 
     const bankFee = await builtIn(alice, 'system:bank_fee');

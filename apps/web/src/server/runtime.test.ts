@@ -53,6 +53,9 @@ describe('createServices', () => {
     expect(created.mailer.configured).toBe(true);
     expect(created.sendWith).toBeTypeOf('function');
     expect(created.invite).toBeTypeOf('function');
+    expect(created.review.confirm).toBeTypeOf('function');
+    expect(created.notifications.list).toBeTypeOf('function');
+    expect(created.schedules.listSubscriptions).toBeTypeOf('function');
   });
 
   it('logs Valkey connection errors', async () => {

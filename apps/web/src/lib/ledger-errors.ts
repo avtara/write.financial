@@ -31,6 +31,9 @@ const MESSAGES: Readonly<Record<LedgerErrorCode, () => string>> = {
   PERIOD_CLOSED: m.ledger_error_period_closed,
   INVALID_PERIOD: m.ledger_error_invalid_period,
   INVALID_BUDGET: m.ledger_error_invalid_budget,
+  INVALID_RECURRENCE: m.ledger_error_invalid_recurrence,
+  INVALID_SUBSCRIPTION: m.ledger_error_invalid_subscription,
+  REVIEW_RESOLVED: m.ledger_error_review_resolved,
 };
 
 export function ledgerErrorMessage(code: string, locale: Locale): string {

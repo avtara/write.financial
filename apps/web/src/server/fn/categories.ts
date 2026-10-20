@@ -102,16 +102,18 @@ export const unarchiveCategory = createServerFn({ method: 'POST' })
     });
   });
 
-/** FR-K2 "Hapus kategori": its transactions become uncategorized ("Perlu kategori"). */
+/** FR-K2 "Hapus kategori": its transactions become uncategorized ("Perlu kategori"), each with a Review item. */
 export const deleteCategory = createServerFn({ method: 'POST' })
   .validator(z.object({ id }))
-  .handler(async ({ context, data }): Promise<Result<{ readonly uncategorized: number }>> => {
-    const { categories, now } = await services();
-    return attempt(async () => {
-      const { user } = await requireSession(context.session, {}, now());
-      return categories.remove(user.id, data.id);
-    });
-  });
+  .handler(
+    async ({ context, data }): Promise<Result<{ readonly uncategorized: number; readonly reviewItems: number }>> => {
+      const { categories, now } = await services();
+      return attempt(async () => {
+        const { user } = await requireSession(context.session, {}, now());
+        return categories.remove(user.id, data.id);
+      });
+    },
+  );
 
 /** "Seret untuk mengubah urutan": the new order of one kind and group. */
 export const reorderCategories = createServerFn({ method: 'POST' })

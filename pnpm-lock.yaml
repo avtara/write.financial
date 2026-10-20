@@ -402,6 +402,9 @@ importers:
       '@wf/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@wf/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@wf/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
@@ -427,9 +430,6 @@ importers:
       '@testcontainers/valkey':
         specifier: ^12.2.1
         version: 12.2.1
-      '@wf/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
       postgres:
         specifier: ^3.4.9
         version: 3.4.9

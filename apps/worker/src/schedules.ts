@@ -33,6 +33,8 @@ export const SCHEDULES: readonly Schedule[] = [
   // After BI publishes its transaction rates, and a morning retry for a day the afternoon run missed (plan §6 `fx`).
   { id: 'fx-daily', queue: 'fx', pattern: '0 17 * * *', tz: 'Asia/Jakarta', data: {} },
   { id: 'fx-retry', queue: 'fx', pattern: '0 8 * * *', tz: 'Asia/Jakarta', data: {} },
+  // Per-user times (00.05, 03.00, 07.00, 09.00 local) and reminders: the dispatch enqueues them (processors/dispatch.ts).
+  { id: 'dispatch-minute', queue: 'dispatch', pattern: '* * * * *', tz: 'Asia/Jakarta', data: {} },
 ];
 
 /** Upserts every schedule in {@link SCHEDULES} on its queue and logs when it runs next. */

@@ -16,11 +16,11 @@ import { redactText } from '@wf/crypto/redact';
 import type { InstanceSettings, RegistrationMode, SetupInput } from '@wf/db/instance-settings';
 import { isTimeZone } from '@wf/db/profiles';
 import { LOCALES, type Locale } from '@wf/i18n/locale';
+import type { SmtpConnection } from '@wf/integrations/instance-mailer';
 import type { MailMessage } from '@wf/integrations/mailer';
 import * as z from 'zod';
 import { ForbiddenError } from './access.ts';
 import { parseCookies } from '../lib/preferences.ts';
-import type { SmtpConnection } from './mailer.ts';
 
 /** httpOnly cookie that carries the setup token between the wizard's requests. */
 export const SETUP_COOKIE = 'wf_setup';

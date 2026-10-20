@@ -152,9 +152,15 @@ describe('run', () => {
     await insertUser(pglite, 'Avtara@Example.test');
     const first = capture();
     expect(await run(['seed', '--email', 'avtara@example.test'], env, first)).toBe(0);
+    // The review items depend on the real clock (bills overdue by today, the September proposal).
     expect(first.logs).toEqual([
-      'Seeded 11 accounts, 249 transactions, 1 closed period, a budget, and 6 goals; available balance 55023000 (minor units).',
+      expect.stringMatching(
+        /^Seeded 11 accounts, 249 transactions, 1 closed period, a budget, 6 goals, 11 subscriptions, 4 recurring transfers, and \d+ review items; available balance 55023000 \(minor units\)\.$/,
+      ),
     ]);
+    expect(
+      await pglite.query(`SELECT count(*)::int AS n FROM review_items WHERE reason = 'period_close_proposal'`),
+    ).toEqual([{ n: 1 }]);
     const again = capture();
     expect(await run(['seed', '--email', 'avtara@example.test'], env, again)).toBe(1);
     expect(again.errors[0]).toMatch(/already has accounts/);

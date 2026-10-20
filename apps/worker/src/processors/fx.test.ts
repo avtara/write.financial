@@ -8,7 +8,7 @@ import {
   type FxRate,
 } from '@wf/integrations/fx/provider';
 import { describe, expect, it } from 'vitest';
-import { fakeDb } from '../../test/fakes.ts';
+import { fakeDb, fakeDeps } from '../../test/fakes.ts';
 import { createFxProcessor, FX_QUOTE, FxUnavailableError } from './fx.ts';
 
 const rate = (provider: FxProviderName, base: string): FxRate => ({
@@ -48,7 +48,7 @@ describe('createFxProcessor', () => {
       queries,
     );
     const fawazahmed0 = provider('fawazahmed0', () => [rate('fawazahmed0', 'THB')]);
-    const run = createFxProcessor({ db, now: () => new Date() }, [frankfurter, fawazahmed0]);
+    const run = createFxProcessor(fakeDeps({ db }), [frankfurter, fawazahmed0]);
 
     expect(await run(job)).toEqual({ written: { frankfurter: 8, fawazahmed0: 1 }, missing: ['XAU'], failures: [] });
     expect(FX_QUOTE).toBe('IDR');
@@ -72,20 +72,20 @@ describe('createFxProcessor', () => {
   it('fails without writing when no source answers, so BullMQ retries and the last rates stay', async () => {
     const db = fakeDb(undefined, []);
     const down = provider('frankfurter', () => new FxProviderError('frankfurter', 'HTTP 503'));
-    const run = createFxProcessor({ db, now: () => new Date() }, [down]);
+    const run = createFxProcessor(fakeDeps({ db }), [down]);
     await expect(run(job)).rejects.toThrow(
       new FxUnavailableError(
         'No FX reference rate available (AUD, CNY, EUR, GBP, JPY, MYR, SGD, USD): FxProviderError: frankfurter: HTTP 503',
       ),
     );
-    const silent = createFxProcessor({ db, now: () => new Date() }, [provider('open-er-api', () => [])]);
+    const silent = createFxProcessor(fakeDeps({ db }), [provider('open-er-api', () => [])]);
     await expect(silent(job)).rejects.toThrow(/: no source covers these currencies$/);
     expect(db.fxUpserts).toEqual([]);
   });
 
   it('reports partial failures of a successful run', async () => {
     const db = fakeDb(undefined, []);
-    const run = createFxProcessor({ db, now: () => new Date() }, [
+    const run = createFxProcessor(fakeDeps({ db }), [
       provider('frankfurter', () => new FxProviderError('frankfurter', 'request failed')),
       provider('open-er-api', ({ bases }) => bases.map((base) => rate('open-er-api', base))),
     ]);
@@ -97,7 +97,7 @@ describe('createFxProcessor', () => {
   });
 
   it('rejects a payload with keys', async () => {
-    const run = createFxProcessor({ db: fakeDb(), now: () => new Date() }, []);
+    const run = createFxProcessor(fakeDeps(), []);
     await expect(run({ ...job, data: { userId: 'u1' } })).rejects.toThrow();
   });
 });

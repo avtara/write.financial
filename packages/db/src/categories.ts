@@ -2,7 +2,8 @@
 /**
  * Categories (FR-K1/K2): the built-in catalog (stored with its key as the name, `system:food`), user categories,
  * and the category menu (edit, move group, merge, archive, delete). Deleting soft-deletes the row, so a deleted
- * built-in is never re-created, and its transactions land in "Perlu kategori" (uncategorized).
+ * built-in is never re-created, and its transactions land in "Perlu kategori" (uncategorized) with one
+ * `category_deleted` Review item each (FR-L7).
  */
 import {
   BUILT_IN_CATEGORIES,
@@ -13,11 +14,13 @@ import {
   type CategoryGroup,
   type CategoryKind,
 } from '@wf/domain/categories';
+import type { Dek } from '@wf/crypto/envelope';
 import { and, asc, eq, inArray, isNotNull, isNull, like, sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import { LedgerError } from './ledger-errors.ts';
+import { insertReviewItemIn } from './review-items.ts';
 import { categories, postings, transactions } from './schema.ts';
 
 export interface CategoryView {
@@ -74,10 +77,11 @@ export interface CategoriesRepository {
   /** @throws {LedgerError} `NOT_FOUND` */
   unarchive: (userId: string, id: string) => Promise<CategoryView>;
   /**
-   * FR-K2: soft-deletes the category; its transactions become uncategorized (returns how many non-deleted ones).
+   * FR-K2: soft-deletes the category; its transactions become uncategorized (returns how many non-deleted ones), and
+   * each of those gets a `category_deleted` Review item ("Perlu kategori"; returns how many were created).
    * @throws {LedgerError} `NOT_FOUND`, `CATEGORY_SYSTEM`
    */
-  remove: (userId: string, id: string) => Promise<{ readonly uncategorized: number }>;
+  remove: (userId: string, id: string) => Promise<{ readonly uncategorized: number; readonly reviewItems: number }>;
   /** New order of categories of one kind and group. @throws {LedgerError} `NOT_FOUND`, `INVALID_CATEGORY` */
   reorder: (userId: string, ids: readonly string[]) => Promise<void>;
 }
@@ -204,7 +208,10 @@ async function changeableIn(tx: Transaction, id: string): Promise<CategoryView> 
   return category;
 }
 
-export function createCategories(db: Database): CategoriesRepository {
+export function createCategories(
+  db: Database,
+  { getDek }: { getDek: (userId: string) => Promise<Dek> },
+): CategoriesRepository {
   return {
     list: (userId, { includeArchived = false } = {}) =>
       withUser(db, userId, async (tx) => {
@@ -307,19 +314,40 @@ export function createCategories(db: Database): CategoriesRepository {
         return viewIn(tx, id);
       }),
 
-    remove: (userId, id) =>
-      withUser(db, userId, async (tx) => {
-        await changeableIn(tx, id);
+    remove: async (userId, id) => {
+      // Fetched first: getDek opens its own transaction.
+      const dek = await getDek(userId);
+      return withUser(db, userId, async (tx) => {
+        const category = await changeableIn(tx, id);
         const cleared = await tx
           .update(transactions)
           .set({ categoryId: null })
           .where(eq(transactions.categoryId, id))
-          .returning({ deletedAt: transactions.deletedAt });
+          .returning({ id: transactions.id, localDate: transactions.localDate, deletedAt: transactions.deletedAt });
         await tx.update(postings).set({ categoryId: null }).where(eq(postings.categoryId, id));
         await tx.update(categories).set({ deletedAt: new Date() }).where(eq(categories.id, id));
         await logActivity(tx, userId, 'category', [id], 'deleted');
-        return { uncategorized: cleared.filter((row) => row.deletedAt === null).length };
-      }),
+        const live = cleared.filter((row) => row.deletedAt === null);
+        let reviewItems = 0;
+        for (const row of live) {
+          const { created } = await insertReviewItemIn(tx, userId, dek, {
+            reason: 'category_deleted',
+            source: 'system',
+            dedupeKey: `catdel.${id}.${row.id}`,
+            subjectTransactionId: row.id,
+            dueDate: row.localDate,
+            payload: {
+              kind: 'category',
+              transactionId: row.id,
+              previousCategoryId: id,
+              previousCategoryName: category.name,
+            },
+          });
+          reviewItems += Number(created);
+        }
+        return { uncategorized: live.length, reviewItems };
+      });
+    },
 
     reorder: (userId, ids) =>
       withUser(db, userId, async (tx) => {

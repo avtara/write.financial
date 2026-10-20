@@ -35,7 +35,19 @@
     "./testing": "./test/pglite.ts",
     "./periods": "./src/periods.ts",
     "./budgets": "./src/budgets.ts",
-    "./dashboard": "./src/dashboard.ts"
+    "./dashboard": "./src/dashboard.ts",
+    "./review-items": "./src/review-items.ts",
+    "./review": "./src/review.ts",
+    "./notifications": "./src/notifications.ts",
+    "./occurrences": "./src/occurrences.ts",
+    "./schedules": "./src/schedules.ts",
+    "./dispatch": "./src/dispatch.ts",
+    "./outbox": "./src/outbox.ts",
+    "./occurrence-jobs": "./src/occurrence-jobs.ts",
+    "./period-close": "./src/period-close.ts",
+    "./budget-alerts": "./src/budget-alerts.ts",
+    "./balance-checks": "./src/balance-checks.ts",
+    "./detect-recurring": "./src/detect-recurring.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

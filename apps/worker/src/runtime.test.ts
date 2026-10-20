@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { captureLog, fakeBroker, fakeDb, type FakeBroker, type LogCapture } from '../test/fakes.ts';
+import { JOBS } from '@wf/jobs/queues';
+import { captureLog, fakeBroker, fakeDb, fakeMailer, type FakeBroker, type LogCapture } from '../test/fakes.ts';
 import { heartbeatKey } from './heartbeat.ts';
 import { createLogger } from './logger.ts';
 import { startWorker, type Runtime } from './runtime.ts';
@@ -26,6 +27,8 @@ const start = (db: WorkerDb = fakeDb()): Promise<Runtime> =>
   startWorker({
     broker,
     db,
+    mailer: fakeMailer(),
+    publicUrl: 'https://uang.example/',
     logger: createLogger('info', log),
     now: Date.now,
     heartbeat: { key: KEY, intervalMs: 1_000, maxAgeMs: 4_000 },
@@ -34,19 +37,32 @@ const start = (db: WorkerDb = fakeDb()): Promise<Runtime> =>
 describe('startWorker', () => {
   it('registers the schedules, starts one worker per queue, and writes the heartbeat', async () => {
     const runtime = await start();
-    expect([...broker.queues.keys()]).toEqual(['maintenance', 'fx']);
+    expect([...broker.queues.keys()]).toEqual(Object.keys(JOBS));
     expect([...(broker.queues.get('maintenance')?.schedulers.keys() ?? [])]).toEqual(['maintenance-daily']);
     expect([...(broker.queues.get('fx')?.schedulers.keys() ?? [])]).toEqual(['fx-daily', 'fx-retry']);
+    expect([...(broker.queues.get('dispatch')?.schedulers.keys() ?? [])]).toEqual(['dispatch-minute']);
     expect(broker.workers.get('maintenance')?.concurrency).toBe(1);
     expect(broker.workers.get('fx')?.concurrency).toBe(1);
     expect(broker.store.entries.get(KEY)?.value).toBe(String(NOW));
-    expect(log.messages()).toEqual([
-      'job scheduler registered',
-      'job scheduler registered',
-      'job scheduler registered',
-      'worker started',
-    ]);
-    expect(log.lines[3]).toMatchObject({ queues: ['maintenance', 'fx'] });
+    expect(log.messages()).toEqual([...Array<string>(4).fill('job scheduler registered'), 'worker started']);
+    expect(log.lines[4]).toMatchObject({ queues: Object.keys(JOBS) });
+    await runtime.stop();
+  });
+
+  it('gives processors an enqueue over the runtime queues (the dispatch adds follow-up jobs)', async () => {
+    const USER = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c7d';
+    const db = fakeDb();
+    const runtime = await start({
+      ...db,
+      dispatch: { ...db.dispatch, users: () => Promise.resolve([{ userId: USER, timeZone: 'Asia/Jakarta' }]) },
+    });
+    // 03.30 WIB on 19 Oct: the jobs from 00.05 and 03.00 are due, keyed by the local date.
+    await broker.workers.get('dispatch')?.run({ id: 'd1', data: {}, attemptsMade: 0 });
+    expect([...(broker.queues.get('occurrences')?.jobs.keys() ?? [])]).toEqual([`occ.${USER}.2026-10-19`]);
+    expect(broker.queues.get('occurrences')?.jobs.get(`occ.${USER}.2026-10-19`)).toEqual({
+      name: 'occurrences',
+      data: { userId: USER },
+    });
     await runtime.stop();
   });
 
@@ -54,7 +70,7 @@ describe('startWorker', () => {
     const db = fakeDb({ verifications: 1, sessions: 0, invitations: 0 });
     const runtime = await start(db);
     const result = await broker.workers.get('maintenance')?.run({ id: 'mt.2026-10-19', data: {}, attemptsMade: 2 });
-    expect(result).toEqual({ purged: { verifications: 1, sessions: 0, invitations: 0 } });
+    expect(result).toEqual({ purged: { verifications: 1, sessions: 0, invitations: 0 }, notifications: 5 });
     expect(db.purgeCalls).toEqual([new Date(NOW)]);
     const context = { queue: 'maintenance', jobId: 'mt.2026-10-19', attempt: 3 };
     expect(log.lines.slice(-2)).toEqual([
@@ -65,9 +81,10 @@ describe('startWorker', () => {
   });
 
   it('logs a failed attempt and rethrows so BullMQ schedules the retry', async () => {
+    const db = fakeDb();
     const runtime = await start({
-      ...fakeDb(),
-      maintenance: { purgeExpiredAuth: () => Promise.reject(new Error('permission denied')) },
+      ...db,
+      maintenance: { ...db.maintenance, purgeExpiredAuth: () => Promise.reject(new Error('permission denied')) },
     });
     await expect(broker.workers.get('maintenance')?.run({ id: 'j1', data: {}, attemptsMade: 0 })).rejects.toThrow(
       'permission denied',
@@ -114,18 +131,24 @@ describe('startWorker', () => {
 describe('stop', () => {
   it('waits for the running job, then removes the heartbeat, then closes the queues', async () => {
     const purge = Promise.withResolvers<{ verifications: number; sessions: number; invitations: number }>();
-    const runtime = await start({ ...fakeDb(), maintenance: { purgeExpiredAuth: () => purge.promise } });
+    const db = fakeDb();
+    const runtime = await start({ ...db, maintenance: { ...db.maintenance, purgeExpiredAuth: () => purge.promise } });
     const job = broker.workers.get('maintenance')?.run({ id: 'j1', data: {}, attemptsMade: 0 });
     const stopping = runtime.stop();
     await vi.advanceTimersByTimeAsync(10);
-    // The idle fx worker closes at once; the maintenance worker waits for its job, and no queue closes before both.
-    expect(broker.closed).toEqual(['worker:fx']);
+    const others = Object.keys(JOBS).filter((queue) => queue !== 'maintenance');
+    // The idle workers close at once; the maintenance worker waits for its job, and no queue closes before all.
+    expect(broker.closed).toEqual(others.map((queue) => `worker:${queue}`));
     expect(broker.store.entries.has(KEY)).toBe(true);
 
     purge.resolve({ verifications: 0, sessions: 0, invitations: 0 });
     await stopping;
-    await expect(job).resolves.toEqual({ purged: { verifications: 0, sessions: 0, invitations: 0 } });
-    expect(broker.closed).toEqual(['worker:fx', 'worker:maintenance', 'queue:maintenance', 'queue:fx']);
+    await expect(job).resolves.toEqual({ purged: { verifications: 0, sessions: 0, invitations: 0 }, notifications: 5 });
+    expect(broker.closed).toEqual([
+      ...others.map((queue) => `worker:${queue}`),
+      'worker:maintenance',
+      ...Object.keys(JOBS).map((queue) => `queue:${queue}`),
+    ]);
     expect(broker.store.entries.has(KEY)).toBe(false);
   });
 });

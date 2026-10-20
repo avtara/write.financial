@@ -462,6 +462,12 @@
   "device_signed_in": "Signed in {time}",
   "device_this": "This device",
   "device_unknown": "Unknown device",
+  "email_bill_reminder_action": "View bill",
+  "email_bill_reminder_body": "Your {name} bill of {amount} is due {date}.",
+  "email_bill_reminder_body_private": "Your {name} bill is due {date}.",
+  "email_bill_reminder_hint": "You get this email because bill reminders are on. Turn emails off in Settings › Notifications.",
+  "email_bill_reminder_note": "Nothing is recorded automatically: once paid, confirm it in Needs review.",
+  "email_bill_reminder_subject": "{name} due {date}",
   "email_device_unknown": "unknown device",
   "email_footer": "This email was sent by {instance}.",
   "email_greeting": "Hi {name},",
@@ -673,10 +679,13 @@
   "ledger_error_invalid_goal": "Check the savings goal details.",
   "ledger_error_invalid_period": "Check the period settings.",
   "ledger_error_invalid_rate": "The exchange rate must be a positive number with at most 8 decimal places.",
+  "ledger_error_invalid_recurrence": "Check the repeat schedule.",
+  "ledger_error_invalid_subscription": "Check the subscription details.",
   "ledger_error_invalid_tag": "Tags can only contain letters, numbers, and hyphens.",
   "ledger_error_invalid_transaction": "Check the transaction details.",
   "ledger_error_not_found": "This item no longer exists. Reload the page.",
   "ledger_error_period_closed": "This period is closed and read-only.",
+  "ledger_error_review_resolved": "This item was already confirmed or ignored.",
   "ledger_error_split_mismatch": "The parts must add up to the transaction total.",
   "ledger_error_too_many_cards": "At most 3 accounts can be shown as cards.",
   "ledger_error_too_many_tags": "At most 5 tags per transaction.",
@@ -688,6 +697,73 @@
   "not_found_description": "The address may be wrong, or the page no longer exists.",
   "not_found_home": "Go home",
   "not_found_title": "Page not found",
+  "notification_account_unchecked_body": "Last checked {checkedOn}. Compare the balance with your bank app.",
+  "notification_account_unchecked_never_body": "Not checked since it was created on {checkedOn}. Compare the balance with your bank app.",
+  "notification_account_unchecked_title": "{account} not checked",
+  "notification_bill_overdue_body": "Due {dueDate} · {amount} from {account}. Already paid?",
+  "notification_bill_overdue_title": "{name} not confirmed",
+  "notification_bill_reminder_body": [
+    {
+      "declarations": ["input account", "input amount", "input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "{amount} from {account} · in {days} day.",
+        "daysPlural=*": "{amount} from {account} · in {days} days."
+      }
+    }
+  ],
+  "notification_bill_reminder_title": "{name} due {dueDate}",
+  "notification_bill_reminder_today_body": "{amount} from {account} · today.",
+  "notification_budget_threshold_body": "{spent} of {limit} ({usedPct}%)",
+  "notification_budget_threshold_over_title": "{category} over limit",
+  "notification_budget_threshold_title": "{category} {usedPct}%",
+  "notification_insufficient_balance_body": [
+    {
+      "declarations": [
+        "input balance",
+        "input count",
+        "input needed",
+        "input until",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} bill of {needed} by {until}, balance {balance}. Top up or change the account.",
+        "countPlural=*": "{count} bills of {needed} by {until}, balance {balance}. Top up or change the account."
+      }
+    }
+  ],
+  "notification_insufficient_balance_title": "Not enough in {account}",
+  "notification_low_balance_body": "{balance} is below the {threshold} limit.",
+  "notification_low_balance_title": "{account} balance low",
+  "notification_pause_ending_body": "Next bill {amount}.",
+  "notification_pause_ending_title": "{name} resumes {pausedUntil}",
+  "notification_period_closed_body": [
+    {
+      "declarations": ["input leftover", "input proposals", "local proposalsPlural = proposals: plural"],
+      "selectors": ["proposalsPlural"],
+      "match": {
+        "proposalsPlural=one": "{proposals} closing proposal in Needs review · {leftover} left.",
+        "proposalsPlural=*": "{proposals} closing proposals in Needs review · {leftover} left."
+      }
+    }
+  ],
+  "notification_period_closed_title": "Period {start} – {end} closed",
+  "notification_review_due_body": "{amount} from {account} · check and confirm it in Needs review.",
+  "notification_review_due_title": "{name} is due today",
+  "notification_subscriptions_detected_body": [
+    {
+      "declarations": ["input amount", "input count", "input day", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{amount} on day {day} of the month, {count} month in a row.",
+        "countPlural=*": "{amount} on day {day} of the month, {count} months in a row."
+      }
+    }
+  ],
+  "notification_subscriptions_detected_title": "Subscription detected: {merchant}",
+  "notification_trial_ending_body": "First bill {amount} on {firstBill}.",
+  "notification_trial_ending_title": "{name} trial ends {trialEndsOn}",
   "overview_empty_description": "Add your first account to get started.",
   "overview_empty_title": "No data yet",
   "overview_greeting": "Welcome",

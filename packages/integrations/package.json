@@ -9,6 +9,7 @@
     "./image": "./src/image.ts",
     "./download": "./src/download.ts",
     "./mailer": "./src/mailer.ts",
+    "./instance-mailer": "./src/instance-mailer.ts",
     "./mail-templates": "./src/mail-templates.ts",
     "./fx/provider": "./src/fx/provider.ts",
     "./fx/rates": "./src/fx/rates.ts"

@@ -34,18 +34,37 @@ export type QueueName =
   | 'account-deletion'
   | 'maintenance';
 
+/** The payload of every per-user job: the user is the only input, the rest comes from the database. */
+const userJob = z.strictObject({ userId: z.uuid() });
+
 /**
  * Payload schema per enqueueable queue. Payloads carry IDs only, never secrets or financial data (plan §6 worker
  * principles); the schemas are strict, so an unknown key is rejected rather than silently stored in Redis.
  */
 export const JOBS = {
-  /** Daily purge of expired auth rows (plan §6 `maintenance`); the work depends only on the clock. */
+  /** Daily purge of expired auth rows and of notifications older than 90 days (plan §6 `maintenance`). */
   maintenance: z.strictObject({}),
   /**
    * Built-in FX reference rates (plan §6 `fx`): scheduled 17.00 and 08.00 WIB, or "Perbarui sekarang" (FR-ST1). The
    * currencies come from the database when the job runs, so the payload is empty.
    */
   fx: z.strictObject({}),
+  /** Every minute: enqueues each user's daily jobs at their local times, the due reminders, and the pending emails. */
+  dispatch: z.strictObject({}),
+  /** Materializes the next 90 days of schedules and moves due occurrences to the Review queue (FR-L7, FR-SUB2). */
+  occurrences: userJob,
+  /** One bill reminder (notification and email) of a scheduled occurrence. */
+  reminders: z.strictObject({ userId: z.uuid(), occurrenceId: z.uuid() }),
+  /** FR-B5 threshold notifications of the current period. */
+  'budget-alerts': userJob,
+  /** Low balance, accounts not checked for 14 days, not enough money for the next bills (FR-SUB6). */
+  'balance-checks': userJob,
+  /** FR-P4: locks ended periods and proposes the rollover and leftover moves in the Review queue. */
+  'period-close': userJob,
+  /** Sends one outbox row (email). */
+  notify: z.strictObject({ userId: z.uuid(), outboxId: z.uuid() }),
+  /** FR-SUB4 subscription candidates (suggestions only). */
+  'detect-recurring': userJob,
 } as const satisfies { readonly [Q in QueueName]?: z.ZodType<object> };
 
 /** Queues that have a processor. */
@@ -61,11 +80,22 @@ export type JobId<Q extends JobQueue> = string & { readonly [jobIdOf]: Q };
 /**
  * Builders for the deterministic job ids: enqueuing the same work twice yields one job. The plan writes them with `:`
  * (`mt:{date}`), but BullMQ rejects custom ids containing `:` (it separates Redis key parts), so the parts are joined
- * with `.` instead: `mt.{date}`.
+ * with `.` instead: `mt.{date}`. Per-user jobs are daily in the user's own calendar (`{date}` is the user's local
+ * date; budget alerts hourly): the minute dispatch enqueues them again and again, and the id makes that one job.
  */
 export const jobIds = {
   maintenance: (date: LocalDate) => `mt.${date}` as JobId<'maintenance'>,
   fx: (date: LocalDate) => `fx.${date}` as JobId<'fx'>,
+  /** One dispatch per UTC minute (`dsp.2026-10-18T2030`). */
+  dispatch: (at: Date) => `dsp.${at.toISOString().slice(0, 16).replace(':', '')}` as JobId<'dispatch'>,
+  occurrences: (userId: string, date: LocalDate) => `occ.${userId}.${date}` as JobId<'occurrences'>,
+  reminders: (occurrenceId: string) => `rem.${occurrenceId}` as JobId<'reminders'>,
+  'budget-alerts': (userId: string, date: LocalDate, hour: number) =>
+    `bud.${userId}.${date}.${String(hour).padStart(2, '0')}` as JobId<'budget-alerts'>,
+  'balance-checks': (userId: string, date: LocalDate) => `bal.${userId}.${date}` as JobId<'balance-checks'>,
+  'period-close': (userId: string, date: LocalDate) => `close.${userId}.${date}` as JobId<'period-close'>,
+  notify: (outboxId: string) => `ntf.${outboxId}` as JobId<'notify'>,
+  'detect-recurring': (userId: string, date: LocalDate) => `det.${userId}.${date}` as JobId<'detect-recurring'>,
 } as const satisfies { readonly [Q in JobQueue]: (...args: never[]) => JobId<Q> };
 
 /** Redis key prefix of every queue. */
@@ -75,7 +105,8 @@ const DAY_SECONDS = 24 * 60 * 60;
 
 /**
  * Options of every job: 5 attempts with exponential backoff (30 s, 1 min, 2 min, 4 min), completed jobs kept for a
- * week (so a deterministic job id still deduplicates a repeat within that time), failed jobs for 30 days.
+ * week (so a deterministic job id still deduplicates a repeat within that time), failed jobs for 30 days. Beyond the
+ * last 1000 completed jobs of a queue an id can run again; every processor is idempotent, so that only costs work.
  */
 export const DEFAULT_JOB_OPTIONS = {
   attempts: 5,

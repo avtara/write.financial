@@ -7,7 +7,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { decryptText, encrypt } from '@wf/crypto/cipher';
-import { UnknownKeyVersionError, unwrapDek } from '@wf/crypto/envelope';
+import { generateDek, UnknownKeyVersionError, unwrapDek } from '@wf/crypto/envelope';
 import { addKeyVersion, parseKeyring } from '@wf/crypto/keyring';
 import type { LocalDate, YearMonth } from '@wf/domain/period';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -21,9 +21,13 @@ import { createFxRates } from './fx-rates.ts';
 import { createInstanceSettings } from './instance-settings.ts';
 import { builtInCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { migrate } from './migrate.ts';
+import { insertNotificationIn } from './notifications.ts';
+import { materializeIn } from './occurrences.ts';
 import { createPeriods } from './periods.ts';
 import { createPreferences } from './preferences.ts';
+import { insertReviewItemIn } from './review-items.ts';
 import { bootstrapRoles, ROLES, type RoleName } from './roles.ts';
+import { createSchedules } from './schedules.ts';
 import {
   accounts,
   accountsAuth,
@@ -283,6 +287,62 @@ beforeAll(async () => {
       sources: [{ categoryId: fee, amountMinor: 50_000n }],
     });
     await budgets.dismissAlert(userId, current.id as string, food);
+    // Review queue and notifications (M3): produced by the worker (D14), as the daily jobs do.
+    await withUser(dbs.worker, userId, async (tx) => {
+      await insertReviewItemIn(tx, userId, generateDek(), {
+        reason: 'period_close_proposal',
+        source: 'period_close',
+        dedupeKey: `close.${september?.id as string}.leftover`,
+        periodId: september?.id as string,
+        payload: {
+          kind: 'leftover',
+          periodId: september?.id as string,
+          amountMinor: 1_150_000n,
+          goalId: null,
+          fromAccountId: null,
+          toAccountId: null,
+        },
+      });
+      const { id: notificationId } = await insertNotificationIn(tx, userId, {
+        type: 'period_closed',
+        category: 'system',
+        titleKey: 'notification_period_closed_title',
+        bodyKey: 'notification_period_closed_body',
+        params: { label: '2026-09' },
+        ref: `close.${september?.id as string}`,
+      });
+      await tx.execute(sql`INSERT INTO notification_outbox (user_id, notification_id, payload)
+                           VALUES (${userId}, ${notificationId}, '{}'::jsonb)`);
+    });
+    // Schedules and subscriptions (M3): the app creates them and materializes their occurrences; the worker records
+    // a detected subscription candidate (FR-SUB4).
+    const schedules = createSchedules(dbs.app, at('2026-10-15T03:00:00Z'));
+    const [bca] = await withUser(dbs.app, userId, (tx) =>
+      tx.execute<{ id: string }>(sql`SELECT id FROM accounts WHERE provider_name = 'BCA'`),
+    );
+    const bcaId = bca?.id as string;
+    await schedules.createRecurrence(userId, {
+      template: { type: 'expense', accountId: bcaId, amountMinor: 3_500_000n, categoryId: food },
+      freq: 'monthly',
+      startOn: '2026-11-01' as LocalDate,
+      end: { type: 'never' },
+      remindOffsetDays: 1,
+    });
+    await schedules.createSubscription(userId, {
+      name: 'Netflix',
+      priceMinor: 186_000n,
+      currency: 'IDR',
+      cycle: 'monthly',
+      nextBillingDate: '2026-10-18' as LocalDate,
+      payFromAccountId: bcaId,
+      categoryId: food,
+      startedOn: '2024-01-18' as LocalDate,
+    });
+    await withUser(dbs.worker, userId, (tx) =>
+      tx.execute(sql`INSERT INTO detected_recurring
+                       (user_id, merchant_key, merchant, day_of_month, amount_minor, currency, occurrences, last_seen_on, account_id)
+                     VALUES (${userId}, 'spotify', 'Spotify', 20, 86900, 'IDR', 3, '2026-09-20', ${bcaId})`),
+    );
   }
 
   owned = [
@@ -534,6 +594,59 @@ describe('ledger roles', () => {
       sql`DELETE FROM budget_alert_dismissals`,
       sql`UPDATE periods SET end_date = end_date`,
       sql`DELETE FROM periods`,
+    ]) {
+      expect(await pgErrorCode(withUser(dbs.worker, alice, (tx) => tx.execute(statement)))).toBe(
+        INSUFFICIENT_PRIVILEGE,
+      );
+    }
+  });
+
+  it('lets the worker propose review items and notify, but never resolve or delete (D14)', async () => {
+    const [row] = await withUser(dbs.worker, alice, (tx) =>
+      tx.execute(sql`SELECT (SELECT count(*) FROM review_items)::int AS items,
+                            (SELECT count(*) FROM notifications)::int AS notifications,
+                            (SELECT count(*) FROM notification_outbox)::int AS outbox`),
+    );
+    expect(row).toEqual({ items: 1, notifications: 1, outbox: 1 });
+    for (const statement of [
+      sql`UPDATE review_items SET status = 'ignored', resolved_at = now()`,
+      sql`DELETE FROM review_items`,
+      sql`UPDATE notifications SET read_at = now()`,
+      sql`DELETE FROM notifications`,
+      sql`DELETE FROM notification_outbox`,
+    ]) {
+      expect(await pgErrorCode(withUser(dbs.worker, alice, (tx) => tx.execute(statement)))).toBe(
+        INSUFFICIENT_PRIVILEGE,
+      );
+    }
+    for (const statement of [
+      sql`INSERT INTO notifications (user_id, type, category, title_key, body_key, ref)
+          VALUES (${alice}, 'system', 'system', 't', 'b', ${randomUUID()})`,
+      sql`SELECT * FROM notification_outbox`,
+      sql`UPDATE notifications SET params = '{}'::jsonb`,
+    ]) {
+      expect(await pgErrorCode(withUser(dbs.app, alice, (tx) => tx.execute(statement)))).toBe(INSUFFICIENT_PRIVILEGE);
+    }
+  });
+
+  it('lets the worker materialize occurrences but never change schedules or delete occurrences (D14)', async () => {
+    const { created } = await withUser(dbs.worker, alice, (tx) =>
+      materializeIn(tx, alice, { now: new Date('2026-10-15T03:00:00Z') }),
+    );
+    expect(created).toBe(0);
+    const [row] = await withUser(dbs.worker, alice, (tx) =>
+      tx.execute(sql`SELECT count(*)::int AS n FROM scheduled_occurrences`),
+    );
+    // Netflix 18 Okt, 18 Nov, 18 Des and the recurrence on 1 Nov, 1 Des, 1 Jan.
+    expect(row).toEqual({ n: 6 });
+    for (const statement of [
+      sql`UPDATE recurrences SET status = 'stopped', stopped_at = now()`,
+      sql`DELETE FROM recurrences`,
+      sql`UPDATE subscriptions SET price_minor = 1`,
+      sql`DELETE FROM subscriptions`,
+      sql`UPDATE scheduled_occurrences SET transaction_id = null`,
+      sql`DELETE FROM scheduled_occurrences`,
+      sql`DELETE FROM detected_recurring`,
     ]) {
       expect(await pgErrorCode(withUser(dbs.worker, alice, (tx) => tx.execute(statement)))).toBe(
         INSUFFICIENT_PRIVILEGE,

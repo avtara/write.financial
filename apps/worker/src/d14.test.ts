@@ -85,6 +85,46 @@ describe('D14: the worker cannot reach transactions, postings, budgets, goals, o
     expect(FORBIDDEN_IMPORTS.map(({ module }) => module)).toEqual(
       expect.arrayContaining(['@wf/auth', '@wf/db/transactions', '@wf/db/postings', '@wf/db/budgets', '@wf/db/goals']),
     );
-    expect(WORKER_REPOSITORIES).toEqual(['maintenance', 'fxRates']);
+    expect(WORKER_REPOSITORIES).toEqual([
+      'maintenance',
+      'fxRates',
+      'dispatch',
+      'occurrences',
+      'periods',
+      'periodClose',
+      'budgetAlerts',
+      'balanceChecks',
+      'detectRecurring',
+      'outbox',
+    ]);
+  });
+
+  // M3 exit criterion (plan §8): automation only proposes; the worker cannot even import what records or budgets.
+  it('the worker cannot import transaction or budget repositories', () => {
+    const transactionAndBudgetModules = [
+      '@wf/db/transactions',
+      '@wf/db/ledger-core',
+      '@wf/db/postings',
+      '@wf/db/budgets',
+      '@wf/db/budget-core',
+      '@wf/db/review',
+    ];
+    const forbidden = FORBIDDEN_IMPORTS.map(({ module }) => module);
+    for (const module of transactionAndBudgetModules) expect(forbidden).toContain(module);
+    const violations = d14Violations(
+      transactionAndBudgetModules.map((module, index) => ({
+        file: `processors/m3-${index}.ts`,
+        text: `import { anything } from '${module}';`,
+      })),
+    );
+    expect(violations).toHaveLength(transactionAndBudgetModules.length);
+    transactionAndBudgetModules.forEach((module, index) => {
+      expect(violations[index]).toMatch(new RegExp(`^processors/m3-${index}\\.ts imports ${module}: D14: `));
+    });
+    // The shared review-item writer is a different module: it only inserts pending proposals.
+    expect(
+      d14Violations([{ file: 'processors/ok.ts', text: `import type { X } from '@wf/db/review-items';` }]),
+    ).toEqual([]);
+    expect(d14Violations(workerSources())).toEqual([]);
   });
 });

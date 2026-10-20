@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { Mailer } from '@wf/integrations/mailer';
+import { createEnqueue, type QueuePort } from '@wf/jobs/enqueue';
 import type { JobQueue } from '@wf/jobs/queues';
 import type { Logger } from 'pino';
 import { startHeartbeat, type HeartbeatSettings, type HeartbeatStore } from './heartbeat.ts';
@@ -13,7 +15,7 @@ export interface Closable {
 /** One Redis connection with the BullMQ queues and workers on it (platform.ts). */
 export interface Broker extends Closable {
   readonly store: HeartbeatStore;
-  createQueue(name: JobQueue, onError: (error: Error) => void): SchedulerQueue & Closable;
+  createQueue(name: JobQueue, onError: (error: Error) => void): SchedulerQueue & QueuePort & Closable;
   /** Starts consuming `name`; `close()` waits for the jobs in progress. */
   createWorker(
     name: JobQueue,
@@ -25,6 +27,9 @@ export interface Broker extends Closable {
 export interface RuntimeDeps {
   readonly broker: Broker;
   readonly db: WorkerDb;
+  readonly mailer: Mailer;
+  /** `PUBLIC_URL`, for links in emails. */
+  readonly publicUrl: string;
   readonly logger: Logger;
   readonly now: () => number;
   readonly heartbeat: HeartbeatSettings & { readonly key: string };
@@ -38,19 +43,28 @@ export interface Runtime {
 const QUEUES = Object.keys(PROCESSORS) as JobQueue[];
 
 /** Registers the schedules, starts one BullMQ worker per queue, and starts the heartbeat. */
-export async function startWorker({ broker, db, logger, now, heartbeat }: RuntimeDeps): Promise<Runtime> {
+export async function startWorker({
+  broker,
+  db,
+  mailer,
+  publicUrl,
+  logger,
+  now,
+  heartbeat,
+}: RuntimeDeps): Promise<Runtime> {
   const onError = (source: string) => (error: Error) => {
     logger.error({ err: error, source }, 'queue connection error');
   };
   const queues = Object.fromEntries(QUEUES.map((name) => [name, broker.createQueue(name, onError(name))])) as Record<
     JobQueue,
-    SchedulerQueue & Closable
+    SchedulerQueue & QueuePort & Closable
   >;
   await registerSchedules((name) => queues[name], logger);
+  const enqueue = createEnqueue((name) => queues[name]);
 
   const workers = QUEUES.map((name) => {
     const { concurrency, create } = PROCESSORS[name];
-    const handle = create({ db, now: () => new Date(now()) });
+    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl });
     const run: Processor = async (job) => {
       const log = logger.child({ queue: name, jobId: job.id, attempt: job.attemptsMade + 1 });
       log.info('job started');

@@ -18,18 +18,37 @@ import { fileURLToPath } from 'node:url';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { ValkeyContainer, type StartedValkeyContainer } from '@testcontainers/valkey';
 import { loadConfig } from '@wf/config';
-import { createKeyFile } from '@wf/crypto/keyring';
+import { createKeyFile, loadKeyring } from '@wf/crypto/keyring';
 import type { AccountsOverview } from '@wf/db/accounts';
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { CategoryView } from '@wf/db/categories';
 import type { Dashboard } from '@wf/db/dashboard';
 import type { DraftView } from '@wf/db/drafts';
+import { createDb, withUser, type Database } from '@wf/db/db';
 import type { ManualRateInput } from '@wf/db/fx-rates';
 import type { RecordResult } from '@wf/db/ledger-core';
 import { migrate } from '@wf/db/migrate';
+import {
+  insertNotificationIn,
+  type NextReminder,
+  type NotificationCounts,
+  type NotificationView,
+} from '@wf/db/notifications';
+import { createOccurrenceJobs } from '@wf/db/occurrence-jobs';
+import type { ConfirmResult, ReviewCounts, ReviewItemView } from '@wf/db/review';
 import { bootstrapRoles, ROLES, type RoleName } from '@wf/db/roles';
 import type { PeriodsOverview } from '@wf/db/periods';
+import type {
+  ChangeAccountResult,
+  DetectedOverview,
+  RecurrenceView,
+  ScheduledItem,
+  SubscriptionsOverview,
+  SubscriptionView,
+} from '@wf/db/schedules';
 import type { TagView } from '@wf/db/tags';
+import { createUserKeys } from '@wf/db/user-keys';
+import { addDays } from '@wf/domain/period';
 import { pino } from 'pino';
 import postgres from 'postgres';
 import { SMTPServer } from 'smtp-server';
@@ -49,6 +68,9 @@ import * as budget from './budget.ts';
 import * as categories from './categories.ts';
 import * as gate from './gate.ts';
 import * as ledger from './ledger.ts';
+import * as notifications from './notifications.ts';
+import * as review from './review.ts';
+import * as schedules from './schedules.ts';
 import * as setup from './setup.ts';
 import * as tags from './tags.ts';
 // Named: the module also exports its input schema, which is not a server function.
@@ -102,6 +124,10 @@ const KEK_FILE = path.join(tmp, 'kek');
 let pg: StartedPostgreSqlContainer;
 let valkey: StartedValkeyContainer;
 let superuser: postgres.Sql;
+/** `wf_worker`, for the rows only the worker writes (notifications, due occurrences, review items). */
+let workerDb: Database;
+/** `wf_app`, for the users' DEKs the worker's occurrences job needs. */
+let appDb: Database;
 let services: Services;
 const smtp = new SMTPServer({
   authOptional: true,
@@ -131,6 +157,9 @@ const FUNCTIONS = {
   ...categories,
   ...gate,
   ...ledger,
+  ...notifications,
+  ...review,
+  ...schedules,
   ...setup,
   ...tags,
   recordTransaction,
@@ -193,7 +222,7 @@ const instanceRow = async () => (await superuser`SELECT * FROM instance_settings
 const count = async (table: string, where = 'true') =>
   Number((await superuser.unsafe<{ n: string }[]>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))[0]?.n);
 const currentSessionId = async (browser: SessionBrowser) => (await browser.session())?.session.id;
-/** Ids of a user's rows in the ledger tables the read functions return. */
+/** Ids of a user's rows in the ledger and M3 tables the read functions return. */
 const ledgerIds = async (userId: string) =>
   (
     await superuser<{ id: string }[]>`
@@ -205,12 +234,41 @@ const ledgerIds = async (userId: string) =>
       UNION ALL SELECT id::text FROM budget_versions WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM transactions WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM drafts WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM notifications WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM subscriptions WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM recurrences WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM scheduled_occurrences WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM review_items WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM detected_recurring WHERE user_id = ${userId}
       ORDER BY 1`
   ).map((row) => row.id);
+/** A user's notifications as stored, oldest first. */
+const notificationRows = (userId: string) =>
+  superuser<{ id: string; ref: string; read_at: Date | null }[]>`
+    SELECT id::text, ref, read_at FROM notifications WHERE user_id = ${userId} ORDER BY id`;
+/** Ids of a user's rows in `table` matching `where`, oldest first (ids are UUIDv7). */
+const idsOf = async (table: string, userId: string, where = 'true') =>
+  (
+    await superuser.unsafe<{ id: string }[]>(
+      `SELECT id::text FROM ${table} WHERE user_id = $1 AND ${where} ORDER BY id`,
+      [userId],
+    )
+  ).map((row) => row.id);
+/** A's schedules, review items, candidates, and notifications as stored; B's M3 calls must leave them unchanged. */
+const aM3Rows = async () => ({
+  subscriptions: await superuser`SELECT * FROM subscriptions WHERE user_id = ${aId} ORDER BY id`,
+  recurrences: await superuser`SELECT * FROM recurrences WHERE user_id = ${aId} ORDER BY id`,
+  occurrences: await superuser`SELECT * FROM scheduled_occurrences WHERE user_id = ${aId} ORDER BY id`,
+  reviewItems: await superuser`SELECT * FROM review_items WHERE user_id = ${aId} ORDER BY id`,
+  detected: await superuser`SELECT * FROM detected_recurring WHERE user_id = ${aId} ORDER BY id`,
+  notifications: await superuser`SELECT * FROM notifications WHERE user_id = ${aId} ORDER BY id`,
+});
+/** The first id of A's rows in `table` (they exist from the setup). */
+const firstOfA = async (table: string) => (await idsOf(table, aId))[0] ?? '';
 /** JSON for the leak scan; ledger amounts are bigints. */
 const toJson = (value: unknown) =>
   JSON.stringify(value, (_key, child: unknown) => (typeof child === 'bigint' ? child.toString() : child));
-/** A's ledger rows, all with names or texts B must never see. */
+/** A's ledger and M3 rows, all with names B must never see. */
 const A_LEDGER = {
   account: 'Rekening Rahasia A',
   category: 'Rahasia A',
@@ -218,6 +276,9 @@ const A_LEDGER = {
   transaction: 'Belanja Rahasia A',
   note: 'Catatan Rahasia A',
   draft: 'Draf Rahasia A',
+  subscription: 'Langganan Rahasia A',
+  recurrence: 'Kos Rahasia A',
+  detected: 'Toko Rahasia A',
 };
 /** Whether transaction `id` is soft-deleted. */
 const isDeleted = async (id: string) =>
@@ -247,6 +308,29 @@ const aLedgerRows = async () => ({
 });
 /** Any id: the signed-out request is refused before it is looked up. */
 const SOME_ID = '0192a6c4-0000-7000-8000-000000000000';
+/** The id of a user's subscription by name, or `''`. */
+const subscriptionOf = async (userId: string, name: string) =>
+  (await idsOf('subscriptions', userId, `name = '${name}'`))[0] ?? '';
+/** B's weekly "Arisan B" recurrence paid from `accountId`. */
+const arisan = (accountId: string, amountMinor = 50_000n) => ({
+  template: { type: 'expense', accountId, amountMinor, categoryId: null, description: 'Arisan B' },
+  freq: 'weekly',
+  startOn: '2026-11-02',
+  end: { type: 'never' },
+  remindOffsetDays: null,
+});
+const arisanOfB = async () => (await idsOf('recurrences', bId, `template->>'description' = 'Arisan B'`))[0] ?? '';
+/** B's "Spotify B" subscription paid from `accountId`, first billed (and started) on `nextBillingDate`. */
+const spotify = (accountId: string, nextBillingDate: string) => ({
+  name: 'Spotify B',
+  priceMinor: 54_990n,
+  currency: 'IDR',
+  cycle: 'monthly',
+  nextBillingDate,
+  payFromAccountId: accountId,
+  categoryId: null,
+  startedOn: nextBillingDate,
+});
 
 const smtpInput = (password?: string) => ({
   host: '127.0.0.1',
@@ -424,6 +508,67 @@ beforeAll(async () => {
     })
   ).id;
   aDraftId = (await services.drafts.save(aId, { kind: 'transaction', payload: { description: A_LEDGER.draft } })).id;
+  // M3: one notification each, written as the worker writes them; A's names an account B must never see.
+  workerDb = createDb(urlAs(ROLES.worker, ROLE_PASSWORDS.worker));
+  for (const [userId, name] of [
+    [aId, A_LEDGER.account],
+    [bId, 'Rekening B'],
+  ] as const) {
+    await withUser(workerDb, userId, (tx) =>
+      insertNotificationIn(tx, userId, {
+        type: 'low_balance',
+        category: 'budget_bills',
+        titleKey: 'notification_low_balance_title',
+        bodyKey: 'notification_low_balance_body',
+        params: { account: name },
+        action: { href: '/accounts' },
+        ref: `bal.${name}`,
+      }),
+    );
+  }
+  // M3 schedules billed today, put in review by the occurrences job (run as the worker): A has one subscription and
+  // one recurrence with secret names; B has two subscriptions and a recurrence, so the review cases have three items.
+  // Plus subscription candidates (written by the worker's detection job in production; inserted here).
+  appDb = createDb(urlAs(ROLES.app, ROLE_PASSWORDS.app));
+  const jobs = createOccurrenceJobs(workerDb, {
+    getDek: createUserKeys(appDb, await loadKeyring(KEK_FILE)).getOrCreateDek,
+  });
+  for (const [userId, subscriptionNames, recurrenceName, detected] of [
+    [aId, [A_LEDGER.subscription], A_LEDGER.recurrence, [A_LEDGER.detected]],
+    [bId, ['Langganan B', 'Langganan B2'], 'Kos B', ['Vidio B', 'Gym B']],
+  ] as const) {
+    const { today } = await services.schedules.listSubscriptions(userId);
+    const accountId = (await services.accounts.list(userId)).accounts[0]?.id ?? '';
+    for (const name of subscriptionNames) {
+      await services.schedules.createSubscription(userId, {
+        name,
+        priceMinor: 186_000n,
+        currency: 'IDR',
+        cycle: 'monthly',
+        nextBillingDate: today,
+        payFromAccountId: accountId,
+        categoryId: null,
+        remindDaysBefore: 1,
+        startedOn: today,
+      });
+    }
+    await services.schedules.createRecurrence(userId, {
+      template: { type: 'expense', accountId, amountMinor: 3_500_000n, categoryId: null, description: recurrenceName },
+      freq: 'monthly',
+      startOn: today,
+      end: { type: 'never' },
+      remindOffsetDays: 1,
+    });
+    await jobs.advance(userId, new Date());
+    for (const merchant of detected) {
+      await superuser`
+        INSERT INTO detected_recurring
+          (user_id, merchant_key, merchant, day_of_month, amount_minor, currency, occurrences, last_seen_on, account_id)
+        VALUES (${userId}, ${merchant.toLowerCase()}, ${merchant}, 5, 65900, 'IDR', 3, ${today}, ${accountId})`;
+    }
+  }
+  expect(await idsOf('review_items', aId, `status = 'pending'`)).toHaveLength(2);
+  expect(await idsOf('review_items', bId, `status = 'pending'`)).toHaveLength(3);
 
   expect(await count('users', `role = 'admin'`)).toBe(1);
   expect((await sessionIds(aId)).length).toBeGreaterThanOrEqual(2);
@@ -435,6 +580,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   smtp.close();
+  await Promise.all([workerDb.$client.end(), appDb.$client.end()]);
   await superuser.end();
   await Promise.all([pg.stop(), valkey.stop()]);
   rmSync(tmp, { recursive: true, force: true });
@@ -843,7 +989,7 @@ const MATRIX: Record<Name, Case> = {
       const a = await aLedgerRows();
       expect(await as('B', 'deleteCategory', { id: await categoryId(aId, A_LEDGER.category) })).toEqual(NOT_FOUND);
       expect(await as('B', 'deleteCategory', { id: await categoryId(bId, 'Kategori B') })).toEqual(
-        ok({ uncategorized: 0 }),
+        ok({ uncategorized: 0, reviewItems: 0 }),
       );
       expect(await categoryId(bId, 'Kategori B')).toBe('');
       expect(await aLedgerRows()).toEqual(a);
@@ -1176,6 +1322,443 @@ const MATRIX: Record<Name, Case> = {
     anonymous: () => UNAUTHENTICATED,
     asB: async (input) => {
       await notFoundForB('removeAccountLogo', input);
+    },
+  },
+  listNotifications: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      type Page = Result<{ items: NotificationView[]; nextCursor: string | null }>;
+      const ofB = await as<Page>('B', 'listNotifications', input);
+      expect(ofB.ok && ofB.value.items.map((item) => item.id).sort()).toEqual(
+        (await notificationRows(bId)).map((row) => row.id),
+      );
+      expect(ofB.ok && ofB.value.items.map((item) => item.params)).toContainEqual({ account: 'Rekening B' });
+      expect(await as('B', 'listNotifications', { search: 'Rahasia' })).toEqual(ok({ items: [], nextCursor: null }));
+      const [ofA] = await notificationRows(aId);
+      expect(await as('B', 'listNotifications', { before: ofA?.id })).toEqual(ok({ items: [], nextCursor: null }));
+      const forA = await as<Page>('A', 'listNotifications', { search: 'Rahasia' });
+      expect(forA.ok && forA.value.items.map((item) => item.params)).toContainEqual({ account: A_LEDGER.account });
+    },
+  },
+  getNotificationCounts: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const rows = (await notificationRows(bId)).length;
+      expect(rows).toBeGreaterThan(1);
+      const ofB = await as<Result<NotificationCounts>>('B', 'getNotificationCounts', input);
+      expect(ofB.ok && ofB.value).toMatchObject({ total: rows, unread: rows });
+    },
+  },
+  markNotificationsRead: {
+    input: () => ({ all: true }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await aM3Rows();
+      const ofA = (await notificationRows(aId)).map((row) => row.id);
+      expect(await as('B', 'markNotificationsRead', { ids: ofA })).toEqual(ok({ updated: 0 }));
+      const ofB = await notificationRows(bId);
+      expect(await as('B', 'markNotificationsRead', input)).toEqual(ok({ updated: ofB.length }));
+      expect((await notificationRows(bId)).every((row) => row.read_at instanceof Date)).toBe(true);
+      expect(await aM3Rows()).toEqual(a);
+      expect(a.notifications.every((row) => row.read_at === null)).toBe(true);
+    },
+  },
+  getNextReminder: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<NextReminder | null>>('B', 'getNextReminder');
+      const sourcesOfB = [...(await idsOf('subscriptions', bId)), ...(await idsOf('recurrences', bId))];
+      expect(ofB.ok && sourcesOfB).toContain(ofB.ok && ofB.value?.sourceId);
+      const ofA = await as<Result<NextReminder | null>>('A', 'getNextReminder');
+      const sourcesOfA = [...(await idsOf('subscriptions', aId)), ...(await idsOf('recurrences', aId))];
+      expect(ofA.ok && sourcesOfA).toContain(ofA.ok && ofA.value?.sourceId);
+    },
+  },
+  listReviewItems: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      type Page = Result<{ items: ReviewItemView[]; total: number }>;
+      const ofB = await as<Page>('B', 'listReviewItems', input);
+      expect(ofB.ok && ofB.value.items.map((item) => item.id).sort()).toEqual(await idsOf('review_items', bId));
+      expect(ofB.ok && ofB.value.items.map((item) => item.label).sort()).toEqual([
+        'Kos B',
+        'Langganan B',
+        'Langganan B2',
+      ]);
+      expect(await as('B', 'listReviewItems', { status: 'resolved' })).toEqual(ok({ items: [], total: 0 }));
+      const ofA = await as<Page>('A', 'listReviewItems', input);
+      expect(ofA.ok && ofA.value.items.map((item) => item.label).sort()).toEqual([
+        A_LEDGER.recurrence,
+        A_LEDGER.subscription,
+      ]);
+    },
+  },
+  getReviewCounts: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      expect(await as<Result<ReviewCounts>>('B', 'getReviewCounts')).toMatchObject(
+        ok({ total: 3, byReason: { due_occurrence: 3 } }),
+      );
+      expect(await as<Result<ReviewCounts>>('A', 'getReviewCounts')).toMatchObject(ok({ total: 2 }));
+    },
+  },
+  markReviewUnpaid: {
+    input: () => ({ itemId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'markReviewUnpaid', { itemId: await firstOfA('review_items') })).toEqual(NOT_FOUND);
+      const [itemId] = await idsOf('review_items', bId, `status = 'pending'`);
+      expect(await as('B', 'markReviewUnpaid', { itemId })).toEqual(ok(null));
+      expect(await idsOf('review_items', bId, `status = 'pending'`)).toContain(itemId);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  confirmReview: {
+    input: () => ({ itemId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const occurredAt = new Date();
+      expect(await as('B', 'confirmReview', { itemId: await firstOfA('review_items'), edits: { occurredAt } })).toEqual(
+        NOT_FOUND,
+      );
+      const [itemId] = await idsOf('review_items', bId, `status = 'pending'`);
+      const confirmed = await as<Result<ConfirmResult>>('B', 'confirmReview', { itemId, edits: { occurredAt } });
+      expect(confirmed).toMatchObject(ok({ overrideIds: [] }));
+      expect(await idsOf('transactions', bId)).toContain(confirmed.ok && confirmed.value.transactionId);
+      expect(await as('B', 'confirmReview', { itemId })).toEqual({ ok: false, code: 'REVIEW_RESOLVED' });
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  confirmReviewBulk: {
+    input: () => ({ itemIds: [SOME_ID] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const ofA = await firstOfA('review_items');
+      const [itemId] = await idsOf('review_items', bId, `status = 'pending'`);
+      // Not recorded for the leak scan: the answer names A's id only because B sent it.
+      expect(await browsers.B.call(FUNCTIONS.confirmReviewBulk, { itemIds: [ofA, itemId] })).toEqual(
+        ok({ confirmed: [itemId], failed: [{ id: ofA, code: 'NOT_FOUND' }] }),
+      );
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  ignoreReview: {
+    input: () => ({ itemIds: [SOME_ID] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'ignoreReview', { itemIds: await idsOf('review_items', aId) })).toEqual(ok({ ignored: 0 }));
+      const pending = await idsOf('review_items', bId, `status = 'pending'`);
+      expect(pending).toHaveLength(1);
+      expect(await as('B', 'ignoreReview', { itemIds: pending })).toEqual(ok({ ignored: 1 }));
+      expect(await idsOf('review_items', bId, `status = 'ignored'`)).toEqual(pending);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  confirmOccurrence: {
+    input: () => ({ occurrenceId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const edits = { occurredAt: new Date() };
+      const [ofA] = await idsOf('scheduled_occurrences', aId, `status = 'scheduled'`);
+      expect(await as('B', 'confirmOccurrence', { occurrenceId: ofA, edits })).toEqual(NOT_FOUND);
+      const [occurrenceId] = await idsOf('scheduled_occurrences', bId, `status = 'scheduled'`);
+      const confirmed = await as<Result<ConfirmResult>>('B', 'confirmOccurrence', { occurrenceId, edits });
+      expect(await idsOf('transactions', bId)).toContain(confirmed.ok && confirmed.value.transactionId);
+      expect(await idsOf('scheduled_occurrences', bId, `status = 'confirmed'`)).toContain(occurrenceId);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  listRecurrences: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<RecurrenceView[]>>('B', 'listRecurrences', input);
+      expect(ofB.ok && ofB.value.map((recurrence) => recurrence.id)).toEqual(await idsOf('recurrences', bId));
+      expect(ofB.ok && ofB.value.map((recurrence) => recurrence.template.description)).toEqual(['Kos B']);
+      const ofA = await as<Result<RecurrenceView[]>>('A', 'listRecurrences', input);
+      expect(ofA.ok && ofA.value.map((recurrence) => recurrence.template.description)).toEqual([A_LEDGER.recurrence]);
+    },
+  },
+  createRecurrence: {
+    input: () => arisan(SOME_ID),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'createRecurrence', arisan(await firstOfA('accounts')))).toEqual({
+        ok: false,
+        code: 'INVALID_RECURRENCE',
+      });
+      const [accountOfB = ''] = await idsOf('accounts', bId);
+      const created = await as<Result<RecurrenceView>>('B', 'createRecurrence', arisan(accountOfB));
+      expect(created).toMatchObject(ok({ template: { description: 'Arisan B' }, freq: 'weekly', status: 'active' }));
+      expect(await idsOf('recurrences', bId)).toContain(created.ok && created.value.id);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  updateRecurrence: {
+    input: () => ({ id: SOME_ID, ...arisan(SOME_ID) }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const [accountOfB = ''] = await idsOf('accounts', bId);
+      const changed = arisan(accountOfB, 75_000n);
+      expect(await as('B', 'updateRecurrence', { id: await firstOfA('recurrences'), ...changed })).toEqual(NOT_FOUND);
+      expect(await as('B', 'updateRecurrence', { id: await arisanOfB(), ...changed })).toMatchObject(
+        ok({ template: { amountMinor: 75_000n } }),
+      );
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  stopRecurrence: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'stopRecurrence', { id: await firstOfA('recurrences') })).toEqual(NOT_FOUND);
+      const stopped = await as<Result<{ deletedOccurrences: number }>>('B', 'stopRecurrence', {
+        id: await arisanOfB(),
+      });
+      expect(stopped.ok && stopped.value.deletedOccurrences).toBeGreaterThan(0);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  undoStopRecurrence: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'undoStopRecurrence', { id: await firstOfA('recurrences') })).toEqual(NOT_FOUND);
+      expect(await as('B', 'undoStopRecurrence', { id: await arisanOfB() })).toMatchObject(ok({ status: 'active' }));
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  listSubscriptions: {
+    input: () => ({}),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const ofB = await as<Result<SubscriptionsOverview>>('B', 'listSubscriptions', input);
+      expect(ofB.ok && ofB.value.subscriptions.map((subscription) => subscription.name).sort()).toEqual([
+        'Langganan B',
+        'Langganan B2',
+      ]);
+      const ofA = await as<Result<SubscriptionsOverview>>('A', 'listSubscriptions', input);
+      expect(ofA.ok && ofA.value.subscriptions.map((subscription) => subscription.name)).toEqual([
+        A_LEDGER.subscription,
+      ]);
+    },
+  },
+  getSubscription: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      expect(await as('B', 'getSubscription', { id: await firstOfA('subscriptions') })).toEqual(NOT_FOUND);
+      expect(await as('B', 'getSubscription', { id: await subscriptionOf(bId, 'Langganan B') })).toMatchObject(
+        ok({ name: 'Langganan B', priceMinor: 186_000n }),
+      );
+    },
+  },
+  createSubscription: {
+    input: () => spotify(SOME_ID, '2026-11-05'),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const later = addDays((await services.schedules.listSubscriptions(bId)).today, 20);
+      expect(await as('B', 'createSubscription', spotify(await firstOfA('accounts'), later))).toEqual({
+        ok: false,
+        code: 'INVALID_SUBSCRIPTION',
+      });
+      const [accountOfB = ''] = await idsOf('accounts', bId);
+      const created = await as<Result<SubscriptionView>>('B', 'createSubscription', spotify(accountOfB, later));
+      expect(created).toMatchObject(ok({ name: 'Spotify B', nextBillingDate: later }));
+      expect(await subscriptionOf(bId, 'Spotify B')).toBe(created.ok && created.value.id);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  updateSubscription: {
+    input: () => ({ id: SOME_ID, patch: { plan: 'Family' } }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const patch = { plan: 'Family' };
+      expect(await as('B', 'updateSubscription', { id: await firstOfA('subscriptions'), patch })).toEqual(NOT_FOUND);
+      expect(await as('B', 'updateSubscription', { id: await subscriptionOf(bId, 'Spotify B'), patch })).toMatchObject(
+        ok({ plan: 'Family' }),
+      );
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  changeSubscriptionAccount: {
+    input: () => ({ id: SOME_ID, accountId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const [accountOfB = ''] = await idsOf('accounts', bId);
+      const spotifyOfB = await subscriptionOf(bId, 'Spotify B');
+      expect(
+        await as('B', 'changeSubscriptionAccount', { id: await firstOfA('subscriptions'), accountId: accountOfB }),
+      ).toEqual(NOT_FOUND);
+      expect(
+        await as('B', 'changeSubscriptionAccount', { id: spotifyOfB, accountId: await firstOfA('accounts') }),
+      ).toEqual({ ok: false, code: 'INVALID_SUBSCRIPTION' });
+      const changed = await as<Result<ChangeAccountResult>>('B', 'changeSubscriptionAccount', {
+        id: spotifyOfB,
+        accountId: accountOfB,
+      });
+      expect(changed.ok).toBe(true);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  pauseSubscription: {
+    input: () => ({ id: SOME_ID, length: { months: 1 }, remindDaysBefore: 3 }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const pause = { length: { months: 1 }, remindDaysBefore: 3 };
+      expect(await as('B', 'pauseSubscription', { ...pause, id: await firstOfA('subscriptions') })).toEqual(NOT_FOUND);
+      const paused = await as<Result<SubscriptionView>>('B', 'pauseSubscription', {
+        ...pause,
+        id: await subscriptionOf(bId, 'Spotify B'),
+      });
+      expect(paused.ok && paused.value.pausedUntil).toEqual(expect.any(String));
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  reactivateSubscription: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'reactivateSubscription', { id: await firstOfA('subscriptions') })).toEqual(NOT_FOUND);
+      expect(await as('B', 'reactivateSubscription', { id: await subscriptionOf(bId, 'Spotify B') })).toMatchObject(
+        ok({ pausedUntil: null, effectiveStatus: 'active' }),
+      );
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  cancelSubscription: {
+    input: () => ({ id: SOME_ID, mode: 'after_next_bill' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const mode = 'after_next_bill';
+      expect(await as('B', 'cancelSubscription', { id: await firstOfA('subscriptions'), mode })).toEqual(NOT_FOUND);
+      expect(await as('B', 'cancelSubscription', { id: await subscriptionOf(bId, 'Spotify B'), mode })).toMatchObject(
+        ok({ cancelMode: mode }),
+      );
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  rateSubscriptionUsage: {
+    input: () => ({ id: SOME_ID, rating: 'rarely' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const rating = 'rarely';
+      expect(await as('B', 'rateSubscriptionUsage', { id: await firstOfA('subscriptions'), rating })).toEqual(
+        NOT_FOUND,
+      );
+      expect(
+        await as('B', 'rateSubscriptionUsage', { id: await subscriptionOf(bId, 'Langganan B'), rating }),
+      ).toMatchObject(ok({ usageRating: rating }));
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  getSubscriptionBilling: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      expect(await as('B', 'getSubscriptionBilling', { id: await firstOfA('subscriptions') })).toEqual(NOT_FOUND);
+      const id = await subscriptionOf(bId, 'Langganan B');
+      const ofB = await as<Result<{ count: number; charges: { transactionId: string }[] }>>(
+        'B',
+        'getSubscriptionBilling',
+        { id },
+      );
+      expect(ofB.ok && ofB.value.count).toBe(
+        await count('scheduled_occurrences', `source_id = '${id}' AND status = 'confirmed'`),
+      );
+      const transactionsOfB = await idsOf('transactions', bId);
+      expect(ofB.ok && ofB.value.charges.every((charge) => transactionsOfB.includes(charge.transactionId))).toBe(true);
+    },
+  },
+  listDetectedSubscriptions: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<DetectedOverview>>('B', 'listDetectedSubscriptions');
+      expect(ofB.ok && ofB.value.candidates.map((candidate) => candidate.merchant).sort()).toEqual([
+        'Gym B',
+        'Vidio B',
+      ]);
+      const ofA = await as<Result<DetectedOverview>>('A', 'listDetectedSubscriptions');
+      expect(ofA.ok && ofA.value.candidates.map((candidate) => candidate.merchant)).toEqual([A_LEDGER.detected]);
+    },
+  },
+  addDetectedSubscriptions: {
+    input: () => ({ ids: [SOME_ID] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      const vidio = await idsOf('detected_recurring', bId, `merchant = 'Vidio B'`);
+      expect(await as('B', 'addDetectedSubscriptions', { ids: [await firstOfA('detected_recurring')] })).toEqual(
+        NOT_FOUND,
+      );
+      const added = await as<Result<{ subscriptionIds: string[] }>>('B', 'addDetectedSubscriptions', { ids: vidio });
+      expect(added.ok && added.value.subscriptionIds).toHaveLength(1);
+      expect(await idsOf('subscriptions', bId)).toEqual(
+        expect.arrayContaining(added.ok ? added.value.subscriptionIds : ['']),
+      );
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  dismissDetectedSubscriptions: {
+    input: () => ({ ids: [SOME_ID] }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'dismissDetectedSubscriptions', { ids: [await firstOfA('detected_recurring')] })).toEqual(
+        ok({ dismissed: 0 }),
+      );
+      const gym = await idsOf('detected_recurring', bId, `merchant = 'Gym B'`);
+      expect(await as('B', 'dismissDetectedSubscriptions', { ids: gym })).toEqual(ok({ dismissed: 1 }));
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  deleteSubscription: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'deleteSubscription', { id: await firstOfA('subscriptions') })).toEqual(NOT_FOUND);
+      const deleted = await as<Result<{ deletedOccurrences: number }>>('B', 'deleteSubscription', {
+        id: await subscriptionOf(bId, 'Spotify B'),
+      });
+      expect(deleted.ok && deleted.value.deletedOccurrences).toBeGreaterThanOrEqual(0);
+      expect(await subscriptionOf(bId, 'Spotify B')).toBe('');
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  listScheduled: {
+    input: () => ({ from: '2026-10-01', to: '2026-10-31' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const { today } = await services.schedules.listSubscriptions(bId);
+      const range = { from: today, to: addDays(today, 60) };
+      const ofB = await as<Result<ScheduledItem[]>>('B', 'listScheduled', range);
+      const sourcesOfB = [...(await idsOf('subscriptions', bId)), ...(await idsOf('recurrences', bId))];
+      expect(ofB.ok && ofB.value.length).toBeGreaterThan(0);
+      expect(ofB.ok && ofB.value.filter((item) => !sourcesOfB.includes(item.sourceId))).toEqual([]);
+      expect(await as('B', 'listScheduled', { from: today, to: addDays(today, 400) })).toEqual({
+        ok: false,
+        code: 'INVALID_PERIOD',
+      });
     },
   },
   getPreferences: {

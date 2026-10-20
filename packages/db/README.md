@@ -36,7 +36,7 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./ledger-errors` | `LedgerError` with a stable `code` (`LEDGER_ERROR_CODES`) for every expected ledger refusal |
 | `./ledger-core` | In-transaction building blocks: `recordTransactionIn`, `planTransactionIn`, `writeLinesIn`, `valuationIn`, `builtInCategoryIn`, `resolveTagsIn` |
 | `./accounts` | `createAccounts(db)` → balances + available balance, CRUD with FR-R2/R3 rules, archive/restore/delete, reorder, `reconcile`, `flows`, `series` |
-| `./categories` | `createCategories(db)` → built-ins on first use, CRUD, move, merge, archive, delete (→ uncategorized) |
+| `./categories` | `createCategories(db, { getDek })` → built-ins on first use, CRUD, move, merge, archive, delete (→ uncategorized + one `category_deleted` Review item per transaction) |
 | `./tags` | `createTags(db)` → usage counts, create/rename, merge (old slug becomes an alias), `similar` |
 | `./transactions` | `createTransactions(db, { getDek })` → create (idempotent per `client_id`), get, update, soft delete + restore, duplicate, split/unsplit, bulk edits, attachments |
 | `./transaction-query` | `createTransactionQuery(db, { getDek })` → Transactions page list, by-day/by-category groups, summary |
@@ -45,8 +45,18 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./periods` | `createPeriods(db)` → materialized periods (FR-P1–P3): `list`, `get`, `covering`, `previewStartDay`/`changeStartDay` (FR-P2 (a) next period with a transition, (b) recalculate), `lock` (period close, worker) |
 | `./budgets` | `createBudgets(db)` → versioned budgets (FR-B1–B5): `status` of a period, `history`, `saveVersion`, `setLine`, `removeLine`, `fillFromAverage`, `moveLeftover`/`undoMove`, `dismissAlert`/`restoreAlert` |
 | `./dashboard` | `createDashboard(db)` → `get` for a week, period, year, or custom range (FR-D1/D2, FR-S7): KPIs + comparison, money flow, categories, trend, calendar, account flows, budget card |
-| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget) through the repositories |
-| `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)` (worker only, via `wf_maintenance_purge_auth`)       |
+| `./occurrences` | Shared schedule core (app + worker, no ledger writes): `MATERIALIZE_DAYS` (90), `userClockIn`, `materializeIn` (idempotent per source + due date; 09.00-local `remind_at`), `pruneFutureIn` (app only), `recordPastChargeIn`, `RecurrenceTemplate` + `encodeTemplate`/`decodeTemplate`, `recurrenceDueDates`/`subscriptionDueDates` |
+| `./schedules` | `createSchedules(db)` → recurrences (FR-T6/L8: create/update/stop/undo, 3-date preview), subscriptions (FR-SUB1–SUB6: overview, CRUD, change account, pause, cancel, reactivate, usage rating, billing history), detected candidates (FR-SUB4), calendar `listScheduled` (FR-C2) |
+| `./review-items` | Shared Review queue producer (app + worker): `ReviewPayload` (transaction draft, category, rollover, leftover; encrypted with the user's DEK), `insertReviewItemIn` (idempotent per `dedupe_key`), `readReviewPayload`, `occurrenceReviewItemIn` |
+| `./review` | `createReview(db, { getDek })` → Review queue (FR-L7): `list`, `counts` (badge), `confirm` (the only place a proposal is applied; item id = transaction `client_id`), `confirmBulk`, `ignore`, `markUnpaid`, `confirmOccurrence` |
+| `./notifications` | `createNotifications(db)` → `list` (filters, search, cursor), `counts`, `markRead`, `nextReminder`; shared `insertNotificationIn` (idempotent per `ref`) |
+| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget, goals, 11 subscriptions, 4 recurring transfers with their paid bills) through the repositories; `seedAutomation(workerDb, userId, { getDek })` (as `wf_worker`): what the jobs would have created by now (overdue bills, September close proposal) |
+| `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)`, `purgeNotifications(now)` (90 days) (worker only, via `wf_maintenance_purge_auth` / `wf_maintenance_purge_notifications`) |
+| `./dispatch` | Worker: `createDispatch(db)` → `users()`, `dueReminders(now, limit)`, `pendingOutbox(now, limit)` (SECURITY DEFINER `wf_worker_users`, `wf_due_reminders`, `wf_pending_outbox`: ids and time zones only) |
+| `./occurrence-jobs` | Worker: `createOccurrenceJobs(db, { getDek })` → `advance(userId, now)` (materialize, due → Review queue, overdue → unconfirmed, trial/pause reminders), `remind(userId, occurrenceId, now)` (notification + email outbox, once) |
+| `./period-close` | Worker: `createPeriodClose(db, { getDek })` → `endedPeriods`, `propose` (FR-P4 rollover + leftover proposals as review items, `period_closed` notification); the lock is `periods.lock` |
+| `./budget-alerts`, `./balance-checks`, `./detect-recurring` | Worker: threshold notifications (once per period/category/threshold), low balance / unchecked / insufficient paying account, FR-SUB4 candidates (suggestions only) |
+| `./outbox` | Worker: `createOutbox(db)` → `get`, `markSent`, `markFailed` (the `notify` job) |
 | `./backup`                                      | Self-host backup/restore: `bundledMigrations()`, `migrationLevel(url)`, `inspectRestoreTarget(superuserUrl)`, `resetAppSchema(superuserUrl, passwords)` |
 
 Repositories take `userId` from the caller's session or job, never from request input, and run every query through
@@ -82,6 +92,12 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `fx_rates`                                                 | S I U D (own manual rows)      | S I U (global rows) | –          | –                        | read: global + own; worker writes only `user_id IS NULL` |
 | `periods`                                                  | S I U D                        | S I, U(`status`, `closed_at`, `updated_at`) | – | –                | own rows (worker: `periods.lock` only)                   |
 | `budget_versions`, `budget_lines`, `budget_period_overrides`, `budget_alert_dismissals` | S I U D | S (D14)  | –                 | –                        | own rows                                                 |
+| `recurrences`, `subscriptions`                             | S I U D                        | S (D14)      | –                 | –                        | own rows                                                 |
+| `scheduled_occurrences`                                    | S I U D                        | S I, U(`status`, `remind_at`, `reminded_at`, `expected_minor`, `updated_at`) | – | – | own rows; `wf_migrate`: dispatch scan (S)        |
+| `detected_recurring`                                       | S I U D                        | S I U        | –                 | –                        | own rows                                                 |
+| `review_items`                                             | S I U D                        | S I (D14: no UPDATE) | –         | –                        | own rows                                                 |
+| `notifications`                                            | S, U(`read_at`), D             | S I          | –                 | –                        | own rows; `wf_migrate`: retention purge                  |
+| `notification_outbox`                                      | –                              | S I, U(`sent_at`, `attempts`, `last_error`) | – | –               | own rows                                                 |
 
 ¹ `name, image, nickname, timezone, locale, base_currency, onboarding_completed_at, deletion_requested_at, updated_at`
 (not `role`, `email`, `email_verified`, `two_factor_enabled`). ² Everything the setup wizard (FR-OP1) writes, including
@@ -100,6 +116,12 @@ or were used more than 30 days ago, as of the given time capped at the server's 
 table. `wf_migrate` has SELECT and DELETE policies on those three tables that match only such dead rows, so even the
 function cannot remove a live session. `fx_currencies_in_use` returns only the currency codes in use (accounts, base
 currencies, manual rates) for the fx job; `wf_migrate` has SELECT policies on `accounts`, `users`, and `fx_rates` for it.
+M3 adds four for the worker's scanners: `wf_worker_users() → (user_id, time_zone)` (users not being deleted),
+`wf_due_reminders(now, limit) → (user_id, occurrence_id)` (reminders due and not sent), `wf_pending_outbox(now, limit)
+→ (user_id, outbox_id)` (unsent emails with fewer than 5 attempts), and `wf_maintenance_purge_notifications(now) →
+bigint` (FR-S5 90-day retention, `now` capped like the auth purge; outbox rows cascade). They return ids and time zones
+only; `wf_migrate` has SELECT policies on `scheduled_occurrences`, `notification_outbox`, and `notifications` (plus
+DELETE on `notifications`) for them.
 
 Ledger rows reference their parents with composite `(user_id, id)` foreign keys, so a row can never point at another
 user's account, category, transaction, or tag (foreign-key checks bypass RLS). A trigger limits a transaction to five
