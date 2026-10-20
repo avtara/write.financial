@@ -188,7 +188,8 @@ export async function seedDesignPersona(email: string): Promise<void> {
  * For the specs whose users only need to get past it (the design persona's ledger comes from `seedDesignPersona`).
  */
 export async function skipOnboarding(page: Page): Promise<void> {
-  // Each step's heading, not only its URL: the address changes before the next step has rendered.
+  // Each step's heading has the focus once the step is rendered and hydrated (the URL changes earlier, and a click
+  // before hydration would submit the form natively).
   const steps = [
     ['profile', /^Halo, .+! Lengkapi profilmu$/, 'Lanjut'],
     ['period', 'Kapan bulanmu dimulai?', 'Lanjut'],
@@ -198,7 +199,7 @@ export async function skipOnboarding(page: Page): Promise<void> {
   ] as const;
   for (const [step, heading, action] of steps) {
     await expect(page).toHaveURL(new RegExp(`/onboarding/${step}$`));
-    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeFocused();
     await page.getByRole('button', { name: action }).click();
   }
   await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();

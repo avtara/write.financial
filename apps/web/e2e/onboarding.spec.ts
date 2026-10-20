@@ -88,7 +88,7 @@ test('a new user sets up profile, period, three accounts, and Dana Darurat keybo
 
   // 2 Periode: payday the 1st, "Okt 2026 = 1–31 Okt", income 25.800.000.
   await expect(page).toHaveURL(/\/onboarding\/period$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Kapan bulanmu dimulai?' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Kapan bulanmu dimulai?' })).toBeFocused();
   await expect(page.getByRole('radio', { name: 'Tanggal 1' })).toBeChecked();
   await expect(page.getByText('Dipakai sebagai awal periode bulanan · Okt 2026 = 1–31 Okt')).toBeVisible();
   await page.getByRole('textbox', { name: 'Pemasukan bulanan rata-rata' }).focus();
@@ -98,7 +98,7 @@ test('a new user sets up profile, period, three accounts, and Dana Darurat keybo
 
   // 3 Rekening: BCA Tahapan, Bank Jago, GoPay from the chips, today's balances.
   await expect(page).toHaveURL(/\/onboarding\/accounts$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Rekening yang kamu pakai' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Rekening yang kamu pakai' })).toBeFocused();
   for (const [chip, name, balance] of [
     ['BCA', 'BCA Tahapan', '42810000'],
     ['Bank Jago', null, '8125000'],
@@ -122,7 +122,7 @@ test('a new user sets up profile, period, three accounts, and Dana Darurat keybo
 
   // 4 Tujuan: Dana Darurat ≈ 3× spending = 54.000.000 in Bank Jago, Rp500.000 every 1st from BCA Tahapan.
   await expect(page).toHaveURL(/\/onboarding\/goal$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Mulai satu tujuan tabungan' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Mulai satu tujuan tabungan' })).toBeFocused();
   await expect(page.getByRole('radio', { name: /Dana Darurat/ })).toBeChecked();
   await expect(page.getByText('3× pengeluaran ≈ Rp54.000.000')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Target' })).toHaveValue('54.000.000');
@@ -137,7 +137,7 @@ test('a new user sets up profile, period, three accounts, and Dana Darurat keybo
 
   // 5 Selesai.
   await expect(page).toHaveURL(/\/onboarding\/done$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Siap! write.financial sudah diatur' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Siap! write.financial sudah diatur' })).toBeFocused();
   const summary = page.getByRole('list', { name: 'Yang sudah diatur' });
   await expect(summary.getByText('Profil · IDR + USD, SGD')).toBeVisible();
   await expect(summary.getByText('Okt = 1–31 Okt')).toBeVisible();
@@ -185,23 +185,23 @@ test('a new user sets up profile, period, three accounts, and Dana Darurat keybo
 test('skipping the goal works (1024)', async ({ browser }) => {
   const page = await signUpInvited(browser, 'sari@e2e.test', 'Sari Wulan', 1024);
   await expect(page).toHaveURL(/\/onboarding\/profile$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Halo, Sari! Lengkapi profilmu' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Halo, Sari! Lengkapi profilmu' })).toBeFocused();
   await page.getByRole('button', { name: 'Lanjut' }).click();
   await expect(page).toHaveURL(/\/onboarding\/period$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Kapan bulanmu dimulai?' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Kapan bulanmu dimulai?' })).toBeFocused();
   await page.getByRole('button', { name: 'Lanjut' }).click();
   await expect(page).toHaveURL(/\/onboarding\/accounts$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Rekening yang kamu pakai' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Rekening yang kamu pakai' })).toBeFocused();
   await page.getByRole('button', { name: 'Tambah GoPay' }).click();
   await page.keyboard.press('Tab');
   await typeKeys(page, '412000');
   await page.getByRole('button', { name: 'Lanjut' }).click();
   await expect(page).toHaveURL(/\/onboarding\/goal$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Mulai satu tujuan tabungan' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Mulai satu tujuan tabungan' })).toBeFocused();
   await shot(page, '1024-goal');
   await page.getByRole('button', { name: 'Lewati' }).click();
   await expect(page).toHaveURL(/\/onboarding\/done$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Siap! write.financial sudah diatur' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Siap! write.financial sudah diatur' })).toBeFocused();
   await expect(page.getByText('1 rekening · saldo tersedia')).toBeVisible();
   await expect(page.getByText(/Dana Darurat/)).toHaveCount(0);
   // "Kembali" through the stepper shows what was saved.
@@ -215,7 +215,7 @@ test('skipping the goal works (1024)', async ({ browser }) => {
 
 test('the quick path fits a 768 px tablet', async ({ browser }) => {
   const page = await signUpInvited(browser, 'tono@e2e.test', 'Tono Prasetyo', 768);
-  await expect(page.getByRole('heading', { level: 1, name: 'Halo, Tono! Lengkapi profilmu' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Halo, Tono! Lengkapi profilmu' })).toBeFocused();
   await shot(page, '768-profile');
   await skipOnboarding(page);
   await page.goto('/onboarding/goal');
