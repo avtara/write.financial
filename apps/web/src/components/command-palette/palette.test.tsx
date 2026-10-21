@@ -269,14 +269,15 @@ describe('Palette', () => {
     server.listRecent.mockReturnValue(recent.promise);
     await renderPalette();
     await userEvent.keyboard('{Meta>}k{/Meta}');
-    await userEvent.type(input(), 'net');
+    // One input event per query: per-key typing on a loaded CI runner can pause longer than the debounce between keys.
+    await userEvent.fill(input(), 'net');
     await expect.element(page.getByRole('status')).toHaveTextContent('Mencari…');
     await expect.element(dialog().getByRole('listbox')).toHaveAttribute('aria-busy', 'true');
     await vi.waitFor(() => {
       expect(server.searchEverything).toHaveBeenCalledTimes(1);
     });
     // Typing on: the answer to "net" no longer counts.
-    await userEvent.type(input(), 'flix');
+    await userEvent.fill(input(), 'netflix');
     first.resolve({ ok: true, value: NETFLIX });
     await vi.waitFor(() => {
       expect(server.searchEverything).toHaveBeenCalledTimes(2);
