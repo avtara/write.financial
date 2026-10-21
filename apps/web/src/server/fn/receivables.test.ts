@@ -22,6 +22,7 @@ const fake = vi.hoisted(() => ({
   },
   transactionQuery: { summary: vi.fn() },
   budgets: { status: vi.fn() },
+  notificationSettings: { get: vi.fn(() => Promise.resolve({ reminderTime: '09:00' })) },
 }));
 
 // vi.mock factories run before imports; they load the shared helper themselves.
@@ -72,6 +73,7 @@ describe('getSplitBillContext', () => {
           stepMinor: 1_000n,
           lines: [{ categoryId: categoryId('system:entertainment'), spentMinor: 1_600_000n }],
         },
+        reminderTime: '09:00',
       },
     });
     expect(fake.transactionQuery.summary).toHaveBeenCalledWith(USER_ID, { from: '2026-10-01', to: '2026-10-31' });

@@ -141,6 +141,7 @@ export function splitBillContext(overrides: Partial<SplitBillContext> = {}): Spl
       stepMinor: 1_000n,
       lines: [{ categoryId: categoryId('system:entertainment'), spentMinor: 1_600_000n }],
     },
+    reminderTime: '09:00',
     ...overrides,
   };
 }

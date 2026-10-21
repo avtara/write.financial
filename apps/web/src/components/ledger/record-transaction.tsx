@@ -21,7 +21,7 @@ import { Money } from '@wf/ui/money';
 import { PageState } from '@wf/ui/page-state';
 import { Sheet } from '@wf/ui/sheet';
 import { toast } from '@wf/ui/toast';
-import { FileClock, Trash2 } from 'lucide-react';
+import { FileClock, Split, Trash2 } from 'lucide-react';
 import { createContext, use, useMemo, useState, type ReactNode } from 'react';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
@@ -65,6 +65,7 @@ import {
 } from './card-extras.tsx';
 import { recurrenceRequest, type RepeatValues } from './recurrence-draft.ts';
 import { RepeatField } from './repeat-field.tsx';
+import { SplitBillSheet, type BillInput } from './split-bill.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 
@@ -278,6 +279,9 @@ const TITLES: Readonly<Record<EntryKind, () => string>> = {
   transfer: m.record_title_transfer,
 };
 
+/** While "Pisah tagihan" is open its own buttons save. */
+const NO_SHORTCUTS: readonly [] = [];
+
 const DESCRIPTIONS: Readonly<Record<EntryKind, () => string>> = {
   expense: m.record_description_expense,
   income: m.record_description_expense,
@@ -335,6 +339,8 @@ function RecordSheet({
   // FR-G4 "Bayar dari tujuan": the goal paying (on), and the goal offered that the user declined.
   const [usingGoalId, setUsingGoalId] = useState<string | null>(prefill.goalId ?? null);
   const [plainGoalId, setPlainGoalId] = useState<string | null>(null);
+  // FR-L5 "Pisah tagihan": the expense being split (its amount is the whole bill).
+  const [splitting, setSplitting] = useState<BillInput | null>(null);
   const form = useTransactionForm({ initial: session.initial, data, locale });
   const { values } = form;
   const scheduled = values.date > today;
@@ -375,6 +381,7 @@ function RecordSheet({
     setCardPayment({ priority: null, mode: 'reduce_amount' });
     setUsingGoalId(null);
     setPlainGoalId(null);
+    setSplitting(null);
     setFailure(null);
   };
 
@@ -394,6 +401,14 @@ function RecordSheet({
     }
     toast({ tone: 'info', title: m.record_draft_saved() });
     return true;
+  };
+
+  /** The draft the saved entry continued is no longer needed. */
+  const forgetDraft = () => {
+    if (session.draftId !== null) {
+      void removeDraft({ data: { id: session.draftId } });
+      setDrafts((current) => current.filter((draft) => draft.id !== session.draftId));
+    }
   };
 
   const submit = async (another: boolean) => {
@@ -495,10 +510,7 @@ function RecordSheet({
         });
       }
     }
-    if (session.draftId !== null) {
-      void removeDraft({ data: { id: session.draftId } });
-      setDrafts((current) => current.filter((draft) => draft.id !== session.draftId));
-    }
+    forgetDraft();
     void router.invalidate();
     if (another) {
       setSavedCount((count) => count + 1);
@@ -520,7 +532,32 @@ function RecordSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [form, addAnother],
   );
-  useShortcuts(shortcuts);
+  useShortcuts(splitting === null ? shortcuts : NO_SHORTCUTS);
+
+  if (splitting !== null) {
+    return (
+      <SplitBillSheet
+        bill={splitting}
+        date={values.date}
+        account={account}
+        category={category}
+        locale={locale}
+        onBack={() => {
+          setSplitting(null);
+        }}
+        onSaved={({ count }) => {
+          toast({
+            tone: 'success',
+            title: m.record_split_saved_title(),
+            description: m.record_split_saved({ count }),
+          });
+          forgetDraft();
+          void router.invalidate();
+          onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <>
@@ -685,6 +722,23 @@ function RecordSheet({
             locale={locale}
           />
         )}
+        {values.type === 'expense' && !scheduled && split === null && payingGoal === null ? (
+          <button
+            type="button"
+            onClick={() => {
+              const input = form.prepare({ timeZone, source: 'manual' });
+              // An expense form prepares an expense.
+              if (input !== null) setSplitting(input as BillInput);
+            }}
+            className="flex items-center gap-2.5 rounded-[10px] border border-border px-3 py-2.5 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Split aria-hidden="true" className="size-4 shrink-0 text-muted-fg" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-[13px] font-medium text-fg">{m.record_split_open()}</span>
+              <span className="text-[11.5px] text-subtle">{m.record_split_open_note()}</span>
+            </span>
+          </button>
+        ) : null}
         {failure === null ? null : <FormError>{failure}</FormError>}
       </Sheet>
       <Modal

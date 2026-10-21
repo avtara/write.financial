@@ -49,6 +49,8 @@ const debts = vi.hoisted(() => ({
 vi.mock('../../server/fn/debts.ts', () => debts);
 const goals = vi.hoisted(() => ({ listGoals: vi.fn(), spendFromGoal: vi.fn() }));
 vi.mock('../../server/fn/goals.ts', () => goals);
+const receivables = vi.hoisted(() => ({ getSplitBillContext: vi.fn(), recordSplitBill: vi.fn() }));
+vi.mock('../../server/fn/receivables.ts', () => receivables);
 
 const ZONE = 'Asia/Jakarta';
 /** Perpanjang STNK at 100%, kept in BCA Tahapan; Servis motor kept in Bank Jago. */
@@ -457,6 +459,45 @@ describe('RecordTransactionProvider', () => {
     const drafts = sheet.getByRole('region', { name: 'Draf tersimpan' });
     await expect.element(drafts).toMatchTextContent('teh');
     await expect.element(drafts.getByRole('listitem')).toHaveLength(1);
+  });
+
+  it('"Pisah tagihan" splits a continued draft with others, records it, and closes (FR-L5)', async () => {
+    writes.listDrafts.mockResolvedValueOnce({ ok: true, value: [draft('d-cgv', draftPayload('CGV'))] });
+    receivables.getSplitBillContext.mockResolvedValue({ ok: false, code: 'INTERNAL' });
+    receivables.recordSplitBill.mockResolvedValue({ ok: true, value: { transactionId: 'tx-9', receivables: [1] } });
+    const { sheet, invalidate } = await open();
+    await userEvent.click(sheet.getByRole('button', { name: 'Lanjutkan' }));
+    await userEvent.click(sheet.getByRole('button', { name: /Pisah tagihan/ }));
+    const split = page.getByRole('dialog', { name: 'Pisah tagihan' });
+    await expect.element(split).toBeVisible();
+    // Its own buttons save: ⌘↵ records nothing while it is open.
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
+    expect(writes.recordTransaction).not.toHaveBeenCalled();
+    await userEvent.click(split.getByRole('button', { name: 'Batal' }));
+    await expect.element(page.getByRole('dialog', { name: /^Catat/ })).toBeVisible();
+    await userEvent.click(page.getByRole('button', { name: /Pisah tagihan/ }));
+    await userEvent.fill(page.getByRole('combobox', { name: 'Nama orang ke-2' }), 'Nadia');
+    await userEvent.click(page.getByRole('button', { name: 'Simpan pembagian' }));
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+    expect(receivables.recordSplitBill).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        transaction: expect.objectContaining({ amountMinor: 9_000n, description: 'CGV' }) as unknown,
+      }) as unknown,
+    });
+    await expect
+      .element(page.getByRole('region', { name: 'Notifikasi' }))
+      .toMatchTextContent('Tagihan dipisah1 piutang dicatat di Utang & cicilan');
+    expect(writes.removeDraft).toHaveBeenCalledWith({ data: { id: 'd-cgv' } });
+    expect(invalidate).toHaveBeenCalled();
+  });
+
+  it('offers "Pisah tagihan" only for a complete expense recorded now', async () => {
+    const { sheet } = await open();
+    await userEvent.click(sheet.getByRole('button', { name: /Pisah tagihan/ }));
+    await expect.element(sheet.getByRole('alert').first()).toBeVisible();
+    await expect.element(page.getByRole('dialog', { name: 'Pisah tagihan' })).not.toBeInTheDocument();
+    await userEvent.click(sheet.getByRole('radio', { name: 'Pemasukan' }));
+    await expect.element(sheet.getByRole('button', { name: /Pisah tagihan/ })).not.toBeInTheDocument();
   });
 
   it('keeps a draft and switches to Pemasukan for a short account', async () => {
