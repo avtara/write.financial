@@ -202,7 +202,7 @@ function RecordForm({
               onChange={(event) => {
                 set({ counterparty: event.target.value });
               }}
-              className="w-full min-w-0 bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle"
+              className="w-full min-w-0 bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle [&::-webkit-calendar-picker-indicator]:hidden"
             />
             <datalist id={`${id}-people`}>
               {overview.receivables.people.map((person) => (

@@ -33,11 +33,11 @@ export function receivableBadge(receivable: ReceivableView, today: LocalDate): R
 
 /** Avatar tints of people, picked by name so a person keeps theirs (Nadia violet, Raka Pratama blue in KZZZy). */
 const AVATARS = [
+  'bg-red-tint-2 text-red-fg',
+  'bg-green-tint-2 text-green-fg',
   'bg-violet-tint-2 text-violet',
   'bg-blue-tint-2 text-blue-fg',
-  'bg-green-tint-2 text-green-fg',
   'bg-amber-tint-2 text-amber-fg',
-  'bg-red-tint-2 text-red-fg',
 ] as const;
 
 export function avatarClass(name: string): string {
