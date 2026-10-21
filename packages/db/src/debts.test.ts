@@ -350,6 +350,109 @@ describe('card installments (FR-U2–U4, Section 18 scenario)', () => {
   });
 });
 
+describe('recording a card purchase or payment with its plan (hNvip, qrRRV)', () => {
+  const draft = (overrides: Record<string, unknown> = {}) => ({
+    type: 'expense' as const,
+    clientId: randomUUID(),
+    occurredAt: at('2026-11-02'),
+    accountId: card,
+    amountMinor: 3_000_000n,
+    categoryId: alice.category('system:shopping'),
+    merchant: 'Tokopedia',
+    ...overrides,
+  });
+  const payment = (amountMinor: bigint, overrides: Record<string, unknown> = {}) => ({
+    type: 'transfer' as const,
+    clientId: randomUUID(),
+    occurredAt: at('2026-11-10'),
+    fromAccountId: alice.bca,
+    toAccountId: card,
+    sentMinor: amountMinor,
+    receivedMinor: amountMinor,
+    ...overrides,
+  });
+  let plan: Omit<DebtInput, 'sourceTransactionId'>;
+  beforeEach(() => {
+    const { sourceTransactionId, ...rest } = cardPlan(null);
+    expect(sourceTransactionId).toBeNull();
+    plan = rest;
+  });
+  const withDek = () => createDebts(test.db, { getDek: fixtureGetDek, now: () => NOW });
+
+  it('golden: records Kulkas split 3×, then Rp2.000.000 to the card paid into installment A (13.000.000 left)', async () => {
+    const purchase = draft({ note: 'garansi 2 tahun' });
+    const made = await asApp(() => withDek().recordInstallmentPurchase(alice.userId, { draft: purchase, plan }));
+    expect(made.debt).toMatchObject({ sourceTransactionId: made.transactionId, remainingPrincipalMinor: 3_000_000n });
+    // A replay returns the first plan.
+    const again = await asApp(() => withDek().recordInstallmentPurchase(alice.userId, { draft: purchase, plan }));
+    expect(again).toEqual(made);
+
+    const transfer = payment(2_000_000n);
+    const input = {
+      draft: transfer,
+      allocations: [{ bucket: 'installments' as const, debtId: made.debt.id, amountMinor: 2_000_000n }],
+      recalculations: [
+        {
+          debtId: made.debt.id,
+          mode: 'reduce_amount' as const,
+          schedule: [row('2026-11-20', 333_334n), row('2026-12-20', 333_333n), row('2027-01-20', 333_333n)],
+        },
+      ],
+    };
+    const paid = await asApp(() => debts().recordCardPayment(alice.userId, input));
+    expect(paid.debts.map((debt) => debt.installments.map((installment) => installment.principalMinor))).toEqual([
+      [333_334n, 333_333n, 333_333n],
+    ]);
+    expect(await asApp(() => debts().recordCardPayment(alice.userId, input))).toEqual({
+      transactionId: paid.transactionId,
+      debts: [],
+    });
+    const [visa] = await asApp(() => debts().cards(alice.userId));
+    expect(visa).toMatchObject({ balanceMinor: -1_000_000n, installmentsHeldMinor: 1_000_000n });
+  });
+
+  it('makes a plan of a replayed plain expense, and records a noted payment', async () => {
+    const purchase = draft();
+    const plain = await asApp(() =>
+      createTransactions(test.db, { getDek: fixtureGetDek, now: () => NOW }).create(alice.userId, purchase),
+    );
+    const made = await asApp(() => debts().recordInstallmentPurchase(alice.userId, { draft: purchase, plan }));
+    expect(made).toMatchObject({ transactionId: plain.id, debt: { sourceTransactionId: plain.id } });
+    const paid = await asApp(() =>
+      withDek().recordCardPayment(alice.userId, {
+        draft: payment(500_000n, { note: 'lebih bayar' }),
+        allocations: [{ bucket: 'credit', amountMinor: 500_000n }],
+      }),
+    );
+    expect(paid.debts).toEqual([]);
+  });
+
+  it('refuses a purchase that is not an expense on the card of its plan, and rolls a refused one back', async () => {
+    for (const input of [
+      { draft: draft({ type: 'income' }), plan },
+      { draft: draft({ accountId: alice.bca }), plan },
+      { draft: draft(), plan: { ...plan, kind: 'paylater' as const } },
+      { draft: draft({ amountMinor: 2_000_000n }), plan },
+    ]) {
+      await expect(asApp(() => debts().recordInstallmentPurchase(alice.userId, input))).rejects.toMatchObject({
+        code: 'INVALID_DEBT',
+      });
+    }
+    await expect(
+      asApp(() =>
+        debts().recordCardPayment(alice.userId, {
+          draft: payment(1_000_000n),
+          allocations: [{ bucket: 'spending', amountMinor: 2_000_000n }],
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_DEBT' });
+    expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 0 }]);
+    await expect(
+      asApp(() => debts().recordInstallmentPurchase(alice.userId, { draft: draft({ note: 'x' }), plan })),
+    ).rejects.toThrow(TypeError);
+  });
+});
+
 describe('debts: create and validation (FR-U1, FR-U3)', () => {
   it.each<[string, (base: DebtInput) => DebtInput]>([
     ['a card installment without a card', (base) => ({ ...base, kind: 'card_installment', payFromAccountId: null })],

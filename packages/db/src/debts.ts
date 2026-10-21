@@ -7,13 +7,22 @@
  * are paid by an expense from "Bayar dari", proposed through the Review queue (FR-U6, `materializeIn`) or recorded
  * with `payInstallment`. All amounts are minor units of the debt currency (= its account's currency) unless noted.
  */
+import type { Dek } from '@wf/crypto/envelope';
 import type { DebtKind, InterestMethod, RecalcMode } from '@wf/domain/debt';
 import { parseLocalDate, type LocalDate } from '@wf/domain/period';
 import { toBase } from '@wf/domain/transactions';
 import { and, asc, eq, inArray, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { viewsIn as accountViewsIn } from './accounts.ts';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
-import { checkCategoryIn, localDateOf, recordTransactionIn, userContextIn, valuationIn } from './ledger-core.ts';
+import {
+  checkCategoryIn,
+  localDateOf,
+  recordTransactionIn,
+  userContextIn,
+  valuationIn,
+  type EntryDraft,
+  type TransferDraft,
+} from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
 import { materializeIn, userClockIn } from './occurrences.ts';
 import {
@@ -192,6 +201,20 @@ export interface InstallmentPayment {
   readonly amountMinor?: bigint;
 }
 
+/** "Pecah jadi cicilan" while recording a card expense (FR-U2, `hNvip`): the expense and its plan in one go. */
+export interface InstallmentPurchase {
+  /** The expense on the card; its amount is the plan's principal. */
+  readonly draft: EntryDraft;
+  /** A `card_installment` on the draft's account, without the transaction it comes from. */
+  readonly plan: Omit<DebtInput, 'sourceTransactionId'>;
+}
+
+/** A transfer into a credit card recorded with its allocation (FR-U4, `qrRRV`). */
+export interface CardPaymentRecord extends Omit<CardPaymentInput, 'transactionId'> {
+  /** The transfer into the card. */
+  readonly draft: TransferDraft;
+}
+
 export interface DebtsRepository {
   /**
    * The Debts page: debts (default `active`) and the KPIs over all active debts.
@@ -222,6 +245,26 @@ export interface DebtsRepository {
    * @throws {LedgerError} `INVALID_DEBT`
    */
   allocateCardPayment: (userId: string, input: CardPaymentInput) => Promise<DebtView[]>;
+  /**
+   * "Pecah jadi cicilan" (FR-U2): records the card expense and makes it a card installment plan in one transaction.
+   * Idempotent per `draft.clientId`: a replay returns the plan made the first time.
+   * @throws {LedgerError} `INVALID_DEBT` (also when the plan is not a `card_installment` of the expense's card for
+   * its amount), and every code of recording a transaction
+   */
+  recordInstallmentPurchase: (
+    userId: string,
+    input: InstallmentPurchase,
+  ) => Promise<{ transactionId: string; debt: DebtView }>;
+  /**
+   * A transfer into a credit card recorded and allocated (FR-U4) in one transaction, as
+   * {@link DebtsRepository.allocateCardPayment}. Idempotent per `draft.clientId`: a replay changes nothing and
+   * returns no installments.
+   * @throws {LedgerError} `INVALID_DEBT`, and every code of recording a transaction
+   */
+  recordCardPayment: (
+    userId: string,
+    input: CardPaymentRecord,
+  ) => Promise<{ transactionId: string; debts: DebtView[] }>;
   /**
    * Pays a non-card installment row with an expense (`Cicilan {name} ({seq}/{tenor})`, merchant = provider, the
    * debt category) and marks it paid; its occurrence is confirmed (and its review item resolved), and the debt
@@ -589,9 +632,141 @@ async function cardPaymentIn(tx: Transaction, transactionId: string) {
   return leg;
 }
 
-export function createDebts(db: Database, options: { readonly now?: () => Date } = {}): DebtsRepository {
+export function createDebts(
+  db: Database,
+  options: { readonly getDek?: (userId: string) => Promise<Dek>; readonly now?: () => Date } = {},
+): DebtsRepository {
   const now = options.now ?? (() => new Date());
   const todayIn = async (tx: Transaction, userId: string) => (await userClockIn(tx, userId, now())).today;
+  /** The DEK only when a note is written (never fetched inside another `withUser` transaction). */
+  const dekFor = async (userId: string, note: string | null | undefined): Promise<Dek | null> => {
+    if ((note?.trim() ?? '') === '') return null;
+    if (options.getDek === undefined) throw new TypeError('A note needs getDek');
+    return options.getDek(userId);
+  };
+
+  /** Stores a debt with its schedule (and the occurrences of a non-card one). */
+  const createIn = async (tx: Transaction, userId: string, input: DebtInput): Promise<DebtView> => {
+    const values = await checkInputIn(tx, input);
+    const { id } = firstRow(
+      await tx
+        .insert(debts)
+        .values({ userId, ...values })
+        .returning({ id: debts.id }),
+      'debts',
+    );
+    await insertScheduleIn(tx, userId, id, 1, input.schedule);
+    // Card installments have no occurrences: nothing is materialized for them.
+    await materializeIn(tx, userId, { now: now(), source: { type: 'installment', id } });
+    return viewIn(tx, await todayIn(tx, userId), id);
+  };
+
+  /** Allocates a recorded card payment; returns the installments it paid. */
+  const allocateIn = async (tx: Transaction, userId: string, input: CardPaymentInput): Promise<DebtView[]> => {
+    const at = now();
+    const today = await todayIn(tx, userId);
+    const payment = await cardPaymentIn(tx, input.transactionId);
+    const [allocated] = await tx
+      .select({ id: cardPaymentAllocations.id })
+      .from(cardPaymentAllocations)
+      .where(eq(cardPaymentAllocations.transactionId, input.transactionId));
+    if (allocated !== undefined) throw invalid('The payment is already allocated');
+    const keys = new Set<string>();
+    let total = 0n;
+    for (const part of input.allocations) {
+      const debtId = part.debtId ?? null;
+      if ((part.bucket === 'installments') !== (debtId !== null)) {
+        throw invalid('Only an installments part names an installment');
+      }
+      if (part.amountMinor <= 0n) throw invalid('Allocated amounts must be positive');
+      const key = `${part.bucket}.${debtId ?? ''}`;
+      if (keys.has(key)) throw invalid('One part per bucket and installment');
+      keys.add(key);
+      total += part.amountMinor;
+    }
+    if (total > payment.amountMinor) throw invalid('The allocations exceed the payment');
+    const recalculations = new Map<string, RecalculationInput>();
+    for (const recalculation of input.recalculations ?? []) {
+      if (!keys.has(`installments.${recalculation.debtId}`) || recalculations.has(recalculation.debtId)) {
+        throw invalid('A recalculation needs one installments part of its own');
+      }
+      recalculations.set(recalculation.debtId, recalculation);
+    }
+
+    const paid: string[] = [];
+    for (const part of input.allocations) {
+      if (part.bucket !== 'installments') continue;
+      const debtId = part.debtId as string;
+      const [debt] = await tx
+        .select({ id: debts.id })
+        .from(debts)
+        .where(
+          and(
+            eq(debts.id, debtId),
+            eq(debts.kind, 'card_installment'),
+            eq(debts.cardAccountId, payment.accountId),
+            eq(debts.status, 'active'),
+          ),
+        )
+        .for('update');
+      if (debt === undefined) throw invalid('No such active installment on this card');
+      const rows = await tx
+        .select({
+          id: debtInstallments.id,
+          seq: debtInstallments.seq,
+          dueDate: debtInstallments.dueDate,
+          principalMinor: debtInstallments.principalMinor,
+        })
+        .from(debtInstallments)
+        .where(eq(debtInstallments.debtId, debtId))
+        .orderBy(asc(debtInstallments.seq));
+      // Card rows are never `paid`: those due after today are the ones not billed yet.
+      const unbilled = rows.filter((row) => row.dueDate > today);
+      const remaining = unbilled.reduce((sum, row) => sum + row.principalMinor, 0n);
+      if (part.amountMinor > remaining) throw invalid('The allocation exceeds the remaining principal');
+      const left = remaining - part.amountMinor;
+      const recalculation = recalculations.get(debtId);
+      const values: Partial<typeof debts.$inferInsert> = { updatedAt: at };
+      if (left === 0n) {
+        if (recalculation !== undefined) throw invalid('A paid-off installment has nothing to recalculate');
+        values.status = 'paid_off';
+        values.paidOffAt = at;
+      } else {
+        if (recalculation === undefined) throw invalid('A partial payoff needs a recalculation');
+        const count = recalculation.schedule.length;
+        if (
+          recalculation.mode === 'reduce_amount' ? count !== unbilled.length : count === 0 || count > unbilled.length
+        ) {
+          throw invalid('The recalculated schedule does not fit its mode');
+        }
+        checkSchedule(recalculation.schedule, left, today);
+        values.recalcMode = recalculation.mode;
+        values.recalculatedAt = at;
+        values.tenorMonths = rows.length - unbilled.length + count;
+      }
+      await tx.delete(debtInstallments).where(
+        inArray(
+          debtInstallments.id,
+          unbilled.map((row) => row.id),
+        ),
+      );
+      if (recalculation !== undefined) {
+        await insertScheduleIn(tx, userId, debtId, rows.length - unbilled.length + 1, recalculation.schedule);
+      }
+      await tx.update(debts).set(values).where(eq(debts.id, debtId));
+      paid.push(debtId);
+    }
+    await tx.insert(cardPaymentAllocations).values(
+      input.allocations.map((part) => ({
+        userId,
+        transactionId: input.transactionId,
+        bucket: part.bucket,
+        debtId: part.debtId ?? null,
+        amountMinor: part.amountMinor,
+      })),
+    );
+    return paid.length === 0 ? [] : viewsIn(tx, today, inArray(debts.id, paid));
+  };
 
   return {
     list: (userId, { status = 'active' } = {}) =>
@@ -632,21 +807,7 @@ export function createDebts(db: Database, options: { readonly now?: () => Date }
 
     get: (userId, id) => withUser(db, userId, async (tx) => viewIn(tx, await todayIn(tx, userId), id)),
 
-    create: (userId, input) =>
-      withUser(db, userId, async (tx) => {
-        const values = await checkInputIn(tx, input);
-        const { id } = firstRow(
-          await tx
-            .insert(debts)
-            .values({ userId, ...values })
-            .returning({ id: debts.id }),
-          'debts',
-        );
-        await insertScheduleIn(tx, userId, id, 1, input.schedule);
-        // Card installments have no occurrences: nothing is materialized for them.
-        await materializeIn(tx, userId, { now: now(), source: { type: 'installment', id } });
-        return viewIn(tx, await todayIn(tx, userId), id);
-      }),
+    create: (userId, input) => withUser(db, userId, (tx) => createIn(tx, userId, input)),
 
     update: (userId, id, patch) =>
       withUser(db, userId, async (tx) => {
@@ -711,114 +872,34 @@ export function createDebts(db: Database, options: { readonly now?: () => Date }
         }));
       }),
 
-    allocateCardPayment: (userId, input) =>
-      withUser(db, userId, async (tx) => {
-        const at = now();
-        const today = await todayIn(tx, userId);
-        const payment = await cardPaymentIn(tx, input.transactionId);
-        const [allocated] = await tx
-          .select({ id: cardPaymentAllocations.id })
-          .from(cardPaymentAllocations)
-          .where(eq(cardPaymentAllocations.transactionId, input.transactionId));
-        if (allocated !== undefined) throw invalid('The payment is already allocated');
-        const keys = new Set<string>();
-        let total = 0n;
-        for (const part of input.allocations) {
-          const debtId = part.debtId ?? null;
-          if ((part.bucket === 'installments') !== (debtId !== null)) {
-            throw invalid('Only an installments part names an installment');
-          }
-          if (part.amountMinor <= 0n) throw invalid('Allocated amounts must be positive');
-          const key = `${part.bucket}.${debtId ?? ''}`;
-          if (keys.has(key)) throw invalid('One part per bucket and installment');
-          keys.add(key);
-          total += part.amountMinor;
-        }
-        if (total > payment.amountMinor) throw invalid('The allocations exceed the payment');
-        const recalculations = new Map<string, RecalculationInput>();
-        for (const recalculation of input.recalculations ?? []) {
-          if (!keys.has(`installments.${recalculation.debtId}`) || recalculations.has(recalculation.debtId)) {
-            throw invalid('A recalculation needs one installments part of its own');
-          }
-          recalculations.set(recalculation.debtId, recalculation);
-        }
+    allocateCardPayment: (userId, input) => withUser(db, userId, (tx) => allocateIn(tx, userId, input)),
 
-        const paid: string[] = [];
-        for (const part of input.allocations) {
-          if (part.bucket !== 'installments') continue;
-          const debtId = part.debtId as string;
-          const [debt] = await tx
+    recordInstallmentPurchase: async (userId, { draft, plan }) => {
+      const dek = await dekFor(userId, draft.note);
+      return withUser(db, userId, async (tx) => {
+        if (draft.type !== 'expense' || plan.kind !== 'card_installment' || plan.cardAccountId !== draft.accountId) {
+          throw invalid('An installment purchase is an expense on the card of its plan');
+        }
+        const { id: transactionId, created } = await recordTransactionIn(tx, userId, draft, dek, now());
+        if (!created) {
+          const [made] = await tx
             .select({ id: debts.id })
             .from(debts)
-            .where(
-              and(
-                eq(debts.id, debtId),
-                eq(debts.kind, 'card_installment'),
-                eq(debts.cardAccountId, payment.accountId),
-                eq(debts.status, 'active'),
-              ),
-            )
-            .for('update');
-          if (debt === undefined) throw invalid('No such active installment on this card');
-          const rows = await tx
-            .select({
-              id: debtInstallments.id,
-              seq: debtInstallments.seq,
-              dueDate: debtInstallments.dueDate,
-              principalMinor: debtInstallments.principalMinor,
-            })
-            .from(debtInstallments)
-            .where(eq(debtInstallments.debtId, debtId))
-            .orderBy(asc(debtInstallments.seq));
-          // Card rows are never `paid`: those due after today are the ones not billed yet.
-          const unbilled = rows.filter((row) => row.dueDate > today);
-          const remaining = unbilled.reduce((sum, row) => sum + row.principalMinor, 0n);
-          if (part.amountMinor > remaining) throw invalid('The allocation exceeds the remaining principal');
-          const left = remaining - part.amountMinor;
-          const recalculation = recalculations.get(debtId);
-          const values: Partial<typeof debts.$inferInsert> = { updatedAt: at };
-          if (left === 0n) {
-            if (recalculation !== undefined) throw invalid('A paid-off installment has nothing to recalculate');
-            values.status = 'paid_off';
-            values.paidOffAt = at;
-          } else {
-            if (recalculation === undefined) throw invalid('A partial payoff needs a recalculation');
-            const count = recalculation.schedule.length;
-            if (
-              recalculation.mode === 'reduce_amount'
-                ? count !== unbilled.length
-                : count === 0 || count > unbilled.length
-            ) {
-              throw invalid('The recalculated schedule does not fit its mode');
-            }
-            checkSchedule(recalculation.schedule, left, today);
-            values.recalcMode = recalculation.mode;
-            values.recalculatedAt = at;
-            values.tenorMonths = rows.length - unbilled.length + count;
-          }
-          await tx.delete(debtInstallments).where(
-            inArray(
-              debtInstallments.id,
-              unbilled.map((row) => row.id),
-            ),
-          );
-          if (recalculation !== undefined) {
-            await insertScheduleIn(tx, userId, debtId, rows.length - unbilled.length + 1, recalculation.schedule);
-          }
-          await tx.update(debts).set(values).where(eq(debts.id, debtId));
-          paid.push(debtId);
+            .where(eq(debts.sourceTransactionId, transactionId));
+          if (made !== undefined) return { transactionId, debt: await viewIn(tx, await todayIn(tx, userId), made.id) };
         }
-        await tx.insert(cardPaymentAllocations).values(
-          input.allocations.map((part) => ({
-            userId,
-            transactionId: input.transactionId,
-            bucket: part.bucket,
-            debtId: part.debtId ?? null,
-            amountMinor: part.amountMinor,
-          })),
-        );
-        return paid.length === 0 ? [] : viewsIn(tx, today, inArray(debts.id, paid));
-      }),
+        return { transactionId, debt: await createIn(tx, userId, { ...plan, sourceTransactionId: transactionId }) };
+      });
+    },
+
+    recordCardPayment: async (userId, { draft, ...allocation }) => {
+      const dek = await dekFor(userId, draft.note);
+      return withUser(db, userId, async (tx) => {
+        const { id: transactionId, created } = await recordTransactionIn(tx, userId, draft, dek, now());
+        if (!created) return { transactionId, debts: [] };
+        return { transactionId, debts: await allocateIn(tx, userId, { ...allocation, transactionId }) };
+      });
+    },
 
     payInstallment: (userId, installmentId, payment) =>
       withUser(db, userId, async (tx) => {
