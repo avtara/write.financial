@@ -153,7 +153,7 @@ describe('splitImpact', () => {
 
   it('golden IGHyP: recorded whole vs split — Hiburan, Oktober spending, safe daily limit, receivables', () => {
     expect(splitImpact(splitBillContext(), bill)).toEqual({
-      category: { beforeMinor: 2_085_000n, afterMinor: 1_842_500n },
+      category: { beforeMinor: 2_085_000n, afterMinor: 1_842_500n, month: '2026-10' },
       month: { beforeMinor: 16_985_000n, afterMinor: 16_742_500n },
       safeDaily: { beforeMinor: 110_000n, afterMinor: 125_000n },
       receivables: { beforeMinor: 542_500n, afterMinor: 785_000n },

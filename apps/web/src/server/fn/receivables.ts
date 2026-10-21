@@ -44,6 +44,8 @@ export interface SplitBillContext {
   readonly month: { readonly label: YearMonth; readonly expenseMinor: bigint };
   /** `null` without a budget in force. */
   readonly budget: SplitBillBudget | null;
+  /** `HH:mm` of the user's reminders ("Ingatkan aku H-1 jam 09.00"). */
+  readonly reminderTime: string;
 }
 
 const id = z.uuid();
@@ -71,10 +73,11 @@ export const getSplitBillContext = createServerFn({ method: 'GET' }).handler(
     forUser(context, async (userId, all, timezone) => {
       const today = localDateOf(all.now(), timezone);
       const label = today.slice(0, 7) as YearMonth;
-      const [receivables, summary, budget] = await Promise.all([
+      const [receivables, summary, budget, notifications] = await Promise.all([
         all.receivables.list(userId),
         all.transactionQuery.summary(userId, { from: dateInMonth(label, 1), to: dateInMonth(label, 31) }),
         all.budgets.status(userId),
+        all.notificationSettings.get(userId),
       ]);
       return {
         today,
@@ -93,6 +96,7 @@ export const getSplitBillContext = createServerFn({ method: 'GET' }).handler(
                 stepMinor: safeDailyStepMinor(budget.baseCurrency),
                 lines: budget.lines.map(({ categoryId, spentMinor }) => ({ categoryId, spentMinor })),
               },
+        reminderTime: notifications.reminderTime,
       };
     }),
 );

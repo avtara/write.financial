@@ -2207,7 +2207,7 @@
   "record_split_item_remove": "Hapus item {index}",
   "record_split_items": "Item",
   "record_split_items_note": "Pajak, servis, atau diskon dibagi sesuai porsi.",
-  "record_split_match": "Total cocok:",
+  "record_split_match": "Total cocok: {parts} = {total}",
   "record_split_method": "Cara bagi",
   "record_split_mismatch": "Selisih {amount} dari total",
   "record_split_month": "Pengeluaran {month}",

@@ -8,7 +8,7 @@
 import type { AccountView } from '@wf/db/accounts';
 import type { ReceivablesOverview, ReceivableView } from '@wf/db/receivables';
 import { safeDailyLimit } from '@wf/domain/budget';
-import { countDays, type LocalDate } from '@wf/domain/period';
+import { countDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import { splitBill, type SplitMethod } from '@wf/domain/receivables';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
@@ -178,7 +178,8 @@ export interface ImpactRow {
  * not touch (another month, an unbudgeted category) are `null`.
  */
 export interface SplitImpact {
-  readonly category: ImpactRow | null;
+  /** With the month the budget period is named after ("Hiburan Oktober"). */
+  readonly category: (ImpactRow & { readonly month: YearMonth }) | null;
   readonly month: ImpactRow | null;
   readonly safeDaily: ImpactRow | null;
   readonly receivables: ImpactRow;
@@ -199,9 +200,13 @@ export function splitImpact(
   const line = scope?.lines.find((candidate) => candidate.categoryId === bill.categoryId);
   return {
     category:
-      line === undefined
+      scope === null || line === undefined
         ? null
-        : { beforeMinor: line.spentMinor + bill.totalMinor, afterMinor: line.spentMinor + bill.ownMinor },
+        : {
+            beforeMinor: line.spentMinor + bill.totalMinor,
+            afterMinor: line.spentMinor + bill.ownMinor,
+            month: scope.label,
+          },
     month:
       bill.date.slice(0, 7) === context.month.label
         ? {

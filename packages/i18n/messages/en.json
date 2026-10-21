@@ -2762,7 +2762,7 @@
   "record_split_item_remove": "Remove item {index}",
   "record_split_items": "Items",
   "record_split_items_note": "Tax, service, or discounts are shared in proportion.",
-  "record_split_match": "Total matches:",
+  "record_split_match": "Total matches: {parts} = {total}",
   "record_split_method": "Split",
   "record_split_mismatch": "{amount} off the total",
   "record_split_month": "{month} spending",

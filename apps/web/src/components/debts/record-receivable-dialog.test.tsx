@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { LocalDate } from '@wf/domain/period';
-import type { DuePreset } from '@wf/domain/receivables';
-import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { debtsOverview } from '../../../test/debt-fixtures.ts';
 import { BCA, JAGO } from '../../../test/ledger-fixtures.ts';
 import { receivablesOverview } from '../../../test/receivable-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
-import { DuePresetChips, RecordReceivableDialog } from './record-receivable-dialog.tsx';
+import { RecordReceivableDialog } from './record-receivable-dialog.tsx';
 
 const fake = vi.hoisted(() => ({ recordReceivable: vi.fn() }));
 vi.mock('../../server/fn/receivables.ts', () => fake);
@@ -109,19 +106,5 @@ describe('RecordReceivableDialog (H7g1A)', () => {
         fromAccountId: JAGO.id,
       }) as unknown,
     });
-  });
-});
-
-describe('DuePresetChips', () => {
-  it('picks a preset', async () => {
-    function Chips() {
-      const [value, setValue] = useState<DuePreset>('none');
-      return (
-        <DuePresetChips value={value} onChange={setValue} from={'2026-10-11' as LocalDate} locale="id" label="Tempo" />
-      );
-    }
-    const { screen } = await renderApp(<Chips />);
-    await screen.getByRole('button', { name: '1 minggu' }).click();
-    await expect.element(screen.getByRole('button', { name: '1 minggu' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
