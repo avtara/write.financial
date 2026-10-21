@@ -3,7 +3,7 @@
  * Subscriptions (FR-SUB1–SUB6): billing schedules, totals, pause/cancel plans, savings, price increases, the
  * "Bisa dihemat" card and detection of recurring charges from transactions. Amounts are bigint minor units.
  */
-import { addDays, type LocalDate } from './period.ts';
+import { addDays, type LocalDate, type YearMonth } from './period.ts';
 import { nextOccurrences, type IsoWeekday, type RecurrenceRule } from './recurrence.ts';
 
 export const SUBSCRIPTION_CYCLES = ['weekly', 'monthly', 'yearly'] as const;
@@ -358,6 +358,75 @@ export function couldSave<T extends RatedSubscription>(subscriptions: readonly T
   return subscriptions
     .filter((subscription) => subscription.usageRating === 'rarely')
     .map((subscription) => ({ subscription, yearlyMinor: yearlyMinorOf(subscription) }));
+}
+
+/** A subscription as the "Biaya langganan · 6 bulan" chart needs it; `priceMinor` in the chart's currency. */
+export interface HistorySubscription extends PricedSubscription {
+  readonly id: string;
+  readonly status: SubscriptionStatus;
+  readonly startedOn: LocalDate;
+  readonly trialEndsOn: LocalDate | null;
+  readonly pausedOn: LocalDate | null;
+  readonly pausedUntil: LocalDate | null;
+  readonly endsOn: LocalDate | null;
+  readonly cancelMode: CancelMode | null;
+  /** The last price increase: before `since` the price was `previousMinor / currentMinor` of today's. */
+  readonly increase: Pick<PriceIncrease, 'previousMinor' | 'currentMinor' | 'since'> | null;
+}
+
+/** One bar of the cost chart, with its annotations ("+ Spotify", "ChatGPT naik"). */
+export interface CostMonth {
+  readonly month: YearMonth;
+  /** "Per bulan" (see {@link subscriptionTotals}) of the subscriptions active at the month's end (today for this one). */
+  readonly monthlyMinor: bigint;
+  /** Active subscriptions that started this month. */
+  readonly added: string[];
+  /** Active subscriptions whose price went up this month. */
+  readonly increased: string[];
+}
+
+/** Whether `subscription` was billed (neither in trial, paused, nor ended) on `on`. */
+function activeOn(subscription: HistorySubscription, on: LocalDate): boolean {
+  const { endsOn, pausedOn, pausedUntil, trialEndsOn } = subscription;
+  if (subscription.startedOn > on || (trialEndsOn !== null && trialEndsOn >= on)) return false;
+  const ended =
+    endsOn === null
+      ? subscription.status === 'cancelled'
+      : endsOn < on || (endsOn === on && subscription.cancelMode === 'now');
+  const paused = pausedOn !== null && pausedOn <= on && (pausedUntil === null || pausedUntil > on);
+  return !ended && !paused;
+}
+
+/**
+ * FR-SUB2 "Biaya langganan · N bulan": the monthly cost in each of the last `months` calendar months up to today's,
+ * as of each month's last day (today for the current month, so its bar is today's "Per bulan"), with the price
+ * before a later increase.
+ */
+export function costHistory(subscriptions: readonly HistorySubscription[], today: LocalDate, months = 6): CostMonth[] {
+  const history: CostMonth[] = [];
+  for (let back = months - 1; back >= 0; back--) {
+    const first = addMonths(`${today.slice(0, 7)}-01` as LocalDate, -back);
+    const month = first.slice(0, 7) as YearMonth;
+    const on = back === 0 ? today : addDays(addMonths(first, 1), -1);
+    const active = subscriptions.filter((subscription) => activeOn(subscription, on));
+    const priced = active.map((subscription) => {
+      const { increase } = subscription;
+      if (increase === null || on >= increase.since) return subscription;
+      return {
+        ...subscription,
+        priceMinor: divideHalfUp(subscription.priceMinor * increase.previousMinor, increase.currentMinor),
+      };
+    });
+    history.push({
+      month,
+      monthlyMinor: subscriptionTotals(priced).monthlyMinor,
+      added: active.filter((subscription) => subscription.startedOn.startsWith(month)).map(({ id }) => id),
+      increased: active
+        .filter((subscription) => subscription.increase?.since.startsWith(month) === true)
+        .map(({ id }) => id),
+    });
+  }
+  return history;
 }
 
 /** Normalized merchant for matching: lowercase, accents and punctuation removed, single spaces. */

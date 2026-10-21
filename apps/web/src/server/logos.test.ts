@@ -3,10 +3,11 @@ import { LedgerError } from '@wf/db/ledger-errors';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeSession } from '../../test/fixtures.ts';
 import { requestContext } from '../../test/server-fn.ts';
-import { serveAccountLogo } from './account-logo.ts';
+import { serveAccountLogo, serveSubscriptionLogo } from './logos.ts';
 
 const fake = vi.hoisted(() => ({
   accounts: { get: vi.fn() },
+  schedules: { getSubscription: vi.fn() },
   logoStore: { get: vi.fn() },
 }));
 vi.mock('./runtime.ts', () => ({ services: () => Promise.resolve(fake) }));
@@ -54,5 +55,17 @@ describe('serveAccountLogo', () => {
   it('rethrows unexpected failures', async () => {
     fake.accounts.get.mockRejectedValueOnce(new Error('database down'));
     await expect(serveAccountLogo({ context: requestContext(), params: { id: ID } })).rejects.toThrow('database down');
+  });
+});
+
+describe('serveSubscriptionLogo', () => {
+  it('answers the logo of the session user’s subscription, or 404', async () => {
+    fake.schedules.getSubscription.mockResolvedValueOnce({ logoKey: KEY });
+    fake.logoStore.get.mockResolvedValue({ bytes: new Uint8Array([4]), mime: 'image/png' });
+    const response = await serveSubscriptionLogo({ context: requestContext(), params: { id: ID } });
+    expect(response.headers.get('content-type')).toBe('image/png');
+    expect(fake.schedules.getSubscription).toHaveBeenCalledWith(USER_ID, ID);
+    fake.schedules.getSubscription.mockRejectedValueOnce(new LedgerError('NOT_FOUND'));
+    expect((await serveSubscriptionLogo({ context: requestContext(), params: { id: ID } })).status).toBe(404);
   });
 });

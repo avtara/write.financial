@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { DraftView } from '@wf/db/drafts';
 import type { LocalDate } from '@wf/domain/period';
-import { Toaster } from '@wf/ui/toast';
+import { toast, Toaster } from '@wf/ui/toast';
 import { Component, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -179,6 +179,30 @@ describe('RecordTransactionProvider', () => {
     const { sheet } = await open({ type: 'income', description: 'gaji oktober' });
     await expect.element(sheet.getByRole('heading', { name: 'Catat Pemasukan' })).toBeVisible();
     await expect.element(sheet.getByRole('textbox', { name: 'Catatan', exact: true })).toHaveValue('gaji oktober');
+  });
+
+  it('opens prefilled with a day, time, accounts, and amount (a top-up, the calendar)', async () => {
+    const { sheet } = await open({
+      type: 'transfer',
+      accountId: BCA.id,
+      toAccountId: OVO.id,
+      amountMinor: 243_000n,
+      date: '2026-10-12' as LocalDate,
+      time: '12:00',
+    });
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    expect(writes.recordTransaction).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'transfer',
+        fromAccountId: BCA.id,
+        toAccountId: OVO.id,
+        sentMinor: 243_000n,
+        occurredAt: new Date('2026-10-12T05:00:00Z'),
+      }) as unknown,
+    });
+    // The saved toast would otherwise linger into the next test.
+    toast.dismiss();
+    await expect.element(page.getByRole('region', { name: 'Notifikasi' }).getByRole('button')).not.toBeInTheDocument();
   });
 
   it('saves, announces it with Urungkan, and closes', async () => {

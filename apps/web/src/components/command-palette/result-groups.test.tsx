@@ -4,7 +4,7 @@ import type { LocalDate } from '@wf/domain/period';
 import { setLocale } from '@wf/i18n/runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../../../test/render.tsx';
-import type { AccountHit, CategoryHit, TagHit, TransactionHit } from '../../lib/search.ts';
+import type { AccountHit, CategoryHit, SubscriptionHit, TagHit, TransactionHit } from '../../lib/search.ts';
 import { RESULT_GROUPS, type ResultView } from './result-groups.tsx';
 
 const EXPENSE: TransactionHit = {
@@ -37,6 +37,16 @@ const CATEGORY: CategoryHit = {
   archived: false,
 };
 const TAG: TagHit = { id: 'tag-1', slug: 'dana-darurat', usageCount: 3 };
+const SUBSCRIPTION: SubscriptionHit = {
+  id: 'sub-1',
+  name: 'Netflix',
+  plan: 'Premium 4K',
+  priceMinor: 186_000n,
+  currency: 'IDR',
+  cycle: 'monthly',
+  status: 'active',
+  nextBillingDate: '2026-10-18' as LocalDate,
+};
 
 /** A view as text: title | detail | aside (the aside rendered, for `<Money>`). */
 async function shown(view: ResultView) {
@@ -83,11 +93,26 @@ describe('RESULT_GROUPS', () => {
     expect(RESULT_GROUPS.tags.view(TAG, 'id')).toEqual({ title: '#dana-darurat', detail: 'Dipakai 3×' });
   });
 
+  it('shows subscriptions with their plan, next bill or status, and price', async () => {
+    expect(await shown(RESULT_GROUPS.subscriptions.view(SUBSCRIPTION, 'id'))).toEqual([
+      'Netflix',
+      'Premium 4K · berikutnya 18 Okt',
+      'Rp186.000',
+    ]);
+    expect(RESULT_GROUPS.subscriptions.view({ ...SUBSCRIPTION, status: 'paused', plan: null }, 'id').detail).toBe(
+      'dijeda',
+    );
+    expect(RESULT_GROUPS.subscriptions.view({ ...SUBSCRIPTION, status: 'cancelled' }, 'id').detail).toBe(
+      'Premium 4K · dibatalkan',
+    );
+  });
+
   it('remembers each hit under its recent kind and opens its page', async () => {
     const navigate = vi.fn(() => Promise.resolve()) as unknown as NavigateFn;
     expect(Object.values(RESULT_GROUPS).map((group) => group.recentKind)).toEqual([
       'transaction',
       'account',
+      'subscription',
       'category',
       'tag',
     ]);
@@ -95,11 +120,13 @@ describe('RESULT_GROUPS', () => {
     await RESULT_GROUPS.accounts.open(ACCOUNT, navigate);
     await RESULT_GROUPS.categories.open(CATEGORY, navigate);
     await RESULT_GROUPS.tags.open(TAG, navigate);
+    await RESULT_GROUPS.subscriptions.open(SUBSCRIPTION, navigate);
     expect(vi.mocked(navigate).mock.calls).toEqual([
       [{ to: '/accounts', search: { account: 'acc-bca' } }],
       [{ to: '/accounts', search: { account: 'acc-1' } }],
       [{ to: '/settings/$section', params: { section: 'categories' } }],
       [{ to: '/settings/$section', params: { section: 'tags' } }],
+      [{ to: '/subscriptions', search: { subscription: 'sub-1' } }],
     ]);
   });
 });

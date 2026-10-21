@@ -17,6 +17,7 @@ import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
 import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
 import { Route as AppBudgetRouteImport } from './../routes/_app/budget.tsx';
+import { Route as AppSubscriptionsRouteImport } from './../routes/_app/subscriptions.tsx';
 import { Route as AppTransactionsRouteImport } from './../routes/_app/transactions.tsx';
 import { Route as Auth2faRouteImport } from './../routes/_auth/2fa.tsx';
 import { Route as AuthForgotRouteImport } from './../routes/_auth/forgot.tsx';
@@ -29,6 +30,7 @@ import { Route as AppSettingsSectionRouteImport } from './../routes/_app/setting
 import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$.ts';
 import { Route as ApiAccountLogoIdRouteImport } from './../routes/api/account-logo.$id.ts';
 import { Route as ApiAuthSplatRouteImport } from './../routes/api/auth/$.ts';
+import { Route as ApiSubscriptionLogoIdRouteImport } from './../routes/api/subscription-logo.$id.ts';
 import { Route as ApiTransactionsIdAttachmentsAttachmentIdRouteImport } from './../routes/api/transactions.$id.attachments.$attachmentId.ts';
 
 const AppRoute = AppRouteImport.update({
@@ -67,6 +69,11 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
 const AppBudgetRoute = AppBudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppSubscriptionsRoute = AppSubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
   getParentRoute: () => AppRoute,
 } as any);
 const AppTransactionsRoute = AppTransactionsRouteImport.update({
@@ -129,6 +136,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ApiSubscriptionLogoIdRoute = ApiSubscriptionLogoIdRouteImport.update({
+  id: '/api/subscription-logo/$id',
+  path: '/api/subscription-logo/$id',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ApiTransactionsIdAttachmentsAttachmentIdRoute =
   ApiTransactionsIdAttachmentsAttachmentIdRouteImport.update({
     id: '/api/transactions/$id/attachments/$attachmentId',
@@ -143,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
@@ -155,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRoutesByTo {
@@ -164,6 +178,7 @@ export interface FileRoutesByTo {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
   '/2fa': typeof Auth2faRoute;
   '/forgot': typeof AuthForgotRoute;
@@ -176,6 +191,7 @@ export interface FileRoutesByTo {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRoutesById {
@@ -187,6 +203,7 @@ export interface FileRoutesById {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/_app/accounts': typeof AppAccountsRoute;
   '/_app/budget': typeof AppBudgetRoute;
+  '/_app/subscriptions': typeof AppSubscriptionsRoute;
   '/_app/transactions': typeof AppTransactionsRoute;
   '/_auth/2fa': typeof Auth2faRoute;
   '/_auth/forgot': typeof AuthForgotRoute;
@@ -200,6 +217,7 @@ export interface FileRoutesById {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRouteTypes {
@@ -211,6 +229,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/subscriptions'
     | '/transactions'
     | '/2fa'
     | '/forgot'
@@ -223,6 +242,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -232,6 +252,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/subscriptions'
     | '/transactions'
     | '/2fa'
     | '/forgot'
@@ -244,6 +265,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
   id:
     | '__root__'
@@ -254,6 +276,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/_app/accounts'
     | '/_app/budget'
+    | '/_app/subscriptions'
     | '/_app/transactions'
     | '/_auth/2fa'
     | '/_auth/forgot'
@@ -267,6 +290,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesById: FileRoutesById;
 }
@@ -280,6 +304,7 @@ export interface RootRouteChildren {
   OnboardingStepRoute: typeof OnboardingStepRoute;
   ApiAccountLogoIdRoute: typeof ApiAccountLogoIdRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
+  ApiSubscriptionLogoIdRoute: typeof ApiSubscriptionLogoIdRoute;
   ApiTransactionsIdAttachmentsAttachmentIdRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 
@@ -339,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/budget';
       fullPath: '/budget';
       preLoaderRoute: typeof AppBudgetRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/subscriptions': {
+      id: '/_app/subscriptions';
+      path: '/subscriptions';
+      fullPath: '/subscriptions';
+      preLoaderRoute: typeof AppSubscriptionsRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_app/transactions': {
@@ -425,6 +457,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/api/subscription-logo/$id': {
+      id: '/api/subscription-logo/$id';
+      path: '/api/subscription-logo/$id';
+      fullPath: '/api/subscription-logo/$id';
+      preLoaderRoute: typeof ApiSubscriptionLogoIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/api/transactions/$id/attachments/$attachmentId': {
       id: '/api/transactions/$id/attachments/$attachmentId';
       path: '/api/transactions/$id/attachments/$attachmentId';
@@ -438,6 +477,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute;
   AppBudgetRoute: typeof AppBudgetRoute;
+  AppSubscriptionsRoute: typeof AppSubscriptionsRoute;
   AppTransactionsRoute: typeof AppTransactionsRoute;
   AppIndexRoute: typeof AppIndexRoute;
   AppSettingsSectionRoute: typeof AppSettingsSectionRoute;
@@ -446,6 +486,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
   AppBudgetRoute: AppBudgetRoute,
+  AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppIndexRoute: AppIndexRoute,
   AppSettingsSectionRoute: AppSettingsSectionRoute,
@@ -493,6 +534,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingStepRoute: OnboardingStepRoute,
   ApiAccountLogoIdRoute: ApiAccountLogoIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiSubscriptionLogoIdRoute: ApiSubscriptionLogoIdRoute,
   ApiTransactionsIdAttachmentsAttachmentIdRoute:
     ApiTransactionsIdAttachmentsAttachmentIdRoute,
 };

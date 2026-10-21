@@ -16,6 +16,7 @@ import {
   approxMinor,
   cancelPlan,
   cancelledSavings,
+  costHistory,
   couldSave,
   cycleRule,
   detectSubscriptions,
@@ -30,6 +31,7 @@ import {
   trialFirstBill,
   type Bill,
   type DetectionTransaction,
+  type HistorySubscription,
   type PricedSubscription,
   type SubscriptionState,
 } from './subscriptions.ts';
@@ -409,6 +411,103 @@ describe('couldSave', () => {
       ['hs', 660_900n],
       ['wk', 520n],
     ]);
+  });
+});
+
+describe('costHistory', () => {
+  const sub = (patch: Partial<HistorySubscription> & Pick<HistorySubscription, 'id'>): HistorySubscription => ({
+    priceMinor: 100_000n,
+    cycle: 'monthly',
+    status: 'active',
+    startedOn: d('2025-01-01'),
+    trialEndsOn: null,
+    pausedOn: null,
+    pausedUntil: null,
+    endsOn: null,
+    cancelMode: null,
+    increase: null,
+    ...patch,
+  });
+
+  it('golden: the seed ends on today’s “Per bulan” Rp904.900 with its annotations', () => {
+    const seed = [
+      sub({ id: 'netflix', priceMinor: 186_000n, startedOn: d('2024-01-18') }),
+      sub({ id: 'spotify', priceMinor: 86_900n, startedOn: d('2026-06-20') }),
+      sub({ id: 'youtube', priceMinor: 59_000n, startedOn: d('2026-09-22') }),
+      sub({
+        id: 'chatgpt',
+        priceMinor: 329_000n,
+        startedOn: d('2025-03-28'),
+        increase: { previousMinor: 299_000n, currentMinor: 329_000n, since: d('2026-08-28') },
+      }),
+      sub({ id: 'fithub', priceMinor: 199_000n, startedOn: d('2025-11-03') }),
+      sub({ id: 'icloud', priceMinor: 45_000n, startedOn: d('2025-01-09') }),
+      sub({ id: 'niagahoster', priceMinor: 660_900n, cycle: 'yearly', startedOn: d('2024-10-05') }),
+      sub({
+        id: 'headspace',
+        priceMinor: 70_000n,
+        status: 'paused',
+        startedOn: d('2025-06-01'),
+        pausedOn: d('2026-09-01'),
+        pausedUntil: d('2026-12-01'),
+      }),
+      sub({ id: 'canva', priceMinor: 95_000n, status: 'cancelled', endsOn: d('2026-03-31') }),
+    ];
+    const history = costHistory(seed, TODAY);
+    expect(history.map((month) => [month.month, month.monthlyMinor, month.added, month.increased])).toEqual([
+      ['2026-05', 799_000n, [], []],
+      ['2026-06', 885_900n, ['spotify'], []],
+      ['2026-07', 885_900n, [], []],
+      ['2026-08', 915_900n, [], ['chatgpt']],
+      ['2026-09', 904_900n, ['youtube'], []],
+      ['2026-10', 904_900n, [], []],
+    ]);
+    expect(history.at(-1)?.monthlyMinor).toBe(subscriptionTotals(ACTIVE).monthlyMinor);
+  });
+
+  it('counts a month by its last day, the current one by today, and takes the month count', () => {
+    const history = costHistory(
+      [
+        sub({ id: 'last-day', startedOn: d('2026-09-30') }),
+        sub({ id: 'later', startedOn: d('2026-10-16') }),
+        sub({ id: 'today', startedOn: TODAY }),
+      ],
+      TODAY,
+      2,
+    );
+    expect(history).toEqual([
+      { month: '2026-09', monthlyMinor: 100_000n, added: ['last-day'], increased: [] },
+      { month: '2026-10', monthlyMinor: 200_000n, added: ['today'], increased: [] },
+    ]);
+    expect(costHistory([], d('2026-01-31'), 3).map((month) => month.month)).toEqual(['2025-11', '2025-12', '2026-01']);
+    expect(costHistory([], TODAY)).toHaveLength(6);
+  });
+
+  it('leaves out trials, pauses and ended subscriptions on the day it applies', () => {
+    const on = (patch: Partial<HistorySubscription>) =>
+      costHistory([sub({ id: 'x', ...patch })], TODAY, 1)[0]?.monthlyMinor;
+    expect(on({ trialEndsOn: TODAY })).toBe(0n);
+    expect(on({ trialEndsOn: d('2026-10-14') })).toBe(100_000n);
+    expect(on({ pausedOn: TODAY, pausedUntil: d('2026-11-15') })).toBe(0n);
+    expect(on({ pausedOn: d('2026-10-16'), pausedUntil: d('2026-11-15') })).toBe(100_000n);
+    expect(on({ pausedOn: d('2026-09-15'), pausedUntil: TODAY })).toBe(100_000n);
+    expect(on({ pausedOn: d('2026-09-15'), pausedUntil: d('2026-10-16') })).toBe(0n);
+    expect(on({ pausedOn: d('2026-09-15'), pausedUntil: null })).toBe(0n);
+    expect(on({ status: 'paused' })).toBe(100_000n);
+    expect(on({ endsOn: TODAY, cancelMode: 'after_next_bill' })).toBe(100_000n);
+    expect(on({ endsOn: TODAY, cancelMode: 'now' })).toBe(0n);
+    expect(on({ endsOn: d('2026-10-14'), cancelMode: 'after_next_bill' })).toBe(0n);
+    expect(on({ endsOn: d('2026-10-16'), cancelMode: 'now' })).toBe(100_000n);
+    expect(on({ status: 'cancelled' })).toBe(0n);
+    expect(on({ status: 'cancelled', endsOn: d('2026-10-16') })).toBe(100_000n);
+  });
+
+  it('prices days before an increase at the old price, rounded half-up, and spreads weekly cycles', () => {
+    const increase = { previousMinor: 3n, currentMinor: 4n, since: TODAY };
+    const [before, after] = costHistory([sub({ id: 'x', priceMinor: 10n, increase })], TODAY, 2);
+    expect(before).toMatchObject({ monthlyMinor: 8n, increased: [] });
+    expect(after).toMatchObject({ monthlyMinor: 10n, increased: ['x'] });
+    expect(costHistory([sub({ id: 'w', cycle: 'weekly', priceMinor: 12n })], TODAY, 1)[0]?.monthlyMinor).toBe(52n);
   });
 });
 

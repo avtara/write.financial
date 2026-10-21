@@ -20,6 +20,7 @@ import {
 import {
   cancelledSavings,
   cancelPlan,
+  costHistory,
   couldSave,
   cycleRule,
   detectionImpact,
@@ -33,6 +34,7 @@ import {
   trialFirstBill,
   USAGE_RATINGS,
   type CancelMode,
+  type CostMonth,
   type DetectionImpact,
   type PauseLength,
   type PriceIncrease,
@@ -227,6 +229,8 @@ export interface SubscriptionsOverview {
   readonly byCategory: CategoryShare[];
   /** Currencies without a rate to the base currency; their subscriptions are left out of the figures. */
   readonly missingRates: string[];
+  /** FR-SUB2 "Biaya langganan · 6 bulan", oldest first, in the base currency. */
+  readonly history: CostMonth[];
 }
 
 export interface BillingCharge {
@@ -307,6 +311,8 @@ export interface SchedulesRepository {
     userId: string,
     options?: { readonly status?: SubscriptionStatus },
   ) => Promise<SubscriptionsOverview>;
+  /** The effectively active subscriptions (the nav badge). */
+  countActive: (userId: string) => Promise<number>;
   /** @throws {LedgerError} `NOT_FOUND` */
   getSubscription: (userId: string, id: string) => Promise<SubscriptionView>;
   /** @throws {LedgerError} `INVALID_SUBSCRIPTION` */
@@ -1012,7 +1018,28 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
           cancelledSavedMinor: cancelledSavings(cancelled, today).totalMinor,
           byCategory,
           missingRates: [...missing].sort(),
+          history: costHistory(
+            valued.map((view) => ({
+              ...priced(view),
+              increase: view.priceIncrease,
+            })),
+            today,
+          ),
         };
+      }),
+
+    countActive: (userId) =>
+      withUser(db, userId, async (tx) => {
+        const { today } = await userClockIn(tx, userId, now());
+        const rows = await tx
+          .select({
+            status: subscriptions.status,
+            pausedUntil: subscriptions.pausedUntil,
+            endsOn: subscriptions.endsOn,
+            cancelMode: subscriptions.cancelMode,
+          })
+          .from(subscriptions);
+        return rows.filter((row) => effectiveStatus(row, today) === 'active').length;
       }),
 
     getSubscription: (userId, id) =>

@@ -1000,11 +1000,11 @@ const MATRIX: Record<Name, Case> = {
       const ofB = await as<Result<SearchResults>>('B', 'searchEverything', input);
       expect(ofB.ok && ofB.value.accounts.hits.map((hit) => hit.displayName)).toEqual(['Rekening B']);
       const rahasia = await as<Result<SearchResults>>('B', 'searchEverything', { query: 'rahasia' });
-      expect(rahasia.ok && SEARCH_KINDS.map((kind) => rahasia.value[kind].total)).toEqual([0, 0, 0, 0]);
-      // A's own: the transaction "Belanja Rahasia A", the account, "Rahasia A" and the budgeted "Anggaran rahasia-a",
-      // and the tag.
+      expect(rahasia.ok && SEARCH_KINDS.map((kind) => rahasia.value[kind].total)).toEqual([0, 0, 0, 0, 0]);
+      // A's own: the transaction "Belanja Rahasia A", the account, "Langganan Rahasia A", "Rahasia A" and the
+      // budgeted "Anggaran rahasia-a", and the tag.
       const ofA = await as<Result<SearchResults>>('A', 'searchEverything', { query: 'rahasia' });
-      expect(ofA.ok && SEARCH_KINDS.map((kind) => ofA.value[kind].total)).toEqual([1, 1, 2, 1]);
+      expect(ofA.ok && SEARCH_KINDS.map((kind) => ofA.value[kind].total)).toEqual([1, 1, 1, 2, 1]);
     },
   },
   touchRecent: {
@@ -1701,6 +1701,40 @@ const MATRIX: Record<Name, Case> = {
       expect(ofA.ok && ofA.value.subscriptions.map((subscription) => subscription.name)).toEqual([
         A_LEDGER.subscription,
       ]);
+    },
+  },
+  countActiveSubscriptions: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const ofB = await as<Result<SubscriptionsOverview>>('B', 'listSubscriptions', {});
+      expect(await as('B', 'countActiveSubscriptions', undefined)).toEqual(ok(ofB.ok ? ofB.value.counts.active : -1));
+    },
+  },
+  setSubscriptionLogo: {
+    input: () => {
+      const form = new FormData();
+      form.set('id', SOME_ID);
+      form.set('file', new File([new Uint8Array([137, 80, 78, 71])], 'logo.png', { type: 'image/png' }));
+      return form;
+    },
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      // Refused before the image is read or anything reaches storage.
+      const form = new FormData();
+      form.set('id', await firstOfA('subscriptions'));
+      form.set('file', new File([new Uint8Array([137, 80, 78, 71])], 'logo.png', { type: 'image/png' }));
+      const a = await aM3Rows();
+      expect(await as('B', 'setSubscriptionLogo', form)).toEqual(NOT_FOUND);
+      expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  removeSubscriptionLogo: {
+    input: () => ({ id: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const a = await aM3Rows();
+      expect(await as('B', 'removeSubscriptionLogo', { id: await firstOfA('subscriptions') })).toEqual(NOT_FOUND);
+      expect(await aM3Rows()).toEqual(a);
     },
   },
   getSubscription: {

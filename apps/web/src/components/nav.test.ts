@@ -4,12 +4,13 @@ import { m } from '@wf/i18n/messages';
 import { NAV_GROUPS } from './nav.ts';
 
 describe('NAV_GROUPS', () => {
-  it('lists Overview, Transactions, and Budget under MENU and Accounts & wallets under Akun', () => {
+  it('lists Overview, Transactions, Budget, and Subscriptions under MENU and Accounts & wallets under Akun', () => {
     expect(NAV_GROUPS.map((group) => group.label())).toEqual([m.nav_menu(), m.nav_group_account()]);
     expect(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.to))).toEqual([
       '/',
       '/transactions',
       '/budget',
+      '/subscriptions',
       '/accounts',
     ]);
     expect(m.nav_group_account({}, { locale: 'id' })).toBe('Akun');
@@ -21,6 +22,7 @@ describe('NAV_GROUPS', () => {
       m.nav_overview,
       m.nav_transactions,
       m.nav_budget,
+      m.nav_subscriptions,
       m.accounts_title,
     ]);
     expect(m.accounts_title({}, { locale: 'id' })).toBe('Rekening & dompet');
@@ -29,13 +31,15 @@ describe('NAV_GROUPS', () => {
     expect(m.nav_transactions({}, { locale: 'id' })).toBe('Transaksi');
     expect(m.nav_budget({}, { locale: 'id' })).toBe('Anggaran');
     expect(m.nav_budget({}, { locale: 'en' })).toBe('Budget');
+    expect(m.nav_subscriptions({}, { locale: 'id' })).toBe('Langganan');
+    expect(m.nav_subscriptions({}, { locale: 'en' })).toBe('Subscriptions');
     const shortcuts = items.flatMap((item) => (item.shortcut === undefined ? [] : [item.shortcut.join(' ')]));
-    expect(shortcuts).toEqual(['G R', 'G T', 'G A']);
+    expect(shortcuts).toEqual(['G R', 'G T', 'G A', 'G L']);
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
   });
 
-  it('badges Transactions with the count of the current period', () => {
+  it('badges Transactions with the count of the current period and Subscriptions with the active ones', () => {
     const items = NAV_GROUPS.flatMap((group) => group.items);
-    expect(items.map((item) => item.badge)).toEqual([undefined, 'transactions', undefined, undefined]);
+    expect(items.map((item) => item.badge)).toEqual([undefined, 'transactions', undefined, 'subscriptions', undefined]);
   });
 });

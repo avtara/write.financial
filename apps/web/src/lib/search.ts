@@ -8,6 +8,7 @@ import type { RecentItemKind } from '@wf/db/recent-items';
 import type { CategoryGroup, CategoryKind } from '@wf/domain/categories';
 import type { AccountType } from '@wf/domain/ledger';
 import type { LocalDate } from '@wf/domain/period';
+import type { SubscriptionCycle, SubscriptionStatus } from '@wf/domain/subscriptions';
 import type { TransactionType } from '@wf/domain/transactions';
 
 /** Enough of a category to show its name in the reader's language (`categoryName`). */
@@ -55,18 +56,36 @@ export interface TagHit {
   readonly usageCount: number;
 }
 
+export interface SubscriptionHit {
+  readonly id: string;
+  readonly name: string;
+  readonly plan: string | null;
+  readonly priceMinor: bigint;
+  readonly currency: string;
+  readonly cycle: SubscriptionCycle;
+  readonly status: SubscriptionStatus;
+  readonly nextBillingDate: LocalDate;
+}
+
 /** One hit type per result group. */
 export interface SearchHits {
   readonly transactions: TransactionHit;
   readonly accounts: AccountHit;
   readonly categories: CategoryHit;
   readonly tags: TagHit;
+  readonly subscriptions: SubscriptionHit;
 }
 
 export type SearchKind = keyof SearchHits;
 
 /** The groups in the order the palette lists them. */
-export const SEARCH_KINDS = ['transactions', 'accounts', 'categories', 'tags'] as const satisfies readonly SearchKind[];
+export const SEARCH_KINDS = [
+  'transactions',
+  'accounts',
+  'subscriptions',
+  'categories',
+  'tags',
+] as const satisfies readonly SearchKind[];
 
 export interface SearchGroup<K extends SearchKind> {
   /** The first matches, at most the per-group limit. */
@@ -90,6 +109,7 @@ export const RECENT_ENTITY_KINDS = [
   'category',
   'tag',
   'goal',
+  'subscription',
 ] as const satisfies readonly Exclude<RecentItemKind, 'page'>[];
 
 export type RecentEntityKind = (typeof RECENT_ENTITY_KINDS)[number];

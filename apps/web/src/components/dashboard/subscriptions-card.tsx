@@ -2,15 +2,17 @@
 /**
  * "Langganan" on the Overview (FR-D2, design `iUqiN`): the active subscriptions ("7 aktif · 3 tagihan dalam 7 hari"),
  * the monthly and yearly totals (Rp904.900 / ≈ Rp11.520.000), each one's share of the month as a stacked bar, the next
- * bills with "3 hari lagi" (this month's paid ones "Lunas"), and the savings tip of a rarely used one (FR-SUB5).
+ * bills with "3 hari lagi" (this month's paid ones "Lunas"), the savings tip of a rarely used one (FR-SUB5), and
+ * "Tambah" (the subscriptions page's form).
  */
+import { Link } from '@tanstack/react-router';
 import type { SubscriptionsOverview, SubscriptionView } from '@wf/db/schedules';
 import { addDays, countDays } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { formatDate } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
-import { Check, Lightbulb } from 'lucide-react';
+import { Check, Lightbulb, Plus } from 'lucide-react';
 import { COLOR_TOKENS } from '../../lib/colors.ts';
 import { RichMessage } from '../rich-message.tsx';
 
@@ -78,11 +80,22 @@ export function SubscriptionsCard({ overview, locale }: SubscriptionsCardProps) 
       aria-labelledby="overview-subscriptions"
       className="flex flex-col gap-4 rounded-[12px] border border-border bg-card px-6 py-5"
     >
-      <div className="flex flex-col gap-1">
-        <h2 id="overview-subscriptions" className="text-[15px] font-semibold text-fg">
-          {m.overview_subs_title()}
-        </h2>
-        <p className="text-[12.5px] text-muted-fg">{m.overview_subs_caption({ active: active.length, due })}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 id="overview-subscriptions" className="text-[15px] font-semibold text-fg">
+            {m.overview_subs_title()}
+          </h2>
+          <p className="text-[12.5px] text-muted-fg">{m.overview_subs_caption({ active: active.length, due })}</p>
+        </div>
+        <Link
+          to="/subscriptions"
+          search={{ new: true }}
+          aria-label={m.subscriptions_add()}
+          className="inline-flex h-7 items-center gap-1 rounded-[7px] border border-border px-2 text-[12.5px] text-fg hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Plus aria-hidden="true" className="size-3.5" />
+          {m.overview_subs_add()}
+        </Link>
       </div>
       {active.length === 0 ? (
         <p className="text-[13px] text-subtle">{m.overview_subs_empty()}</p>

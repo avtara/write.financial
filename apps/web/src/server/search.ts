@@ -21,6 +21,7 @@ import {
   type SearchHits,
   type SearchKind,
   type SearchResults,
+  type SubscriptionHit,
   type TagHit,
   type TransactionHit,
 } from '../lib/search.ts';
@@ -33,7 +34,7 @@ export const RECENT_LIMIT = 6;
 
 export type SearchServices = Pick<
   Services,
-  'accounts' | 'categories' | 'tags' | 'transactions' | 'transactionQuery' | 'recentItems'
+  'accounts' | 'categories' | 'tags' | 'transactions' | 'transactionQuery' | 'recentItems' | 'schedules'
 >;
 
 interface SourceContext {
@@ -42,6 +43,7 @@ interface SourceContext {
   readonly accounts: () => Promise<AccountView[]>;
   readonly categories: () => Promise<CategoryView[]>;
   readonly tags: () => Promise<TagView[]>;
+  readonly subscriptions: () => Promise<SubscriptionHit[]>;
 }
 
 interface SearchSource<H extends { readonly id: string }> {
@@ -64,6 +66,18 @@ function contextFor(services: SearchServices, userId: string): SourceContext {
     accounts: once(async () => (await services.accounts.list(userId, { status: 'all' })).accounts),
     categories: once(() => services.categories.list(userId, { includeArchived: true })),
     tags: once(() => services.tags.list(userId)),
+    subscriptions: once(async () =>
+      (await services.schedules.listSubscriptions(userId)).subscriptions.map((view): SubscriptionHit => ({
+        id: view.id,
+        name: view.name,
+        plan: view.plan,
+        priceMinor: view.priceMinor,
+        currency: view.currency,
+        cycle: view.cycle,
+        status: view.effectiveStatus,
+        nextBillingDate: view.nextBillingDate,
+      })),
+    ),
   };
 }
 
@@ -204,11 +218,26 @@ const tags: SearchSource<TagHit> = {
   resolve: async (context, ids) => (await context.tags()).filter((tag) => ids.includes(tag.id)).map(tagHit),
 };
 
+const subscriptions: SearchSource<SubscriptionHit> = {
+  recentKind: 'subscription',
+  search: async (context, query, limit) => {
+    // Active ones first, then paused, then cancelled; the repository's order (next bill) within each.
+    const rank = { active: 0, paused: 1, cancelled: 2 } as const;
+    const matches = (await context.subscriptions())
+      .filter((subscription) => matchesQuery(query, [subscription.name, subscription.plan ?? '']))
+      .sort((a, b) => rank[a.status] - rank[b.status]);
+    return groupOf(matches, limit);
+  },
+  resolve: async (context, ids) =>
+    (await context.subscriptions()).filter((subscription) => ids.includes(subscription.id)),
+};
+
 const SOURCES: { readonly [K in SearchKind]: SearchSource<SearchHits[K]> } = {
   transactions,
   accounts,
   categories,
   tags,
+  subscriptions,
 };
 
 /** Every group's matches for `query`. */

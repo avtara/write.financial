@@ -11,6 +11,9 @@ describe('SubscriptionsCard', () => {
     const region = screen.getByRole('region', { name: 'Langganan' });
     await expect.element(region.getByText('4 aktif · 1 tagihan dalam 7 hari')).toBeVisible();
     await expect.element(region).toMatchTextContent(/Per bulanRp516\.900/);
+    await expect
+      .element(region.getByRole('link', { name: 'Tambah langganan' }))
+      .toHaveAttribute('href', '/subscriptions?new=true');
     await expect.element(region).toMatchTextContent(/Per tahun≈Rp6\.200\.000/);
     const rows = region.getByRole('list', { name: 'Langganan aktif' }).getByRole('listitem').elements();
     expect(rows.map((row) => row.textContent)).toEqual([

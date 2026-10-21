@@ -17,6 +17,7 @@ vi.mock('../../server/fn/search.ts', () => ({
         accounts: { hits: [], total: 0 },
         categories: { hits: [], total: 0 },
         tags: { hits: [], total: 0 },
+        subscriptions: { hits: [], total: 0 },
       },
     }),
   touchRecent: vi.fn(),
@@ -59,6 +60,15 @@ describe('AppCommandActions', () => {
     await userEvent.click(dialog().getByRole('option', { name: 'Tambah rekening' }));
     await vi.waitFor(() => {
       expect(router.state.location.href).toBe('/accounts?new=bank');
+    });
+  });
+
+  it('adds a subscription from "Aksi cepat"', async () => {
+    await openPalette();
+    await userEvent.type(dialog().getByRole('combobox'), 'langganan');
+    await userEvent.click(dialog().getByRole('option', { name: 'Tambah langganan' }));
+    await vi.waitFor(() => {
+      expect(router.state.location.href).toBe('/subscriptions?new=true');
     });
   });
 

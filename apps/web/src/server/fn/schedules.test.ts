@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { ImageRejectedError } from '@wf/integrations/image';
+import type * as ImageModule from '@wf/integrations/image';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeSession } from '../../../test/fixtures.ts';
 import { call, requestContext, validatorOf } from '../../../test/server-fn.ts';
@@ -16,7 +18,8 @@ const fake = vi.hoisted(() => ({
     stopRecurrence: vi.fn(() => Promise.resolve({ deletedOccurrences: 3 })),
     undoStopRecurrence: vi.fn(() => Promise.resolve('recurrence')),
     listSubscriptions: vi.fn(() => Promise.resolve('overview')),
-    getSubscription: vi.fn(() => Promise.resolve('subscription')),
+    getSubscription: vi.fn((): Promise<{ logoKey: string | null }> => Promise.resolve({ logoKey: null })),
+    countActive: vi.fn(() => Promise.resolve(7)),
     createSubscription: vi.fn(() => Promise.resolve('subscription')),
     updateSubscription: vi.fn(() => Promise.resolve('subscription')),
     deleteSubscription: vi.fn(() => Promise.resolve({ deletedOccurrences: 2 })),
@@ -31,12 +34,23 @@ const fake = vi.hoisted(() => ({
     dismissDetected: vi.fn(() => Promise.resolve({ dismissed: 1 })),
     listScheduled: vi.fn(() => Promise.resolve([])),
   },
+  logoStore: { put: vi.fn(), delete: vi.fn() },
+  prepareImageUpload: vi.fn(),
 }));
 
 // vi.mock factories run before imports; they load the shared helper themselves.
 vi.mock('@tanstack/react-start', async () => (await import('../../../test/server-fn.ts')).serverFnModule());
 vi.mock('../runtime.ts', () => ({
-  services: () => Promise.resolve({ schedules: fake.schedules, now: () => new Date('2026-10-15T09:42:00Z') }),
+  services: () =>
+    Promise.resolve({
+      schedules: fake.schedules,
+      logoStore: fake.logoStore,
+      now: () => new Date('2026-10-15T09:42:00Z'),
+    }),
+}));
+vi.mock('@wf/integrations/image', async (importOriginal) => ({
+  ...(await importOriginal<typeof ImageModule>()),
+  prepareImageUpload: fake.prepareImageUpload,
 }));
 
 const USER_ID = fakeSession().user.id;
@@ -79,6 +93,7 @@ describe('schedule server functions', () => {
       [fns.stopRecurrence, { id: ID }, 'stopRecurrence', [ID]],
       [fns.undoStopRecurrence, { id: ID }, 'undoStopRecurrence', [ID]],
       [fns.listSubscriptions, {}, 'listSubscriptions', [{}]],
+      [fns.countActiveSubscriptions, undefined, 'countActive', []],
       [fns.getSubscription, { id: ID }, 'getSubscription', [ID]],
       [fns.createSubscription, NETFLIX, 'createSubscription', [NETFLIX]],
       [
@@ -147,11 +162,12 @@ describe('schedule server functions', () => {
 
   it('refuses signed-out requests before any repository call', async () => {
     const all = Object.values(fns);
-    expect(all).toHaveLength(20);
+    expect(all).toHaveLength(23);
     for (const fn of all) {
       expect(await call(fn, { context: signedOut(), data: {} })).toEqual({ ok: false, code: 'UNAUTHENTICATED' });
     }
     expect(Object.values(fake.schedules).every((fn) => fn.mock.calls.length === 0)).toBe(true);
+    expect(fake.logoStore.put).not.toHaveBeenCalled();
   });
 
   it('validates recurrences', () => {
@@ -201,5 +217,74 @@ describe('schedule server functions', () => {
     expect(validatorOf(fns.addDetectedSubscriptions).safeParse({ ids: [] }).success).toBe(false);
     expect(validatorOf(fns.listSubscriptions).safeParse({ status: 'paused' }).success).toBe(true);
     expect(validatorOf(fns.listScheduled).safeParse({ from: '2026-10-01' }).success).toBe(false);
+  });
+});
+
+describe('subscription logos', () => {
+  const LOGO = `u/${USER_ID}/logo`;
+  const png = () => new File([new Uint8Array([137, 80, 78, 71])], 'logo.png', { type: 'image/png' });
+  const form = (fields: Record<string, string | File>) => {
+    const data = new FormData();
+    for (const [key, value] of Object.entries(fields)) data.set(key, value);
+    return data;
+  };
+
+  it('deletes a subscription’s uploaded logo with it', async () => {
+    fake.schedules.getSubscription.mockResolvedValueOnce({ logoKey: LOGO });
+    await call(fns.deleteSubscription, { context: signedIn(), data: { id: ID } });
+    expect(fake.logoStore.delete).toHaveBeenCalledWith(USER_ID, LOGO);
+  });
+
+  it('stores the re-encoded thumbnail, links it, and deletes the previous logo', async () => {
+    const thumbnail = { bytes: new Uint8Array([9]), mime: 'image/webp' };
+    fake.prepareImageUpload.mockResolvedValue({ image: {}, thumbnail });
+    fake.logoStore.put.mockResolvedValue({ key: LOGO });
+    fake.schedules.getSubscription.mockResolvedValueOnce({ logoKey: 'old' });
+    expect(await call(fns.setSubscriptionLogo, { context: signedIn(), data: form({ id: ID, file: png() }) })).toEqual({
+      ok: true,
+      value: 'subscription',
+    });
+    expect(fake.prepareImageUpload).toHaveBeenCalledWith(new Uint8Array([137, 80, 78, 71]));
+    expect(fake.logoStore.put).toHaveBeenCalledWith(USER_ID, thumbnail.bytes, 'image/webp');
+    expect(fake.schedules.updateSubscription).toHaveBeenCalledWith(USER_ID, ID, { logoKey: LOGO });
+    expect(fake.logoStore.delete).toHaveBeenCalledWith(USER_ID, 'old');
+
+    fake.logoStore.delete.mockClear();
+    await call(fns.setSubscriptionLogo, { context: signedIn(), data: form({ id: ID, file: png() }) });
+    expect(fake.logoStore.delete).not.toHaveBeenCalled();
+  });
+
+  it('reports rejected images with their reason and rejects bad form data', async () => {
+    fake.prepareImageUpload.mockRejectedValueOnce(new ImageRejectedError('unsupported-type', 'svg'));
+    expect(await call(fns.setSubscriptionLogo, { context: signedIn(), data: form({ id: ID, file: png() }) })).toEqual({
+      ok: false,
+      code: 'IMAGE_REJECTED',
+      detail: 'unsupported-type',
+    });
+    fake.prepareImageUpload.mockRejectedValueOnce(new Error('libvips crashed'));
+    await expect(
+      call(fns.setSubscriptionLogo, { context: signedIn(), data: form({ id: ID, file: png() }) }),
+    ).rejects.toThrow('libvips crashed');
+    expect(fake.logoStore.put).not.toHaveBeenCalled();
+    await expect(
+      call(fns.setSubscriptionLogo, { context: signedIn(), data: form({ id: 'x', file: png() }) }),
+    ).rejects.toThrow();
+    await expect(
+      call(fns.setSubscriptionLogo, { context: signedIn(), data: form({ id: ID, file: 'text' }) }),
+    ).rejects.toThrow();
+    expect(validatorOf(fns.setSubscriptionLogo).safeParse({ id: ID }).success).toBe(false);
+  });
+
+  it('removes the logo and its object', async () => {
+    fake.schedules.getSubscription.mockResolvedValueOnce({ logoKey: LOGO });
+    expect(await call(fns.removeSubscriptionLogo, { context: signedIn(), data: { id: ID } })).toEqual({
+      ok: true,
+      value: 'subscription',
+    });
+    expect(fake.schedules.updateSubscription).toHaveBeenCalledWith(USER_ID, ID, { logoKey: null });
+    expect(fake.logoStore.delete).toHaveBeenCalledWith(USER_ID, LOGO);
+    fake.logoStore.delete.mockClear();
+    await call(fns.removeSubscriptionLogo, { context: signedIn(), data: { id: ID } });
+    expect(fake.logoStore.delete).not.toHaveBeenCalled();
   });
 });

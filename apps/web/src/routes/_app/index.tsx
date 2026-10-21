@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { createFileRoute, useRouter, useRouterState } from '@tanstack/react-router';
+import { createFileRoute, useHydrated, useRouter, useRouterState } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
 import { useEffect, useState } from 'react';
 import { DashboardOffline, DashboardSkeleton } from '../../components/dashboard/dashboard-states.tsx';
@@ -89,7 +89,11 @@ function OverviewRoute() {
   const { viewer } = Route.useRouteContext();
   const router = useRouter();
   const { preferences } = usePreferences();
-  const refreshing = useRouterState({ select: (state) => state.isLoading && state.location.pathname === '/' });
+  // A reload can start (a transaction recorded right after the page opened) before this route has hydrated; the server
+  // never renders "Memperbarui ringkasan…", so until then neither does the client (a hydration mismatch otherwise).
+  const hydrated = useHydrated();
+  const loading = useRouterState({ select: (state) => state.isLoading && state.location.pathname === '/' });
+  const refreshing = hydrated && loading;
   const [showLast, setShowLast] = useState(false);
   useEffect(() => {
     if (load.status === 'ready') rememberOverview(load);

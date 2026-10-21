@@ -128,8 +128,32 @@ function fakeServices() {
       }),
     },
     recentItems: { list: vi.fn((): Promise<RecentItem[]> => Promise.resolve([])) },
+    schedules: {
+      listSubscriptions: vi.fn(() =>
+        Promise.resolve({
+          subscriptions: [
+            subscription('sub-canva', 'Canva Pro', { effectiveStatus: 'cancelled' }),
+            subscription('sub-headspace', 'Headspace', { effectiveStatus: 'paused', plan: null }),
+            subscription('sub-netflix', 'Netflix'),
+            subscription('sub-kopi', 'Kopi Kenangan', { plan: 'Kopi tiap hari' }),
+          ],
+        }),
+      ),
+    },
   };
 }
+
+const subscription = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  name,
+  plan: 'Premium',
+  priceMinor: 186_000n,
+  currency: 'IDR',
+  cycle: 'monthly',
+  effectiveStatus: 'active',
+  nextBillingDate: day('2026-10-18'),
+  ...extra,
+});
 
 let fake: ReturnType<typeof fakeServices>;
 const services = () => fake as unknown as SearchServices;
@@ -172,6 +196,21 @@ describe('searchFor', () => {
     });
     expect(results.accounts).toEqual({ total: 0, hits: [] });
     expect(results.tags).toEqual({ total: 0, hits: [] });
+    expect(results.subscriptions).toEqual({
+      total: 1,
+      hits: [
+        {
+          id: 'sub-kopi',
+          name: 'Kopi Kenangan',
+          plan: 'Kopi tiap hari',
+          priceMinor: 186_000n,
+          currency: 'IDR',
+          cycle: 'monthly',
+          status: 'active',
+          nextBillingDate: '2026-10-18',
+        },
+      ],
+    });
     // The accounts and categories were loaded once for all groups.
     expect(fake.accounts.list).toHaveBeenCalledTimes(1);
     expect(fake.accounts.list).toHaveBeenCalledWith(USER, { status: 'all' });
@@ -199,6 +238,18 @@ describe('searchFor', () => {
     expect((await searchFor(services(), USER, 'makan')).categories.hits.map((hit) => hit.id)).toEqual(['cat-food']);
   });
 
+  it('finds subscriptions by name or plan, active ones first, then paused, then cancelled', async () => {
+    const all = await searchFor(services(), USER, '');
+    expect(all.subscriptions.hits.map((hit) => [hit.id, hit.status])).toEqual([
+      ['sub-netflix', 'active'],
+      ['sub-kopi', 'active'],
+      ['sub-headspace', 'paused'],
+      ['sub-canva', 'cancelled'],
+    ]);
+    expect((await searchFor(services(), USER, 'premium')).subscriptions.total).toBe(2);
+    expect(fake.schedules.listSubscriptions).toHaveBeenCalledWith(USER);
+  });
+
   it('finds tags through the repository query', async () => {
     const results = await searchFor(services(), USER, 'dana');
     expect(fake.tags.list).toHaveBeenCalledWith(USER, { query: 'dana' });
@@ -218,12 +269,15 @@ describe('recentFor', () => {
       recent('category', 'cat-coffee'),
       recent('tag', 'tag-trip'),
       recent('goal', 'goal-1'),
+      recent('subscription', 'sub-netflix'),
+      recent('subscription', 'sub-gone'),
       recent('account', 'acc-deleted'),
       recent('transaction', 'tx-move'),
     ]);
     const entries = await recentFor(services(), USER);
     expect(fake.recentItems.list).toHaveBeenCalledWith(USER, RECENT_LIMIT);
-    expect(entries).toHaveLength(6);
+    expect(entries).toHaveLength(7);
+    expect(fake.schedules.listSubscriptions).toHaveBeenCalledOnce();
     expect(entries).toMatchObject([
       {
         kind: 'transactions',
@@ -244,6 +298,7 @@ describe('recentFor', () => {
       { kind: 'accounts', hit: { id: 'acc-gopay', displayName: 'GoPay' } },
       { kind: 'categories', hit: { id: 'cat-coffee', name: 'Kopi' } },
       { kind: 'tags', hit: { id: 'tag-trip', slug: 'liburan-bali', usageCount: 3 } },
+      { kind: 'subscriptions', hit: { id: 'sub-netflix', name: 'Netflix', status: 'active' } },
       {
         kind: 'transactions',
         hit: {

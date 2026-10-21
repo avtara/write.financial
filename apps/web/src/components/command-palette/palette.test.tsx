@@ -56,6 +56,7 @@ const EMPTY: SearchResults = {
   accounts: { hits: [], total: 0 },
   categories: { hits: [], total: 0 },
   tags: { hits: [], total: 0 },
+  subscriptions: { hits: [], total: 0 },
 };
 
 const NETFLIX: SearchResults = {
