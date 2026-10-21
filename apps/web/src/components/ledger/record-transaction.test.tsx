@@ -6,7 +6,8 @@ import { Component, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { budgetStatus, RECORD_BUDGET } from '../../../test/budget-fixtures.ts';
-import { ACCOUNTS, BCA, CATEGORIES, categoryId, OVO, TAGS } from '../../../test/ledger-fixtures.ts';
+import { visa } from '../../../test/debt-fixtures.ts';
+import { ACCOUNTS, BCA, CARD, CATEGORIES, categoryId, OVO, TAGS } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import {
   MissingRecordTransactionProviderError,
@@ -39,6 +40,12 @@ const budget = vi.hoisted(() => ({ getBudgetStatus: vi.fn() }));
 vi.mock('../../server/fn/budget.ts', () => budget);
 const schedules = vi.hoisted(() => ({ createRecurrence: vi.fn() }));
 vi.mock('../../server/fn/schedules.ts', () => schedules);
+const debts = vi.hoisted(() => ({
+  getCardPaymentContext: vi.fn(),
+  recordCardInstallment: vi.fn(),
+  recordCardPayment: vi.fn(),
+}));
+vi.mock('../../server/fn/debts.ts', () => debts);
 
 const ZONE = 'Asia/Jakarta';
 
@@ -564,5 +571,83 @@ describe('RecordTransactionProvider', () => {
     await userEvent.click(sheet.getByRole('button', { name: /^Jadwalkan/ }));
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
     expect(writes.removeDraft).toHaveBeenCalledWith({ data: { id: 'd-future' } });
+  });
+
+  describe('credit cards (FR-U2, FR-U4)', () => {
+    const card = (overrides = {}) => ({
+      ok: true,
+      value: {
+        today: '2026-10-15',
+        card: visa({ accountId: CARD.id, ...overrides }),
+        debts: [],
+        priority: ['installments', 'spending'],
+      },
+    });
+
+    it('"Pecah jadi cicilan" records the card expense with its plan (hNvip)', async () => {
+      debts.getCardPaymentContext.mockResolvedValue(card());
+      debts.recordCardInstallment
+        .mockResolvedValueOnce({ ok: false, code: 'INVALID_DEBT' })
+        .mockResolvedValueOnce({ ok: true, value: { transactionId: 'tx-9', debt: {} } });
+      const { sheet } = await open({ accountId: CARD.id, amountMinor: 3_000_000n });
+      await userEvent.click(sheet.getByRole('button', { name: 'Makan & Dapur' }));
+      const region = sheet.getByRole('region', { name: 'Pecah jadi cicilan' });
+      await userEvent.click(region.getByRole('switch'));
+      await userEvent.click(sheet.getByRole('button', { name: /^Simpan · cicil 3×/ }));
+      await expect.element(sheet.getByText('Periksa lagi data utang atau cicilan.')).toBeVisible();
+      expect(debts.recordCardInstallment).toHaveBeenCalledWith({
+        data: {
+          transaction: expect.objectContaining({
+            type: 'expense',
+            accountId: CARD.id,
+            amountMinor: 3_000_000n,
+          }) as unknown,
+          tenor: 3,
+          monthlyRateBps: 0,
+          adminFeeMinor: 0n,
+        },
+      });
+      expect(writes.recordTransaction).not.toHaveBeenCalled();
+      await userEvent.click(sheet.getByRole('button', { name: /^Simpan · cicil 3×/ }));
+      await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('a transfer into a card is recorded with its allocation, in the order and mode chosen (qrRRV)', async () => {
+      debts.getCardPaymentContext.mockResolvedValue(card());
+      debts.recordCardPayment
+        .mockResolvedValueOnce({ ok: false, code: 'INVALID_DEBT' })
+        .mockResolvedValueOnce({ ok: true, value: { transactionId: 'tx-10', debts: [] } });
+      const { sheet } = await open({ type: 'transfer', toAccountId: CARD.id });
+      const region = sheet.getByRole('region', { name: 'Alokasi pembayaran kartu' });
+      await expect.element(sheet.getByRole('button', { name: /^Ke:/ })).toBeVisible();
+      await expect.element(region).not.toBeInTheDocument();
+      await userEvent.fill(sheet.getByRole('textbox', { name: /^Jumlah/ }), '500000');
+      await expect.element(region).toBeVisible();
+      await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+      await expect.element(sheet.getByText('Periksa lagi data utang atau cicilan.')).toBeVisible();
+      expect(debts.recordCardPayment).toHaveBeenLastCalledWith({
+        data: {
+          transaction: expect.objectContaining({ type: 'transfer', toAccountId: CARD.id }) as unknown,
+          mode: 'reduce_amount',
+        },
+      });
+      await userEvent.click(region.getByRole('button', { name: 'Naikkan Tagihan berjalan' }));
+      await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+      await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+      expect(debts.recordCardPayment.mock.lastCall?.[0]).toMatchObject({
+        data: { priority: ['spending', 'installments'], mode: 'reduce_amount' },
+      });
+    });
+
+    it('records a plain card expense when the card cannot be loaded', async () => {
+      debts.getCardPaymentContext.mockResolvedValue({ ok: false, code: 'NOT_FOUND' });
+      const { sheet, amount } = await open({ accountId: CARD.id });
+      await userEvent.fill(amount, '700000');
+      await userEvent.click(sheet.getByRole('button', { name: 'Makan & Dapur' }));
+      await expect.element(sheet.getByRole('region', { name: 'Pecah jadi cicilan' })).not.toBeInTheDocument();
+      await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+      await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+      expect(writes.recordTransaction).toHaveBeenCalled();
+    });
   });
 });

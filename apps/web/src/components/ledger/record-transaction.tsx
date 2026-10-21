@@ -34,6 +34,8 @@ import {
   removeTransactions,
   saveDraft,
 } from '../../server/fn/transactions-write.ts';
+import { recordCardInstallment, recordCardPayment } from '../../server/fn/debts.ts';
+import { INSTALLMENT_MIN_MINOR } from '@wf/domain/creditcard';
 import { Button, FormError } from '../form.tsx';
 import { Modal } from '../modal.tsx';
 import { usePreferences } from '../preferences.tsx';
@@ -49,6 +51,14 @@ import {
   type TransactionFormValues,
 } from './transaction-draft.ts';
 import { useReconcile } from '../accounts/reconcile.tsx';
+import { DEFAULT_TERMS, parseTerms } from '../debts/installment-terms.tsx';
+import {
+  CardInstallmentField,
+  CardPaymentPreview,
+  useCardContext,
+  type CardPaymentChoice,
+  type InstallmentChoice,
+} from './card-extras.tsx';
 import { recurrenceRequest, type RepeatValues } from './recurrence-draft.ts';
 import { RepeatField } from './repeat-field.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
@@ -309,11 +319,32 @@ function RecordSheet({
   const account = data.accounts.find((candidate) => candidate.id === values.accountId);
   const category = data.categories.find((candidate) => candidate.id === values.categoryId);
   const currency = account?.currency ?? data.baseCurrency;
+  const toAccount = data.accounts.find((candidate) => candidate.id === values.toAccountId);
+  const cardId = scheduled
+    ? null
+    : values.type === 'expense' && account?.type === 'credit_card'
+      ? account.id
+      : values.type === 'transfer' && toAccount?.type === 'credit_card'
+        ? toAccount.id
+        : null;
+  const cardContext = useCardContext(cardId);
+  const [installment, setInstallment] = useState<InstallmentChoice>({ on: false, terms: DEFAULT_TERMS });
+  const [cardPayment, setCardPayment] = useState<CardPaymentChoice>({ priority: null, mode: 'reduce_amount' });
+  const split =
+    cardId !== null &&
+    values.type === 'expense' &&
+    installment.on &&
+    values.amountMinor !== null &&
+    values.amountMinor >= INSTALLMENT_MIN_MINOR
+      ? parseTerms(installment.terms)
+      : null;
 
   const restart = (next: Omit<Session, 'key'>) => {
     setSession((current) => ({ key: current.key + 1, ...next }));
     form.reset(next.initial);
     setRepeat(null);
+    setInstallment({ on: false, terms: DEFAULT_TERMS });
+    setCardPayment({ priority: null, mode: 'reduce_amount' });
     setFailure(null);
   };
 
@@ -355,7 +386,22 @@ function RecordSheet({
         description: m.record_scheduled_description({ date: formatDate(values.date, locale, 'date') }),
       });
     } else {
-      const result = await recordTransaction({ data: input }).catch(() => null);
+      // A card expense split into installments and a payment into a card are recorded with their debt changes.
+      const pending: Promise<{ ok: true; value: { id: string } } | { ok: false; code: string }> =
+        split !== null && input.type !== 'transfer'
+          ? recordCardInstallment({ data: { transaction: { ...input, type: 'expense' }, ...split } }).then((saved) =>
+              saved.ok ? { ok: true, value: { id: saved.value.transactionId } } : saved,
+            )
+          : cardId !== null && input.type === 'transfer'
+            ? recordCardPayment({
+                data: {
+                  transaction: input,
+                  mode: cardPayment.mode,
+                  ...(cardPayment.priority === null ? {} : { priority: [...cardPayment.priority] }),
+                },
+              }).then((saved) => (saved.ok ? { ok: true, value: { id: saved.value.transactionId } } : saved))
+            : recordTransaction({ data: input });
+      const result = await pending.catch(() => null);
       if (result === null || !result.ok) {
         setSaving(false);
         setFailure(result === null ? m.record_save_failed() : ledgerErrorMessage(result.code, locale));
@@ -451,7 +497,13 @@ function RecordSheet({
                 void submit(addAnother);
               }}
             >
-              {scheduled ? m.record_schedule() : form.shortfall === null ? m.record_save() : m.record_save_anyway()}
+              {scheduled
+                ? m.record_schedule()
+                : split !== null
+                  ? m.record_installment_save({ count: split.tenor })
+                  : form.shortfall === null
+                    ? m.record_save()
+                    : m.record_save_anyway()}
               <KbdHint keys={['mod', 'enter']} platform={platform} className="ml-1" />
             </Button>
           </>
@@ -521,6 +573,25 @@ function RecordSheet({
             ),
           }}
         />
+        {cardContext === null || cardContext === 'loading' || cardContext === 'failed' ? null : values.type ===
+          'expense' ? (
+          <CardInstallmentField
+            context={cardContext}
+            amountMinor={values.amountMinor}
+            date={values.date}
+            value={installment}
+            onChange={setInstallment}
+            locale={locale}
+          />
+        ) : values.amountMinor === null ? null : (
+          <CardPaymentPreview
+            context={cardContext}
+            amountMinor={values.amountMinor}
+            value={cardPayment}
+            onChange={setCardPayment}
+            locale={locale}
+          />
+        )}
         {failure === null ? null : <FormError>{failure}</FormError>}
       </Sheet>
       <Modal

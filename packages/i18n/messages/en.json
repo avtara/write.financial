@@ -897,6 +897,273 @@
   "date_preset_today": "Today",
   "date_preset_two_days_ago": "2 days ago",
   "date_preset_yesterday": "Yesterday",
+  "debts_add": "Add debt / installment",
+  "debts_add_account_placeholder": "Choose an account",
+  "debts_add_account_required": "Choose the paying account",
+  "debts_add_account_search": "Search accounts…",
+  "debts_add_draft": "Unsaved draft — the figures below are only a simulation.",
+  "debts_add_first_due": "First installment",
+  "debts_add_hint": "Can be paid off early at any time",
+  "debts_add_kind": "Kind",
+  "debts_add_months": "months",
+  "debts_add_name": "Name",
+  "debts_add_name_hint": "Shows in the ledger as “Cicilan {name} (1/{count})”",
+  "debts_add_name_placeholder": "e.g. MacBook Air M4 — iBox",
+  "debts_add_name_required": "Enter the debt’s name",
+  "debts_add_next_month": "Next month",
+  "debts_add_pay_from": "Pay from",
+  "debts_add_previous_month": "Previous month",
+  "debts_add_principal": "Principal",
+  "debts_add_principal_required": "Enter a principal above 0",
+  "debts_add_provider": "Provider",
+  "debts_add_provider_placeholder": "e.g. Kredivo",
+  "debts_add_rate": "Interest / fees",
+  "debts_add_submit": "Save installment",
+  "debts_add_tenor": "Tenor",
+  "debts_add_tenor_invalid": "Tenor 1–360 months",
+  "debts_add_title": "Add debt / installment",
+  "debts_bucket_credit": "Overpayment",
+  "debts_bucket_credit_note": "becomes credit balance",
+  "debts_bucket_installments": "Installment debt",
+  "debts_bucket_installments_note": "early payoff",
+  "debts_bucket_spending": "Current bill",
+  "debts_bucket_spending_note": "non-installment spending",
+  "debts_cancel": "Cancel",
+  "debts_card_badge": "Credit card",
+  "debts_card_bill_empty": "No transactions in this cycle yet",
+  "debts_card_bill_on": "Bill {date}",
+  "debts_card_bill_title": "{name} bill",
+  "debts_card_bill_transactions": "Transactions on this bill",
+  "debts_card_convert": "Turn into installments",
+  "debts_card_current_bill": "Current bill",
+  "debts_card_due_day": "due on the {day}th",
+  "debts_card_due_short": "due {date}",
+  "debts_card_from": "of",
+  "debts_card_held": "Installments held on the limit",
+  "debts_card_held_note": "principal left of {names}",
+  "debts_card_kind_note": "Credit card · the bill counts as debt",
+  "debts_card_of_limit": "of the limit",
+  "debts_card_pay": "Pay bill",
+  "debts_card_pay_by": "pay by {date}",
+  "debts_card_remaining_limit": "Available limit",
+  "debts_card_remaining_limit_lower": "available limit",
+  "debts_card_statement": "Statement {date}",
+  "debts_card_statement_bill": "bill",
+  "debts_card_statement_day": "statement on the {day}th",
+  "debts_card_statement_installments": "installments",
+  "debts_card_transactions": [
+    {
+      "declarations": ["input count", "input month", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction in {month}",
+        "countPlural=*": "{count} transactions in {month}"
+      }
+    }
+  ],
+  "debts_convert_add_card": "Add a card in Accounts & wallets",
+  "debts_convert_after": "After saving",
+  "debts_convert_card": "Card",
+  "debts_convert_description": "{card} · record it once the bank approves the conversion.",
+  "debts_convert_effect_bill": "The monthly card bill only holds the installment + interest; the rest of the principal leaves the current bill.",
+  "debts_convert_effect_debt": "The principal left moves to Debts & installments as a “Credit card installment” and lowers net worth there — not twice.",
+  "debts_convert_effect_expense": "The original purchase stays on its date. Interest & admin fees are recorded monthly as Financial costs.",
+  "debts_convert_effect_limit": "The limit stays used by the principal left and frees up as each installment is paid.",
+  "debts_convert_hint_pick": "Pick a transaction first",
+  "debts_convert_hint_ready": "Can go back to a normal expense until it is billed",
+  "debts_convert_no_card": "No credit card yet",
+  "debts_convert_no_cycle": "Set this card’s statement and due days in Accounts & wallets first.",
+  "debts_convert_none": "No transaction on this card can be split yet",
+  "debts_convert_none_note": "current bill",
+  "debts_convert_pick": "1 · Pick a transaction",
+  "debts_convert_pick_rule": "min. Rp500.000 · at most 30 days ago",
+  "debts_convert_submit": "Turn into installments",
+  "debts_convert_terms": "2 · Tenor & fees",
+  "debts_convert_terms_note": "available once a transaction is picked",
+  "debts_convert_title": "Turn a transaction into installments",
+  "debts_description_as_of": "as of {date}",
+  "debts_description_installments": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} active installment",
+        "countPlural=*": "{count} active installments"
+      }
+    }
+  ],
+  "debts_description_none": "No debts recorded",
+  "debts_empty_description": "Credit card bills, installments, paylater, mortgages, or loans you take on later all show up here.",
+  "debts_empty_title": "You are debt-free",
+  "debts_empty_types": "Kinds of debt",
+  "debts_item_billed": "{count} of {total} installments billed",
+  "debts_item_event_converted": "Made from a card transaction",
+  "debts_item_event_converted_note": [
+    {
+      "declarations": ["input count", "input date", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Split into {count} installment; the expense stays on {date} · principal",
+        "countPlural=*": "Split into {count} installments; the expense stays on {date} · principal"
+      }
+    }
+  ],
+  "debts_item_event_created": "Recorded",
+  "debts_item_event_created_note": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Split into {count} installment · principal",
+        "countPlural=*": "Split into {count} installments · principal"
+      }
+    }
+  ],
+  "debts_item_event_paid": "Partly paid off",
+  "debts_item_event_paid_note": "From a transfer to {card}, by the card payment priority.",
+  "debts_item_from_transaction": "from the {date} transaction",
+  "debts_item_history": "History",
+  "debts_item_left_of": "left of",
+  "debts_item_mode_reduce": "Recalculated after an early payoff · choice: lower amount, same tenor",
+  "debts_item_mode_shorten": "Recalculated after an early payoff · choice: shorter tenor",
+  "debts_item_months": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} month",
+        "countPlural=*": "{count} months"
+      }
+    }
+  ],
+  "debts_item_paid": "paid off",
+  "debts_item_paid_early": "paid early",
+  "debts_item_recalculated": "recalculated {date}",
+  "debts_item_row_card": "Billed on the statement",
+  "debts_item_row_pay_from": "Paid from {account}",
+  "debts_item_schedule": "Installment schedule",
+  "debts_item_settled": "{count} of {total} installments paid",
+  "debts_item_status_billed": "Billed",
+  "debts_item_status_paid": "Paid",
+  "debts_item_status_scheduled": "Scheduled",
+  "debts_kind_card": "Credit card installment",
+  "debts_kind_card_short": "Card installment",
+  "debts_kind_loan": "Personal loan",
+  "debts_kind_loan_short": "Loan",
+  "debts_kind_mortgage": "Mortgage / vehicle loan",
+  "debts_kind_mortgage_short": "Mortgage",
+  "debts_kind_paylater": "Paylater",
+  "debts_kind_zero": "0% installment",
+  "debts_kpi_bills": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} current bill",
+        "countPlural=*": "{count} current bills"
+      }
+    }
+  ],
+  "debts_kpi_card_bills": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} credit card bill",
+        "countPlural=*": "{count} credit card bills"
+      }
+    }
+  ],
+  "debts_kpi_due": "Due",
+  "debts_kpi_due_card": "{name} · due {due}",
+  "debts_kpi_due_month": "installments & bills this month",
+  "debts_kpi_due_none": "nothing due this month",
+  "debts_kpi_due_statement": "statement {statement} · due {due}",
+  "debts_kpi_installments": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} installment",
+        "countPlural=*": "{count} installments"
+      }
+    }
+  ],
+  "debts_kpi_nearest": "Next due date",
+  "debts_kpi_nearest_days": [
+    {
+      "declarations": ["input name", "input days", "local namePlural = name: plural"],
+      "selectors": ["namePlural"],
+      "match": {
+        "namePlural=one": "{name} · in {days} day",
+        "namePlural=*": "{name} · in {days} days"
+      }
+    }
+  ],
+  "debts_kpi_nearest_none": "nothing scheduled",
+  "debts_kpi_nearest_today": "{name} · today",
+  "debts_kpi_receivables": "Receivables",
+  "debts_kpi_receivables_none": "nobody owes you money",
+  "debts_kpi_receivables_open": "money you fronted, not back yet",
+  "debts_kpi_remaining": "Remaining debt",
+  "debts_kpi_remaining_none": "no active debts",
+  "debts_kpis_label": "Debt summary",
+  "debts_load_failed": "Debts & installments failed to load",
+  "debts_loading": "Loading debts & installments…",
+  "debts_priority_down": "Move {name} down",
+  "debts_priority_edit": "Change",
+  "debts_priority_note": "Applies to every transfer or top-up to a card. Once all installments are paid off, the rest of a transfer goes to the next priority.",
+  "debts_priority_save": "Save",
+  "debts_priority_saved": "Card payment priority saved",
+  "debts_priority_title": "Card payment priority",
+  "debts_priority_up": "Move {name} up",
+  "debts_retry": "Try again",
+  "debts_saved": "{name} saved to Debts & installments",
+  "debts_sim_empty": "Enter principal, tenor, and interest to see the impact.",
+  "debts_sim_monthly": "Monthly installment",
+  "debts_sim_monthly_note": "{count}× · {first} – {last}",
+  "debts_sim_net_worth": "Net worth once saved",
+  "debts_sim_net_worth_note": "goods are not counted as assets",
+  "debts_sim_no_income": "no income this month yet",
+  "debts_sim_ratio": "Installments / income",
+  "debts_sim_ratio_note": "of {income} · healthy ≤ {limit}",
+  "debts_sim_saving": "Saving rate, {month} pattern",
+  "debts_sim_saving_above": "still above the 30% target, {points} points of room",
+  "debts_sim_saving_below": "below the 30% target",
+  "debts_sim_title": "Impact simulation",
+  "debts_terms_admin_fee": "Admin fee",
+  "debts_terms_interest": "Interest",
+  "debts_terms_interest_invalid": "Enter interest 0–100, at most 2 decimals",
+  "debts_terms_months": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} month",
+        "countPlural=*": "{count} months"
+      }
+    }
+  ],
+  "debts_terms_more": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "+{count} more installment",
+        "countPlural=*": "+{count} more installments"
+      }
+    }
+  ],
+  "debts_terms_per_month": "% per month",
+  "debts_terms_row": "{number}/{count} · statement {date}",
+  "debts_terms_schedule": "Installment schedule",
+  "debts_terms_tenor": "Tenor",
+  "debts_title": "Debts & installments",
+  "debts_type_card_note": "from a card transaction",
+  "debts_type_loan_note": "friends / family",
+  "debts_type_mortgage_note": "interest & tenor",
+  "debts_type_paylater_note": "tenor & fees",
+  "debts_type_zero_note": "principal ÷ tenor",
   "device_group": "Active devices",
   "device_revoke": "Sign out",
   "device_revoke_description": "That device will need to sign in again to open write.financial.",
@@ -1845,6 +2112,24 @@
   "record_amount_sent": "Sent · {currency}",
   "record_budget_impact": "{name} budget becomes {used} · {spent} / {limit}",
   "record_cancel": "Cancel",
+  "record_card_payment_after": "Left",
+  "record_card_payment_before": "Before",
+  "record_card_payment_bill_note": "current bill · {date}",
+  "record_card_payment_installment_note": "debt · {count}×, not billed yet",
+  "record_card_payment_installments": "Installment debt (Debts & installments)",
+  "record_card_payment_limit": "Available limit",
+  "record_card_payment_owed": "Total card liability",
+  "record_card_payment_paid": "Paid",
+  "record_card_payment_priority": "Priority",
+  "record_card_payment_reduce": "Lower the amount",
+  "record_card_payment_reduce_note": "{count}× {amount} · same tenor",
+  "record_card_payment_reorder": "reorder with the arrow buttons",
+  "record_card_payment_rest": "{name}: {amount} left, split as",
+  "record_card_payment_rest_hint": "the bank decides; record what it confirms",
+  "record_card_payment_shorten": "Shorten the tenor",
+  "record_card_payment_shorten_note": "{count}× {amount} · paid off {date}",
+  "record_card_payment_statement": "Bill {date}",
+  "record_card_payment_title": "Card payment allocation",
   "record_category": "Category",
   "record_category_income": "Income source",
   "record_category_income_pick": "Pick an income source",
@@ -1886,6 +2171,16 @@
   "record_fx_recorded": "Difference recorded automatically",
   "record_impact_prefix": "{account} balance becomes",
   "record_impact_suffix": "after saving.",
+  "record_installment_card": "Credit card · available limit {limit}",
+  "record_installment_effect_bill": "Goes on the card’s current bill (not a debt). The card owes {total} then: installments {installments} + current bill {bill}.",
+  "record_installment_effect_debt": "{amount} goes to Debts & installments, not the card’s current bill.",
+  "record_installment_effect_expense": "The {amount} expense stays on {date} — in the {month} budget.",
+  "record_installment_effect_limit": "{amount} of the card limit is used and frees up as each installment is paid.",
+  "record_installment_effect_plain": "The {amount} expense is recorded on {date} — {month} budget.",
+  "record_installment_off_note": "Off · goes on the current bill, billed {date}",
+  "record_installment_on_note": "Shown because the account is a credit card",
+  "record_installment_save": "Save · {count}× installments",
+  "record_installment_title": "Split into installments",
   "record_load_failed": "Categories and accounts could not be loaded. Try again.",
   "record_loading": "Loading categories…",
   "record_more": "Add",

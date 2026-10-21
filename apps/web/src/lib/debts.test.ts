@@ -9,10 +9,12 @@ import {
   KULKAS,
   KULKAS_AFTER,
   MACBOOK,
+  VISA_ACCOUNT,
   visa,
 } from '../../test/debt-fixtures.ts';
 import {
   cardInstallmentSchedule,
+  cardLabel,
   cardPaymentPlan,
   cardState,
   debtKpis,
@@ -29,6 +31,13 @@ import {
 const d = (value: string) => value as LocalDate;
 const OCT_15 = d('2026-10-15');
 const NOV_10 = d('2026-11-10');
+
+describe('cardLabel', () => {
+  it('adds the last digits when known', () => {
+    expect(cardLabel('BCA Visa', VISA_ACCOUNT)).toBe('BCA Visa •• 7710');
+    expect(cardLabel('BCA Visa', undefined)).toBe('BCA Visa');
+  });
+});
 
 describe('paymentPriority', () => {
   it('keeps a full order of both buckets and falls back to installments first', () => {

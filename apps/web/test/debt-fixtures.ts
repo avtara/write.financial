@@ -191,7 +191,7 @@ export const BILL_OVERVIEW = debtsOverview({
 export const PAID_OVERVIEW = debtsOverview({
   today: d('2026-11-10'),
   accounts: BILL_OVERVIEW.accounts,
-  debts: [KULKAS_AFTER],
+  debts: [{ ...KULKAS_AFTER, sourceDate: d('2026-11-02') }],
   cards: [
     {
       ...CARD_AFTER_PAYMENT,

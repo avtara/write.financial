@@ -5,6 +5,7 @@
  * card with the recalculated installment and the card after it, the page KPIs, and the user's payment priority.
  * Amounts are minor units; KPIs are in the base currency (cards and debts in another currency are left out).
  */
+import type { AccountView } from '@wf/db/accounts';
 import type {
   CardAllocationInput,
   CardView,
@@ -13,14 +14,8 @@ import type {
   InstallmentView,
   RecalculationInput,
 } from '@wf/db/debts';
-import {
-  cardCycle,
-  cardStatus,
-  INSTALLMENT_TENORS,
-  statementAmount,
-  type CardCycle,
-  type CardStatus,
-} from '@wf/domain/creditcard';
+import type { INSTALLMENT_TENORS } from '@wf/domain/creditcard';
+import { cardCycle, cardStatus, statementAmount, type CardCycle, type CardStatus } from '@wf/domain/creditcard';
 import {
   allocateCardPayment,
   CC_PAYMENT_BUCKETS,
@@ -33,6 +28,11 @@ import {
   type RecalcMode,
 } from '@wf/domain/debt';
 import type { LocalDate } from '@wf/domain/period';
+
+/** "BCA Visa •• 7710". */
+export function cardLabel(name: string, account: AccountView | undefined): string {
+  return account?.last4 == null ? name : `${name} •• ${account.last4}`;
+}
 
 /** The stored `user_preferences.cc_payment_priority` as an order of both buckets; anything else is the default. */
 export function paymentPriority(stored: readonly string[]): CcPaymentBucket[] {

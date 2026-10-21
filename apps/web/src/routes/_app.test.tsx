@@ -35,6 +35,11 @@ const transactions = vi.hoisted(() => ({ countPeriodTransactions: vi.fn() }));
 vi.mock('../server/fn/transactions.ts', () => transactions);
 const schedules = vi.hoisted(() => ({ countActiveSubscriptions: vi.fn(), createRecurrence: vi.fn() }));
 vi.mock('../server/fn/schedules.ts', () => schedules);
+vi.mock('../server/fn/debts.ts', () => ({
+  getCardPaymentContext: vi.fn(),
+  recordCardInstallment: vi.fn(),
+  recordCardPayment: vi.fn(),
+}));
 const review = vi.hoisted(() => ({ getReviewCounts: vi.fn() }));
 vi.mock('../server/fn/review.ts', () => review);
 const notifications = vi.hoisted(() => ({
