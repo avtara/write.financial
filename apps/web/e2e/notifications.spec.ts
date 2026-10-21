@@ -97,8 +97,8 @@ test('Settings › Notifikasi hides a kind from the app and moves the reminder t
   await page.getByRole('switch', { name: 'Email untuk Peringatan anggaran' }).click();
   await page.getByRole('combobox', { name: 'Jam pengingat' }).selectOption('07:00');
   await page.getByRole('button', { name: 'Simpan perubahan' }).click();
-  const toast = page.getByRole('region', { name: 'Notifikasi' });
-  await expect(toast).toContainText('Pengaturan notifikasi disimpan');
+  // The section shares its name with the toast region; the toast is the list item.
+  const toast = page.getByRole('listitem').filter({ hasText: 'Pengaturan notifikasi disimpan' });
   await expect(toast).toContainText(/\d+ pengingat dipindah ke jam 07\.00\./);
 
   // Hidden in the app: the page no longer lists bill reminders.
