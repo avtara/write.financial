@@ -23,6 +23,7 @@ import {
   Cloud,
   Coffee,
   Dumbbell,
+  FileText,
   Film,
   Fuel,
   Gift,
@@ -57,8 +58,12 @@ import {
   Smartphone,
   Sparkles,
   Stamp,
+  Shield,
   Store,
+  Sunset,
   Tag,
+  Target,
+  TreePalm,
   TrendingUp,
   Tv,
   Utensils,
@@ -137,6 +142,11 @@ export const CATEGORY_ICONS: Readonly<Record<string, CategoryIconEntry>> = {
   stamp: { glyph: Stamp, label: m.icon_stamp },
   percent: { glyph: Percent, label: m.icon_percent },
   'arrow-left-right': { glyph: ArrowLeftRight, label: m.icon_arrow_left_right },
+  shield: { glyph: Shield, label: m.icon_shield },
+  target: { glyph: Target, label: m.icon_target },
+  'tree-palm': { glyph: TreePalm, label: m.icon_tree_palm },
+  sunset: { glyph: Sunset, label: m.icon_sunset },
+  'file-text': { glyph: FileText, label: m.icon_file_text },
 };
 
 const SIZES = {

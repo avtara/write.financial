@@ -4,7 +4,7 @@ import { m } from '@wf/i18n/messages';
 import { NAV_GROUPS } from './nav.ts';
 
 describe('NAV_GROUPS', () => {
-  it('lists Overview, Transactions, Budget, Subscriptions, Calendar, Utang & cicilan, and Perlu ditinjau under MENU and Accounts & wallets under Akun', () => {
+  it('lists Overview, Transactions, Budget, Subscriptions, Calendar, Tabungan, Utang & cicilan, and Perlu ditinjau under MENU and Accounts & wallets under Akun', () => {
     expect(NAV_GROUPS.map((group) => group.label())).toEqual([m.nav_menu(), m.nav_group_account()]);
     expect(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.to))).toEqual([
       '/',
@@ -12,6 +12,7 @@ describe('NAV_GROUPS', () => {
       '/budget',
       '/subscriptions',
       '/calendar',
+      '/goals',
       '/debts',
       '/review',
       '/accounts',
@@ -27,6 +28,7 @@ describe('NAV_GROUPS', () => {
       m.nav_budget,
       m.nav_subscriptions,
       m.nav_calendar,
+      m.nav_goals,
       m.debts_title,
       m.review_title,
       m.accounts_title,
@@ -42,6 +44,8 @@ describe('NAV_GROUPS', () => {
     expect(m.nav_subscriptions({}, { locale: 'en' })).toBe('Subscriptions');
     expect(m.nav_calendar({}, { locale: 'id' })).toBe('Kalender');
     expect(m.nav_calendar({}, { locale: 'en' })).toBe('Calendar');
+    expect(m.nav_goals({}, { locale: 'id' })).toBe('Tabungan');
+    expect(m.nav_goals({}, { locale: 'en' })).toBe('Savings');
     expect(m.debts_title({}, { locale: 'id' })).toBe('Utang & cicilan');
     expect(m.debts_title({}, { locale: 'en' })).toBe('Debts & installments');
     const shortcuts = items.flatMap((item) => (item.shortcut === undefined ? [] : [item.shortcut.join(' ')]));
@@ -56,6 +60,7 @@ describe('NAV_GROUPS', () => {
       'transactions',
       undefined,
       'subscriptions',
+      undefined,
       undefined,
       undefined,
       'review',

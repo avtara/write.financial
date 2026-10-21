@@ -71,7 +71,7 @@ function setUpOf(user: 'A' | 'B'): Promise<Setup> {
     });
     return { goal, home, other };
   })();
-  return setups[user] as Promise<Setup>;
+  return setups[user];
 }
 
 /** A's goals, sources, plans, recurrences, and transactions as stored; B's calls must leave them unchanged. */

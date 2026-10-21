@@ -376,7 +376,13 @@ describe('moving money', () => {
     amountMinor: 1_000_000n,
     note: undefined,
   };
-  const { id: _id, note: _note, ...repoInput } = move;
+  const repoInput = {
+    clientId: move.clientId,
+    occurredAt: move.occurredAt,
+    fromAccountId: ACCOUNT,
+    toAccountId: OTHER,
+    amountMinor: 1_000_000n,
+  };
 
   it('deposits and withdraws as labeled transfers', async () => {
     fake.goals.deposit.mockResolvedValueOnce({ transactionId: 'tx' });
@@ -404,7 +410,15 @@ describe('moving money', () => {
     expect(
       await call(fns.spendFromGoal, { context: context(), data: { goalId: GOAL_ID, markUsed: true, entry } }),
     ).toEqual({ ok: true, value: { transactionId: 'tx' } });
-    const { tags: _tags, ...draft } = entry;
+    const draft = {
+      type: 'expense',
+      clientId: move.clientId,
+      occurredAt: move.occurredAt,
+      accountId: ACCOUNT,
+      amountMinor: 812_000n,
+      categoryId: null,
+      description: 'Perpanjang STNK — Samsat Jaksel',
+    };
     expect(fake.goals.spend).toHaveBeenCalledWith(USER_ID, GOAL_ID, { draft, markUsed: true });
     expect(
       await call(fns.spendFromGoal, {
