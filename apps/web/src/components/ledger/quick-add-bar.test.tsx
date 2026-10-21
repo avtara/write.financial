@@ -35,6 +35,7 @@ vi.mock('../../server/fn/debts.ts', () => ({
   recordCardPayment: vi.fn(),
 }));
 vi.mock('../../server/fn/goals.ts', () => ({ listGoals: vi.fn(), spendFromGoal: vi.fn() }));
+vi.mock('../../server/fn/receivables.ts', () => ({ getSplitBillContext: vi.fn(), recordSplitBill: vi.fn() }));
 // The record sheet's "Sesuaikan saldo" action (FR-R4) is not part of these tests.
 vi.mock('../accounts/reconcile.tsx', () => ({ useReconcile: () => ({ openReconcile: vi.fn() }) }));
 

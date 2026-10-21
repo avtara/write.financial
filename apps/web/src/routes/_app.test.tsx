@@ -40,6 +40,7 @@ vi.mock('../server/fn/debts.ts', () => ({
   recordCardInstallment: vi.fn(),
   recordCardPayment: vi.fn(),
 }));
+vi.mock('../server/fn/receivables.ts', () => ({ getSplitBillContext: vi.fn(), recordSplitBill: vi.fn() }));
 vi.mock('../server/fn/goals.ts', () => ({
   listGoals: () => Promise.resolve({ ok: false, code: 'NOT_FOUND' }),
   spendFromGoal: vi.fn(),
