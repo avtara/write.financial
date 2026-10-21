@@ -53,6 +53,11 @@ vi.mock('../../components/settings/tags-section.tsx', () => ({
 vi.mock('../../components/settings/instance-section.tsx', () => ({
   InstanceSection: () => <p>instance form</p>,
 }));
+const notifications = vi.hoisted(() => ({ getNotificationSettings: vi.fn() }));
+vi.mock('../../server/fn/notifications.ts', () => notifications);
+vi.mock('../../components/settings/notifications-section.tsx', () => ({
+  NotificationsSection: ({ email }: { email: string }) => <p>{`notifikasi ke ${email}`}</p>,
+}));
 
 const PROFILE = { name: 'Avtara K.', nickname: null, locale: 'id', timezone: 'Asia/Jakarta' };
 const OVERVIEW: SecurityOverview = {
@@ -134,6 +139,14 @@ describe('/settings/$section loader', () => {
     });
   });
 
+  it('loads the notification settings', async () => {
+    notifications.getNotificationSettings.mockResolvedValue({ ok: true, value: { email: true } });
+    await expect(loader({ params: { section: 'notifications' }, context: { viewer: VIEWER } })).resolves.toEqual({
+      section: 'notifications',
+      notifications: { ok: true, value: { email: true } },
+    });
+  });
+
   it('answers 404 for unknown sections and for "instance" to non-admins', async () => {
     for (const section of ['billing', 'instance']) {
       const error: unknown = await loader({ params: { section }, context: { viewer: VIEWER } }).catch(
@@ -208,6 +221,17 @@ describe('/settings/$section page', () => {
     budget.getPeriodSettings.mockResolvedValueOnce({ ok: false, code: 'UNAUTHENTICATED' });
     await openSettings('period');
     await expect.element(page.getByRole('alert').last()).toHaveTextContent('Sesimu sudah berakhir. Masuk lagi.');
+  });
+
+  it('renders Notifikasi with the address emails go to, or why it could not be loaded', async () => {
+    notifications.getNotificationSettings.mockResolvedValueOnce({ ok: true, value: { email: true } });
+    await openSettings('notifications');
+    await expect.element(page.getByText(`notifikasi ke ${VIEWER.email}`)).toBeVisible();
+    notifications.getNotificationSettings.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' });
+    await openSettings('notifications');
+    await expect
+      .element(page.getByRole('alert').last())
+      .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
   });
 
   it('explains when the section could not be loaded', async () => {

@@ -2,8 +2,9 @@
 /**
  * Transactional emails (React Email 1.0), rendered in the recipient's locale with the `@wf/i18n` catalog
  * (D26). Every email has an HTML and a plain-text part, a single call to action, and the link spelled out for
- * clients that do not render buttons. Emails carry no financial data, except the amount of a bill reminder, and only
- * when the recipient's privacy mode is off (the worker leaves it out of the outbox payload otherwise).
+ * clients that do not render buttons. Emails carry no financial data, except the amounts of a bill reminder or of a
+ * notification emailed at the user's request, and only when the recipient's privacy mode is off (the worker leaves
+ * them out of the outbox payload otherwise).
  *
  * Written with `createElement` instead of JSX so the file runs under Node's type stripping (no build step).
  */
@@ -47,6 +48,18 @@ export type EmailTemplate =
       /** `null` with privacy mode on. */
       readonly amount: { readonly amountMinor: bigint; readonly currency: string } | null;
       /** The app page to open (subscriptions, calendar). */
+      readonly url: string;
+    }
+  /**
+   * An in-app notification the user also wants by email (Settings › Notifikasi, FR-ST3): its message keys and params
+   * (amounts `{ amountMinor, currency }` as strings, or `null` with privacy mode on; dates `YYYY-MM-DD`).
+   */
+  | {
+      readonly kind: 'notification';
+      readonly titleKey: string;
+      readonly bodyKey: string;
+      readonly params: Readonly<Record<string, unknown>>;
+      /** The notification's page. */
       readonly url: string;
     };
 
@@ -168,18 +181,52 @@ function content(template: EmailTemplate, { locale, instanceName }: EmailContext
         hint: m.email_bill_reminder_hint({}, o),
       };
     }
+    case 'notification': {
+      const params = Object.fromEntries(
+        Object.entries(template.params).map(([key, value]) => [key, paramText(value, locale)]),
+      );
+      const title = messageOf(template.titleKey);
+      const body = messageOf(template.bodyKey);
+      return {
+        subject: title === null ? m.email_notification_subject({ instance: instanceName }, o) : title(params, o),
+        paragraphs: body === null ? [] : [body(params, o)],
+        action: { label: m.email_notification_action({}, o), url: template.url },
+        hint: m.email_notification_hint({}, o),
+      };
+    }
   }
+}
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Shown for an amount privacy mode left out. */
+const HIDDEN_AMOUNT = '••••';
+
+/** A notification param as text: amounts formatted (or hidden), dates and built-in names in `locale`. */
+function paramText(value: unknown, locale: Locale): string {
+  if (value === null) return HIDDEN_AMOUNT;
+  if (typeof value === 'object' && 'amountMinor' in value && 'currency' in value) {
+    return formatMoney(BigInt(String(value.amountMinor)), String(value.currency), { locale, context: 'amount' });
+  }
+  if (typeof value === 'string') {
+    return DATE.test(value) ? formatDate(new Date(`${value}T00:00:00Z`), locale) : displayName(value, locale);
+  }
+  // Counts and percentages; nothing else is a notification param.
+  return typeof value === 'number' ? String(value) : '';
+}
+
+type MessageFn = (params: object, options: { locale: Locale }) => string;
+
+/** The catalog message `key`, or `null` when there is none (a key from a newer version). */
+function messageOf(key: string): MessageFn | null {
+  const message = (m as unknown as Record<string, MessageFn | undefined>)[key];
+  return message ?? null;
 }
 
 /** A built-in category key (`system:bills`, a schedule named after its category) in `locale`; other names as typed. */
 function displayName(name: string, locale: Locale): string {
   if (!name.startsWith(BUILT_IN_PREFIX)) return name;
-  const messages = m as unknown as Record<
-    string,
-    ((params: object, options: { locale: Locale }) => string) | undefined
-  >;
-  const message = messages[`category_builtin_${name.slice(BUILT_IN_PREFIX.length)}`];
-  return message === undefined ? name : message({}, { locale });
+  const message = messageOf(`category_builtin_${name.slice(BUILT_IN_PREFIX.length)}`);
+  return message === null ? name : message({}, { locale });
 }
 
 const BODY = { backgroundColor: '#f4f4f5', fontFamily: 'Helvetica, Arial, sans-serif', margin: 0, padding: '24px 0' };

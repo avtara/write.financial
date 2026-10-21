@@ -6,6 +6,7 @@ import { Search } from 'lucide-react';
 import { useCommandPalette } from './command-palette/command-palette.tsx';
 import { LogoTile } from './logo-mark.tsx';
 import { NAV_GROUPS, type NavCounts } from './nav.ts';
+import { NotificationBell } from './notifications/notification-bell.tsx';
 import { usePreferences } from './preferences.tsx';
 import { UserMenu } from './user-menu.tsx';
 
@@ -27,8 +28,8 @@ export function useNavCounts(): NavCounts | null {
 }
 
 /**
- * Desktop sidebar (≥ 1280 px, design `qjLGK`): 248 px, brand, the ⌘K search field, navigation groups, user menu at
- * the bottom.
+ * Desktop sidebar (≥ 1280 px, design `qjLGK`): 248 px, brand with the notification bell, the ⌘K search field,
+ * navigation groups, user menu at the bottom.
  */
 export function Sidebar() {
   // The signed-in user, from the `_app` route context (absent outside it).
@@ -41,6 +42,11 @@ export function Sidebar() {
       <div className="flex items-center gap-2.5 px-2">
         <LogoTile variant="sidebar" />
         <Wordmark />
+        {viewer === undefined ? null : (
+          <span className="ml-auto">
+            <NotificationBell variant="sidebar" unread={counts?.notifications ?? null} timeZone={viewer.timezone} />
+          </span>
+        )}
       </div>
       <button
         type="button"

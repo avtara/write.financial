@@ -17,6 +17,7 @@ import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
 import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
 import { Route as AppBudgetRouteImport } from './../routes/_app/budget.tsx';
+import { Route as AppNotificationsRouteImport } from './../routes/_app/notifications.tsx';
 import { Route as AppReviewRouteImport } from './../routes/_app/review.tsx';
 import { Route as AppSubscriptionsRouteImport } from './../routes/_app/subscriptions.tsx';
 import { Route as AppTransactionsRouteImport } from './../routes/_app/transactions.tsx';
@@ -70,6 +71,11 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
 const AppBudgetRoute = AppBudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => AppRoute,
 } as any);
 const AppReviewRoute = AppReviewRouteImport.update({
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/notifications': typeof AppNotificationsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/notifications': typeof AppNotificationsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/_app/accounts': typeof AppAccountsRoute;
   '/_app/budget': typeof AppBudgetRoute;
+  '/_app/notifications': typeof AppNotificationsRoute;
   '/_app/review': typeof AppReviewRoute;
   '/_app/subscriptions': typeof AppSubscriptionsRoute;
   '/_app/transactions': typeof AppTransactionsRoute;
@@ -238,6 +247,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/notifications'
     | '/review'
     | '/subscriptions'
     | '/transactions'
@@ -262,6 +272,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/notifications'
     | '/review'
     | '/subscriptions'
     | '/transactions'
@@ -287,6 +298,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/_app/accounts'
     | '/_app/budget'
+    | '/_app/notifications'
     | '/_app/review'
     | '/_app/subscriptions'
     | '/_app/transactions'
@@ -376,6 +388,13 @@ declare module '@tanstack/react-router' {
       path: '/budget';
       fullPath: '/budget';
       preLoaderRoute: typeof AppBudgetRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/notifications': {
+      id: '/_app/notifications';
+      path: '/notifications';
+      fullPath: '/notifications';
+      preLoaderRoute: typeof AppNotificationsRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_app/review': {
@@ -496,6 +515,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute;
   AppBudgetRoute: typeof AppBudgetRoute;
+  AppNotificationsRoute: typeof AppNotificationsRoute;
   AppReviewRoute: typeof AppReviewRoute;
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute;
   AppTransactionsRoute: typeof AppTransactionsRoute;
@@ -506,6 +526,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
   AppBudgetRoute: AppBudgetRoute,
+  AppNotificationsRoute: AppNotificationsRoute,
   AppReviewRoute: AppReviewRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,

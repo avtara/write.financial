@@ -38,6 +38,8 @@ export interface NavCounts {
   readonly subscriptions: number;
   /** Pending Review queue items ("Perlu ditinjau"). */
   readonly review: number;
+  /** Unread notifications (the bell, FR-S5). */
+  readonly notifications: number;
 }
 
 export interface NavGroup {

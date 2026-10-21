@@ -58,6 +58,7 @@ import { SMTPServer } from 'smtp-server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { requestContext } from '../../../test/server-fn.ts';
 import { SessionBrowser } from '../../../test/session-browser.ts';
+import { DEFAULT_NOTIFICATION_SETTINGS } from '@wf/db/notification-settings';
 import { SEARCH_KINDS, type RecentEntry, type SearchResults } from '../../lib/search.ts';
 import type { Result } from '../access.ts';
 import type { DeviceView, SecurityHistory, SecurityOverview } from '../account.ts';
@@ -1523,6 +1524,23 @@ const MATRIX: Record<Name, Case> = {
       const ofA = await as<Result<NextReminder | null>>('A', 'getNextReminder');
       const sourcesOfA = [...(await idsOf('subscriptions', aId)), ...(await idsOf('recurrences', aId))];
       expect(ofA.ok && sourcesOfA).toContain(ofA.ok && ofA.value?.sourceId);
+    },
+  },
+  getNotificationSettings: {
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      // A's settings stay A's: B saving its own changes nothing for A.
+      expect(await as('B', 'getNotificationSettings')).toEqual(ok(DEFAULT_NOTIFICATION_SETTINGS));
+    },
+  },
+  updateNotificationSettings: {
+    input: () => ({ ...DEFAULT_NOTIFICATION_SETTINGS, email: false }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      const a = await as('A', 'getNotificationSettings');
+      expect(await as('B', 'updateNotificationSettings', input)).toMatchObject(ok({ settings: { email: false } }));
+      expect(await as('B', 'getNotificationSettings')).toMatchObject(ok({ email: false }));
+      expect(await as('A', 'getNotificationSettings')).toEqual(a);
     },
   },
   listReviewItems: {

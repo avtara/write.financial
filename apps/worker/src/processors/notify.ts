@@ -33,16 +33,25 @@ export function createNotifyProcessor({
     try {
       await mailer.send({
         to: message.to,
-        template: {
-          kind: payload.kind,
-          name: payload.name,
-          dueDate: payload.dueDate,
-          amount:
-            payload.amount === null
-              ? null
-              : { amountMinor: BigInt(payload.amount.amountMinor), currency: payload.amount.currency },
-          url: new URL(payload.path, publicUrl).href,
-        },
+        template:
+          payload.kind === 'bill_reminder'
+            ? {
+                kind: payload.kind,
+                name: payload.name,
+                dueDate: payload.dueDate,
+                amount:
+                  payload.amount === null
+                    ? null
+                    : { amountMinor: BigInt(payload.amount.amountMinor), currency: payload.amount.currency },
+                url: new URL(payload.path, publicUrl).href,
+              }
+            : {
+                kind: payload.kind,
+                titleKey: payload.titleKey,
+                bodyKey: payload.bodyKey,
+                params: payload.params,
+                url: new URL(payload.path ?? '/notifications', publicUrl).href,
+              },
         context: { locale: message.locale, instanceName: message.instanceName, recipientName: message.recipientName },
       });
     } catch (error) {

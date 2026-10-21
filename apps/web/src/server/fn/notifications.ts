@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * The notification panel and page (FR-S5): list with filters, unread counts for the bell, mark read, and the next
- * reminder for the empty state. The user always comes from the session.
+ * reminder for the empty state; Settings › Notifikasi (FR-ST3). The user always comes from the session.
  */
 import { createServerFn } from '@tanstack/react-start';
+import { NOTIFICATION_GROUPS, type NotificationSettings } from '@wf/db/notification-settings';
 import type { NextReminder, NotificationCounts, NotificationView } from '@wf/db/notifications';
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_TYPES } from '@wf/db/schema';
 import * as z from 'zod';
@@ -72,3 +73,38 @@ export const getNextReminder = createServerFn({ method: 'GET' }).handler(
     });
   },
 );
+
+const channels = z.object({ inApp: z.boolean(), email: z.boolean() });
+
+/** Settings › Notifikasi: what shows in the app, what is emailed, and when bill reminders are sent. */
+export const getNotificationSettings = createServerFn({ method: 'GET' }).handler(
+  async ({ context }): Promise<Result<NotificationSettings>> => {
+    const { notificationSettings, now } = await services();
+    return attempt(async () => {
+      const { user } = await requireSession(context.session, {}, now());
+      return notificationSettings.get(user.id);
+    });
+  },
+);
+
+/** "Simpan perubahan": a new reminder time moves the reminders not sent yet. */
+export const updateNotificationSettings = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      email: z.boolean(),
+      reminderTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      groups: z.object(
+        Object.fromEntries(NOTIFICATION_GROUPS.map((group) => [group, channels])) as Record<
+          (typeof NOTIFICATION_GROUPS)[number],
+          typeof channels
+        >,
+      ),
+    }),
+  )
+  .handler(async ({ context, data }): Promise<Result<{ settings: NotificationSettings; movedReminders: number }>> => {
+    const { notificationSettings, now } = await services();
+    return attempt(async () => {
+      const { user } = await requireSession(context.session, {}, now());
+      return notificationSettings.update(user.id, data);
+    });
+  });

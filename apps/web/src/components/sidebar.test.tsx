@@ -18,6 +18,12 @@ import { PreferencesProvider } from './preferences.tsx';
 import { ShortcutProvider } from './shortcuts.tsx';
 import { Sidebar } from './sidebar.tsx';
 
+/** The bell is tested on its own; here only what the sidebar gives it. */
+vi.mock('./notifications/notification-bell.tsx', () => ({
+  NotificationBell: (props: { unread: number | null; timeZone: string }) => (
+    <span data-testid="bell" data-unread={String(props.unread)} data-zone={props.timeZone} />
+  ),
+}));
 vi.mock('../server/fn/search.ts', () => ({
   listRecent: () => Promise.resolve({ ok: true, value: [] }),
   searchEverything: vi.fn(),
@@ -29,6 +35,19 @@ const sidebar = (
     <Sidebar />
   </CommandPaletteProvider>
 );
+
+const VIEWER = {
+  id: 'u1',
+  sessionId: 's1',
+  name: 'Avtara K.',
+  email: 'avtara@example.test',
+  image: null,
+  locale: 'id',
+  timezone: 'Asia/Jakarta',
+  role: 'user',
+  twoFactorEnabled: false,
+  onboardingStep: null,
+} as const;
 
 /** The sidebar inside an `_app` layout whose loader gives `navCounts` (no loader at all when `undefined`). */
 async function renderInApp(navCounts: NavCounts | null | undefined) {
@@ -45,6 +64,7 @@ async function renderInApp(navCounts: NavCounts | null | undefined) {
   const app = createRoute({
     getParentRoute: () => root,
     id: '_app',
+    beforeLoad: () => ({ viewer: VIEWER }),
     ...(navCounts === undefined ? {} : { loader: () => ({ navCounts }) }),
     component: () => sidebar,
   });
@@ -99,8 +119,10 @@ describe('Sidebar', () => {
     await expect.element(page.getByRole('dialog', { name: 'Cari atau jalankan perintah' })).toBeVisible();
   });
 
-  it('shows the transaction, active subscription, and pending review counts from the `_app` loader', async () => {
-    const screen = await renderInApp({ transactions: 128, subscriptions: 7, review: 2 });
+  it('shows the transaction, active subscription, and pending review counts, and the unread notifications, from the `_app` loader', async () => {
+    const screen = await renderInApp({ transactions: 128, subscriptions: 7, review: 2, notifications: 4 });
+    await expect.element(screen.getByTestId('bell')).toHaveAttribute('data-unread', '4');
+    await expect.element(screen.getByTestId('bell')).toHaveAttribute('data-zone', 'Asia/Jakarta');
     const review = screen.getByRole('link', { name: /Perlu ditinjau/ });
     await expect.element(review).toHaveAttribute('href', '/review');
     await expect.element(review).toHaveTextContent('Perlu ditinjau2');
@@ -115,9 +137,12 @@ describe('Sidebar', () => {
     for (const navCounts of [null, undefined]) {
       const screen = await renderInApp(navCounts);
       await expect.element(screen.getByRole('link', { name: /Transaksi/ })).toHaveTextContent('Transaksi');
+      await expect.element(screen.getByTestId('bell')).toHaveAttribute('data-unread', 'null');
       await screen.unmount();
     }
     const { screen } = await renderApp(sidebar);
     await expect.element(screen.getByRole('link', { name: /Transaksi/ })).toHaveTextContent('Transaksi');
+    // Outside `_app` there is no signed-in user, so no bell.
+    await expect.element(screen.getByTestId('bell')).not.toBeInTheDocument();
   });
 });

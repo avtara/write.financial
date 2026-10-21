@@ -3,8 +3,10 @@ import type { LocalDate } from '@wf/domain/period';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { insertUser, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { withUser } from './db.ts';
+import { DEFAULT_NOTIFICATION_SETTINGS, type NotificationSettings } from './notification-settings.ts';
 import {
   createNotifications,
+  createNotificationSettings,
   insertNotificationIn,
   type NewNotification,
   type NotificationsRepository,
@@ -80,6 +82,54 @@ describe('insertNotificationIn', () => {
     );
     expect(rows).toEqual([{ params: {}, action: null }]);
   });
+  it('queues an email for the kinds the user wants by email, without amounts in privacy mode', async () => {
+    const lowBalance = (ref: string): NewNotification => ({
+      type: 'low_balance',
+      category: 'budget_bills',
+      titleKey: 'notification_low_balance_title',
+      bodyKey: 'notification_low_balance_body',
+      params: { account: 'GoPay', balance: { amountMinor: '412000', currency: 'IDR' }, count: 2 },
+      action: { href: '/accounts' },
+      ref,
+    });
+    const insert = (userId: string, input: NewNotification) =>
+      test.as('wf_worker', () => withUser(test.db, userId, (tx) => insertNotificationIn(tx, userId, input)));
+    const outbox = (userId: string) =>
+      test.query<{ payload: unknown }>('SELECT payload FROM notification_outbox WHERE user_id = $1', [userId]);
+    // By default only bill reminders are emailed, and those queue their own email.
+    await insert(alice, lowBalance('low.1'));
+    await insert(alice, reminder('rem.e', 'Netflix'));
+    expect(await outbox(alice)).toEqual([]);
+
+    await test.query(
+      `INSERT INTO user_preferences (user_id, hide_balances, notif) VALUES
+         ($1, false, '{"groups": {"balance": {"email": true}}}'),
+         ($2, true, '{"groups": {"balance": {"email": true}, "system": {"email": true}}}')`,
+      [alice, bob],
+    );
+    await insert(alice, lowBalance('low.2'));
+    expect(await outbox(alice)).toEqual([
+      {
+        payload: {
+          kind: 'notification',
+          titleKey: 'notification_low_balance_title',
+          bodyKey: 'notification_low_balance_body',
+          params: { account: 'GoPay', balance: { amountMinor: '412000', currency: 'IDR' }, count: 2 },
+          path: '/accounts',
+        },
+      },
+    ]);
+    // Inserting it again queues nothing more.
+    await insert(alice, lowBalance('low.2'));
+    expect(await outbox(alice)).toHaveLength(1);
+    await insert(bob, lowBalance('low.3'));
+    await insert(bob, { type: 'system', category: 'system', titleKey: 't', bodyKey: 'b', ref: 'sys.e' });
+    expect(await outbox(bob)).toEqual([
+      { payload: expect.objectContaining({ params: { account: 'GoPay', balance: null, count: 2 } }) as unknown },
+      { payload: { kind: 'notification', titleKey: 't', bodyKey: 'b', params: {}, path: null } },
+    ]);
+  });
+
   it('defaults to the real clock', async () => {
     await seed(alice, reminder('rem.now', 'Now'), new Date().toISOString());
     expect((await asApp(() => createNotifications(test.db).counts(alice))).total).toBe(1);
@@ -160,6 +210,14 @@ describe('notifications repository', () => {
     expect(counts.byType.low_balance).toBe(0);
     expect((await asApp(() => repo.counts(alice, { from: '2026-08-01' as LocalDate }))).total).toBe(4);
     expect((await asApp(() => repo.counts(bob))).total).toBe(0);
+
+    // Kinds hidden in Settings › Notifikasi are neither counted nor listed.
+    await test.query(
+      `INSERT INTO user_preferences (user_id, notif) VALUES ($1, '{"groups": {"bills": {"inApp": false}}}')`,
+      [alice],
+    );
+    expect(await asApp(() => repo.counts(alice))).toMatchObject({ total: 1, unread: 1 });
+    expect((await asApp(() => repo.list(alice))).items.map((item) => item.type)).toEqual(['system']);
   });
 
   it('marks given, all, or one category read and touches only unread rows', async () => {
@@ -240,5 +298,75 @@ describe('notifications repository', () => {
     const unnamed = await occurrence('recurrence', bare?.id, '2026-10-28', '2026-10-27T02:00:00Z');
     expect(await asApp(() => repo.nextReminder(alice))).toMatchObject({ occurrenceId: unnamed, name: '' });
     expect(await asApp(() => repo.nextReminder(bob))).toBeNull();
+  });
+});
+
+const changed = (patch: Partial<NotificationSettings>): NotificationSettings => ({
+  ...DEFAULT_NOTIFICATION_SETTINGS,
+  ...patch,
+});
+
+describe('createNotificationSettings', () => {
+  /** 15 Okt 2026 10.00 WIB. */
+  const AT = new Date('2026-10-15T03:00:00Z');
+  const settingsRepo = () => createNotificationSettings(test.db, { now: () => AT });
+
+  async function occurrence(due: string, remindAt: string | null, status = 'scheduled', reminded = false) {
+    const [row] = await test.query<{ id: string }>(
+      `INSERT INTO scheduled_occurrences (user_id, source_type, source_id, due_date, expected_minor, currency, status, remind_at, reminded_at)
+       VALUES ($1, 'subscription', gen_random_uuid(), $2, 186000, 'IDR', $3::occurrence_status, $4, $5) RETURNING id`,
+      [alice, due, status, remindAt, reminded ? remindAt : null],
+    );
+    return row?.id as string;
+  }
+  const remindAt = async (id: string) =>
+    (await test.query<{ at: Date | null }>('SELECT remind_at AS at FROM scheduled_occurrences WHERE id = $1', [id]))[0]
+      ?.at;
+
+  it('reads the defaults before the first save, and saves every setting keeping other keys', async () => {
+    expect(await asApp(() => settingsRepo().get(alice))).toEqual(DEFAULT_NOTIFICATION_SETTINGS);
+    await test.query(`INSERT INTO user_preferences (user_id, notif) VALUES ($1, '{"other": 1}')`, [alice]);
+    const settings = changed({
+      email: false,
+      groups: { ...DEFAULT_NOTIFICATION_SETTINGS.groups, detected: { inApp: false, email: true } },
+    });
+    expect(await asApp(() => settingsRepo().update(alice, settings))).toEqual({ settings, movedReminders: 0 });
+    expect(await asApp(() => settingsRepo().get(alice))).toEqual(settings);
+    const [stored] = await test.query<{ notif: Record<string, unknown> }>(
+      'SELECT notif FROM user_preferences WHERE user_id = $1',
+      [alice],
+    );
+    expect(stored?.notif).toMatchObject({ other: 1, email: false, reminderTime: '09:00' });
+  });
+
+  it('moves the reminders not sent yet to a new time on their day', async () => {
+    const netflix = await occurrence('2026-10-18', '2026-10-17T02:00:00Z');
+    const sent = await occurrence('2026-10-16', '2026-10-15T02:00:00Z', 'scheduled', true);
+    const past = await occurrence('2026-10-16', '2026-10-15T01:00:00Z');
+    const done = await occurrence('2026-10-25', '2026-10-24T02:00:00Z', 'skipped');
+    const none = await occurrence('2026-10-26', null);
+    // Today at 09.30 would already have passed at 10.00: that one keeps its time.
+    const today = await occurrence('2026-10-16', '2026-10-15T03:30:00Z');
+    const result = await asApp(() => settingsRepo().update(alice, changed({ reminderTime: '07:00' })));
+    expect(result.movedReminders).toBe(1);
+    expect(await remindAt(netflix)).toEqual(new Date('2026-10-17T00:00:00Z'));
+    expect(await remindAt(today)).toEqual(new Date('2026-10-15T03:30:00Z'));
+    expect(await remindAt(sent)).toEqual(new Date('2026-10-15T02:00:00Z'));
+    expect(await remindAt(past)).toEqual(new Date('2026-10-15T01:00:00Z'));
+    expect(await remindAt(done)).toEqual(new Date('2026-10-24T02:00:00Z'));
+    expect(await remindAt(none)).toBeNull();
+    // Saving the same time again moves nothing.
+    expect((await asApp(() => settingsRepo().update(alice, changed({ reminderTime: '07:00' })))).movedReminders).toBe(
+      0,
+    );
+  });
+
+  it('uses the real clock by default', async () => {
+    await expect(asApp(() => createNotificationSettings(test.db).get(alice))).resolves.toEqual(
+      DEFAULT_NOTIFICATION_SETTINGS,
+    );
+    const later = await occurrence('2099-01-02', '2099-01-01T02:00:00Z');
+    await asApp(() => createNotificationSettings(test.db).update(alice, changed({ reminderTime: '20:00' })));
+    expect(await remindAt(later)).toEqual(new Date('2099-01-01T13:00:00Z'));
   });
 });

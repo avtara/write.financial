@@ -11,6 +11,7 @@ import { cycleRule } from '@wf/domain/subscriptions';
 import { and, eq, gte, inArray } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
 import { localDateOf, userContextIn } from './ledger-core.ts';
+import { notificationSettingsIn } from './notification-settings.ts';
 import { accounts, recurrences, scheduledOccurrences, subscriptions, type JsonObject } from './schema.ts';
 
 /** How far ahead occurrences are stored; calendar reads beyond it are computed from the rules. */
@@ -201,8 +202,9 @@ type NewOccurrence = typeof scheduledOccurrences.$inferInsert;
 /**
  * Inserts the missing occurrences of the user's active recurrences and subscriptions (or only `source`) due in
  * [today, today + `MATERIALIZE_DAYS`]; a subscription's window starts at its `next_billing_date` when that is earlier,
- * so the next unpaid bill always has a row. `remind_at` is 09.00 local on `due − offset` (no reminder without an
- * offset or for a bill already overdue). Existing rows are never modified.
+ * so the next unpaid bill always has a row. `remind_at` is the user's reminder time (Settings › Notifikasi, default
+ * 09.00) local on `due − offset` (no reminder without an offset or for a bill already overdue). Existing rows are
+ * never modified.
  */
 export async function materializeIn(
   tx: Transaction,
@@ -210,6 +212,7 @@ export async function materializeIn(
   options: { readonly now: Date; readonly source?: ScheduleSource },
 ): Promise<{ created: number }> {
   const { timeZone, today } = await userClockIn(tx, userId, options.now);
+  const { reminderTime } = await notificationSettingsIn(tx, userId);
   const until = addDays(today, MATERIALIZE_DAYS);
   const { source } = options;
   const rows: NewOccurrence[] = [];
@@ -227,7 +230,7 @@ export async function materializeIn(
     dueDate,
     expectedMinor,
     currency,
-    remindAt: offset === null || dueDate < today ? null : reminderAt(dueDate, offset, timeZone),
+    remindAt: offset === null || dueDate < today ? null : reminderAt(dueDate, offset, timeZone, reminderTime),
   });
 
   if (source?.type !== 'subscription') {

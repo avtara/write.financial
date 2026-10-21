@@ -3,6 +3,7 @@ import { parseLocalDate } from '@wf/domain/period';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { insertUser, pgError, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { withUser } from './db.ts';
+import { DEFAULT_NOTIFICATION_SETTINGS } from './notification-settings.ts';
 import { createOutbox, deliveryPreferencesIn, insertOutboxIn, type Outbox, type OutboxPayload } from './outbox.ts';
 
 let test: TestDatabase;
@@ -80,6 +81,9 @@ describe('insertOutboxIn', () => {
         ayu,
       ]),
     ).toEqual([{ channel: 'email', payload: PAYLOAD, send_at: NOW, attempts: 0 }]);
+    // Without a time it is due at the database's now.
+    const other = await notification(ayu, 'rem.2');
+    expect(await asWorker(() => withUser(test.db, ayu, (tx) => insertOutboxIn(tx, ayu, other, PAYLOAD)))).toBe(true);
   });
 });
 
@@ -88,7 +92,7 @@ describe('deliveryPreferencesIn', () => {
     asWorker(() => withUser(test.db, userId, (tx) => deliveryPreferencesIn(tx, userId)));
 
   it('defaults to email with amounts when the user has no preferences row', async () => {
-    expect(await preferencesOf(ayu)).toEqual({ email: true, hideBalances: false });
+    expect(await preferencesOf(ayu)).toEqual({ settings: DEFAULT_NOTIFICATION_SETTINGS, hideBalances: false });
   });
 
   it('follows notif.email and privacy mode', async () => {
@@ -96,8 +100,8 @@ describe('deliveryPreferencesIn', () => {
       `INSERT INTO user_preferences (user_id, hide_balances, notif) VALUES ($1, true, '{"email": false}'), ($2, false, '{"email": true}')`,
       [ayu, budi],
     );
-    expect(await preferencesOf(ayu)).toEqual({ email: false, hideBalances: true });
-    expect(await preferencesOf(budi)).toEqual({ email: true, hideBalances: false });
+    expect(await preferencesOf(ayu)).toMatchObject({ settings: { email: false }, hideBalances: true });
+    expect(await preferencesOf(budi)).toMatchObject({ settings: { email: true }, hideBalances: false });
   });
 });
 

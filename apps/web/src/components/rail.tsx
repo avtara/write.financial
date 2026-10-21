@@ -7,19 +7,22 @@ import { Search } from 'lucide-react';
 import { useCommandPalette } from './command-palette/command-palette.tsx';
 import { LogoTile } from './logo-mark.tsx';
 import { NAV_GROUPS } from './nav.ts';
+import { NotificationBell } from './notifications/notification-bell.tsx';
 import { usePreferences } from './preferences.tsx';
+import { useNavCounts } from './sidebar.tsx';
 import { UserMenu } from './user-menu.tsx';
 
 /**
  * Tablet icon rail (768–1279 px, design Section 19 `F5zMBH`/`aMmPV`): 64 px, 40 px touch targets (FR-TB4),
- * the same navigation as the sidebar, the ⌘K search button, and the user menu at the bottom. Entries have no visible
- * text, so each one gets a tooltip with its name (FR-TB1).
+ * the same navigation as the sidebar, the ⌘K search button, and the bell and the user menu at the bottom. Entries
+ * have no visible text, so each one gets a tooltip with its name (FR-TB1).
  */
 export function Rail() {
   // The signed-in user, from the `_app` route context (absent outside it).
   const { viewer } = useRouteContext({ strict: false });
   const palette = useCommandPalette();
   const { platform } = usePreferences().preferences;
+  const counts = useNavCounts();
   return (
     <aside className="sticky top-0 hidden h-dvh w-16 shrink-0 flex-col items-center gap-1 border-r border-border py-3.5 md:flex xl:hidden">
       <LogoTile variant="rail" />
@@ -53,7 +56,10 @@ export function Rail() {
           ))}
         </ul>
       </nav>
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col items-center gap-1">
+        {viewer === undefined ? null : (
+          <NotificationBell variant="rail" unread={counts?.notifications ?? null} timeZone={viewer.timezone} />
+        )}
         <UserMenu variant="rail" viewer={viewer} />
       </div>
     </aside>

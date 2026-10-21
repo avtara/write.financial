@@ -39,6 +39,7 @@
     "./review-items": "./src/review-items.ts",
     "./review": "./src/review.ts",
     "./notifications": "./src/notifications.ts",
+    "./notification-settings": "./src/notification-settings.ts",
     "./occurrences": "./src/occurrences.ts",
     "./schedules": "./src/schedules.ts",
     "./dispatch": "./src/dispatch.ts",

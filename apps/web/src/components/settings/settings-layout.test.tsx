@@ -30,7 +30,9 @@ describe('SettingsLayout', () => {
       )
       .toBeVisible();
     const nav = screen.getByRole('navigation', { name: 'Bagian pengaturan' });
-    expect(nav.element().textContent).toBe('AkunProfil & akunPreferensiPeriode bulananKategoriTagDataKeamanan');
+    expect(nav.element().textContent).toBe(
+      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagDataKeamanan',
+    );
     await expect.element(nav.getByRole('link', { name: 'Profil & akun' })).toHaveAttribute('href', '/settings/profile');
     await expect
       .element(nav.getByRole('link', { name: 'Periode bulanan' }))
