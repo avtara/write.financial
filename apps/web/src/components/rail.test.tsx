@@ -39,7 +39,7 @@ beforeEach(async () => {
 describe('Rail', () => {
   it('has the bell for a signed-in user, with the unread count when known', async () => {
     app.viewer = { name: 'Avtara K.', email: 'avtara@example.test', image: null, timezone: 'Asia/Jakarta' };
-    app.counts = { transactions: 1, review: 0, notifications: 5 };
+    app.counts = { transactions: 1, review: 0, subscriptions: 0, notifications: 5 };
     const { screen } = await renderApp(rail);
     await expect.element(screen.getByTestId('bell')).toHaveAttribute('data-unread', '5');
     await screen.unmount();
