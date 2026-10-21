@@ -89,8 +89,7 @@ export function WeekView({ week, today, safeDailyMinor, categories, baseCurrency
                   { start: addDays(first.date, -7), end: addDays(first.date, week.elapsed - 8) },
                   locale,
                   today,
-                  // The same text on the server and in the browser: ICU's thin spaces around the dash differ.
-                ).replace(/[\u2009\u202f]/g, ' ')}
+                )}
                 : {previous}
               </>
             )
