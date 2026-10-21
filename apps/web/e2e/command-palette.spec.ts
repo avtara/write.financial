@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * ⌘K (FR-S4), keyboard only, as the invited user with the design persona's ledger: open with Ctrl+K, find a seeded
+ * ⌘K (FR-S4), keyboard only, as its own invited user with the design persona's ledger: open with Ctrl+K, find a seeded
  * transaction by merchant, open it, find it again under "Baru dibuka", record an unmatched query through the Record
  * Transaction sheet, the `G` navigation sequence, the tablet rail's search button, and account and category results
  * opening their pages.
  */
 import type { Locator, Page } from '@playwright/test';
-import { expect, loadAccount, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, projectUser, setUpProjectUser, test } from './support.ts';
 
-test.use({ storageState: USER_STATE });
+const user = projectUser('cmdk');
+test.use({ storageState: user.state });
 test.describe.configure({ mode: 'serial' });
 
-test.beforeAll(async () => {
-  await seedDesignPersona(loadAccount('user').email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
 });
 
 const PALETTE = 'Cari atau jalankan perintah';

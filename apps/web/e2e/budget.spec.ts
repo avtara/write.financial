@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Anggaran (FR-B1–B5), Settings › Periode bulanan (FR-P1–P3), and the Record sheet's budget impact (FR-T3) as the
- * invited user with the design persona on 15 Okt 2026: the October totals, September read-only through the switcher,
+ * Anggaran (FR-B1–B5), Settings › Periode bulanan (FR-P1–P3), and the Record sheet's budget impact (FR-T3) as its
+ * own invited user with the design persona on 15 Okt 2026: the October totals, September read-only through the switcher,
  * a start-day preview left without saving, an inline limit edit with the keyboard only, a leftover move undone from
  * the toast, and the layout at 1440, 1024, and 768 px. The spec leaves the budget as it found it.
  */
 import type { Locator, Page } from '@playwright/test';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('budget');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 900 } });
+test.use({ storageState: user.state, viewport: { width: 1440, height: 900 } });
 
-test.beforeAll(async () => {
-  await seedDesignPersona(loadAccount('user').email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
 });
 
 /** `/budget`, hydrated: the inline limit buttons respond once the category list is interactive. */

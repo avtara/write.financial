@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Settings › Kategori and Settings › Tag (FR-K1–K3) as the invited user from `m0`: create, rename, merge, and delete
+ * Settings › Kategori and Settings › Tag (FR-K1–K3) as its own invited user: create, rename, merge, and delete
  * a category with the keyboard only at 1440 px; create two look-alike tags and merge them from the similar-tags
  * suggestion at 1024 px; and the categories layout at 768 px. The spec makes its own data, so it does not depend on
  * the design seed.
  */
 import type { Page } from '@playwright/test';
-import { expect, screenshot, test, USER_STATE } from './support.ts';
+import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('settings-ledger');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE });
+test.use({ storageState: user.state });
+
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: false });
+});
 
 const row = (page: Page, name: string) =>
   page.getByRole('region', { name: 'Kategori', exact: true }).getByRole('listitem').filter({ hasText: name });

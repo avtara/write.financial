@@ -8,28 +8,22 @@
 import type { Locator, Page } from '@playwright/test';
 import postgres from 'postgres';
 import { e2eEnv } from './env.ts';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('record');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 900 } });
+test.use({ storageState: user.state, viewport: { width: 1440, height: 900 } });
 
 const sql = () => postgres(e2eEnv()['DATABASE_URL_SUPERUSER'] ?? '', { max: 1, onnotice: () => undefined });
 
-test.beforeAll(async () => {
-  const { email } = loadAccount('user');
-  await seedDesignPersona(email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
   const db = sql();
   try {
     // The reference rate of the golden example (PRD §7.2): shown as Rp16.350, exactly 16350.0275.
     await db`
       UPDATE fx_rates SET rate = '16350.0275'
-      WHERE base = 'USD' AND quote = 'IDR' AND user_id = (SELECT id FROM users WHERE email = ${email})`;
-    // The `accounts` project may have moved the default quick-entry account; these tests expect BCA Tahapan.
-    const owner = db`(SELECT id FROM users WHERE email = ${email})`;
-    await db`UPDATE accounts SET is_default_quick_entry = false WHERE user_id = ${owner}`;
-    await db`
-      UPDATE accounts SET is_default_quick_entry = true
-      WHERE user_id = ${owner} AND display_name = 'BCA Tahapan' AND status = 'active'`;
+      WHERE base = 'USD' AND quote = 'IDR' AND user_id = (SELECT id FROM users WHERE email = ${user.email})`;
   } finally {
     await db.end();
   }

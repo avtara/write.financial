@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Kalender (FR-C1–C3) as the invited user with the design persona on 15 Okt 2026: Netflix's bill on the 18th as a
+ * Kalender (FR-C1–C3) as its own invited user with the design persona on 15 Okt 2026: Netflix's bill on the 18th as a
  * scheduled event, a day's panel, "Catat di tanggal ini" opening the record sheet on that day at 12.00, the legend,
  * the week and year views, November's projection from October's paydays, the keyboard, and the layout at 1440, 1024,
- * and 768 px. Reads only (the sheet is closed unsaved), before `subscriptions` pauses Netflix.
+ * and 768 px. Reads only (the sheet is closed unsaved).
  */
 import type { Page } from '@playwright/test';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 900 } });
+const user = projectUser('calendar');
+test.use({ storageState: user.state, viewport: { width: 1440, height: 900 } });
 
-test.beforeAll(async () => {
-  await seedDesignPersona(loadAccount('user').email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
 });
 
 /** `/calendar` (with `search`), hydrated. */

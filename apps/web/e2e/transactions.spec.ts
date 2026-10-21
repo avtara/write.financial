@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Transactions (FR-L1–L6) as the invited user with the design persona seeded, on 1–15 Oct 2026 (`?range=`, so the
+ * Transactions (FR-L1–L6) as its own invited user with the design persona seeded, on 1–15 Oct 2026 (`?range=`, so the
  * test does not depend on today): filters and search in the URL, the By day / By category / Flat views, a bulk
  * category change, an inline edit in the detail panel, a split with Urungkan, deleting with Urungkan restoring the
  * account balance (the M1 exit criterion), keyboard-only use, and the layout at 1440 (detail beside the table),
- * 1024 (detail in a Sheet), and 768 (no Account column). Earlier projects record transactions dated today, so
- * balances are compared before and after rather than to the seed.
+ * 1024 (detail in a Sheet), and 768 (no Account column). The tests change the balances one after another, so they
+ * compare before and after rather than to the seed.
  */
 import type { Page } from '@playwright/test';
-import { cardBalance, expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { cardBalance, expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('transactions');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 1000 } });
+test.use({ storageState: user.state, viewport: { width: 1440, height: 1000 } });
 
 const RANGE = '2026-10-01..2026-10-15';
 
-test.beforeAll(async () => {
-  await seedDesignPersona(loadAccount('user').email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
 });
 
 /** Opens the page on 1–15 Oct with `params` and waits until it is interactive (hydrated). */

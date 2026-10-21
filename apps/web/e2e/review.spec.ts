@@ -8,32 +8,16 @@
  * "Hentikan pengulangan" and Urungkan in the transaction detail.
  */
 import type { Page } from '@playwright/test';
-import {
-  cardBalance,
-  clearAuthCounters,
-  expect,
-  REVIEW_USER,
-  runScheduleJobs,
-  screenshot,
-  seedDesignPersona,
-  signUpInvited,
-  test,
-} from './support.ts';
+import { cardBalance, expect, projectUser, runScheduleJobs, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('review');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: REVIEW_USER.state, viewport: { width: 1440, height: 1000 } });
+test.use({ storageState: user.state, viewport: { width: 1440, height: 1000 } });
 
 test.beforeAll(async ({ browser }) => {
-  const { email } = REVIEW_USER;
-  await clearAuthCounters();
-  const page = await signUpInvited(browser, email, 'Tari Wulandari', 1440);
-  await expect(page).toHaveURL(/\/onboarding\/profile$/);
-  await page.context().storageState({ path: REVIEW_USER.state });
-  await page.context().close();
-  // The persona (it completes the onboarding).
-  await seedDesignPersona(email);
+  await setUpProjectUser(browser, user, { persona: true });
   // Netflix (18 Okt) is due; its H-1 reminder (17 Okt 09.00) has been sent.
-  runScheduleJobs(email, '2026-10-18T10:00:00+07:00');
+  runScheduleJobs(user.email, '2026-10-18T10:00:00+07:00');
 });
 
 /** Opens `/review` once it is interactive (hydrated). */

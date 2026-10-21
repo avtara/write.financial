@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Ringkasan (FR-D1, D2, D4, FR-S7, FR-TB2/TB3) as the invited user with the design persona on 15 Okt 2026: October's
+ * Ringkasan (FR-D1, D2, D4, FR-S7, FR-TB2/TB3) as its own invited user with the design persona on 15 Okt 2026: October's
  * KPIs (Rp26.000.000 in, Rp16.500.000 out, Rp9.500.000 saved, saving rate 36,5%), the money flow, the Week and Year
  * switch with the keyboard only, the custom range 14 Sep – 13 Okt ("30 hari · melintasi 2 periode"), the layout at
  * 1440, 1024, and 768 px, and the last data while offline. Read-only: the spec changes nothing.
  */
 import type { Page } from '@playwright/test';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('dashboard');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 900 } });
+test.use({ storageState: user.state, viewport: { width: 1440, height: 900 } });
 
-test.beforeAll(async () => {
-  await seedDesignPersona(loadAccount('user').email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
 });
 
 /** `/` (or `path`), hydrated: the scope links respond once the Quick Add bar is interactive. */

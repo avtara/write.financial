@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Shared E2E helpers: the console-error guard, the run's clock in the browser, TOTP codes, the accounts the specs
- * share, the design persona's ledger, and the services.
+ * Shared E2E helpers: the console-error guard, the run's clock in the browser, TOTP codes, the accounts `m0` creates,
+ * each feature project's own user, the design persona's ledger, and the services.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Browser, BrowserContext, BrowserContextOptions, Page } from '@playwright/test';
 import { expect, test as base } from '@playwright/test';
@@ -28,11 +28,12 @@ async function useRunClock(context: BrowserContext): Promise<void> {
 }
 
 /**
- * A browser context besides the test's own, on the run's clock like the test's pages (`runClock`). Use it instead of
- * `browser.newContext`.
+ * A browser context besides the test's own, on the run's clock like the test's pages (`runClock`), and with the
+ * project's client address (`x-forwarded-for` in `playwright.config.ts`). Use it instead of `browser.newContext`.
  */
 export async function newContext(browser: Browser, options: BrowserContextOptions): Promise<BrowserContext> {
-  const context = await browser.newContext(options);
+  const { extraHTTPHeaders = {} } = test.info().project.use;
+  const context = await browser.newContext({ extraHTTPHeaders, ...options });
   await useRunClock(context);
   return context;
 }
@@ -94,12 +95,13 @@ export function loadAccount(key: 'admin' | 'user'): Account {
   return JSON.parse(readFileSync(path.join(STATE_DIR, `${key}.json`), 'utf8')) as Account;
 }
 
-/** Playwright storage state of the invited user (no 2FA), for the app shell specs. */
+/** Playwright storage state of the user `m0` invites (no 2FA), for `tablet`. */
 export const USER_STATE = path.join(STATE_DIR, 'user-storage.json');
 
 /**
  * "Time travel": deletes the auth counters in Valkey, as if their windows had passed: the 15-minute lockout and the
- * per-IP rate limits (every test request comes from the same address, so a whole run would exceed one minute's budget).
+ * per-IP rate limits (every request of a project comes from the project's one address, so a long spec would exceed
+ * one minute's budget). Clears every project's counters, which only ever lets a request through.
  */
 export async function clearAuthCounters(): Promise<void> {
   const redis = new Redis(e2eEnv()['REDIS_URL'] ?? '');
@@ -157,8 +159,8 @@ export function freshPassword(): string {
 
 /**
  * Loads the design persona (`DESIGN_SEED`: 11 accounts, 128 transactions 1–15 Oct 2026, 6 goals) for `email` with the
- * seed CLI (`pnpm db:seed`), once: a user who already has accounts is left as they are, so every spec that needs the
- * ledger can call it. Specs change the data (recording transactions moves balances), so assert relative values.
+ * seed CLI (`pnpm db:seed`), once: a user who already has accounts is left as they are, so a retried setup step
+ * (`setUpProjectUser`) can call it again.
  */
 export async function seedDesignPersona(email: string): Promise<void> {
   const env = e2eEnv();
@@ -263,8 +265,38 @@ export async function signUpInvited(browser: Browser, email: string, name: strin
   return page;
 }
 
+/** A feature project's own invited user. */
+export interface ProjectUser {
+  readonly email: string;
+  /** Its Playwright storage state, for `test.use({ storageState })`. */
+  readonly state: string;
+}
+
+/** The own invited user of the project named `project` in `playwright.config.ts`. */
+export function projectUser(project: string): ProjectUser {
+  return { email: `${project}@e2e.test`, state: path.join(STATE_DIR, `${project}-storage.json`) };
+}
+
 /**
- * The Review queue's own invited user with the design persona (`review`, then `notifications`): what `subscriptions`
- * does to the shared invited user's persona (paying iCloud+, pausing Netflix) does not reach it.
+ * A feature project's setup step (its `beforeAll`, on the run's clock): the admin invites the project's own user, who
+ * signs up at 1440 px and walks the onboarding's quick path or, with `persona`, gets the design persona
+ * (`seedDesignPersona`, which completes the onboarding). No two projects share a user, so the projects run in
+ * parallel and change their data freely. Once per run: a retry (in a new worker) finds the storage state and goes on
+ * with the user as the first attempt left it.
  */
-export const REVIEW_USER = { email: 'tari@e2e.test', state: path.join(STATE_DIR, 'review-storage.json') } as const;
+export async function setUpProjectUser(
+  browser: Browser,
+  user: ProjectUser,
+  { persona }: { persona: boolean },
+): Promise<void> {
+  // Signing up and seeding while the other workers keep the server busy.
+  test.setTimeout(120_000);
+  if (!existsSync(user.state)) {
+    const page = await signUpInvited(browser, user.email, 'Pengguna E2E', 1440);
+    await expect(page).toHaveURL(/\/onboarding\/profile$/);
+    if (!persona) await skipOnboarding(page);
+    await page.context().storageState({ path: user.state });
+    await page.context().close();
+  }
+  if (persona) await seedDesignPersona(user.email);
+}

@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-/** The app shell, signed in as the user the `m0` project invited (no 2FA needed for users). */
+/** The app shell, signed in as the project's own invited user (no 2FA needed for users). */
 import type { Page } from '@playwright/test';
-import { expect, test, USER_STATE } from './support.ts';
+import { expect, projectUser, setUpProjectUser, test } from './support.ts';
 
-test.use({ storageState: USER_STATE });
+const user = projectUser('app');
+test.use({ storageState: user.state });
+
+// Without the persona: the shell's empty state ("Belum ada data") is part of what it checks.
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: false });
+});
 
 async function openUserMenu(page: Page) {
   await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
