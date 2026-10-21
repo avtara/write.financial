@@ -37,3 +37,58 @@ export function findFilesWithoutSpdx(root: string): string[] {
     })
     .sort();
 }
+
+/** drizzle-kit's `out` folder (`packages/db/drizzle.config.ts`), relative to the repository root. */
+export const MIGRATIONS_DIR = 'packages/db/migrations';
+
+interface Journal {
+  entries: { idx: number; tag: string }[];
+}
+
+/**
+ * Migrations apply in journal order, so a rebase that leaves two branches' `NNNN_*.sql` on one number, skips a number,
+ * or forgets the journal entry breaks deployments. Checks that the SQL files are numbered 0000, 0001, … without gaps or
+ * duplicates and that `meta/_journal.json` lists exactly those files, in that order, with `idx` = position.
+ * Returns the problems found (empty when the folder is consistent).
+ */
+export function findMigrationProblems(root: string): string[] {
+  const dir = path.join(root, MIGRATIONS_DIR);
+  const files = globSync('*.sql', { cwd: dir }).sort();
+  const problems: string[] = [];
+  const byNumber = new Map<number, string[]>();
+  for (const file of files) {
+    const match = /^(\d{4})_\w+\.sql$/.exec(file);
+    if (match === null) {
+      problems.push(`${file}: expected NNNN_name.sql`);
+      continue;
+    }
+    const number = Number(match[1]);
+    byNumber.set(number, [...(byNumber.get(number) ?? []), file]);
+  }
+  const highest = Math.max(-1, ...byNumber.keys());
+  for (let number = 0; number <= highest; number++) {
+    const named = byNumber.get(number);
+    const label = String(number).padStart(4, '0');
+    if (named === undefined) problems.push(`gap: no migration numbered ${label}`);
+    else if (named.length > 1) problems.push(`duplicate number ${label}: ${named.join(', ')}`);
+  }
+
+  const journal = JSON.parse(readFileSync(path.join(dir, 'meta/_journal.json'), 'utf8')) as Journal;
+  const tags = files.map((file) => file.replace(/\.sql$/, ''));
+  journal.entries.forEach((entry, position) => {
+    if (entry.idx !== position)
+      problems.push(`meta/_journal.json: entry ${position} ("${entry.tag}") has idx ${entry.idx}`);
+  });
+  for (let position = 0; position < Math.max(tags.length, journal.entries.length); position++) {
+    const file = tags[position];
+    const entry = journal.entries[position]?.tag;
+    if (file === entry) continue;
+    if (entry === undefined) problems.push(`meta/_journal.json: no entry for ${file}.sql`);
+    else if (file === undefined) problems.push(`meta/_journal.json: entry "${entry}" has no ${entry}.sql`);
+    else
+      problems.push(
+        `meta/_journal.json: entry ${position} is "${entry}", but migration file ${position} is ${file}.sql`,
+      );
+  }
+  return problems;
+}

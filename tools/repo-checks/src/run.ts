@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { findFilesWithoutSpdx, findSourceFilesWithoutTests, SPDX_HEADER } from './checks.ts';
+import {
+  findFilesWithoutSpdx,
+  findMigrationProblems,
+  findSourceFilesWithoutTests,
+  MIGRATIONS_DIR,
+  SPDX_HEADER,
+} from './checks.ts';
 
 export interface Output {
   log(message: string): void;
@@ -27,6 +33,15 @@ export function run(args: readonly string[], root: string, output: Output): numb
     output.error(`Files without "${SPDX_HEADER}" in the first 3 lines:\n${missing.map((f) => `  - ${f}`).join('\n')}`);
     return 1;
   }
-  output.error('Usage: repo-checks <test-files|spdx>');
+  if (check === 'migrations') {
+    const problems = findMigrationProblems(root);
+    if (problems.length === 0) {
+      output.log('Migrations are numbered consecutively and match meta/_journal.json.');
+      return 0;
+    }
+    output.error(`Migration order problems in ${MIGRATIONS_DIR}:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+    return 1;
+  }
+  output.error('Usage: repo-checks <test-files|spdx|migrations>');
   return 2;
 }
