@@ -53,6 +53,7 @@ const RECENT: RecentEntry[] = [
 
 const EMPTY: SearchResults = {
   transactions: { hits: [], total: 0 },
+  review: { hits: [], total: 0 },
   accounts: { hits: [], total: 0 },
   categories: { hits: [], total: 0 },
   tags: { hits: [], total: 0 },

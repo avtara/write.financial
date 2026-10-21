@@ -11,9 +11,19 @@ import type { LocalDate } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
 import { AmountInput, IDR_QUICK_ADDS } from '@wf/ui/amount-input';
 import { Money } from '@wf/ui/money';
+import { formatDate } from '@wf/ui/dates';
 import { SegmentedControl } from '@wf/ui/segmented-control';
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CircleAlert, Info, Plus, TriangleAlert } from 'lucide-react';
-import { useId, useState } from 'react';
+import {
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  CalendarClock,
+  CircleAlert,
+  Info,
+  Plus,
+  TriangleAlert,
+} from 'lucide-react';
+import { useId, useState, type ReactNode } from 'react';
 import type { RecordTransactionInput } from '../../server/fn/transactions-write.ts';
 import { Button, Field, FormError } from '../form.tsx';
 import { AccountPicker, AccountTrigger } from './account-picker.tsx';
@@ -36,6 +46,8 @@ export interface TransactionFormFieldsProps {
   readonly onRecordIncomeFirst?: (accountId: string) => void;
   /** FR-T8 "Sesuaikan saldo" (reconcile the account); the action is left out without it. */
   readonly onAdjustBalance?: (accountId: string) => void;
+  /** FR-T6 (Record sheet): "Jadwalkan" in the date picker, and the "Ulangi" field under the tags. */
+  readonly schedule?: { readonly repeat: ReactNode };
 }
 
 const KIND_ICON_CLASS: Readonly<Record<EntryKind, string>> = {
@@ -52,6 +64,7 @@ export function TransactionFormFields({
   today,
   onRecordIncomeFirst,
   onAdjustBalance,
+  schedule,
 }: TransactionFormFieldsProps) {
   const id = useId();
   const ids = {
@@ -67,7 +80,9 @@ export function TransactionFormFields({
   const error = <K extends keyof typeof form.errors>(field: K) => (showErrors ? form.errors[field] : undefined);
   const account = data.accounts.find((candidate) => candidate.id === values.accountId);
   const currency = account?.currency ?? data.baseCurrency;
-  const short = form.shortfall;
+  // A future date is scheduled, not recorded: nothing moves now, so no balance or budget impact.
+  const scheduled = values.date > today;
+  const short = scheduled ? null : form.shortfall;
   const impact = values.type === 'transfer' ? undefined : balancesAfter(values, data.accounts, figures)[0];
   // FR-T2/T3: the typed amount counts against the budget when it is in the base currency.
   const typedBaseMinor = account?.currency === data.baseCurrency ? values.amountMinor : null;
@@ -193,6 +208,7 @@ export function TransactionFormFields({
                 today={today}
                 timeZone={timeZone}
                 locale={locale}
+                allowSchedule={schedule !== undefined}
               />
             )}
           </Field>
@@ -255,6 +271,7 @@ export function TransactionFormFields({
                   today={today}
                   timeZone={timeZone}
                   locale={locale}
+                  allowSchedule={schedule !== undefined}
                 />
               )}
             </Field>
@@ -324,7 +341,18 @@ export function TransactionFormFields({
         </div>
       )}
 
-      {impact === undefined ? null : (
+      {schedule?.repeat}
+
+      {scheduled ? (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5 text-[12.5px] text-text-secondary"
+        >
+          <CalendarClock aria-hidden="true" className="size-3.5 shrink-0 text-muted-fg" />
+          {m.record_scheduled_note({ date: formatDate(values.date, locale, 'date') })}
+        </p>
+      ) : null}
+      {impact === undefined || scheduled ? null : (
         <p className="flex items-center gap-2 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5 text-[12.5px] text-text-secondary">
           <Info aria-hidden="true" className="size-3.5 shrink-0 text-muted-fg" />
           <span>
@@ -340,7 +368,7 @@ export function TransactionFormFields({
           </span>
         </p>
       )}
-      {values.type === 'expense' ? (
+      {values.type === 'expense' && !scheduled ? (
         <BudgetImpact budget={data.budget} categoryId={values.categoryId} typedMinor={typedBaseMinor} locale={locale} />
       ) : null}
     </>

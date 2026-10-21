@@ -5,6 +5,7 @@
  * {@link SearchHits} and {@link SEARCH_KINDS}; the types then require a server source and a client group for it.
  */
 import type { RecentItemKind } from '@wf/db/recent-items';
+import type { ReviewReason } from '@wf/db/review-items';
 import type { CategoryGroup, CategoryKind } from '@wf/domain/categories';
 import type { AccountType } from '@wf/domain/ledger';
 import type { LocalDate } from '@wf/domain/period';
@@ -67,9 +68,22 @@ export interface SubscriptionHit {
   readonly nextBillingDate: LocalDate;
 }
 
+/** A pending Review queue item ("Perlu ditinjau"). */
+export interface ReviewHit {
+  readonly id: string;
+  readonly reason: ReviewReason;
+  /** What it is about (subscription, merchant, goal); `null` when it has no name (a rollover). */
+  readonly title: string | null;
+  readonly dueDate: LocalDate | null;
+  /** The signed amount confirming it would move, in `currency`. */
+  readonly amountMinor: bigint;
+  readonly currency: string;
+}
+
 /** One hit type per result group. */
 export interface SearchHits {
   readonly transactions: TransactionHit;
+  readonly review: ReviewHit;
   readonly accounts: AccountHit;
   readonly categories: CategoryHit;
   readonly tags: TagHit;
@@ -81,6 +95,7 @@ export type SearchKind = keyof SearchHits;
 /** The groups in the order the palette lists them. */
 export const SEARCH_KINDS = [
   'transactions',
+  'review',
   'accounts',
   'subscriptions',
   'categories',
@@ -110,6 +125,7 @@ export const RECENT_ENTITY_KINDS = [
   'tag',
   'goal',
   'subscription',
+  'review',
 ] as const satisfies readonly Exclude<RecentItemKind, 'page'>[];
 
 export type RecentEntityKind = (typeof RECENT_ENTITY_KINDS)[number];

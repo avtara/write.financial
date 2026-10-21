@@ -37,6 +37,8 @@ const reconcile = vi.hoisted(() => ({ openReconcile: vi.fn() }));
 vi.mock('../accounts/reconcile.tsx', () => ({ useReconcile: () => reconcile }));
 const budget = vi.hoisted(() => ({ getBudgetStatus: vi.fn() }));
 vi.mock('../../server/fn/budget.ts', () => budget);
+const schedules = vi.hoisted(() => ({ createRecurrence: vi.fn() }));
+vi.mock('../../server/fn/schedules.ts', () => schedules);
 
 const ZONE = 'Asia/Jakarta';
 
@@ -102,6 +104,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.resetAllMocks();
 });
 
@@ -457,5 +460,109 @@ describe('RecordTransactionProvider', () => {
         payload: expect.objectContaining({ accountId: OVO.id, amountMinor: '100000' }) as unknown,
       },
     });
+  });
+
+  it('"Ulangi" makes the saved transaction the first of a monthly repeat with H-1', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T03:00:00Z'));
+    schedules.createRecurrence.mockResolvedValueOnce({ ok: true, value: { id: 'rec-1' } });
+    const { sheet, amount } = await open();
+    await userEvent.fill(amount, '150000');
+    await userEvent.click(sheet.getByRole('button', { name: 'Makan & Dapur' }));
+    await userEvent.click(sheet.getByRole('button', { name: 'Ulangi' }));
+    await expect
+      .element(sheet.getByRole('list', { name: 'Jadwal berikutnya' }))
+      .toHaveTextContent('15 Nov15 Des15 Jan');
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+    expect(schedules.createRecurrence).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        transactionId: 'tx-1',
+        freq: 'monthly',
+        startOn: '2026-10-15',
+        monthDay: 15,
+        end: { type: 'never' },
+        remindOffsetDays: 1,
+        template: expect.objectContaining({ type: 'expense', accountId: BCA.id, amountMinor: 150_000n }) as unknown,
+      }) as unknown,
+    });
+    await expect.element(page.getByRole('region', { name: 'Notifikasi' })).toMatchTextContent('Transaksi tersimpan');
+  });
+
+  it('says when the repeat could not be made, keeping the saved transaction; a new entry starts without it', async () => {
+    schedules.createRecurrence
+      .mockResolvedValueOnce({ ok: false, code: 'INVALID_RECURRENCE' })
+      .mockRejectedValueOnce(new Error('offline'));
+    const { sheet, amount } = await open();
+    await userEvent.click(sheet.getByRole('checkbox', { name: 'Tambah lagi setelah simpan' }));
+    for (const round of [1, 2]) {
+      await userEvent.fill(amount, '25000');
+      await userEvent.click(sheet.getByRole('button', { name: 'Makan & Dapur' }));
+      await userEvent.click(sheet.getByRole('button', { name: 'Ulangi' }));
+      await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+      await expect.element(sheet).toMatchTextContent(`${String(round)} transaksi tersimpan di sesi ini`);
+      await expect.element(sheet.getByRole('button', { name: 'Ulangi' })).toBeVisible();
+    }
+    const notices = page.getByRole('region', { name: 'Notifikasi' });
+    await expect.element(notices).toMatchTextContent('Transaksi tersimpan, tapi pengulangannya gagal dibuat.');
+    expect(writes.recordTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('"Jadwalkan": a future date records nothing and schedules it for the Review queue', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T03:00:00Z'));
+    writes.listTransactionDays.mockResolvedValue({ ok: true, value: [] });
+    schedules.createRecurrence
+      .mockResolvedValueOnce({ ok: false, code: 'INVALID_RECURRENCE' })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ ok: true, value: { id: 'rec-2' } });
+    const { sheet, amount, invalidate } = await open();
+    await userEvent.fill(amount, '350000');
+    await userEvent.click(sheet.getByRole('button', { name: 'Makan & Dapur' }));
+    await userEvent.click(sheet.getByRole('button', { name: 'Tanggal' }));
+    await userEvent.click(page.getByRole('button', { name: 'Jadwalkan' }));
+    await userEvent.click(page.getByRole('button', { name: 'Selasa, 20 Oktober 2026' }));
+    await expect
+      .element(sheet.getByRole('status'))
+      .toMatchTextContent('Dijadwalkan 20 Okt 2026: belum tercatat, saldo dan anggaran belum berubah.');
+    await expect.element(sheet).not.toMatchTextContent('setelah disimpan');
+    const schedule = sheet.getByRole('button', { name: /^Jadwalkan/ });
+    await userEvent.click(schedule);
+    await expect.element(sheet.getByText('Periksa lagi jadwal berulangnya.')).toBeVisible();
+    await userEvent.click(schedule);
+    await expect.element(sheet.getByText('Transaksi tidak bisa disimpan. Coba lagi.')).toBeVisible();
+    await userEvent.click(schedule);
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+    expect(writes.recordTransaction).not.toHaveBeenCalled();
+    expect(schedules.createRecurrence).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        startOn: '2026-10-20',
+        end: { type: 'after', count: 1 },
+        remindOffsetDays: 1,
+        template: expect.objectContaining({ amountMinor: 350_000n, categoryId: categoryId('system:food') }) as unknown,
+      }) as unknown,
+    });
+    expect(schedules.createRecurrence.mock.lastCall?.[0]).not.toHaveProperty('data.transactionId');
+    const notices = page.getByRole('region', { name: 'Notifikasi' });
+    await expect.element(notices).toMatchTextContent('Transaksi dijadwalkan');
+    await expect.element(notices).toMatchTextContent('Masuk Perlu ditinjau pada 20 Okt 2026.');
+    expect(invalidate).toHaveBeenCalledOnce();
+  });
+
+  it('schedules a continued draft and removes it', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T03:00:00Z'));
+    writes.listTransactionDays.mockResolvedValue({ ok: true, value: [] });
+    writes.listDrafts.mockResolvedValue({
+      ok: true,
+      value: [draft('d-future', draftPayload('Listrik', { date: '2026-10-25' }))],
+    });
+    schedules.createRecurrence.mockResolvedValueOnce({ ok: true, value: { id: 'rec-3' } });
+    const { sheet } = await open();
+    await userEvent.click(sheet.getByRole('button', { name: 'Lanjutkan' }));
+    await expect.element(sheet.getByRole('button', { name: /^Jadwalkan/ })).toBeVisible();
+    await userEvent.click(sheet.getByRole('button', { name: /^Jadwalkan/ }));
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+    expect(writes.removeDraft).toHaveBeenCalledWith({ data: { id: 'd-future' } });
   });
 });

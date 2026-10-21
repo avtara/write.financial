@@ -14,6 +14,7 @@ const fake = vi.hoisted(() => ({
   schedules: {
     listRecurrences: vi.fn(() => Promise.resolve('recurrences')),
     createRecurrence: vi.fn(() => Promise.resolve('recurrence')),
+    recurrenceOfTransaction: vi.fn(() => Promise.resolve(null)),
     updateRecurrence: vi.fn(() => Promise.resolve('recurrence')),
     stopRecurrence: vi.fn(() => Promise.resolve({ deletedOccurrences: 3 })),
     undoStopRecurrence: vi.fn(() => Promise.resolve('recurrence')),
@@ -88,7 +89,9 @@ describe('schedule server functions', () => {
     const cases: [unknown, unknown, keyof typeof fake.schedules, unknown[]][] = [
       [fns.listRecurrences, { status: 'active' }, 'listRecurrences', [{ status: 'active' }]],
       [fns.listRecurrences, {}, 'listRecurrences', [{}]],
-      [fns.createRecurrence, RULE, 'createRecurrence', [RULE]],
+      [fns.createRecurrence, RULE, 'createRecurrence', [RULE, {}]],
+      [fns.createRecurrence, { ...RULE, transactionId: ID }, 'createRecurrence', [RULE, { transactionId: ID }]],
+      [fns.getTransactionRecurrence, { transactionId: ID }, 'recurrenceOfTransaction', [ID]],
       [fns.updateRecurrence, { id: ID, ...RULE }, 'updateRecurrence', [ID, RULE]],
       [fns.stopRecurrence, { id: ID }, 'stopRecurrence', [ID]],
       [fns.undoStopRecurrence, { id: ID }, 'undoStopRecurrence', [ID]],
@@ -139,7 +142,7 @@ describe('schedule server functions', () => {
     });
     await call(fns.createRecurrence, { context: signedIn(), data: parsed });
     // toStrictEqual fails on a key that is present with the value `undefined`.
-    expect(fake.schedules.createRecurrence.mock.lastCall).toStrictEqual([USER_ID, RULE]);
+    expect(fake.schedules.createRecurrence.mock.lastCall).toStrictEqual([USER_ID, RULE, {}]);
     await call(fns.updateSubscription, {
       context: signedIn(),
       data: { id: ID, patch: { plan: undefined, icon: null } },
@@ -162,7 +165,7 @@ describe('schedule server functions', () => {
 
   it('refuses signed-out requests before any repository call', async () => {
     const all = Object.values(fns);
-    expect(all).toHaveLength(23);
+    expect(all).toHaveLength(24);
     for (const fn of all) {
       expect(await call(fn, { context: signedOut(), data: {} })).toEqual({ ok: false, code: 'UNAUTHENTICATED' });
     }

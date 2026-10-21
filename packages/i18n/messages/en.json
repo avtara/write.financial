@@ -703,6 +703,8 @@
   "cmdk_open_label": "Search",
   "cmdk_placeholder": "Search transactions, pages, or commands…",
   "cmdk_results_label": "Search results",
+  "cmdk_review_ai": "AI result",
+  "cmdk_review_due": "Due",
   "cmdk_search_failed": "Search failed. Try again.",
   "cmdk_searching": "Searching…",
   "cmdk_subscription_cancelled": "cancelled",
@@ -731,7 +733,8 @@
   "date_field_marker": "has transactions",
   "date_field_now": "Now",
   "date_field_placeholder": "Pick a date",
-  "date_field_schedule_later": "Scheduling future dates is coming soon.",
+  "date_field_schedule": "Schedule",
+  "date_field_schedule_hint": "Pick a future date — it goes to Needs review on that day.",
   "date_field_time": "Time",
   "date_preset_last_saturday": "Last Saturday",
   "date_preset_month_start": "Start of month",
@@ -1648,11 +1651,42 @@
   "record_received_effective": "effective rate",
   "record_received_expected": "Expected",
   "record_received_waiting": "Waiting for a rate to calculate…",
+  "record_repeat_add": "Repeat",
+  "record_repeat_end": "Ends",
+  "record_repeat_end_after": "After … times",
+  "record_repeat_end_count": "After",
+  "record_repeat_end_never": "Never",
+  "record_repeat_every_date": "Every {date}",
+  "record_repeat_every_month_day": "Every {day}th",
+  "record_repeat_every_weekday": "Every {weekday}",
+  "record_repeat_failed": "The transaction was saved, but its repeat could not be created. Try again from the Calendar.",
+  "record_repeat_frequency": "Frequency",
+  "record_repeat_income": "Recurring income",
+  "record_repeat_month_day": "Day of month",
+  "record_repeat_monthly": "Monthly",
+  "record_repeat_preview": "Then",
+  "record_repeat_preview_label": "Next dates",
+  "record_repeat_preview_none": "none left",
+  "record_repeat_remind": "D-1",
+  "record_repeat_remind_label": "Reminder the day before at 09:00",
+  "record_repeat_remove": "Remove repeat",
+  "record_repeat_summary": "{every} · goes to Needs review first",
+  "record_repeat_times": "times",
+  "record_repeat_title_monthly": "Repeat every month",
+  "record_repeat_title_weekly": "Repeat every week",
+  "record_repeat_title_yearly": "Repeat every year",
+  "record_repeat_weekday": "Weekday",
+  "record_repeat_weekly": "Weekly",
+  "record_repeat_yearly": "Yearly",
   "record_save": "Save",
   "record_save_anyway": "Save anyway",
   "record_save_changes": "Save changes",
   "record_save_failed": "The transaction could not be saved. Try again.",
   "record_saved_title": "Transaction saved",
+  "record_schedule": "Schedule",
+  "record_scheduled_description": "Goes to Needs review on {date}. Balances change only after you confirm.",
+  "record_scheduled_note": "Scheduled for {date}: not recorded yet, balances and budgets stay as they are. It goes to Needs review on that day.",
+  "record_scheduled_title": "Transaction scheduled",
   "record_session_saved": "{count} transactions saved in this session",
   "record_short_adjust": "Adjust balance",
   "record_short_expense": "expense",
@@ -1682,6 +1716,30 @@
   "record_type_transfer": "Transfer",
   "record_undo": "Undo",
   "record_undone": "Transaction undone",
+  "recurrence_active_since": "Active since {date} · shown in the calendar",
+  "recurrence_badge_active": "Repeats · {freq}",
+  "recurrence_badge_stopped": "Not repeating",
+  "recurrence_every_date": "every {date}",
+  "recurrence_every_month_day": "every {day}th",
+  "recurrence_every_weekday": "every {weekday}",
+  "recurrence_freq_monthly": "Monthly",
+  "recurrence_freq_weekly": "Weekly",
+  "recurrence_freq_yearly": "Yearly",
+  "recurrence_heading": "Repeat",
+  "recurrence_next": "Next",
+  "recurrence_remind": "D-{days}",
+  "recurrence_resumed": "Repeat turned back on",
+  "recurrence_stop_cancel": "Cancel",
+  "recurrence_stop_confirm": "Stop",
+  "recurrence_stop_description": "Dates from {date} are removed from the calendar and the reminders turned off. You can turn it back on any time.",
+  "recurrence_stop_description_plain": "Dates from {date} are removed from the calendar. You can turn it back on any time.",
+  "recurrence_stop_keeps": "The {date} transaction stays recorded · balances don't change",
+  "recurrence_stop_title": "Stop repeating?",
+  "recurrence_stopped_description": "{name} · dates from {date} removed from the calendar.",
+  "recurrence_stopped_note": "Dates from {date} were removed from the calendar. Turn it back on to continue {every}.",
+  "recurrence_stopped_on": "Off · stopped {date}",
+  "recurrence_stopped_title": "Repeat stopped",
+  "recurrence_switch": "Repeat this transaction",
   "reset_confirm": "Repeat new password",
   "reset_description": "Choose a new password for your account.",
   "reset_done_description": "You can now sign in with your new password.",
@@ -1693,6 +1751,173 @@
   "reset_request_new": "Request a new link",
   "reset_submit": "Save password",
   "reset_title": "Set a new password",
+  "review_ai_account": "Account",
+  "review_ai_confidence": "{percent}% sure: check before recording.",
+  "review_ai_footer": "Not recorded: balances & budgets don't change until you choose.",
+  "review_ai_merchant": "Merchant",
+  "review_ai_subtitle": "AI results · confidence is only shown, you decide",
+  "review_ai_unknown": "unknown",
+  "review_allocations": "Split into",
+  "review_amount_label": "Amount",
+  "review_applied_title": "Proposal applied",
+  "review_apply": "Apply",
+  "review_apply_description": "Nothing changes until you confirm.",
+  "review_apply_from": "From account",
+  "review_apply_leftover": "Move the budget leftover to {goal}: {from} → {to}",
+  "review_apply_rollover": "Carry {category} into the next period:",
+  "review_apply_title": "Apply the proposal?",
+  "review_apply_to": "To account",
+  "review_bills_banner": "write.financial can't tell whether a bill has been charged. Balances change only after you confirm.",
+  "review_bills_pay_all": "Mark all paid",
+  "review_bills_pay_all_confirm": "Mark paid",
+  "review_bills_pay_all_description": "Each bill is recorded with its amount and taken from its account.",
+  "review_bills_pay_all_title": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Mark {count} bill paid?",
+        "countPlural=*": "Mark {count} bills paid?"
+      }
+    }
+  ],
+  "review_bills_subtitle": "subscription bills due",
+  "review_bills_total": "Total waiting",
+  "review_bulk_done": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} item confirmed",
+        "countPlural=*": "{count} items confirmed"
+      }
+    }
+  ],
+  "review_bulk_failed": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} item could not be confirmed",
+        "countPlural=*": "{count} items could not be confirmed"
+      }
+    }
+  ],
+  "review_cancel": "Cancel",
+  "review_category_bulk": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Set a category for the {count} transaction",
+        "countPlural=*": "Set a category for all {count} transactions"
+      }
+    }
+  ],
+  "review_category_bulk_description": "The transactions are already recorded; only their category changes.",
+  "review_category_bulk_title": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Set {category} for {count} transaction?",
+        "countPlural=*": "Set {category} for {count} transactions?"
+      }
+    }
+  ],
+  "review_category_for": "Category for {name}",
+  "review_category_gone": "This transaction was deleted.",
+  "review_category_heading": "Needs a category",
+  "review_category_label": "Category",
+  "review_category_pick": "Choose a category",
+  "review_category_progress": "{done} of {count} given a category",
+  "review_category_recorded": "Recorded · {account}",
+  "review_category_subtitle": "category {category} deleted",
+  "review_category_subtitle_many": "their categories were deleted",
+  "review_category_suggestions": "Suggestions:",
+  "review_change_amount": "Change amount",
+  "review_close_banner": "These proposals change nothing yet. Balances, budgets, and goals change only after you apply them.",
+  "review_close_heading": "Period-close proposals",
+  "review_close_subtitle": "{period} is closed",
+  "review_close_subtitle_many": "closed periods",
+  "review_confirm": "Confirm",
+  "review_confirmed_title": "Recorded",
+  "review_description": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} item waits for your confirmation. Balances and budgets change only after you confirm.",
+        "countPlural=*": "{count} items wait for your confirmation. Balances and budgets change only after you confirm."
+      }
+    }
+  ],
+  "review_due_overdue": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "{days} day overdue",
+        "daysPlural=*": "{days} days overdue"
+      }
+    }
+  ],
+  "review_due_today": "Due today",
+  "review_due_upcoming": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "Due in {days} day",
+        "daysPlural=*": "Due in {days} days"
+      }
+    }
+  ],
+  "review_empty_description": "Due bills, recurring transfers, period-close proposals, and AI results appear here before anything is recorded.",
+  "review_empty_title": "All reviewed",
+  "review_ignore": "Ignore",
+  "review_ignored": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} item ignored",
+        "countPlural=*": "{count} items ignored"
+      }
+    }
+  ],
+  "review_leftover_no_accounts": "accounts chosen when applied",
+  "review_leftover_title": "Move the budget leftover to {goal}",
+  "review_leftover_title_plain": "Move the budget leftover",
+  "review_load_failed": "Needs review could not be loaded",
+  "review_not_yet": "Not yet",
+  "review_paid": "Paid",
+  "review_paid_question": "Paid already?",
+  "review_received": "Received",
+  "review_received_question": "Received already?",
+  "review_record": "Record",
+  "review_recurring_banner": "write.financial can't tell whether the transfer was made. Balances and goal progress change only after you confirm.",
+  "review_recurring_subtitle": "recurring transfers due",
+  "review_recurring_waiting": "waiting",
+  "review_rollover_over_title": "Carry the {category} overspend into the next period",
+  "review_rollover_subtitle": "next period's budget is adjusted",
+  "review_rollover_title": "Carry the {category} remainder into the next period",
+  "review_save": "Save",
+  "review_source_assistant": "Assistant",
+  "review_source_gmail": "Gmail",
+  "review_source_period_close": "Period close",
+  "review_source_receipt": "Receipt",
+  "review_source_schedule": "Schedule",
+  "review_source_system": "System",
+  "review_title": "Needs review",
+  "review_transferred": "Transferred",
+  "review_transferred_question": "Transferred already?",
+  "review_unpaid_description": "It stays in Needs review until you mark it paid.",
+  "review_unpaid_title": "Marked as not paid yet",
+  "review_unrecorded_goal": "not recorded. {account} isn't charged and the goals haven't grown yet.",
+  "review_unrecorded_in": "not recorded. {account} hasn't received it yet.",
+  "review_unrecorded_out": "not recorded. {account} isn't charged yet.",
+  "review_untitled": "Untitled",
   "security_backup_description": "10 one-time codes · available once 2FA is on",
   "security_backup_generate": "Create new codes",
   "security_backup_intro": "Your old backup codes stop working at once. The new ones are shown only once.",
@@ -2407,6 +2632,20 @@
   "transactions_activity_created_quick": "Recorded via Quick add",
   "transactions_activity_deleted": "Deleted",
   "transactions_activity_duplicated": "Duplicated",
+  "transactions_activity_repeat_monthly": "Repeats every month on the {day}th",
+  "transactions_activity_repeat_resumed": "Repeat turned back on",
+  "transactions_activity_repeat_stopped": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Repeat stopped · {count} date removed",
+        "countPlural=*": "Repeat stopped · {count} dates removed"
+      }
+    }
+  ],
+  "transactions_activity_repeat_weekly": "Repeats every week on {weekday}",
+  "transactions_activity_repeat_yearly": "Repeats every year",
   "transactions_activity_restored": "Restored",
   "transactions_activity_split": "Split into parts",
   "transactions_activity_tags": "Tags changed",

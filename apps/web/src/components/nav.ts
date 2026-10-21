@@ -5,7 +5,7 @@
  */
 import { m } from '@wf/i18n/messages';
 import type { KbdKey } from '@wf/ui/kbd-hint';
-import { ArrowLeftRight, LayoutDashboard, LayoutGrid, PiggyBank, Repeat, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, Inbox, LayoutDashboard, LayoutGrid, PiggyBank, Repeat, Wallet, type LucideIcon } from 'lucide-react';
 import type { FileRouteTypes } from '../generated/routeTree.gen.ts';
 
 export interface NavItem {
@@ -27,6 +27,8 @@ export interface NavCounts {
   readonly transactions: number;
   /** Active subscriptions ("Langganan 7"). */
   readonly subscriptions: number;
+  /** Pending Review queue items ("Perlu ditinjau"). */
+  readonly review: number;
 }
 
 export interface NavGroup {
@@ -56,6 +58,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         shortcut: ['G', 'L'],
         badge: 'subscriptions',
       },
+      { to: '/review', label: m.review_title, icon: Inbox, railIcon: Inbox, badge: 'review' },
     ],
   },
   {

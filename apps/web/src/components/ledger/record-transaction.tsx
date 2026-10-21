@@ -5,7 +5,8 @@
  * through `recordTransaction` (one `clientId` per entry, so a retried save never records twice), confirms with a
  * toast offering "Urungkan", can stay open for the next entry ("Tambah lagi setelah simpan", `⇧↵`), and asks
  * before a filled form is closed: "Buang" / "Simpan draf" / "Lanjut mengisi". Saved drafts are offered when it
- * opens again.
+ * opens again. "Ulangi" (FR-T6) makes the saved transaction the first occurrence of a recurrence; a future date
+ * ("Jadwalkan") records nothing and schedules it (and its repeats) for the Review queue instead.
  */
 import { useRouter } from '@tanstack/react-router';
 import type { DraftView } from '@wf/db/drafts';
@@ -13,7 +14,7 @@ import type { Locale } from '@wf/domain/money';
 import type { LocalDate } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
 import { Checkbox } from '@wf/ui/checkbox';
-import { toLocalDate } from '@wf/ui/dates';
+import { formatDate, toLocalDate } from '@wf/ui/dates';
 import { KbdHint } from '@wf/ui/kbd-hint';
 import { Money } from '@wf/ui/money';
 import { PageState } from '@wf/ui/page-state';
@@ -25,6 +26,7 @@ import { categoryName } from '../../lib/ledger-labels.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { getBudgetStatus } from '../../server/fn/budget.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
+import { createRecurrence } from '../../server/fn/schedules.ts';
 import {
   listDrafts,
   recordTransaction,
@@ -47,6 +49,8 @@ import {
   type TransactionFormValues,
 } from './transaction-draft.ts';
 import { useReconcile } from '../accounts/reconcile.tsx';
+import { recurrenceRequest, type RepeatValues } from './recurrence-draft.ts';
+import { RepeatField } from './repeat-field.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 
@@ -298,8 +302,10 @@ function RecordSheet({
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [repeat, setRepeat] = useState<RepeatValues | null>(null);
   const form = useTransactionForm({ initial: session.initial, data, locale });
   const { values } = form;
+  const scheduled = values.date > today;
   const account = data.accounts.find((candidate) => candidate.id === values.accountId);
   const category = data.categories.find((candidate) => candidate.id === values.categoryId);
   const currency = account?.currency ?? data.baseCurrency;
@@ -307,6 +313,7 @@ function RecordSheet({
   const restart = (next: Omit<Session, 'key'>) => {
     setSession((current) => ({ key: current.key + 1, ...next }));
     form.reset(next.initial);
+    setRepeat(null);
     setFailure(null);
   };
 
@@ -334,28 +341,51 @@ function RecordSheet({
     if (input === null) return;
     setSaving(true);
     setFailure(null);
-    const result = await recordTransaction({ data: input }).catch(() => null);
-    setSaving(false);
-    if (result === null || !result.ok) {
-      setFailure(result === null ? m.record_save_failed() : ledgerErrorMessage(result.code, locale));
-      return;
+    if (scheduled) {
+      // "Jadwalkan": nothing is recorded now; the occurrence reaches the Review queue on its date.
+      const planned = await createRecurrence({ data: recurrenceRequest(input, repeat, values.date) }).catch(() => null);
+      setSaving(false);
+      if (planned === null || !planned.ok) {
+        setFailure(planned === null ? m.record_save_failed() : ledgerErrorMessage(planned.code, locale));
+        return;
+      }
+      toast({
+        tone: 'success',
+        title: m.record_scheduled_title(),
+        description: m.record_scheduled_description({ date: formatDate(values.date, locale, 'date') }),
+      });
+    } else {
+      const result = await recordTransaction({ data: input }).catch(() => null);
+      if (result === null || !result.ok) {
+        setSaving(false);
+        setFailure(result === null ? m.record_save_failed() : ledgerErrorMessage(result.code, locale));
+        return;
+      }
+      if (repeat !== null) {
+        // The transaction is saved either way; a failed repeat is reported, not retried.
+        const linked = await createRecurrence({
+          data: { ...recurrenceRequest(input, repeat, values.date), transactionId: result.value.id },
+        }).catch(() => null);
+        if (linked === null || !linked.ok) toast({ tone: 'error', title: m.record_repeat_failed() });
+      }
+      setSaving(false);
+      const amount = input.type === 'transfer' ? input.sentMinor : input.amountMinor;
+      announceSaved({
+        id: result.value.id,
+        label: values.type === 'transfer' || category === undefined ? m.record_type_transfer() : categoryName(category),
+        amountMinor: values.type === 'income' ? amount : -amount,
+        currency,
+        accountName: account?.displayName,
+        locale,
+        onChange: () => {
+          void router.invalidate();
+        },
+      });
     }
     if (session.draftId !== null) {
       void removeDraft({ data: { id: session.draftId } });
       setDrafts((current) => current.filter((draft) => draft.id !== session.draftId));
     }
-    const amount = input.type === 'transfer' ? input.sentMinor : input.amountMinor;
-    announceSaved({
-      id: result.value.id,
-      label: values.type === 'transfer' || category === undefined ? m.record_type_transfer() : categoryName(category),
-      amountMinor: values.type === 'income' ? amount : -amount,
-      currency,
-      accountName: account?.displayName,
-      locale,
-      onChange: () => {
-        void router.invalidate();
-      },
-    });
     void router.invalidate();
     if (another) {
       setSavedCount((count) => count + 1);
@@ -421,7 +451,7 @@ function RecordSheet({
                 void submit(addAnother);
               }}
             >
-              {form.shortfall === null ? m.record_save() : m.record_save_anyway()}
+              {scheduled ? m.record_schedule() : form.shortfall === null ? m.record_save() : m.record_save_anyway()}
               <KbdHint keys={['mod', 'enter']} platform={platform} className="ml-1" />
             </Button>
           </>
@@ -485,6 +515,11 @@ function RecordSheet({
             });
           }}
           onAdjustBalance={openReconcile}
+          schedule={{
+            repeat: (
+              <RepeatField value={repeat} onChange={setRepeat} date={values.date} kind={values.type} locale={locale} />
+            ),
+          }}
         />
         {failure === null ? null : <FormError>{failure}</FormError>}
       </Sheet>

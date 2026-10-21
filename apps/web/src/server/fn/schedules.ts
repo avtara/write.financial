@@ -71,6 +71,9 @@ const recurrence = z.object({
   remindOffsetDays: remindDays,
 });
 
+/** What the Record sheet sends to create a recurrence (FR-T6). */
+export type RecurrenceRequest = z.input<typeof recurrence>;
+
 /** `RecurrenceInput` as the repository takes it: no `undefined` properties, also inside the template. */
 function recurrenceInput({ template: proposal, ...rule }: z.output<typeof recurrence>) {
   return { ...defined(rule), template: defined(proposal) };
@@ -110,14 +113,33 @@ export const listRecurrences = createServerFn({ method: 'GET' })
     });
   });
 
-/** FR-T6 "Ulangi": a new recurring transaction with its rule and reminder. */
+/**
+ * FR-T6 "Ulangi": a new recurring transaction with its rule and reminder; `transactionId` is the transaction the
+ * Record sheet just saved as its first occurrence ("Jadwalkan" of a future date sends none).
+ */
 export const createRecurrence = createServerFn({ method: 'POST' })
-  .validator(recurrence)
+  .validator(recurrence.extend({ transactionId: id.optional() }))
   .handler(async ({ context, data }): Promise<Result<RecurrenceView>> => {
     const { schedules, now } = await services();
     return attempt(async () => {
       const { user } = await requireSession(context.session, {}, now());
-      return schedules.createRecurrence(user.id, recurrenceInput(data));
+      const { transactionId, ...rule } = data;
+      return schedules.createRecurrence(
+        user.id,
+        recurrenceInput(rule),
+        transactionId === undefined ? {} : { transactionId },
+      );
+    });
+  });
+
+/** FR-L8: the recurrence a transaction repeats (the detail panel's "Ulangi"), or `null`. */
+export const getTransactionRecurrence = createServerFn({ method: 'GET' })
+  .validator(z.object({ transactionId: id }))
+  .handler(async ({ context, data }): Promise<Result<RecurrenceView | null>> => {
+    const { schedules, now } = await services();
+    return attempt(async () => {
+      const { user } = await requireSession(context.session, {}, now());
+      return schedules.recurrenceOfTransaction(user.id, data.transactionId);
     });
   });
 

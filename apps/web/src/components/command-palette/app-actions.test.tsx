@@ -14,6 +14,7 @@ vi.mock('../../server/fn/search.ts', () => ({
       ok: true,
       value: {
         transactions: { hits: [], total: 0 },
+        review: { hits: [], total: 0 },
         accounts: { hits: [], total: 0 },
         categories: { hits: [], total: 0 },
         tags: { hits: [], total: 0 },

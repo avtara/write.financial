@@ -9,10 +9,12 @@ import { useRouter } from '@tanstack/react-router';
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { ActivityEntry } from '@wf/db/activity';
 import type { TransactionDetail } from '@wf/db/transactions';
+import type { Locale } from '@wf/domain/money';
 import type { LocalDate } from '@wf/domain/period';
+import type { IsoWeekday } from '@wf/domain/recurrence';
 import type { TransactionSource } from '@wf/domain/transactions';
 import { m } from '@wf/i18n/messages';
-import { formatDate, formatTime, toLocalDate } from '@wf/ui/dates';
+import { formatDate, formatTime, toLocalDate, weekdayName } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { PageState } from '@wf/ui/page-state';
 import { toast } from '@wf/ui/toast';
@@ -29,6 +31,7 @@ import { TransactionForm } from '../ledger/transaction-form.tsx';
 import type { LedgerData } from '../ledger/use-transaction-form.ts';
 import { usePreferences } from '../preferences.tsx';
 import { actionRowOf, rowLabel } from './action-row.ts';
+import { RecurrenceBadge, RecurrenceSection, useTransactionRecurrence } from './recurrence-section.tsx';
 import { Attachments } from './attachments.tsx';
 import { useTransactionActions } from './transaction-actions.tsx';
 import { SignedMoney } from './transaction-row.tsx';
@@ -219,6 +222,7 @@ function View({
   const fee = detail.postings.find((posting) => posting.role === 'fee');
   const feeCategory = ledger.categories.find((candidate) => candidate.id === fee?.categoryId);
   const date = toLocalDate(detail.occurredAt, timeZone);
+  const { recurrence, reload } = useTransactionRecurrence(detail.id, detail.activity.length);
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-start gap-3">
@@ -249,6 +253,7 @@ function View({
           <Zap aria-hidden="true" className="size-3" />
           {SOURCE_LABELS[detail.source]()}
         </span>
+        {recurrence == null ? null : <RecurrenceBadge recurrence={recurrence} />}
       </div>
       {deleted ? <p className="text-[12.5px] text-muted-fg">{m.transactions_detail_deleted_note()}</p> : null}
       {detail.splitParentId === null ? null : (
@@ -382,6 +387,25 @@ function View({
         timeZone={timeZone}
         onChanged={onChanged}
       />
+      {recurrence == null || deleted ? null : (
+        <RecurrenceSection
+          recurrence={recurrence}
+          title={title}
+          transactionDate={date}
+          route={
+            detail.type === 'transfer'
+              ? `${account(row.accountId)?.displayName ?? ''} → ${account(row.toAccountId)?.displayName ?? ''}`
+              : (account(row.accountId)?.displayName ?? '')
+          }
+          locale={locale}
+          timeZone={timeZone}
+          today={today}
+          onChanged={() => {
+            reload();
+            onChanged();
+          }}
+        />
+      )}
       {detail.type === 'expense' && !deleted && category !== undefined ? (
         <BudgetBar categoryId={category.id} label={categoryName(category)} date={date} today={today} />
       ) : null}
@@ -439,9 +463,26 @@ function BudgetBar({
   );
 }
 
+/** "Diulang tiap bulan, tgl 14" for the history entry of a new recurrence. */
+function repeatText(meta: ActivityEntry['meta'], locale: Locale): string {
+  if (meta['freq'] === 'weekly') {
+    return m.transactions_activity_repeat_weekly({
+      weekday: weekdayName(Number(meta['weekday']) as IsoWeekday, locale),
+    });
+  }
+  if (meta['freq'] === 'monthly') return m.transactions_activity_repeat_monthly({ day: Number(meta['monthDay']) });
+  return m.transactions_activity_repeat_yearly();
+}
+
 /** A sentence for one history entry. */
-function activityText(entry: ActivityEntry): string {
+function activityText(entry: ActivityEntry, locale: Locale): string {
   switch (entry.action) {
+    case 'recurrence_set':
+      return repeatText(entry.meta, locale);
+    case 'recurrence_stopped':
+      return m.transactions_activity_repeat_stopped({ count: Number(entry.meta['deleted']) });
+    case 'recurrence_resumed':
+      return m.transactions_activity_repeat_resumed();
     case 'created': {
       const source = entry.meta['source'];
       return source === 'quick' ? m.transactions_activity_created_quick() : m.transactions_activity_created();
@@ -491,7 +532,7 @@ function Timeline({
               <History aria-hidden="true" className="size-3" />
             </span>
             <span className="flex flex-col">
-              <span className="text-[12.5px] text-fg">{activityText(entry)}</span>
+              <span className="text-[12.5px] text-fg">{activityText(entry, locale)}</span>
               <time dateTime={entry.at.toISOString()} className="font-mono text-[11px] text-subtle">
                 {formatDate(toLocalDate(entry.at, timeZone), locale, 'day')} · {formatTime(entry.at, timeZone, locale)}
               </time>

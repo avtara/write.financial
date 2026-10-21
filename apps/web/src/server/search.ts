@@ -8,6 +8,7 @@ import type { AccountView } from '@wf/db/accounts';
 import type { CategoryView } from '@wf/db/categories';
 import { LedgerError } from '@wf/db/ledger-errors';
 import type { RecentItemKind } from '@wf/db/recent-items';
+import type { ReviewItemView } from '@wf/db/review';
 import type { TagView } from '@wf/db/tags';
 import type { TransactionDetail } from '@wf/db/transactions';
 import { categoryName } from '../lib/ledger-labels.ts';
@@ -18,6 +19,7 @@ import {
   type CategoryRef,
   type CategoryHit,
   type RecentEntry,
+  type ReviewHit,
   type SearchHits,
   type SearchKind,
   type SearchResults,
@@ -34,7 +36,7 @@ export const RECENT_LIMIT = 6;
 
 export type SearchServices = Pick<
   Services,
-  'accounts' | 'categories' | 'tags' | 'transactions' | 'transactionQuery' | 'recentItems' | 'schedules'
+  'accounts' | 'categories' | 'tags' | 'transactions' | 'transactionQuery' | 'recentItems' | 'schedules' | 'review'
 >;
 
 interface SourceContext {
@@ -44,6 +46,7 @@ interface SourceContext {
   readonly categories: () => Promise<CategoryView[]>;
   readonly tags: () => Promise<TagView[]>;
   readonly subscriptions: () => Promise<SubscriptionHit[]>;
+  readonly review: () => Promise<ReviewHit[]>;
 }
 
 interface SearchSource<H extends { readonly id: string }> {
@@ -60,10 +63,11 @@ function once<T>(load: () => Promise<T>): () => Promise<T> {
 }
 
 function contextFor(services: SearchServices, userId: string): SourceContext {
+  const overview = once(() => services.accounts.list(userId, { status: 'all' }));
   return {
     services,
     userId,
-    accounts: once(async () => (await services.accounts.list(userId, { status: 'all' })).accounts),
+    accounts: async () => (await overview()).accounts,
     categories: once(() => services.categories.list(userId, { includeArchived: true })),
     tags: once(() => services.tags.list(userId)),
     subscriptions: once(async () =>
@@ -78,6 +82,14 @@ function contextFor(services: SearchServices, userId: string): SourceContext {
         nextBillingDate: view.nextBillingDate,
       })),
     ),
+    review: once(async () => {
+      const [{ items }, { accounts, baseCurrency }] = await Promise.all([
+        services.review.list(userId, { limit: 200 }),
+        overview(),
+      ]);
+      const currency = (id: string | null) => accounts.find((account) => account.id === id)?.currency ?? baseCurrency;
+      return items.map((item) => reviewHit(item, currency));
+    }),
   };
 }
 
@@ -232,8 +244,45 @@ const subscriptions: SearchSource<SubscriptionHit> = {
     (await context.subscriptions()).filter((subscription) => ids.includes(subscription.id)),
 };
 
+/** A pending item as ⌘K lists it: its name and the signed amount confirming it would move. */
+function reviewHit(item: ReviewItemView, currency: (accountId: string | null) => string): ReviewHit {
+  const { payload } = item;
+  const common = { id: item.id, reason: item.reason, title: item.label, dueDate: item.dueDate };
+  switch (payload.kind) {
+    case 'transaction': {
+      const { draft } = payload;
+      if (draft.type === 'transfer') {
+        return { ...common, amountMinor: -draft.sentMinor, currency: currency(draft.fromAccountId) };
+      }
+      const signed = draft.type === 'income' ? draft.amountMinor : -draft.amountMinor;
+      return { ...common, amountMinor: signed, currency: currency(draft.accountId) };
+    }
+    case 'category':
+      return {
+        ...common,
+        amountMinor: item.subject?.amountMinor ?? 0n,
+        currency: item.subject?.currency ?? currency(null),
+      };
+    case 'leftover':
+      return { ...common, amountMinor: payload.amountMinor, currency: currency(payload.fromAccountId) };
+    case 'rollover':
+      return { ...common, amountMinor: payload.deltaMinor, currency: currency(null) };
+  }
+}
+
+const review: SearchSource<ReviewHit> = {
+  recentKind: 'review',
+  search: async (context, query, limit) =>
+    groupOf(
+      (await context.review()).filter((hit) => hit.title !== null && matchesQuery(query, [hit.title])),
+      limit,
+    ),
+  resolve: async (context, ids) => (await context.review()).filter((hit) => ids.includes(hit.id)),
+};
+
 const SOURCES: { readonly [K in SearchKind]: SearchSource<SearchHits[K]> } = {
   transactions,
+  review,
   accounts,
   categories,
   tags,

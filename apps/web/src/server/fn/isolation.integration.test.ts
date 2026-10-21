@@ -1004,7 +1004,7 @@ const MATRIX: Record<Name, Case> = {
       // A's own: the transaction "Belanja Rahasia A", the account, "Langganan Rahasia A", "Rahasia A" and the
       // budgeted "Anggaran rahasia-a", and the tag.
       const ofA = await as<Result<SearchResults>>('A', 'searchEverything', { query: 'rahasia' });
-      expect(ofA.ok && SEARCH_KINDS.map((kind) => ofA.value[kind].total)).toEqual([1, 1, 1, 2, 1]);
+      expect(ofA.ok && SEARCH_KINDS.map((kind) => ofA.value[kind].total)).toEqual([1, 0, 1, 1, 2, 1]);
     },
   },
   touchRecent: {
@@ -1648,7 +1648,27 @@ const MATRIX: Record<Name, Case> = {
       const created = await as<Result<RecurrenceView>>('B', 'createRecurrence', arisan(accountOfB));
       expect(created).toMatchObject(ok({ template: { description: 'Arisan B' }, freq: 'weekly', status: 'active' }));
       expect(await idsOf('recurrences', bId)).toContain(created.ok && created.value.id);
+      // The first occurrence must be B's own transaction.
+      expect(
+        await as('B', 'createRecurrence', { ...arisan(accountOfB), transactionId: await firstOfA('transactions') }),
+      ).toEqual(NOT_FOUND);
       expect(await aM3Rows()).toEqual(a);
+    },
+  },
+  getTransactionRecurrence: {
+    input: () => ({ transactionId: SOME_ID }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const [accountOfB = ''] = await idsOf('accounts', bId);
+      const [transactionOfB = ''] = await idsOf('transactions', bId);
+      const created = await as<Result<RecurrenceView>>('B', 'createRecurrence', {
+        ...arisan(accountOfB),
+        transactionId: transactionOfB,
+      });
+      expect(await as('B', 'getTransactionRecurrence', { transactionId: transactionOfB })).toMatchObject(
+        ok({ id: created.ok && created.value.id }),
+      );
+      expect(await as('A', 'getTransactionRecurrence', { transactionId: transactionOfB })).toEqual(ok(null));
     },
   },
   updateRecurrence: {

@@ -8,7 +8,7 @@ import { m } from '@wf/i18n/messages';
 import type { Locale } from '@wf/i18n/locale';
 import { formatDate } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
-import { Hash, Receipt, Repeat, Shapes, Wallet, type LucideIcon } from 'lucide-react';
+import { Hash, Inbox, Receipt, Repeat, Shapes, Wallet, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { accountTypeLabel, categoryGroupLabel, categoryName } from '../../lib/ledger-labels.ts';
 import type { RecentEntityKind, SearchHits, SearchKind } from '../../lib/search.ts';
@@ -30,6 +30,15 @@ export interface ResultGroup<H> {
   readonly open: (hit: H, navigate: NavigateFn) => Promise<void>;
 }
 
+/** What a pending item without a name is ("Usulan penutupan periode"). */
+const REVIEW_REASON: Readonly<Record<SearchHits['review']['reason'], () => string>> = {
+  ai_suggestion: m.cmdk_review_ai,
+  import_row: m.cmdk_review_ai,
+  category_deleted: m.review_category_heading,
+  due_occurrence: m.cmdk_review_due,
+  period_close_proposal: m.review_close_heading,
+};
+
 const withArchived = (text: string, archived: boolean) => (archived ? `${text} · ${m.cmdk_archived()}` : text);
 
 export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits[K]> } = {
@@ -50,6 +59,19 @@ export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits
     },
     // Until the Transactions page exists: the account the transaction moved money on.
     open: (hit, navigate) => navigate({ to: '/accounts', search: { account: hit.accountId } }),
+  },
+  review: {
+    heading: m.review_title,
+    icon: Inbox,
+    recentKind: 'review',
+    view: (hit, locale) => ({
+      title: hit.title ?? REVIEW_REASON[hit.reason](),
+      detail: [REVIEW_REASON[hit.reason](), hit.dueDate === null ? null : formatDate(hit.dueDate, locale, 'day')]
+        .filter((part) => part !== null)
+        .join(' · '),
+      aside: <Money minor={hit.amountMinor} currency={hit.currency} context="amount" locale={locale} />,
+    }),
+    open: (hit, navigate) => navigate({ to: '/review', search: { item: hit.id } }),
   },
   accounts: {
     heading: m.cmdk_group_accounts,
