@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { setLocale } from '@wf/i18n/runtime';
 import type { ComponentType } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../../../test/render.tsx';
 import { Route } from './notifications.tsx';
 
@@ -22,6 +23,11 @@ const LOADED = { page: ok({ items: [], nextCursor: null }), counts: ok({ total: 
 const VIEWER = { viewer: { timezone: 'Asia/Jakarta' } };
 
 type Loader = (options: { deps: object; context: typeof VIEWER }) => Promise<unknown>;
+
+// Other files in the same browser may leave English as the current locale.
+beforeAll(async () => {
+  await setLocale('id', { reload: false });
+});
 
 afterEach(() => {
   vi.useRealTimers();
