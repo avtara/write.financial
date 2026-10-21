@@ -40,8 +40,9 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  *   scenario through the Record sheet (card expense split 3×, a Rp2jt payment allocated to the installment first →
  *   333.334/333.333/333.333, Rp13.000.000 of the limit left), 1440/1024/768,
  * - `goals`: Tabungan (FR-G1, G3, G4, FR-B6): the seed's goldens, Bibit RDPU as a source, "Setor manual" Rp1.000.000
- *   (21% → 22%, Okt 2027), a sinking fund joining the payday set-aside, a new goal (keyboard only), STNK reached,
- *   completed and undone, paid from in the Record sheet, its remainder moved, 1440/1024/768.
+ *   (21% → 22%, Okt 2027), "Tarik dana", a sinking fund joining the payday set-aside ("Sisihkan tiap gajian"), whose
+ *   25 Okt transfer waits in the Review queue until confirmed, a new goal (keyboard only), STNK reached, completed and
+ *   undone, paid from in the Record sheet (Terpakai), its remainder moved, 1440/1024/768.
  */
 const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   tablet: { testMatch: 'tablet.spec.ts', use: { viewport: { width: 1024, height: 768 } } },
