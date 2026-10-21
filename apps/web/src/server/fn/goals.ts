@@ -342,7 +342,10 @@ export const withdrawFromGoal = createServerFn({ method: 'POST' })
     }),
   );
 
-/** FR-G4 "Bayar dari tujuan": the Record sheet's expense paid with the goal's money; `markUsed` → "Terpakai". */
+/**
+ * FR-G4 "Bayar dari tujuan": the Record sheet's expense paid with the goal's money; `markUsed` → "Terpakai", and its
+ * recurring contributions stop.
+ */
 export const spendFromGoal = createServerFn({ method: 'POST' })
   .validator(z.object({ goalId: id, markUsed: z.boolean(), entry: RECORD_TRANSACTION_INPUT }))
   .handler(({ context, data }): Promise<Result<{ transactionId: string; goal: GoalView }>> =>
@@ -351,7 +354,14 @@ export const spendFromGoal = createServerFn({ method: 'POST' })
       const { entry } = data;
       // Only an expense is paid from a goal; the repository refuses anything else.
       if (entry.type !== 'expense') throw new LedgerError('INVALID_GOAL', 'Paying from a goal is an expense');
-      return all.goals.spend(userId, data.goalId, { draft: defined(entry), markUsed: data.markUsed });
+      const spent = await all.goals.spend(userId, data.goalId, { draft: defined(entry), markUsed: data.markUsed });
+      // A used goal collects nothing more: its recurring contributions stop (the set-aside transfer shrinks).
+      let { goal } = spent;
+      if (data.markUsed) {
+        for (const plan of spent.goal.plans)
+          if (plan.active) goal = await all.goals.setPlanActive(userId, plan.id, false);
+      }
+      return { transactionId: spent.transactionId, goal };
     }),
   );
 

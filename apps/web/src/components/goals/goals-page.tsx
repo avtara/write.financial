@@ -435,7 +435,8 @@ export function GoalsPage({
         baseCurrency={baseCurrency}
         today={today}
         averageSpendingMinor={overview.averageSpendingMinor}
-        payday={overview.payday}
+        // New contributions default to the day the sinking funds are set aside on ("Tiap tgl 25"), else payday.
+        payday={overview.setAside?.monthDay ?? overview.payday}
         locale={locale}
         onOpenChange={() => {
           setForm(null);

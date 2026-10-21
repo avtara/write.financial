@@ -357,7 +357,7 @@ describe('GoalsPage', () => {
       .mockReturnValueOnce(
         ok([
           { ...used, sources: [] },
-          { ...LIBURAN_BALI, targetMinor: 0n },
+          { ...SERVIS_MOTOR, targetMinor: 0n },
         ]),
       );
     server.reopenGoal.mockReturnValue(refused('NOT_FOUND'));
@@ -376,7 +376,7 @@ describe('GoalsPage', () => {
     expect(lastToast().title).toBe('Sisa dilepas jadi saldo bebas');
     await menu(screen, 'Perpanjang STNK', 'Pindahkan sisa');
     await screen.getByRole('button', { name: 'Pindahkan' }).click();
-    expect(lastToast().title).toBe('Sisa dipindah ke Liburan Bali');
+    expect(lastToast().title).toBe('Sisa dipindah ke Servis motor');
     await menu(screen, 'Perpanjang STNK', 'Pindahkan sisa');
     await screen.getByRole('button', { name: 'Batal' }).click();
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument();

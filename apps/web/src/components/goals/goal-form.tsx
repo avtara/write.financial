@@ -272,7 +272,10 @@ function GoalFormBody({
   const [failure, setFailure] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const targetMinor = dynamic && averageSpendingMinor > 0n ? dynamicTarget(averageSpendingMinor, months) : target;
+  // An edited emergency fund keeps the target it has until its multiple changes (the spending moves every month).
+  const keepsTarget = goal?.targetMode === 'monthly_expenses' && dynamic && months === goal.targetMonths;
+  const targetMinor =
+    dynamic && !keepsTarget && averageSpendingMinor > 0n ? dynamicTarget(averageSpendingMinor, months) : target;
   const deadlineMonth = /^\d{4}-\d{2}$/.test(deadline) ? (deadline as YearMonth) : null;
   const startOn = firstContribution(today, day);
   const count = contributionCount(startOn, deadlineMonth);

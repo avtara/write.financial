@@ -34,7 +34,7 @@ import { Button, Field, FormError, INPUT_FRAME, TextInput } from '../form.tsx';
 import { Modal } from '../modal.tsx';
 import { RichMessage } from '../rich-message.tsx';
 import { Chip } from './goal-list.tsx';
-import { firstContribution, formatMonths, goalState, planDays } from './goals-model.ts';
+import { firstContribution, formatMonths, goalState, planDays, sortGoals } from './goals-model.ts';
 
 const QUICK_AMOUNTS = [500_000n, 1_000_000n];
 
@@ -565,21 +565,23 @@ export interface CompleteDialogProps {
 
 /** FR-G4: a reached goal ("… tercapai") or "Tandai selesai" from the menu. */
 export function CompleteDialog({ goal, today, locale, onOpenChange, onComplete }: CompleteDialogProps) {
+  const title =
+    goal === null
+      ? ''
+      : goalSnapshot(goalState(goal)).reached
+        ? m.goals_reached_title({ name: goal.name })
+        : m.goals_complete_title({ name: goal.name });
   return (
-    <Modal
-      open={goal !== null}
-      onOpenChange={onOpenChange}
-      title={
-        goal === null
-          ? ''
-          : goalSnapshot(goalState(goal)).reached
-            ? m.goals_reached_title({ name: goal.name })
-            : m.goals_complete_title({ name: goal.name })
-      }
-      size="lg"
-    >
+    <Modal open={goal !== null} onOpenChange={onOpenChange} title={title} hideTitle size="lg">
       {goal === null ? null : (
-        <CompleteForm goal={goal} today={today} locale={locale} onOpenChange={onOpenChange} onComplete={onComplete} />
+        <CompleteForm
+          goal={goal}
+          title={title}
+          today={today}
+          locale={locale}
+          onOpenChange={onOpenChange}
+          onComplete={onComplete}
+        />
       )}
     </Modal>
   );
@@ -587,11 +589,12 @@ export function CompleteDialog({ goal, today, locale, onOpenChange, onComplete }
 
 function CompleteForm({
   goal,
+  title,
   today,
   locale,
   onOpenChange,
   onComplete,
-}: Omit<CompleteDialogProps, 'goal'> & { readonly goal: GoalSummary }) {
+}: Omit<CompleteDialogProps, 'goal'> & { readonly goal: GoalSummary; readonly title: string }) {
   const snapshot = goalSnapshot(goalState(goal));
   const active = goal.plans.filter((plan) => plan.active);
   const days = planDays(goal);
@@ -610,7 +613,8 @@ function CompleteForm({
       >
         <PartyPopper className="size-[18px]" />
       </span>
-      <p className="-mt-2 text-[13px] text-muted-fg">
+      <h2 className="-mb-2 text-[16px] font-semibold">{title}</h2>
+      <p className="text-[13px] text-muted-fg">
         {!snapshot.reached ? (
           <RichMessage
             message={m.goals_complete_body}
@@ -754,9 +758,12 @@ function RemainderForm({
   onOpenChange,
   onMove,
 }: Omit<RemainderDialogProps, 'goal'> & { readonly goal: GoalSummary }) {
-  const targets = goals
-    .filter((other) => other.id !== goal.id && other.status === 'active' && other.currency === goal.currency)
-    .sort((a, b) => Number(b.kind === goal.kind) - Number(a.kind === goal.kind));
+  const candidates = goals.filter(
+    (other) => other.id !== goal.id && other.status === 'active' && other.currency === goal.currency,
+  );
+  // A sinking fund's remainder goes to another sinking fund (design m535GI), the nearest due first.
+  const sameKind = candidates.filter((other) => other.kind === goal.kind);
+  const targets = sortGoals(sameKind.length > 0 ? sameKind : candidates, 'deadline', locale);
   const [choice, setChoice] = useState<string | null>(targets[0]?.id ?? null);
   const [pending, setPending] = useState(false);
   const where = [...new Set(goal.sources.map((source) => source.accountName))].join(', ');

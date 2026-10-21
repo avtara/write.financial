@@ -170,7 +170,7 @@ describe('GoalPlans', () => {
       <GoalPlans
         open
         goalId={DANA_PENSIUN.id}
-        overview={goalsOverview({ payday: null })}
+        overview={goalsOverview({ payday: null, setAside: null })}
         accounts={[]}
         locale="id"
         onOpenChange={vi.fn()}
@@ -182,6 +182,20 @@ describe('GoalPlans', () => {
     await expect.element(sheet.getByRole('combobox', { name: 'Tanggal' })).toHaveValue('25');
     await expect.element(sheet.getByRole('combobox', { name: 'Dari' })).toMatchTextContent('Pilih rekening');
     await expect.element(sheet.getByRole('button', { name: 'Tambahkan' })).toBeDisabled();
+    await bare.screen.unmount();
+    const payday = await renderApp(
+      <GoalPlans
+        open
+        goalId={DANA_PENSIUN.id}
+        overview={goalsOverview({ payday: 1, setAside: null })}
+        accounts={[]}
+        locale="id"
+        onOpenChange={vi.fn()}
+        onChanged={vi.fn()}
+      />,
+    );
+    await payday.screen.getByRole('button', { name: 'Tambah setoran rutin' }).click();
+    await expect.element(payday.screen.getByRole('combobox', { name: 'Tanggal' })).toHaveValue('1');
     const closed = await renderApp(
       <GoalPlans
         open={false}
