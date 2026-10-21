@@ -60,11 +60,11 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M3 — Scheduling, Review queue, subscriptions, calendar, notifications
 
-- [ ] Recurring transactions + scheduling engine in the worker (incl. the per-minute `dispatch` scanner)
-- [ ] Review queue page
-- [ ] Automatic period close + confirmed proposals
-- [ ] Subscriptions, calendar, notifications (popover, page, email)
-- [ ] M3 unit tests: 100% per-file coverage gate green
+- [x] Recurring transactions + scheduling engine in the worker (incl. the per-minute `dispatch` scanner)
+- [x] Review queue page
+- [x] Automatic period close + confirmed proposals
+- [x] Subscriptions, calendar, notifications (popover, page, email)
+- [x] M3 unit tests: 100% per-file coverage gate green
 
 ## M4 — Savings goals, debts, credit cards, receivables
 
