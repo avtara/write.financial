@@ -47,13 +47,13 @@ export function isColor(color: string): boolean {
 export interface ColorProps {
   readonly 'data-color'?: ColorToken;
   /** Sets (hex) or clears `--wf-color` on the element. */
-  readonly ref: (node: HTMLElement | null) => void;
+  readonly ref: (node: HTMLElement | SVGElement | null) => void;
 }
 
 /** Props to spread on the element whose classes read `--wf-color`; an unknown value leaves the fallback. */
 export function colorProps(color: string): ColorProps {
   const hex = HEX_COLOR.test(color) ? color : null;
-  const ref = (node: HTMLElement | null) => {
+  const ref = (node: HTMLElement | SVGElement | null) => {
     if (node === null) return;
     if (hex === null) node.style.removeProperty('--wf-color');
     else node.style.setProperty('--wf-color', hex);

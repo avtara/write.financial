@@ -254,6 +254,7 @@ export function subscriptionsOverview(patch: Partial<SubscriptionsOverview> = {}
     cancelledSavedMinor: 0n,
     byCategory: [],
     missingRates: [],
+    history: [],
     ...patch,
   };
 }

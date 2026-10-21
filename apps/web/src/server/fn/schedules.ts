@@ -16,8 +16,9 @@ import type {
 } from '@wf/db/schedules';
 import { RECURRENCE_FREQS } from '@wf/domain/recurrence';
 import { CANCEL_MODES, SUBSCRIPTION_CYCLES, SUBSCRIPTION_STATUSES, USAGE_RATINGS } from '@wf/domain/subscriptions';
+import { ImageRejectedError, prepareImageUpload } from '@wf/integrations/image';
 import * as z from 'zod';
-import { attempt, requireSession, type Result } from '../access.ts';
+import { attempt, requireSession, UploadRejectedError, type Result } from '../access.ts';
 import { defined, localDate } from '../inputs.ts';
 import { services } from '../runtime.ts';
 
@@ -79,7 +80,6 @@ const subscription = z.object({
   name: z.string().trim().min(1).max(40),
   plan: z.string().trim().max(40).nullable().optional(),
   icon: z.string().max(40).nullable().optional(),
-  logoKey: z.string().max(200).nullable().optional(),
   description: z.string().trim().max(200).nullable().optional(),
   priceMinor: positiveMinor,
   currency: z.string().regex(/^[A-Z]{3}$/),
@@ -166,6 +166,17 @@ export const listSubscriptions = createServerFn({ method: 'GET' })
     });
   });
 
+/** The sidebar badge "Langganan 7": the effectively active subscriptions. */
+export const countActiveSubscriptions = createServerFn({ method: 'GET' }).handler(
+  async ({ context }): Promise<Result<number>> => {
+    const { schedules, now } = await services();
+    return attempt(async () => {
+      const { user } = await requireSession(context.session, {}, now());
+      return schedules.countActive(user.id);
+    });
+  },
+);
+
 /** FR-SUB3: one subscription's detail. */
 export const getSubscription = createServerFn({ method: 'GET' })
   .validator(byId)
@@ -199,14 +210,58 @@ export const updateSubscription = createServerFn({ method: 'POST' })
     });
   });
 
-/** "Hapus langganan": the subscription and its open bills; confirmed history stays. */
+/** "Hapus langganan": the subscription, its open bills, and its uploaded logo; confirmed history stays. */
 export const deleteSubscription = createServerFn({ method: 'POST' })
   .validator(byId)
   .handler(async ({ context, data }): Promise<Result<{ deletedOccurrences: number }>> => {
-    const { schedules, now } = await services();
+    const { schedules, logoStore, now } = await services();
     return attempt(async () => {
       const { user } = await requireSession(context.session, {}, now());
-      return schedules.deleteSubscription(user.id, data.id);
+      const { logoKey } = await schedules.getSubscription(user.id, data.id);
+      const deleted = await schedules.deleteSubscription(user.id, data.id);
+      if (logoKey !== null) await logoStore.delete(user.id, logoKey);
+      return deleted;
+    });
+  });
+
+/**
+ * FR-SUB1 "Unggah PNG": replaces the subscription's logo with the uploaded image (`file` in the form data, re-encoded
+ * and stripped by the image pipeline) stored encrypted in the avatars bucket, like account logos.
+ */
+export const setSubscriptionLogo = createServerFn({ method: 'POST' })
+  .validator(z.instanceof(FormData))
+  .handler(async ({ context, data }): Promise<Result<SubscriptionView>> => {
+    const { schedules, logoStore, now } = await services();
+    return attempt(async () => {
+      const { user } = await requireSession(context.session, {}, now());
+      const subscriptionId = id.parse(data.get('id'));
+      const file = z.instanceof(File).parse(data.get('file'));
+      const before = await schedules.getSubscription(user.id, subscriptionId);
+      let thumbnail;
+      try {
+        ({ thumbnail } = await prepareImageUpload(new Uint8Array(await file.arrayBuffer())));
+      } catch (error) {
+        if (error instanceof ImageRejectedError) throw new UploadRejectedError(error.reason);
+        throw error;
+      }
+      const { key } = await logoStore.put(user.id, thumbnail.bytes, thumbnail.mime);
+      const after = await schedules.updateSubscription(user.id, subscriptionId, { logoKey: key });
+      if (before.logoKey !== null) await logoStore.delete(user.id, before.logoKey);
+      return after;
+    });
+  });
+
+/** FR-SUB1 "Pakai ikon": drops the uploaded logo. */
+export const removeSubscriptionLogo = createServerFn({ method: 'POST' })
+  .validator(byId)
+  .handler(async ({ context, data }): Promise<Result<SubscriptionView>> => {
+    const { schedules, logoStore, now } = await services();
+    return attempt(async () => {
+      const { user } = await requireSession(context.session, {}, now());
+      const { logoKey } = await schedules.getSubscription(user.id, data.id);
+      const after = await schedules.updateSubscription(user.id, data.id, { logoKey: null });
+      if (logoKey !== null) await logoStore.delete(user.id, logoKey);
+      return after;
     });
   });
 

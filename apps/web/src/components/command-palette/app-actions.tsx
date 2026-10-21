@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * The app-wide ⌘K actions (FR-S4), mounted once in the `_app` layout inside both providers: "Catat transaksi" (`N`)
- * and "Catat transfer" open the Record Transaction sheet, "Tambah rekening" opens the account form, and a query
+ * and "Catat transfer" open the Record Transaction sheet, "Tambah rekening" and "Tambah langganan" open their forms, and a query
  * that matches nothing can be recorded as a transaction's description.
  */
 import { useNavigate } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
-import { ArrowLeftRight, Plus, Wallet } from 'lucide-react';
+import { ArrowLeftRight, Plus, Repeat, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { useCommandActions, type CommandActions } from './command-palette.tsx';
@@ -41,6 +41,15 @@ export function AppCommandActions() {
           keywords: [m.cmdk_group_accounts()],
           run: () => {
             void navigate({ to: '/accounts', search: { new: 'bank' } });
+          },
+        },
+        {
+          id: 'add-subscription',
+          label: m.cmdk_add_subscription(),
+          icon: Repeat,
+          keywords: [m.cmdk_group_subscriptions()],
+          run: () => {
+            void navigate({ to: '/subscriptions', search: { new: true } });
           },
         },
       ],

@@ -24,6 +24,8 @@ const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse
  * - `cmdk`: the ⌘K palette, keyboard only, as the invited user with the design persona's ledger (`seedDesignPersona`),
  * - `transactions`: the Transactions page (FR-L1–L6: filters, views, bulk, detail edit, split, delete + Urungkan,
  *   keyboard, 1440/1024/768) as the invited user,
+ * - `subscriptions`: Langganan (FR-SUB1–SUB6): the seed's goldens, "Ya, catat" through the Review queue, detected
+ *   candidates, a new subscription (keyboard only), pausing, ⌘K, 1440/1024/768 (it changes the persona's figures),
  * - `onboarding`: the 5-step onboarding (FR-A4) for new users the admin invites (keyboard-only at 1440, skipping the
  *   goal at 1024, the quick path at 768). Last, so its extra users and admin sessions touch no other spec. (`m0`
  *   itself takes the admin and the invited user through the onboarding's quick path.)
@@ -104,6 +106,13 @@ export default defineConfig({
       name: 'transactions',
       testMatch: 'transactions.spec.ts',
       dependencies: ['record'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      // Changes the persona's subscriptions and records a bill, so after every spec asserting the seed's figures.
+      name: 'subscriptions',
+      testMatch: 'subscriptions.spec.ts',
+      dependencies: ['transactions'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {

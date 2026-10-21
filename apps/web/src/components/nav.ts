@@ -5,7 +5,7 @@
  */
 import { m } from '@wf/i18n/messages';
 import type { KbdKey } from '@wf/ui/kbd-hint';
-import { ArrowLeftRight, LayoutDashboard, LayoutGrid, PiggyBank, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, LayoutDashboard, LayoutGrid, PiggyBank, Repeat, Wallet, type LucideIcon } from 'lucide-react';
 import type { FileRouteTypes } from '../generated/routeTree.gen.ts';
 
 export interface NavItem {
@@ -25,6 +25,8 @@ export interface NavItem {
 export interface NavCounts {
   /** Live transactions in the current period. */
   readonly transactions: number;
+  /** Active subscriptions ("Langganan 7"). */
+  readonly subscriptions: number;
 }
 
 export interface NavGroup {
@@ -46,6 +48,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         badge: 'transactions',
       },
       { to: '/budget', label: m.nav_budget, icon: PiggyBank, railIcon: PiggyBank, shortcut: ['G', 'A'] },
+      {
+        to: '/subscriptions',
+        label: m.nav_subscriptions,
+        icon: Repeat,
+        railIcon: Repeat,
+        shortcut: ['G', 'L'],
+        badge: 'subscriptions',
+      },
     ],
   },
   {

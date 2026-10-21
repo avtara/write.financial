@@ -681,6 +681,7 @@
   "challenge_use_totp": "Use an authenticator code",
   "cmdk_action_record": "Record transaction",
   "cmdk_action_transfer": "Record transfer",
+  "cmdk_add_subscription": "Add subscription",
   "cmdk_archived": "archived",
   "cmdk_create_account": "Add account",
   "cmdk_create_transaction": "Record “{query}” as a transaction",
@@ -690,6 +691,7 @@
   "cmdk_group_categories": "Categories",
   "cmdk_group_pages": "Pages",
   "cmdk_group_recent": "Recently opened",
+  "cmdk_group_subscriptions": "Subscriptions",
   "cmdk_group_tags": "Tags",
   "cmdk_group_transactions": "Transactions",
   "cmdk_group_try": "Try",
@@ -703,6 +705,9 @@
   "cmdk_results_label": "Search results",
   "cmdk_search_failed": "Search failed. Try again.",
   "cmdk_searching": "Searching…",
+  "cmdk_subscription_cancelled": "cancelled",
+  "cmdk_subscription_next": "next {date}",
+  "cmdk_subscription_paused": "paused",
   "cmdk_tag_usage": "Used {count}×",
   "cmdk_transfer": "Transfer",
   "cmdk_uncategorized": "Uncategorized",
@@ -865,7 +870,10 @@
   "icon_arrow_left_right": "Arrows",
   "icon_baby": "Baby",
   "icon_badge_percent": "Percent badge",
+  "icon_bike": "Rides & delivery",
   "icon_book_open": "Book",
+  "icon_bot": "AI assistant",
+  "icon_brain": "Meditation",
   "icon_briefcase": "Briefcase",
   "icon_building": "Building",
   "icon_bus": "Bus",
@@ -873,6 +881,7 @@
   "icon_camera": "Camera",
   "icon_car": "Car",
   "icon_clapperboard": "Clapperboard",
+  "icon_cloud": "Cloud storage",
   "icon_coffee": "Coffee",
   "icon_dumbbell": "Dumbbell",
   "icon_film": "Film",
@@ -894,12 +903,14 @@
   "icon_piggy_bank": "Piggy bank",
   "icon_pill": "Medicine",
   "icon_plane": "Travel",
+  "icon_play": "Video",
   "icon_presentation": "Teaching",
   "icon_receipt": "Bill",
   "icon_receipt_text": "Receipt",
   "icon_repeat": "Repeat",
   "icon_rotate_ccw": "Refund",
   "icon_scissors": "Haircut",
+  "icon_server": "Hosting",
   "icon_shirt": "Clothing",
   "icon_shopping_bag": "Shopping bag",
   "icon_shopping_cart": "Shopping cart",
@@ -909,6 +920,7 @@
   "icon_store": "Store",
   "icon_tag": "Price tag",
   "icon_trending_up": "Investments",
+  "icon_tv": "TV & streaming",
   "icon_utensils": "Food",
   "icon_wallet": "Wallet",
   "icon_wifi": "Internet",
@@ -999,6 +1011,7 @@
   "nav_main_label": "Main navigation",
   "nav_menu": "Menu",
   "nav_overview": "Overview",
+  "nav_subscriptions": "Subscriptions",
   "nav_transactions": "Transactions",
   "not_found_description": "The address may be wrong, or the page no longer exists.",
   "not_found_home": "Go home",
@@ -1380,6 +1393,7 @@
   "overview_setup_record_title": "Record your first transaction",
   "overview_setup_step": "Step {step}",
   "overview_setup_title": "Set up write.financial in 3 steps",
+  "overview_subs_add": "Add",
   "overview_subs_caption": "{active} active · {due} due in 7 days",
   "overview_subs_due_in": [
     {
@@ -1793,6 +1807,458 @@
   "signup_submit": "Create account",
   "signup_title": "Create an account",
   "skip_to_content": "Skip to content",
+  "subscriptions_action_change_account": "Change account",
+  "subscriptions_action_pause": "Pause",
+  "subscriptions_action_view": "View",
+  "subscriptions_add": "Add subscription",
+  "subscriptions_cancel_after": "Stop after the {date} bill",
+  "subscriptions_cancel_after_hint": "the {date} bill still goes to the Review queue",
+  "subscriptions_cancel_billed": "billed {date} from {account}",
+  "subscriptions_cancel_in_app": "Already cancelled in the {name} app",
+  "subscriptions_cancel_now": "Stop now",
+  "subscriptions_cancel_now_hint": "the {date} bill leaves the schedule",
+  "subscriptions_cancel_title": "Cancel {name}?",
+  "subscriptions_cancel_when": "When it stops",
+  "subscriptions_categories_empty": "No active subscriptions yet.",
+  "subscriptions_categories_filter": "Filter the table by category",
+  "subscriptions_categories_services": "services",
+  "subscriptions_categories_title": "By category",
+  "subscriptions_chart_added": "+ {name}",
+  "subscriptions_chart_growth": "{change} since {month}",
+  "subscriptions_chart_increased": "{name} up",
+  "subscriptions_chart_title": "Subscription cost · {months} months",
+  "subscriptions_col_account": "Account",
+  "subscriptions_col_actions": "Actions",
+  "subscriptions_col_ended": "Ended",
+  "subscriptions_col_next": "Next bill",
+  "subscriptions_col_old_price": "Old price",
+  "subscriptions_col_price": "Price / month",
+  "subscriptions_col_resumes": "Resumes",
+  "subscriptions_col_service": "Service",
+  "subscriptions_col_status": "Status",
+  "subscriptions_col_usage": "Usage",
+  "subscriptions_cycle_monthly": "Monthly",
+  "subscriptions_cycle_weekly": "Weekly",
+  "subscriptions_cycle_yearly": "Yearly",
+  "subscriptions_cycle_yearly_short": "yearly",
+  "subscriptions_delete_description": "The subscription and its scheduled bills are deleted. Recorded transactions stay.",
+  "subscriptions_delete_title": "Delete {name}?",
+  "subscriptions_detail_cancel": "Cancel",
+  "subscriptions_detail_change": "Change",
+  "subscriptions_detail_close": "Close subscription details",
+  "subscriptions_detail_confirmed": "confirmed {date}",
+  "subscriptions_detail_increase_since": "up from the {date} bill",
+  "subscriptions_detail_last_bills": "Recent bills",
+  "subscriptions_detail_loading": "Loading billing history…",
+  "subscriptions_detail_next": "Next",
+  "subscriptions_detail_no_charges": "No confirmed bills yet.",
+  "subscriptions_detail_price_history": "Price history",
+  "subscriptions_detail_rated": "Rated {date} · asked again {next}",
+  "subscriptions_detail_since": "active since {date}",
+  "subscriptions_detail_since_month": "since {month}",
+  "subscriptions_detail_total_paid": "Total paid",
+  "subscriptions_detail_usage": "How often do you use it?",
+  "subscriptions_detect_add": "Add",
+  "subscriptions_detect_add_all": "Add all",
+  "subscriptions_detect_button": "Detect from transactions",
+  "subscriptions_detect_dismiss": "Not a subscription",
+  "subscriptions_detect_impact": "If added: {total}/month (+{added})",
+  "subscriptions_detect_new": "{count} new",
+  "subscriptions_detect_none": "No recurring charges detected yet",
+  "subscriptions_detect_none_hint": "Automatic detection starts after {months} months of recorded transactions. The same charge on similar dates, 3× or more, shows up here.",
+  "subscriptions_detect_pattern": "around day {day} each month · last {date}",
+  "subscriptions_detect_title": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} recurring charge detected",
+        "countPlural=*": "{count} recurring charges detected"
+      }
+    }
+  ],
+  "subscriptions_due_in": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "in {days} day",
+        "daysPlural=*": "in {days} days"
+      }
+    }
+  ],
+  "subscriptions_due_today": "today",
+  "subscriptions_empty_description": "Add Netflix, Spotify, the gym, or another recurring bill. write.financial reminds you 3 days before it is due and counts it in your safe daily limit.",
+  "subscriptions_empty_title": "No subscriptions yet",
+  "subscriptions_ended_on": "Ended {date}",
+  "subscriptions_filter_clear": "Clear the category filter",
+  "subscriptions_filter_share": "{share} of the total",
+  "subscriptions_filter_summary": [
+    {
+      "declarations": ["input count", "input category", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} {category} subscription",
+        "countPlural=*": "{count} {category} subscriptions"
+      }
+    }
+  ],
+  "subscriptions_footer_active": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} active subscription in total",
+        "countPlural=*": "{count} active subscriptions in total"
+      }
+    }
+  ],
+  "subscriptions_footer_cancelled": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} cancelled · can be reactivated from the ⋮ menu",
+        "countPlural=*": "{count} cancelled · can be reactivated from the ⋮ menu"
+      }
+    }
+  ],
+  "subscriptions_footer_paused": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} paused subscription · not shown in the calendar",
+        "countPlural=*": "{count} paused subscriptions · not shown in the calendar"
+      }
+    }
+  ],
+  "subscriptions_form_account_placeholder": "Choose an account",
+  "subscriptions_form_account_required": "Choose the paying account.",
+  "subscriptions_form_account_search": "Search accounts…",
+  "subscriptions_form_cancel": "Cancel",
+  "subscriptions_form_category": "Category",
+  "subscriptions_form_category_placeholder": "Choose a category",
+  "subscriptions_form_category_search": "Search categories…",
+  "subscriptions_form_converted": "Converted when charged",
+  "subscriptions_form_converted_note": "The {currency} amount is confirmed in the Review queue.",
+  "subscriptions_form_currency": "Currency",
+  "subscriptions_form_cycle": "Cycle",
+  "subscriptions_form_description": "Description",
+  "subscriptions_form_description_placeholder": "Add a description…",
+  "subscriptions_form_edit_description": [
+    {
+      "declarations": ["input count", "input since", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} bill recorded since {since}",
+        "countPlural=*": "{count} bills recorded since {since}"
+      }
+    }
+  ],
+  "subscriptions_form_edit_title": "Edit subscription",
+  "subscriptions_form_estimate": "≈ {amount} per bill · rate {rate}",
+  "subscriptions_form_first_bill": "First bill",
+  "subscriptions_form_free_text": "free text",
+  "subscriptions_form_icon": "Icon",
+  "subscriptions_form_increase": "The price went up since the last bill",
+  "subscriptions_form_logo_failed": "The subscription is saved, but its logo failed to upload. Try again.",
+  "subscriptions_form_logo_none": "No logo yet",
+  "subscriptions_form_logo_set": "Logo uploaded",
+  "subscriptions_form_logo_upload": "Upload PNG",
+  "subscriptions_form_name_placeholder": "Disney+ Hotstar",
+  "subscriptions_form_name_required": "Enter the service name.",
+  "subscriptions_form_new_description": "Recurring bills show in the calendar and go to the Review queue when due.",
+  "subscriptions_form_new_title": "New subscription",
+  "subscriptions_form_next_bill": "Next bill",
+  "subscriptions_form_next_month": "Next month",
+  "subscriptions_form_optional": "optional",
+  "subscriptions_form_pay_from": "Pay from",
+  "subscriptions_form_plan": "Plan",
+  "subscriptions_form_plan_placeholder": "e.g. Premium 4K, Family",
+  "subscriptions_form_previous_month": "Previous month",
+  "subscriptions_form_price": "Price",
+  "subscriptions_form_price_required": "Enter a price above 0.",
+  "subscriptions_form_remind": "Remind me before the bill",
+  "subscriptions_form_remind_days": "How many days before",
+  "subscriptions_form_remind_hint": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "{days} day before · notification",
+        "daysPlural=*": "{days} days before · notification"
+      }
+    }
+  ],
+  "subscriptions_form_remind_off": "No reminder",
+  "subscriptions_form_remind_option": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "{days} day before",
+        "daysPlural=*": "{days} days before"
+      }
+    }
+  ],
+  "subscriptions_form_review_note": "When due, the bill goes to the Review queue in Transactions. The account balance only changes once you mark it as paid.",
+  "subscriptions_form_save_edit": "Save changes",
+  "subscriptions_form_save_new": "Save subscription",
+  "subscriptions_form_service": "Service",
+  "subscriptions_form_trial": "Free trial",
+  "subscriptions_form_trial_days": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "{days} day",
+        "daysPlural=*": "{days} days"
+      }
+    }
+  ],
+  "subscriptions_form_trial_hint": "The first bill comes after the trial ends",
+  "subscriptions_form_trial_invalid": "Pick the trial’s end date, today or later.",
+  "subscriptions_form_trial_length": "Trial length",
+  "subscriptions_form_trial_month": "1 month",
+  "subscriptions_form_trial_until": "Until a date…",
+  "subscriptions_form_trial_until_placeholder": "Trial until",
+  "subscriptions_form_use_icon": "Use an icon",
+  "subscriptions_header_active": "{count} active",
+  "subscriptions_header_empty": "No subscriptions or recurring bills yet",
+  "subscriptions_header_next": "next {name}, in {days} days",
+  "subscriptions_header_next_today": "next {name}, today",
+  "subscriptions_header_next_tomorrow": "next {name}, tomorrow",
+  "subscriptions_header_remaining": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} bill left this month",
+        "countPlural=*": "{count} bills left this month"
+      }
+    }
+  ],
+  "subscriptions_kpi_monthly": "Per month",
+  "subscriptions_kpi_of_income": "≈ {share} of a month’s income",
+  "subscriptions_kpi_of_spending": "{share} of spending",
+  "subscriptions_kpi_remaining": "Bills left in {month}",
+  "subscriptions_kpi_remaining_bills": [
+    {
+      "declarations": ["input count", "input dates", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} bill · {dates}",
+        "countPlural=*": "{count} bills · {dates}"
+      }
+    }
+  ],
+  "subscriptions_kpi_remaining_none": "No bills left",
+  "subscriptions_kpi_yearly": "Per year",
+  "subscriptions_kpis_label": "Subscription cost summary",
+  "subscriptions_load_failed": "Subscriptions failed to load",
+  "subscriptions_load_failed_reminders": "Bill reminders will still be sent.",
+  "subscriptions_loading": "Loading subscriptions…",
+  "subscriptions_menu_cancel": "Cancel subscription",
+  "subscriptions_menu_delete": "Delete subscription",
+  "subscriptions_menu_edit": "Edit",
+  "subscriptions_menu_effective": "Applies from the {date} bill",
+  "subscriptions_menu_history": "Billing history",
+  "subscriptions_menu_mark_paid": "Mark as paid",
+  "subscriptions_menu_open": "Actions for {name}",
+  "subscriptions_menu_reactivate": "Reactivate",
+  "subscriptions_menu_short": "short for {date}:",
+  "subscriptions_months_ago": [
+    {
+      "declarations": ["input months", "local monthsPlural = months: plural"],
+      "selectors": ["monthsPlural"],
+      "match": {
+        "monthsPlural=one": "{months} month ago",
+        "monthsPlural=*": "{months} months ago"
+      }
+    }
+  ],
+  "subscriptions_next_paid_month": "paid this month",
+  "subscriptions_next_paid_on": "paid {date}",
+  "subscriptions_next_unconfirmed": "unconfirmed",
+  "subscriptions_overdue_body": "was due on {date}. Was it charged to {account}?",
+  "subscriptions_overdue_not_yet": "Not charged yet",
+  "subscriptions_overdue_yes": "Yes, record it",
+  "subscriptions_pause_date_invalid": "Pick a date after the {date} bill.",
+  "subscriptions_pause_description": "Bills stop for a while and leave the calendar and projections.",
+  "subscriptions_pause_left": "Bills left in {month} become {amount}",
+  "subscriptions_pause_months": [
+    {
+      "declarations": ["input months", "local monthsPlural = months: plural"],
+      "selectors": ["monthsPlural"],
+      "match": {
+        "monthsPlural=one": "{months} month",
+        "monthsPlural=*": "{months} months"
+      }
+    }
+  ],
+  "subscriptions_pause_only_records": "Pause it in the {name} app too — write.financial only keeps the record.",
+  "subscriptions_pause_pick_date": "Pick a date…",
+  "subscriptions_pause_remind": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "Remind me {days} day before it resumes",
+        "daysPlural=*": "Remind me {days} days before it resumes"
+      }
+    }
+  ],
+  "subscriptions_pause_remind_hint": "{date} · so you can still cancel if you don’t need it",
+  "subscriptions_pause_remind_hint_plain": "So you can still cancel if you don’t need it",
+  "subscriptions_pause_resumes": "resumes {date}",
+  "subscriptions_pause_submit": [
+    {
+      "declarations": ["input months", "local monthsPlural = months: plural"],
+      "selectors": ["monthsPlural"],
+      "match": {
+        "monthsPlural=one": "Pause {months} month",
+        "monthsPlural=*": "Pause {months} months"
+      }
+    }
+  ],
+  "subscriptions_pause_submit_until": "Pause until that date",
+  "subscriptions_pause_title": "Pause {name}",
+  "subscriptions_pause_until": "Pause until",
+  "subscriptions_paused_since": "paused since {date}",
+  "subscriptions_per_month_suffix": "/month",
+  "subscriptions_per_year": "{amount}/year",
+  "subscriptions_per_year_suffix": "/year",
+  "subscriptions_resumes_on": "Resumes {date}",
+  "subscriptions_retry": "Try again",
+  "subscriptions_review_ask_later": "Ask again next month",
+  "subscriptions_review_billed": "Billed {date}",
+  "subscriptions_review_cancel": "Cancel…",
+  "subscriptions_review_consider": "Consider stopping",
+  "subscriptions_review_consider_body": "{name} is rarely used, {amount}/year.",
+  "subscriptions_review_done": "Every active subscription is rated this month.",
+  "subscriptions_review_privacy": "You rate it. write.financial doesn’t read activity in other apps.",
+  "subscriptions_review_question": "How often do you use {name}?",
+  "subscriptions_review_rated": "{rated} / {total} rated",
+  "subscriptions_review_title": "Monthly review",
+  "subscriptions_save_caption": "From the billing pattern, not from usage",
+  "subscriptions_save_compare": "Compare",
+  "subscriptions_save_increase": "{name} went up {change}",
+  "subscriptions_save_none": "Nothing to save on yet.",
+  "subscriptions_save_overlap": "Overlapping: {function}",
+  "subscriptions_save_overlap_body": "{names} do the same thing.",
+  "subscriptions_save_rarely": "{name} is rarely used",
+  "subscriptions_save_rarely_body": "Save up to {amount}/year by stopping it.",
+  "subscriptions_save_title": "Could save",
+  "subscriptions_save_untracked": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} recurring charge not tracked yet",
+        "countPlural=*": "{count} recurring charges not tracked yet"
+      }
+    }
+  ],
+  "subscriptions_save_untracked_times": "each charged {count}×.",
+  "subscriptions_saved": "saved {amount}",
+  "subscriptions_saved_total": "saved in total",
+  "subscriptions_saves": "saves",
+  "subscriptions_schedule_bill_label": "{name}, {date}, {status}",
+  "subscriptions_schedule_covered": "Balance of {accounts} covers every remaining bill",
+  "subscriptions_schedule_empty": "No bills in {month} yet.",
+  "subscriptions_schedule_legend": "Bill status",
+  "subscriptions_schedule_nothing_left": "No bills left this month",
+  "subscriptions_schedule_overdue": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} bill is past its date but not recorded",
+        "countPlural=*": "{count} bills are past their date but not recorded"
+      }
+    }
+  ],
+  "subscriptions_schedule_paid": "Paid",
+  "subscriptions_schedule_short": [
+    {
+      "declarations": ["input count", "input account", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{account} balance doesn’t cover {count} bill",
+        "countPlural=*": "{account} balance doesn’t cover {count} bills"
+      }
+    }
+  ],
+  "subscriptions_schedule_title": "{month} bill schedule",
+  "subscriptions_schedule_today": "Today",
+  "subscriptions_schedule_unconfirmed": "Unconfirmed",
+  "subscriptions_schedule_will_charge": "Will be charged",
+  "subscriptions_short_balance": "{account} balance",
+  "subscriptions_short_lacks": "short by",
+  "subscriptions_short_top_up": "Top up",
+  "subscriptions_short_when": "{date} from {account}",
+  "subscriptions_status_cancelled": "Cancelled",
+  "subscriptions_status_paused": "Paused",
+  "subscriptions_sum_bills": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} bill",
+        "countPlural=*": "{count} bills"
+      }
+    }
+  ],
+  "subscriptions_sum_largest": "Largest",
+  "subscriptions_sum_left": "Left this month",
+  "subscriptions_sum_paid": "Paid",
+  "subscriptions_sum_review": "Review",
+  "subscriptions_sum_unconfirmed": "Unconfirmed",
+  "subscriptions_tab_active": "Active {count}",
+  "subscriptions_tab_cancelled": "Cancelled {count}",
+  "subscriptions_tab_paused": "Paused {count}",
+  "subscriptions_table_empty": "No subscriptions here.",
+  "subscriptions_table_title": "All subscriptions",
+  "subscriptions_tabs_label": "Subscription status",
+  "subscriptions_tip_balance_after": "Balance after",
+  "subscriptions_tip_enough": "Enough balance",
+  "subscriptions_tip_from": "From",
+  "subscriptions_tip_reminder": "Reminder",
+  "subscriptions_tip_reminder_value": "{days} days before · {date}",
+  "subscriptions_tip_short": "Not enough balance",
+  "subscriptions_tip_status": "Status",
+  "subscriptions_toast_account": "{name} is now paid from {account}",
+  "subscriptions_toast_account_short": "{account} balance won’t cover the {date} bill",
+  "subscriptions_toast_cancelled": "{name} cancelled",
+  "subscriptions_toast_created": "{name} added",
+  "subscriptions_toast_deleted": "{name} deleted",
+  "subscriptions_toast_detected_added": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} subscription added",
+        "countPlural=*": "{count} subscriptions added"
+      }
+    }
+  ],
+  "subscriptions_toast_detected_dismissed": "Marked as not a subscription",
+  "subscriptions_toast_not_charged": "{name} keeps waiting in the Review queue",
+  "subscriptions_toast_paid": "{name} marked as paid",
+  "subscriptions_toast_paid_body": "Recorded through the Review queue; the account balance is updated.",
+  "subscriptions_toast_paused": "{name} paused",
+  "subscriptions_toast_rated": "{name} rating saved",
+  "subscriptions_toast_reactivated": "{name} is active again",
+  "subscriptions_toast_updated": "{name} saved",
+  "subscriptions_tomorrow_body": "{date} from {account} · {balance}. Pause it first?",
+  "subscriptions_tomorrow_body_plain": "{date} from {account}. Pause it first?",
+  "subscriptions_tomorrow_title": "Tomorrow: {name}",
+  "subscriptions_uncategorized": "Uncategorized",
+  "subscriptions_usage_often": "Often",
+  "subscriptions_usage_rarely": "Rarely",
+  "subscriptions_usage_sometimes": "Sometimes",
+  "subscriptions_usage_unrated": "Not rated",
   "tag_action_failed": "Couldn’t save the tag change",
   "tag_aliases": "also matches: {aliases}",
   "tag_column_tag": "Tag",

@@ -33,6 +33,8 @@ afterEach(() => {
 });
 const transactions = vi.hoisted(() => ({ countPeriodTransactions: vi.fn() }));
 vi.mock('../server/fn/transactions.ts', () => transactions);
+const schedules = vi.hoisted(() => ({ countActiveSubscriptions: vi.fn() }));
+vi.mock('../server/fn/schedules.ts', () => schedules);
 // The reconcile provider's server functions only run when it opens.
 vi.mock('../server/fn/accounts.ts', () => ({ reconcileAccount: vi.fn() }));
 
@@ -91,8 +93,12 @@ describe('/_app layout', () => {
     const loader = Route.options.loader;
     if (typeof loader !== 'function') throw new Error('_app loader missing');
     transactions.countPeriodTransactions.mockResolvedValue({ ok: true, value: 128 });
-    expect(await loader({} as never)).toEqual({ navCounts: { transactions: 128 } });
+    schedules.countActiveSubscriptions.mockResolvedValue({ ok: true, value: 7 });
+    expect(await loader({} as never)).toEqual({ navCounts: { transactions: 128, subscriptions: 7 } });
     expect(transactions.countPeriodTransactions).toHaveBeenCalledWith();
+    expect(schedules.countActiveSubscriptions).toHaveBeenCalledWith();
+    schedules.countActiveSubscriptions.mockResolvedValueOnce({ ok: false, code: 'INTERNAL' });
+    expect(await loader({} as never)).toEqual({ navCounts: null });
     transactions.countPeriodTransactions.mockResolvedValue({ ok: false, code: 'INTERNAL' });
     expect(await loader({} as never)).toEqual({ navCounts: null });
     // Offline (FR-D4): no badges instead of a failed page; other failures still fail.

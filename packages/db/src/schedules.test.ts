@@ -717,6 +717,7 @@ describe('subscriptions', () => {
   it('summarizes the subscriptions page', async () => {
     const empty = await app((s) => s.listSubscriptions(fx.userId));
     expect(empty).toMatchObject({ subscriptions: [], counts: { active: 0, paused: 0, cancelled: 0 }, byCategory: [] });
+    await expect(app((s) => s.countActive(fx.userId))).resolves.toBe(0);
 
     await test.query(
       `INSERT INTO fx_rates (base, quote, rate, provider, rate_type, as_of) VALUES ('USD', 'IDR', '16350', 'test', 'blended', '2026-10-15')`,
@@ -819,6 +820,18 @@ describe('subscriptions', () => {
     ]);
     const onlyPaused = await app((s) => s.listSubscriptions(fx.userId, { status: 'paused' }));
     expect(onlyPaused.subscriptions.map((view) => view.id)).toEqual([paused.id]);
+    // The cost chart ends on today's "Per bulan"; SGD (no rate) is left out, Netflix went up in September.
+    expect(overview.history.map((month) => month.month)).toEqual([
+      '2026-05',
+      '2026-06',
+      '2026-07',
+      '2026-08',
+      '2026-09',
+      '2026-10',
+    ]);
+    expect(overview.history.at(-1)?.monthlyMinor).toBe(overview.totals.monthlyMinor);
+    expect(overview.history[4]?.increased).toEqual([a.id]);
+    await expect(app((s) => s.countActive(fx.userId))).resolves.toBe(overview.counts.active);
   });
 });
 

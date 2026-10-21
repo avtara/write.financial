@@ -8,6 +8,7 @@ import { AppCommandActions } from '../components/command-palette/app-actions.tsx
 import { CommandPaletteProvider } from '../components/command-palette/command-palette.tsx';
 import { RecordTransactionProvider } from '../components/ledger/record-transaction.tsx';
 import type { NavCounts } from '../components/nav.ts';
+import { countActiveSubscriptions } from '../server/fn/schedules.ts';
 import { countPeriodTransactions } from '../server/fn/transactions.ts';
 
 /**
@@ -31,11 +32,20 @@ export const Route = createFileRoute('/_app')({
   },
   loader: async (): Promise<{ navCounts: NavCounts | null }> => {
     // Offline (FR-D4) the badges are left out rather than failing the page.
-    const transactions = await countPeriodTransactions().catch((error: unknown) => {
+    const offline = (error: unknown) => {
       if (error instanceof TypeError) return null;
       throw error;
-    });
-    return { navCounts: transactions?.ok === true ? { transactions: transactions.value } : null };
+    };
+    const [transactions, subscriptions] = await Promise.all([
+      countPeriodTransactions().catch(offline),
+      countActiveSubscriptions().catch(offline),
+    ]);
+    return {
+      navCounts:
+        transactions?.ok === true && subscriptions?.ok === true
+          ? { transactions: transactions.value, subscriptions: subscriptions.value }
+          : null,
+    };
   },
   component: AppLayout,
 });

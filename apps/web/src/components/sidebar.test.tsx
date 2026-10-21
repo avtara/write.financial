@@ -99,11 +99,12 @@ describe('Sidebar', () => {
     await expect.element(page.getByRole('dialog', { name: 'Cari atau jalankan perintah' })).toBeVisible();
   });
 
-  it('shows the transaction count of the current period from the `_app` loader', async () => {
-    const screen = await renderInApp({ transactions: 128 });
+  it('shows the transaction and active subscription counts from the `_app` loader', async () => {
+    const screen = await renderInApp({ transactions: 128, subscriptions: 7 });
     const link = screen.getByRole('link', { name: /Transaksi/ });
     await expect.element(link).toHaveAttribute('href', '/transactions');
     await expect.element(link).toHaveTextContent('Transaksi128');
+    await expect.element(screen.getByRole('link', { name: /Langganan/ })).toHaveTextContent('Langganan7');
     await expect.element(screen.getByRole('link', { name: 'Ringkasan' })).toHaveTextContent('Ringkasan');
   });
 

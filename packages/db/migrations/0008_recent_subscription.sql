@@ -1,0 +1,1 @@
+ALTER TYPE "public"."recent_item_kind" ADD VALUE 'subscription';

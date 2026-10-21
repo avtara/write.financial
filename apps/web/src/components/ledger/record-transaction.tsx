@@ -50,9 +50,17 @@ import { useReconcile } from '../accounts/reconcile.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 
+/** What another screen fills in: ⌘K's typed text, the calendar's day ("Catat di tanggal ini", 12.00), a top-up. */
 export interface RecordPrefill {
   readonly type?: EntryKind;
   readonly description?: string;
+  readonly date?: LocalDate;
+  /** `HH:mm`; with `date` (default now). */
+  readonly time?: string;
+  /** The expense/income account or the transfer source (default: the quick-entry account). */
+  readonly accountId?: string;
+  readonly toAccountId?: string;
+  readonly amountMinor?: bigint;
 }
 
 export interface RecordTransactionApi {
@@ -274,7 +282,14 @@ function RecordSheet({
     });
   const [session, setSession] = useState<Session>(() => ({
     key: 0,
-    initial: { ...fresh({ type: prefill.type ?? 'expense' }), description: prefill.description ?? '' },
+    initial: {
+      ...fresh({ type: prefill.type ?? 'expense', accountId: prefill.accountId ?? null }),
+      description: prefill.description ?? '',
+      ...(prefill.date === undefined ? {} : { date: prefill.date }),
+      ...(prefill.time === undefined ? {} : { time: prefill.time }),
+      ...(prefill.toAccountId === undefined ? {} : { toAccountId: prefill.toAccountId }),
+      ...(prefill.amountMinor === undefined ? {} : { amountMinor: prefill.amountMinor }),
+    },
     draftId: null,
   }));
   const [drafts, setDrafts] = useState(initialDrafts);
