@@ -8,6 +8,7 @@ import type { KbdKey } from '@wf/ui/kbd-hint';
 import {
   ArrowLeftRight,
   CalendarDays,
+  HandCoins,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
@@ -71,6 +72,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         badge: 'subscriptions',
       },
       { to: '/calendar', label: m.nav_calendar, icon: CalendarDays, railIcon: CalendarDays },
+      { to: '/debts', label: m.debts_title, icon: HandCoins, railIcon: HandCoins },
       { to: '/review', label: m.review_title, icon: Inbox, railIcon: Inbox, badge: 'review' },
     ],
   },

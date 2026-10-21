@@ -42,12 +42,17 @@ export interface CardBill extends CardView {
   readonly transactions: TransactionRow[];
 }
 
+/** A debt with the date of the card expense it was made from ("dari transaksi 2 Nov"). */
+export interface DebtItem extends DebtView {
+  readonly sourceDate: LocalDate | null;
+}
+
 export interface DebtsOverview {
   /** The user's local date. */
   readonly today: LocalDate;
   readonly accounts: AccountsOverview;
   /** Active debts, oldest first. */
-  readonly debts: DebtView[];
+  readonly debts: DebtItem[];
   readonly cards: CardBill[];
   readonly priority: CcPaymentBucket[];
   /** "Piutang": Σ open receivables. */
@@ -160,7 +165,15 @@ export const getDebtsOverview = createServerFn({ method: 'GET' }).handler(
       return {
         today: list.today,
         accounts,
-        debts: list.debts,
+        debts: await Promise.all(
+          list.debts.map(async (debt): Promise<DebtItem> => ({
+            ...debt,
+            sourceDate:
+              debt.sourceTransactionId === null
+                ? null
+                : (await all.transactions.get(userId, debt.sourceTransactionId)).localDate,
+          })),
+        ),
         cards: bills,
         priority: paymentPriority(preferences.ccPaymentPriority),
         receivablesMinor: receivables.outstandingMinor,
@@ -285,7 +298,7 @@ export const recordCardInstallment = createServerFn({ method: 'POST' })
  * recalculated with `mode`. Idempotent per `clientId`.
  */
 export const recordCardPayment = createServerFn({ method: 'POST' })
-  .validator(z.object({ transaction: TRANSFER_INPUT, priority, mode: z.enum(RECALC_MODES) }))
+  .validator(z.object({ transaction: TRANSFER_INPUT, priority: priority.optional(), mode: z.enum(RECALC_MODES) }))
   .handler(({ context, data }): Promise<Result<{ transactionId: string; debts: DebtView[] }>> =>
     forUser(context, async (userId, all) => {
       const card = await cardOf(all, userId, data.transaction.toAccountId);
@@ -294,7 +307,7 @@ export const recordCardPayment = createServerFn({ method: 'POST' })
         state: cardState(card, list.debts, list.today),
         debts: list.debts,
         amountMinor: data.transaction.receivedMinor,
-        priority: data.priority,
+        priority: data.priority ?? paymentPriority((await all.preferences.get(userId)).ccPaymentPriority),
         mode: data.mode,
       });
       return all.debts.recordCardPayment(userId, {

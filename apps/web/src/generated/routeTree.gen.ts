@@ -18,6 +18,7 @@ import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
 import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
 import { Route as AppBudgetRouteImport } from './../routes/_app/budget.tsx';
 import { Route as AppCalendarRouteImport } from './../routes/_app/calendar.tsx';
+import { Route as AppDebtsRouteImport } from './../routes/_app/debts.tsx';
 import { Route as AppNotificationsRouteImport } from './../routes/_app/notifications.tsx';
 import { Route as AppReviewRouteImport } from './../routes/_app/review.tsx';
 import { Route as AppSubscriptionsRouteImport } from './../routes/_app/subscriptions.tsx';
@@ -77,6 +78,11 @@ const AppBudgetRoute = AppBudgetRouteImport.update({
 const AppCalendarRoute = AppCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppDebtsRoute = AppDebtsRouteImport.update({
+  id: '/debts',
+  path: '/debts',
   getParentRoute: () => AppRoute,
 } as any);
 const AppNotificationsRoute = AppNotificationsRouteImport.update({
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
   '/calendar': typeof AppCalendarRoute;
+  '/debts': typeof AppDebtsRoute;
   '/notifications': typeof AppNotificationsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
   '/calendar': typeof AppCalendarRoute;
+  '/debts': typeof AppDebtsRoute;
   '/notifications': typeof AppNotificationsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/_app/accounts': typeof AppAccountsRoute;
   '/_app/budget': typeof AppBudgetRoute;
   '/_app/calendar': typeof AppCalendarRoute;
+  '/_app/debts': typeof AppDebtsRoute;
   '/_app/notifications': typeof AppNotificationsRoute;
   '/_app/review': typeof AppReviewRoute;
   '/_app/subscriptions': typeof AppSubscriptionsRoute;
@@ -257,6 +266,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/budget'
     | '/calendar'
+    | '/debts'
     | '/notifications'
     | '/review'
     | '/subscriptions'
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/budget'
     | '/calendar'
+    | '/debts'
     | '/notifications'
     | '/review'
     | '/subscriptions'
@@ -310,6 +321,7 @@ export interface FileRouteTypes {
     | '/_app/accounts'
     | '/_app/budget'
     | '/_app/calendar'
+    | '/_app/debts'
     | '/_app/notifications'
     | '/_app/review'
     | '/_app/subscriptions'
@@ -407,6 +419,13 @@ declare module '@tanstack/react-router' {
       path: '/calendar';
       fullPath: '/calendar';
       preLoaderRoute: typeof AppCalendarRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/debts': {
+      id: '/_app/debts';
+      path: '/debts';
+      fullPath: '/debts';
+      preLoaderRoute: typeof AppDebtsRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_app/notifications': {
@@ -535,6 +554,7 @@ interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute;
   AppBudgetRoute: typeof AppBudgetRoute;
   AppCalendarRoute: typeof AppCalendarRoute;
+  AppDebtsRoute: typeof AppDebtsRoute;
   AppNotificationsRoute: typeof AppNotificationsRoute;
   AppReviewRoute: typeof AppReviewRoute;
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute;
@@ -547,6 +567,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
   AppBudgetRoute: AppBudgetRoute,
   AppCalendarRoute: AppCalendarRoute,
+  AppDebtsRoute: AppDebtsRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppReviewRoute: AppReviewRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,

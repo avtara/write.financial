@@ -36,6 +36,9 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  *   Settings › Notifikasi (FR-S5, FR-ST3),
  * - `onboarding`: the 5-step onboarding (FR-A4) for new users the admin invites (keyboard-only at 1440, skipping the
  *   goal at 1024, the quick path at 768).
+ * - `debts`: Utang & cicilan (FR-R7, FR-U1–U5): the debt-free page, the impact simulation of a draft, and the Section 18
+ *   scenario through the Record sheet (card expense split 3×, a Rp2jt payment allocated to the installment first →
+ *   333.334/333.333/333.333, Rp13.000.000 of the limit left), 1440/1024/768.
  */
 const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   tablet: { testMatch: 'tablet.spec.ts', use: { viewport: { width: 1024, height: 768 } } },
@@ -52,6 +55,7 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   review: { testMatch: 'review.spec.ts' },
   notifications: { testMatch: 'notifications.spec.ts' },
   onboarding: { testMatch: 'onboarding.spec.ts' },
+  debts: { testMatch: 'debts.spec.ts' },
 };
 
 /**

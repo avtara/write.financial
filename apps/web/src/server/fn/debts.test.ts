@@ -98,7 +98,9 @@ beforeEach(() => {
 
 describe('getDebtsOverview', () => {
   it('golden rHTMd: the card with its October cycle, without plan sources; the month and the receivables', async () => {
-    fake.debts.list.mockResolvedValue({ today: '2026-10-15', debts: [KULKAS], remainingMinor: 3_000_000n });
+    const manual = { ...KULKAS, id: 'debt-manual', sourceTransactionId: null };
+    fake.debts.list.mockResolvedValue({ today: '2026-10-15', debts: [KULKAS, manual], remainingMinor: 3_000_000n });
+    fake.transactions.get.mockResolvedValue(transactionDetail('tx-kulkas', { localDate: '2026-10-14' as never }));
     fake.debts.cards.mockResolvedValue([visa(), visa({ accountId: 'acc-new', statementDay: null })]);
     const result = await call(fns.getDebtsOverview, { context: signedIn() });
     expect(result).toEqual({
@@ -106,7 +108,10 @@ describe('getDebtsOverview', () => {
       value: {
         today: '2026-10-15',
         accounts: { baseCurrency: 'IDR', accounts: [BCA, VISA_ACCOUNT] },
-        debts: [KULKAS],
+        debts: [
+          { ...KULKAS, sourceDate: '2026-10-14' },
+          { ...manual, sourceDate: null },
+        ],
         cards: [
           { ...visa(), transactions: OCTOBER_BILL },
           { ...visa({ accountId: 'acc-new', statementDay: null }), transactions: [] },
@@ -123,6 +128,7 @@ describe('getDebtsOverview', () => {
       { sort: 'date_asc', limit: 200 },
     );
     expect(fake.transactionQuery.list).toHaveBeenCalledTimes(1);
+    expect(fake.transactions.get).toHaveBeenCalledWith(USER_ID, 'tx-kulkas');
   });
 });
 
@@ -306,6 +312,17 @@ describe('recordCardPayment (qrRRV)', () => {
     expect(payment.safeParse({ ...data, priority: ['spending', 'spending'] }).success).toBe(false);
     expect(payment.safeParse({ ...data, priority: ['spending'] }).success).toBe(false);
     expect(payment.safeParse({ ...data, mode: 'later' }).success).toBe(false);
+    // Without an order of its own the payment follows the saved one: the bill first, the rest to installment A.
+    fake.preferences.get.mockResolvedValue({ ccPaymentPriority: ['spending', 'installments'] });
+    await call(fns.recordCardPayment, { context: signedIn(), data: { transaction: PAYMENT, mode: 'reduce_amount' } });
+    expect(fake.debts.recordCardPayment).toHaveBeenLastCalledWith(USER_ID, {
+      draft: PAYMENT,
+      allocations: [
+        { bucket: 'installments', debtId: 'debt-a', amountMinor: 1_000_000n },
+        { bucket: 'spending', amountMinor: 1_000_000n },
+      ],
+      recalculations: [expect.objectContaining({ debtId: 'debt-a' }) as unknown],
+    });
   });
 });
 
