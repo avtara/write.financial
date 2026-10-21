@@ -47,7 +47,7 @@ const SETOR: RecurrenceView = {
   status: 'active',
   stoppedAt: null,
   preview: ['2026-11-14', '2026-12-14', '2027-01-14'] as LocalDate[],
-  nextDue: null,
+  nextDue: { occurrenceId: 'occ-nov', dueDate: '2026-11-14' as LocalDate, status: 'scheduled' },
   occurrences: { confirmed: 1, skipped: 0, open: 3 },
   createdAt: new Date('2026-10-14T12:31:00Z'),
 };
@@ -150,9 +150,17 @@ describe('RecurrenceSection', () => {
 
   it('a failed stop is told; weekly and yearly rules without a reminder or stop time read their own way', async () => {
     server.stopRecurrence.mockResolvedValue({ ok: false, code: 'NOT_FOUND' });
-    const weekly = { ...SETOR, freq: 'weekly', weekday: 4, monthDay: null, remindOffsetDays: null } as RecurrenceView;
+    const weekly = {
+      ...SETOR,
+      freq: 'weekly',
+      weekday: 4,
+      monthDay: null,
+      remindOffsetDays: null,
+      nextDue: { occurrenceId: 'occ', dueDate: '2026-10-22', status: 'scheduled' },
+    } as RecurrenceView;
     const { screen, onChanged } = await renderSection(weekly);
     await expect.element(screen.getByRole('region')).toMatchTextContent('Mingguan · tiap Kamis');
+    await expect.element(screen.getByRole('list')).toHaveTextContent('22 Okt29 Okt5 Nov');
     await expect.element(screen.getByRole('region')).not.toMatchTextContent('H-1');
     await userEvent.click(screen.getByRole('switch'));
     const dialog = page.getByRole('dialog');
@@ -190,6 +198,12 @@ describe('RecurrenceSection', () => {
     const ended = { ...yearly, startOn: '2025-12-01' as LocalDate } as RecurrenceView;
     const third = await renderSection(ended);
     await expect.element(third.screen.getByRole('region')).toMatchTextContent('Jadwal mulai sudah dihapus');
+  });
+
+  it('an active rule with nothing left lists no next dates', async () => {
+    const ended = { ...SETOR, nextDue: null, end: { type: 'after', count: 1 } } as RecurrenceView;
+    const { screen } = await renderSection(ended);
+    await expect.element(screen.getByRole('list', { name: 'Berikutnya' })).toHaveTextContent('');
   });
 
   it('badges a repeating and a stopped transaction', async () => {

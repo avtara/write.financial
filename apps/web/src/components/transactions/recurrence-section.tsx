@@ -99,11 +99,12 @@ export function RecurrenceSection({
   const [pending, setPending] = useState(false);
   const active = recurrence.status === 'active';
   const every = everyOf(recurrence, locale);
-  // The first date the stop removes (or that resuming brings back).
-  const [upcoming] = nextOccurrences(recurrence, {
-    from: recurrence.startOn > today ? recurrence.startOn : today,
-    count: 1,
-  });
+  // The next open date (this transaction may itself be today's occurrence, already confirmed); once stopped, the
+  // first rule date from today, which resuming brings back.
+  const next = active ? recurrence.nextDue?.dueDate : undefined;
+  const upcoming =
+    next ?? nextOccurrences(recurrence, { from: recurrence.startOn > today ? recurrence.startOn : today, count: 1 })[0];
+  const dates = next === undefined ? [] : nextOccurrences(recurrence, { from: next, count: 3 });
   const from = upcoming === undefined ? '' : formatDate(upcoming, locale, 'day');
   const amount =
     recurrence.template.type === 'transfer' ? recurrence.template.sentMinor : recurrence.template.amountMinor;
@@ -177,7 +178,7 @@ export function RecurrenceSection({
           <div className="flex flex-wrap items-center gap-1.5 text-muted-fg">
             {m.recurrence_next()}
             <ol aria-label={m.recurrence_next()} className="flex flex-wrap gap-1">
-              {recurrence.preview.map((day) => (
+              {dates.map((day) => (
                 <li key={day} className="rounded-[4px] border border-border px-1.5 font-mono text-[11.5px] text-fg">
                   {formatDate(day, locale, 'day')}
                 </li>
