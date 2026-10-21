@@ -188,7 +188,7 @@ export function groupByDay(
 /** "Hari ini · 15 Okt", "Kemarin · 14 Okt", "Senin · 12 Okt". */
 export function dayHeading(day: LocalDate, today: LocalDate, locale: Locale): string {
   const date = formatDate(day, locale, 'day');
-  if (day === today) return m.notifications_day_today({ date });
-  if (day === addDays(today, -1)) return m.notifications_day_yesterday({ date });
+  if (day === today) return m.notifications_day_today({ date }, { locale });
+  if (day === addDays(today, -1)) return m.notifications_day_yesterday({ date }, { locale });
   return formatDate(day, locale, 'weekday');
 }
