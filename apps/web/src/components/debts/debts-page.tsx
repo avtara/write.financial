@@ -109,7 +109,7 @@ export function DebtsPage({ overview, initialNew = false }: DebtsPageProps) {
       />
       <DebtKpis
         kpis={kpis}
-        receivablesMinor={overview.receivablesMinor}
+        receivablesMinor={overview.receivables.outstandingMinor}
         baseCurrency={baseCurrency}
         today={today}
         locale={locale}

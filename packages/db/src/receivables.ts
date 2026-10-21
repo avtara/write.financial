@@ -5,7 +5,9 @@
  * `receivable_in` transaction (+amount into the account it came into; not income), and "Hapuskan" a `writeoff`
  * expense in the chosen category whose principal posting moves no money (amount 0) but carries the remaining value in
  * the base currency as Out. A receivable recorded with `recordTransaction: false` (lent before the ledger started,
- * already in the balance) and payments recorded that way have no transaction.
+ * already in the balance) and payments recorded that way have no transaction. A split bill (FR-L5 "Pisah tagihan")
+ * records the user's part as an expense and the other people's parts as receivables from the same account, so only the
+ * user's part counts as spending.
  *
  * The person and the note are personal data, encrypted with the user's DEK. With a reminder (FR-U7 "Ingatkan aku
  * H-1"), one `scheduled_occurrences` row (`receivable`) is kept in sync: due on the due date, expecting the remaining
@@ -16,7 +18,7 @@ import { decryptText, encrypt } from '@wf/crypto/cipher';
 import type { Dek } from '@wf/crypto/envelope';
 import { BAD_DEBT_CATEGORY } from '@wf/domain/categories';
 import type { LocalDate } from '@wf/domain/period';
-import type { ReceivableSource, ReceivableStatus } from '@wf/domain/receivables';
+import { MAX_COUNTERPARTY_LENGTH, type ReceivableSource, type ReceivableStatus } from '@wf/domain/receivables';
 import { reminderAt } from '@wf/domain/recurrence';
 import { expensePostings, incomePostings, toBase, type PostingDraft } from '@wf/domain/transactions';
 import { and, asc, desc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
@@ -30,8 +32,10 @@ import {
   checkCategoryIn,
   localDateOf,
   NOTE_PURPOSE,
+  recordTransactionIn,
   userContextIn,
   valuationIn,
+  type EntryDraft,
   type LedgerAccount,
 } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
@@ -49,8 +53,6 @@ import {
 export const COUNTERPARTY_PURPOSE = 'receivables.counterparty';
 /** AAD purpose of `receivables.note_enc`. */
 export const RECEIVABLE_NOTE_PURPOSE = 'receivables.note';
-/** Longest name of the person who owes the money (characters, trimmed). */
-export const MAX_COUNTERPARTY_LENGTH = 60;
 
 /** "Catat piutang". */
 export interface ReceivableInput {
@@ -159,6 +161,28 @@ export interface ReceivableWriteOffInput {
   readonly categoryId?: string;
 }
 
+/** Another person's part of a split bill (FR-L5): it becomes a receivable from the bill's account. */
+export interface SplitShareInput {
+  /** Idempotency key: the receivable's id. */
+  readonly clientId: string;
+  /** Trimmed, 1–60 characters; stored encrypted. */
+  readonly counterparty: string;
+  /** Positive, in the currency of the bill's account. */
+  readonly amountMinor: bigint;
+  /** On or after the bill's date; `null` = no deadline. */
+  readonly dueDate: LocalDate | null;
+  /** H-1 reminder to the user only; needs `dueDate`. */
+  readonly remind: boolean;
+}
+
+/** "Pisah tagihan": the user's own part as an expense and the other people's parts as receivables. */
+export interface SplitBillInput {
+  /** The user's own part: an expense on the account that paid the whole bill. */
+  readonly draft: EntryDraft;
+  /** At least one. */
+  readonly shares: readonly SplitShareInput[];
+}
+
 /** Fields of {@link ReceivableInput} that can change later; omitted = unchanged. */
 export interface ReceivablePatch {
   readonly counterparty?: string;
@@ -210,6 +234,18 @@ export interface ReceivablesRepository {
    * @throws {LedgerError} `NOT_FOUND`, `PERIOD_CLOSED`
    */
   remove: (userId: string, id: string) => Promise<{ readonly objectKeys: string[] }>;
+  /**
+   * FR-L5 "Simpan pembagian": records the user's part of a bill as an expense and every other person's part as a
+   * `split_bill` receivable from the same account and date (lent = a `receivable_out`, not an expense), all in one
+   * transaction. The receivables take the expense's description (or merchant). Idempotent per the draft's and the
+   * shares' client ids: a replay returns the first result.
+   * @throws {LedgerError} `INVALID_RECEIVABLE`, `INVALID_TRANSACTION`, `INVALID_CATEGORY`, `NOT_FOUND`,
+   * `ACCOUNT_ARCHIVED`, `PERIOD_CLOSED`, `FX_RATE_MISSING`
+   */
+  recordSplitBill: (
+    userId: string,
+    input: SplitBillInput,
+  ) => Promise<{ readonly transactionId: string; readonly receivables: ReceivableView[] }>;
 }
 
 type ReceivableRow = typeof receivables.$inferSelect;
@@ -389,6 +425,84 @@ export function createReceivables(
   const viewIn = async (tx: Transaction, userId: string, dek: Dek, id: string) =>
     firstRow(await viewsIn(tx, userId, dek, eq(receivables.id, id), []), 'receivables');
 
+  /** {@link ReceivablesRepository.record} inside the caller's user transaction. */
+  async function recordIn(
+    tx: Transaction,
+    userId: string,
+    dek: Dek,
+    input: ReceivableInput,
+  ): Promise<{ readonly receivable: ReceivableView; readonly transactionId: string | null }> {
+    const counterparty = checkCounterparty(input.counterparty);
+    if (input.amountMinor <= 0n) throw invalid('The amount must be greater than zero');
+    const { baseCurrency, timezone } = await userContextIn(tx, userId);
+    const lentOn = localDateOf(input.lentAt, timezone);
+    checkSchedule(lentOn, input.dueDate, input.remind);
+    const account = (await accountsIn(tx, [input.fromAccountId])).get(input.fromAccountId) as LedgerAccount;
+    const sourceTransactionId = input.sourceTransactionId ?? null;
+    if (sourceTransactionId !== null) {
+      if (input.source !== 'split_bill') throw invalid('Only a split bill has a source transaction');
+      const [source] = await tx
+        .select({ type: transactions.type, deletedAt: transactions.deletedAt })
+        .from(transactions)
+        .where(eq(transactions.id, sourceTransactionId));
+      if (source === undefined || source.deletedAt !== null) {
+        throw new LedgerError('NOT_FOUND', 'No such transaction');
+      }
+      if (source.type !== 'expense') throw invalid('The split bill part must be an expense');
+    }
+    const recordTransaction = input.recordTransaction ?? true;
+    if (recordTransaction) await assertOpenDatesIn(tx, [lentOn]);
+    const description = clean(input.description);
+    const note = clean(input.note);
+    const at = now();
+    const [created] = await tx
+      .insert(receivables)
+      .values({
+        id: input.clientId,
+        userId,
+        counterpartyEnc: encrypt(dek, counterparty, { userId, purpose: COUNTERPARTY_PURPOSE }),
+        description,
+        noteEnc: note === null ? null : encrypt(dek, note, { userId, purpose: RECEIVABLE_NOTE_PURPOSE }),
+        principalMinor: input.amountMinor,
+        currency: account.currency,
+        fromAccountId: account.id,
+        source: input.source,
+        sourceTransactionId,
+        lentOn,
+        dueDate: input.dueDate,
+        remind: input.remind,
+      })
+      .onConflictDoNothing()
+      .returning({ id: receivables.id });
+    if (created === undefined) {
+      const first = await viewIn(tx, userId, dek, input.clientId);
+      return { receivable: first, transactionId: first.transactionId };
+    }
+    let transactionId: string | null = null;
+    if (recordTransaction) {
+      const valuation = await valuationIn(tx, baseCurrency, [account.currency], lentOn);
+      transactionId = await insertEntryIn(
+        tx,
+        userId,
+        {
+          type: 'receivable_out',
+          clientId: input.clientId,
+          occurredAt: input.lentAt,
+          localDate: lentOn,
+          description,
+          noteEnc: note === null ? null : encrypt(dek, note, { userId, purpose: NOTE_PURPOSE }),
+          categoryId: null,
+          receivableId: input.clientId,
+          postings: expensePostings({ ...valuation, account, amountMinor: input.amountMinor }),
+        },
+        at,
+      );
+      await tx.update(receivables).set({ transactionId }).where(eq(receivables.id, input.clientId));
+    }
+    await syncReminderIn(tx, userId, input.clientId, at);
+    return { receivable: await viewIn(tx, userId, dek, input.clientId), transactionId };
+  }
+
   return {
     list: async (userId, { historyDays = 90 } = {}) => {
       const dek = await getDek(userId);
@@ -444,76 +558,28 @@ export function createReceivables(
 
     record: async (userId, input) => {
       const dek = await getDek(userId);
+      return withUser(db, userId, (tx) => recordIn(tx, userId, dek, input));
+    },
+
+    recordSplitBill: async (userId, { draft, shares }) => {
+      const dek = await getDek(userId);
       return withUser(db, userId, async (tx) => {
-        const counterparty = checkCounterparty(input.counterparty);
-        if (input.amountMinor <= 0n) throw invalid('The amount must be greater than zero');
-        const { baseCurrency, timezone } = await userContextIn(tx, userId);
-        const lentOn = localDateOf(input.lentAt, timezone);
-        checkSchedule(lentOn, input.dueDate, input.remind);
-        const account = (await accountsIn(tx, [input.fromAccountId])).get(input.fromAccountId) as LedgerAccount;
-        const sourceTransactionId = input.sourceTransactionId ?? null;
-        if (sourceTransactionId !== null) {
-          if (input.source !== 'split_bill') throw invalid('Only a split bill has a source transaction');
-          const [source] = await tx
-            .select({ type: transactions.type, deletedAt: transactions.deletedAt })
-            .from(transactions)
-            .where(eq(transactions.id, sourceTransactionId));
-          if (source === undefined || source.deletedAt !== null) {
-            throw new LedgerError('NOT_FOUND', 'No such transaction');
-          }
-          if (source.type !== 'expense') throw invalid('The split bill part must be an expense');
+        if (draft.type !== 'expense') throw invalid('The user’s part of a split bill is an expense');
+        if (shares.length === 0) throw invalid('A split bill needs another person');
+        const { id: transactionId } = await recordTransactionIn(tx, userId, draft, dek, now());
+        const made: ReceivableView[] = [];
+        for (const share of shares) {
+          const { receivable } = await recordIn(tx, userId, dek, {
+            ...share,
+            fromAccountId: draft.accountId,
+            source: 'split_bill',
+            sourceTransactionId: transactionId,
+            description: clean(draft.description) ?? clean(draft.merchant),
+            lentAt: draft.occurredAt,
+          });
+          made.push(receivable);
         }
-        const recordTransaction = input.recordTransaction ?? true;
-        if (recordTransaction) await assertOpenDatesIn(tx, [lentOn]);
-        const description = clean(input.description);
-        const note = clean(input.note);
-        const at = now();
-        const [created] = await tx
-          .insert(receivables)
-          .values({
-            id: input.clientId,
-            userId,
-            counterpartyEnc: encrypt(dek, counterparty, { userId, purpose: COUNTERPARTY_PURPOSE }),
-            description,
-            noteEnc: note === null ? null : encrypt(dek, note, { userId, purpose: RECEIVABLE_NOTE_PURPOSE }),
-            principalMinor: input.amountMinor,
-            currency: account.currency,
-            fromAccountId: account.id,
-            source: input.source,
-            sourceTransactionId,
-            lentOn,
-            dueDate: input.dueDate,
-            remind: input.remind,
-          })
-          .onConflictDoNothing()
-          .returning({ id: receivables.id });
-        if (created === undefined) {
-          const first = await viewIn(tx, userId, dek, input.clientId);
-          return { receivable: first, transactionId: first.transactionId };
-        }
-        let transactionId: string | null = null;
-        if (recordTransaction) {
-          const valuation = await valuationIn(tx, baseCurrency, [account.currency], lentOn);
-          transactionId = await insertEntryIn(
-            tx,
-            userId,
-            {
-              type: 'receivable_out',
-              clientId: input.clientId,
-              occurredAt: input.lentAt,
-              localDate: lentOn,
-              description,
-              noteEnc: note === null ? null : encrypt(dek, note, { userId, purpose: NOTE_PURPOSE }),
-              categoryId: null,
-              receivableId: input.clientId,
-              postings: expensePostings({ ...valuation, account, amountMinor: input.amountMinor }),
-            },
-            at,
-          );
-          await tx.update(receivables).set({ transactionId }).where(eq(receivables.id, input.clientId));
-        }
-        await syncReminderIn(tx, userId, input.clientId, at);
-        return { receivable: await viewIn(tx, userId, dek, input.clientId), transactionId };
+        return { transactionId, receivables: made };
       });
     },
 

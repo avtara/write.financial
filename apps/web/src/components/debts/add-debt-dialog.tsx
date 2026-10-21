@@ -131,7 +131,7 @@ export function netWorthOf(overview: DebtsOverview): bigint {
   const owed = overview.debts
     .filter((debt) => debt.kind !== 'card_installment' && debt.currency === baseCurrency)
     .reduce((sum, debt) => sum + debt.remainingPrincipalMinor, 0n);
-  return accountTotals(active, baseCurrency).totalMinor + overview.receivablesMinor - owed;
+  return accountTotals(active, baseCurrency).totalMinor + overview.receivables.outstandingMinor - owed;
 }
 
 function LoanForm({

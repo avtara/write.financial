@@ -7,6 +7,7 @@ import { fixtureGetDek, ledgerFixture, type LedgerFixture } from '../test/ledger
 import { insertUser, pgError, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { createAccounts } from './accounts.ts';
 import { withUser } from './db.ts';
+import type { EntryDraft } from './ledger-core.ts';
 import { createOccurrenceJobs } from './occurrence-jobs.ts';
 import { createReceivables, type ReceivableInput } from './receivables.ts';
 import { createTransactionQuery } from './transaction-query.ts';
@@ -181,6 +182,86 @@ describe('record (FR-U7 "Catat piutang")', () => {
         )
       ).receivable.lentOn,
     ).toBe('2026-09-20');
+  });
+});
+
+describe('split bill (FR-L5 "Pisah tagihan")', () => {
+  const bill = (overrides: Partial<EntryDraft> = {}): EntryDraft => ({
+    type: 'expense',
+    clientId: randomUUID(),
+    occurredAt: at('2026-10-11', '19:30'),
+    accountId: alice.bca,
+    amountMinor: 242_500n,
+    categoryId: alice.category('system:entertainment'),
+    description: '  ',
+    merchant: 'CGV Grand Indonesia',
+    ...overrides,
+  });
+  const nadia = () => ({
+    clientId: randomUUID(),
+    counterparty: 'Nadia',
+    amountMinor: 242_500n,
+    dueDate: null,
+    remind: false,
+  });
+  const count = async () => (await test.query<{ n: number }>('SELECT count(*)::int AS n FROM transactions'))[0]?.n;
+
+  it('golden: CGV 485.000 halved — only the user’s 242.500 is spending, Nadia’s part is a receivable', async () => {
+    const before = await summary();
+    const input = { draft: bill(), shares: [{ ...nadia(), dueDate: '2026-10-18' as LocalDate, remind: true }] };
+    const made = await asApp(() => repo().recordSplitBill(alice.userId, input));
+    expect(made.receivables).toEqual([
+      expect.objectContaining({
+        counterparty: 'Nadia',
+        description: 'CGV Grand Indonesia',
+        principalMinor: 242_500n,
+        fromAccountId: alice.bca,
+        source: 'split_bill',
+        sourceTransactionId: made.transactionId,
+        lentOn: '2026-10-11',
+        dueDate: '2026-10-18',
+        remind: true,
+      }),
+    ]);
+    expect(await balanceOf(alice.bca)).toBe(99_515_000n);
+    expect(await summary()).toMatchObject({ inMinor: before.inMinor, outMinor: before.outMinor + 242_500n });
+    expect(await test.query('SELECT due_date::text AS due FROM scheduled_occurrences')).toEqual([
+      { due: '2026-10-18' },
+    ]);
+    // A replay returns the first result and records nothing more.
+    const recorded = await count();
+    expect(await asApp(() => repo().recordSplitBill(alice.userId, input))).toEqual(made);
+    expect(await count()).toBe(recorded);
+  });
+
+  it('takes the description first and records several people', async () => {
+    const made = await asApp(() =>
+      repo().recordSplitBill(alice.userId, {
+        draft: bill({ description: 'Nonton bareng', merchant: null }),
+        shares: [nadia(), { ...nadia(), counterparty: 'Dimas', amountMinor: 100_000n }],
+      }),
+    );
+    expect(made.receivables.map((row) => [row.counterparty, row.description, row.principalMinor])).toEqual([
+      ['Nadia', 'Nonton bareng', 242_500n],
+      ['Dimas', 'Nonton bareng', 100_000n],
+    ]);
+    expect(await balanceOf(alice.bca)).toBe(99_415_000n);
+  });
+
+  it('refuses what is not a split bill and keeps nothing of a refused one', async () => {
+    const recorded = await count();
+    for (const input of [
+      { draft: bill({ type: 'income', categoryId: null }), shares: [nadia()] },
+      { draft: bill(), shares: [] },
+      { draft: bill(), shares: [{ ...nadia(), counterparty: ' ' }] },
+      { draft: bill(), shares: [{ ...nadia(), dueDate: '2026-10-01' as LocalDate }] },
+    ]) {
+      await expect(asApp(() => repo().recordSplitBill(alice.userId, input))).rejects.toMatchObject({
+        code: 'INVALID_RECEIVABLE',
+      });
+    }
+    expect(await count()).toBe(recorded);
+    expect(await balanceOf(alice.bca)).toBe(100_000_000n);
   });
 });
 

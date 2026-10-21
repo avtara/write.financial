@@ -4,6 +4,7 @@ import { page, userEvent } from 'vitest/browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BILL_OVERVIEW, debtsOverview, KULKAS, MACBOOK, VISA_ACCOUNT } from '../../../test/debt-fixtures.ts';
 import { BCA, JAGO } from '../../../test/ledger-fixtures.ts';
+import { receivablesOverview } from '../../../test/receivable-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { AddDebtDialog, netWorthOf, type AddDebtStart } from './add-debt-dialog.tsx';
 
@@ -17,7 +18,7 @@ afterEach(() => {
 describe('netWorthOf', () => {
   it('counts every active account, receivables, and what non-card debts still owe', () => {
     const overview = debtsOverview({
-      receivablesMinor: 542_500n,
+      receivables: receivablesOverview(),
       debts: [
         { ...MACBOOK, sourceDate: null },
         { ...KULKAS, sourceDate: null },
