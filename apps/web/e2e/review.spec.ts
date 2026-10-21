@@ -165,7 +165,12 @@ test('"Ulangi" repeats a new expense weekly; the detail stops it after asking, a
   await expect(toast).toContainText('Pengulangan dihentikan');
   await expect(detail.getByText('Tidak berulang')).toBeVisible();
   await expect(detail.getByText(/Pengulangan dihentikan · \d+ jadwal dihapus/)).toBeVisible();
-  await toast.getByRole('button', { name: 'Urungkan' }).click();
+  // The "Tercatat" toast may still offer its own Urungkan.
+  await toast
+    .getByRole('listitem')
+    .filter({ hasText: 'Pengulangan dihentikan' })
+    .getByRole('button', { name: 'Urungkan' })
+    .click();
   await expect(toast).toContainText('Pengulangan dinyalakan lagi');
   await expect(detail.getByText('Berulang · Mingguan')).toBeVisible();
 });

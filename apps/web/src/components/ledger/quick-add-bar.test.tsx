@@ -28,6 +28,7 @@ const writes = vi.hoisted(() => ({
 vi.mock('../../server/fn/transactions-write.ts', () => writes);
 // The Record sheet loads the budget for its notes; the bar gets it through `data`.
 vi.mock('../../server/fn/budget.ts', () => ({ getBudgetStatus: vi.fn() }));
+vi.mock('../../server/fn/schedules.ts', () => ({ createRecurrence: vi.fn() }));
 // The record sheet's "Sesuaikan saldo" action (FR-R4) is not part of these tests.
 vi.mock('../accounts/reconcile.tsx', () => ({ useReconcile: () => ({ openReconcile: vi.fn() }) }));
 

@@ -4,13 +4,14 @@ import { m } from '@wf/i18n/messages';
 import { NAV_GROUPS } from './nav.ts';
 
 describe('NAV_GROUPS', () => {
-  it('lists Overview, Transactions, Budget, and Subscriptions under MENU and Accounts & wallets under Akun', () => {
+  it('lists Overview, Transactions, Budget, Subscriptions, and Perlu ditinjau under MENU and Accounts & wallets under Akun', () => {
     expect(NAV_GROUPS.map((group) => group.label())).toEqual([m.nav_menu(), m.nav_group_account()]);
     expect(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.to))).toEqual([
       '/',
       '/transactions',
       '/budget',
       '/subscriptions',
+      '/review',
       '/accounts',
     ]);
     expect(m.nav_group_account({}, { locale: 'id' })).toBe('Akun');
@@ -23,8 +24,10 @@ describe('NAV_GROUPS', () => {
       m.nav_transactions,
       m.nav_budget,
       m.nav_subscriptions,
+      m.review_title,
       m.accounts_title,
     ]);
+    expect(m.review_title({}, { locale: 'id' })).toBe('Perlu ditinjau');
     expect(m.accounts_title({}, { locale: 'id' })).toBe('Rekening & dompet');
     expect(m.nav_overview({}, { locale: 'id' })).toBe('Ringkasan');
     expect(m.nav_overview({}, { locale: 'en' })).toBe('Overview');
@@ -38,8 +41,15 @@ describe('NAV_GROUPS', () => {
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
   });
 
-  it('badges Transactions with the count of the current period and Subscriptions with the active ones', () => {
+  it('badges Transactions with the count of the current period, Subscriptions with the active ones, and Perlu ditinjau with what waits there', () => {
     const items = NAV_GROUPS.flatMap((group) => group.items);
-    expect(items.map((item) => item.badge)).toEqual([undefined, 'transactions', undefined, 'subscriptions', undefined]);
+    expect(items.map((item) => item.badge)).toEqual([
+      undefined,
+      'transactions',
+      undefined,
+      'subscriptions',
+      'review',
+      undefined,
+    ]);
   });
 });

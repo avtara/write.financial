@@ -71,6 +71,7 @@ describe('getRouter', () => {
       '/healthz',
       '/onboarding/$step',
       '/reset-password',
+      '/review',
       '/settings/$section',
       '/setup',
       '/sign-in',
