@@ -40,6 +40,10 @@ vi.mock('../server/fn/debts.ts', () => ({
   recordCardInstallment: vi.fn(),
   recordCardPayment: vi.fn(),
 }));
+vi.mock('../server/fn/goals.ts', () => ({
+  listGoals: () => Promise.resolve({ ok: false, code: 'NOT_FOUND' }),
+  spendFromGoal: vi.fn(),
+}));
 const review = vi.hoisted(() => ({ getReviewCounts: vi.fn() }));
 vi.mock('../server/fn/review.ts', () => review);
 const notifications = vi.hoisted(() => ({
