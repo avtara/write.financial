@@ -1,21 +1,59 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# CI order (implementation plan §9.3): static checks → unit tests (100% gate, D27) → mutation, integration
-# (Testcontainers), and E2E (dev services) → Docker image boot with the install proof → backup restore.
+# Two lanes (CONTRIBUTING.md › CI lanes). `changes` picks the lane and the data paths; `CI gate` is the one required check.
+# - fast (every pull request push): static checks, unit tests of the changed code (no coverage gate), E2E core
+#   (projects m0, tablet, app), gitleaks, DCO; plus the data lane — integration tests and the backup restore — when the
+#   diff touches the database, worker, server functions, auth, crypto, or deploy files.
+# - full (push to main, workflow_dispatch, or a pull request labelled `full-ci`, used on the pull request that closes a
+#   phase): everything — unit tests with the 100% per-file coverage gate (D27), mutation tests (incremental), integration,
+#   every E2E project, the Docker image boot with the install proof, and the backup restore. The jobs run in parallel.
+#   On main the run is informational (nothing waits for it); a red run there is fixed in the next pull request.
 name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A new push or label change supersedes the pull request's running CI; every push to main is checked to the end.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Lane and changed paths
+    runs-on: ubuntu-24.04
+    outputs:
+      mode: ${{ steps.lane.outputs.mode }}
+      data: ${{ steps.lane.outputs.data }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: lane
+        env:
+          EVENT: ${{ github.event_name }}
+          FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ] || [ "$FULL_LABEL" = true ]; then mode=full; else mode=fast; fi
+          data=true
+          if [ "$EVENT" = pull_request ]; then
+            # The pull request's own changes: the diff from the merge base with its base branch.
+            changed="$(git diff --name-only "$BASE...$HEAD")"
+            echo "$changed"
+            echo "$changed" | grep -qE '^(packages/(db|auth|crypto)/|apps/worker/|apps/web/src/server/|deploy/)' || data=false
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "data=$data" >> "$GITHUB_OUTPUT"
+          echo "Lane: **$mode**, data lane (integration + backup restore): **$data**" | tee -a "$GITHUB_STEP_SUMMARY"
+
   static:
     name: Lint, format, typecheck, repo checks
     runs-on: ubuntu-24.04
@@ -34,12 +72,17 @@ jobs:
       - run: pnpm check:test-files
       - run: pnpm check:tokens
       - run: pnpm check:i18n
+      - run: pnpm check:migrations
 
   unit:
-    name: Unit tests (100% per-file coverage, D27)
+    name: ${{ needs.changes.outputs.mode == 'full' && 'Unit tests (100% per-file coverage, D27)' || 'Unit tests (changed code)' }}
+    needs: changes
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The fast lane compares with the base branch (`vitest --changed`).
+          fetch-depth: ${{ needs.changes.outputs.mode == 'full' && 1 || 0 }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -49,9 +92,18 @@ jobs:
       # Component tests (*.test.tsx) run in Vitest browser mode on headless Chromium.
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:unit
+      - name: Unit tests with the coverage gate
+        if: needs.changes.outputs.mode == 'full'
+        run: pnpm test:unit
+      # Tests related to the files the pull request changes (module graph), every test when a config or package.json
+      # changed. The D14 architecture test is a unit test, so it runs whenever worker code changes.
+      - name: Unit tests of the changed code
+        if: needs.changes.outputs.mode == 'fast'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: pnpm exec vitest run --project unit --project unit-browser --changed "origin/$BASE_REF" --passWithNoTests
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
+        if: always() && needs.changes.outputs.mode == 'full'
         with:
           name: coverage
           path: coverage/
@@ -59,7 +111,8 @@ jobs:
 
   mutation:
     name: Mutation tests (domain + crypto, ≥ 90%)
-    needs: unit
+    needs: changes
+    if: needs.changes.outputs.mode == 'full'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -69,7 +122,19 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:mutation
+      # Stryker's incremental file, per base branch and per set of tests: reuse needs identical tests, so a pull request
+      # that changes a domain/crypto test, the mutation config, or the lockfile tests every mutant again. Pull requests
+      # restore their own latest file, else main's.
+      - name: Restore the incremental mutation results
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.base_ref || github.ref_name }}-${{ hashFiles('packages/domain/src/**/*.test.ts', 'packages/crypto/src/**/*.test.ts', 'stryker.config.json', 'vitest.mutation.config.ts', 'pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: stryker-incremental-${{ github.base_ref || github.ref_name }}-${{ hashFiles('packages/domain/src/**/*.test.ts', 'packages/crypto/src/**/*.test.ts', 'stryker.config.json', 'vitest.mutation.config.ts', 'pnpm-lock.yaml') }}-
+      # Pull requests re-test only the mutants in changed files. Main re-tests every mutant (`--force`), so a change that
+      # flips a mutant in an unchanged file is caught there, and the file it writes is the pull requests' baseline.
+      - name: Mutation tests
+        run: pnpm test:mutation --incremental ${{ github.event_name != 'pull_request' && '--force' || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -79,7 +144,8 @@ jobs:
 
   integration:
     name: Integration tests (Testcontainers)
-    needs: unit
+    needs: changes
+    if: needs.changes.outputs.mode == 'full' || needs.changes.outputs.data == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,8 +158,8 @@ jobs:
       - run: pnpm test:integration
 
   e2e:
-    name: E2E smoke (Playwright)
-    needs: unit
+    name: ${{ needs.changes.outputs.mode == 'full' && 'E2E smoke (Playwright)' || 'E2E core (Playwright m0, tablet, app)' }}
+    needs: changes
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,7 +177,12 @@ jobs:
         run: pnpm dev:up
       # Against the production build: `node .output/server/index.mjs`, started by Playwright's webServer.
       - run: pnpm --filter @wf/web build
-      - run: pnpm --filter @wf/web test:e2e
+      - name: Every E2E project
+        if: needs.changes.outputs.mode == 'full'
+        run: pnpm --filter @wf/web test:e2e
+      - name: E2E core (setup, 2FA, tablet, app shell)
+        if: needs.changes.outputs.mode == 'fast'
+        run: pnpm --filter @wf/web test:e2e --project m0 --project tablet --project app
       - name: Service logs
         if: failure()
         run: docker compose -f deploy/dev/compose.yaml logs --no-color
@@ -124,6 +195,8 @@ jobs:
 
   docker:
     name: Docker image (build + boot)
+    needs: changes
+    if: needs.changes.outputs.mode == 'full'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -223,6 +296,8 @@ jobs:
 
   backup-restore:
     name: Backup restore (compose)
+    needs: changes
+    if: needs.changes.outputs.mode == 'full' || needs.changes.outputs.data == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -284,3 +359,44 @@ jobs:
             fi
           done
           exit $status
+
+  # The one required check (branch protection). Green when every job of the run's lane succeeded: the fast lane (+ the
+  # data lane when it applies) or, with `full-ci`, the full lane. DCO runs only on pull requests.
+  gate:
+    name: CI gate
+    if: always()
+    needs: [changes, static, unit, mutation, integration, e2e, docker, backup-restore, secrets, dco]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every job of the lane succeeded
+        env:
+          MODE: ${{ needs.changes.outputs.mode }}
+          DATA: ${{ needs.changes.outputs.data }}
+          EVENT: ${{ github.event_name }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          required='changes static unit e2e secrets'
+          if [ "$EVENT" = pull_request ]; then required="$required dco"; fi
+          if [ "$MODE" = full ]; then
+            required="$required mutation integration docker backup-restore"
+            lane='full lane'
+          elif [ "$DATA" = true ]; then
+            required="$required integration backup-restore"
+            lane='fast lane + data lane'
+          else
+            lane='fast lane'
+          fi
+          # Every failed or cancelled job, and every required job that did not succeed (e.g. skipped).
+          failed="$(jq -r --arg required "$required" '($required | split(" ")) as $r
+            | [to_entries[] | select(.value.result == "failure" or .value.result == "cancelled"
+                or (.key as $k | $r | index($k)) and .value.result != "success")
+              | "\(.key) (\(.value.result))"] | join(", ")' <<<"$NEEDS")"
+          if [ -n "$failed" ]; then
+            echo "::error title=CI gate::failed jobs: $failed"
+            echo "### CI gate: failed jobs: $failed" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "### CI gate: $lane green" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$MODE" != full ]; then
+            echo "The 100% coverage gate, mutation tests, every E2E project, and the Docker boot run with the full-ci label (the pull request that closes a phase) and on main." >> "$GITHUB_STEP_SUMMARY"
+          fi

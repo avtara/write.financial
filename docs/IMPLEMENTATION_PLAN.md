@@ -328,8 +328,8 @@ flowchart LR
   - Server functions: input validation, auth/2FA guards, and error branches tested with injected dependencies.
 - **Existence check:** `pnpm check:test-files` (`tools/repo-checks`) fails if any `src/**/*.ts(x)` file has no co-located `*.test.ts(x)`.
 - **Exclusions (single shared list in `vitest.config.ts`, reviewed in PRs):** generated Paraglide runtime, generated code, `*.d.ts`; tool config files sit outside `src/`. The `wf/no-unjustified-coverage-ignore` ESLint rule rejects `v8`/`c8`/`istanbul ignore` comments unless they carry `-- <reason>` and an issue reference (`#123`).
-- **Meaningful tests:** mutation testing with Stryker (`pnpm test:mutation`) on `packages/domain` and `packages/crypto`, score ≥ 90%, on every CI run. It uses Stryker's command runner with `vitest.mutation.config.ts`, because `@stryker-mutator/vitest-runner` 10.0.0 never activates runtime mutants under Vitest 5 (every mutant "survives"). Assertions target behavior, not implementation details or snapshots of whole components.
-- **Local loop:** `pnpm test` (watch), `pnpm test:unit` (same gate as CI), `pnpm test:integration`, `pnpm check` (every static check plus the unit gate).
+- **Meaningful tests:** mutation testing with Stryker (`pnpm test:mutation`) on `packages/domain` and `packages/crypto`, score ≥ 90%, in every full CI run (incremental on pull requests, every mutant on `main`). It uses Stryker's command runner with `vitest.mutation.config.ts`, because `@stryker-mutator/vitest-runner` 10.0.0 never activates runtime mutants under Vitest 5 (every mutant "survives"). Assertions target behavior, not implementation details or snapshots of whole components.
+- **Local loop:** `pnpm test` (watch), `pnpm test:unit` (same gate as CI), `pnpm test:integration`, `pnpm check` (every static check plus the unit gate), `pnpm ci:fast` (the CI fast lane on a laptop).
 - **File naming:** `foo.test.ts` / `Foo.test.tsx` = unit test (projects `unit` / `unit-browser`, count toward the gate); `foo.integration.test.ts` = integration test against real services (project `integration`, Testcontainers, CI job "Integration tests"). An integration test never replaces the co-located unit test.
 
 ### 9.2 Integration, E2E, and other tests (in addition to unit tests)
@@ -339,8 +339,8 @@ flowchart LR
 - **E2E (Playwright):** each milestone's exit criteria at 1440/1024/768 viewports, in both languages; keyboard-only; Privacy mode (amount regex not visible).
 - **Visual:** compared against Pencil PNG exports per milestone (manual review).
 
-### 9.3 CI order
-`lint` → `typecheck` → `test:unit` (100% gate + test-file existence check) → `test:mutation` (domain/crypto) → `test:integration` → `test:e2e` → build. Branch protection requires all of them.
+### 9.3 CI lanes
+Two lanes in one workflow (CONTRIBUTING.md › CI lanes). **Fast**, on every pull request push: format, lint, typecheck, repo checks (SPDX, test files, tokens, i18n, migration order), unit tests of the changed code, E2E core, gitleaks, DCO — plus integration tests and the backup restore when the diff touches the database, worker, server functions, auth, crypto, or deploy files. **Full**, on `main`, `workflow_dispatch`, and pull requests labelled `full-ci`: additionally the unit 100% per-file coverage gate, mutation tests (domain/crypto), integration, every E2E project, the Docker image boot with the install proof, and the backup restore. Branch protection requires the single `CI gate` check, green when every job of the run's lane passed. Unit tests are required for every change; the 100% coverage gate is enforced at phase end (the pull request closing a phase carries `full-ci`) and reported on every push to `main`.
 
 ## 10. Deploying on a VPS
 
