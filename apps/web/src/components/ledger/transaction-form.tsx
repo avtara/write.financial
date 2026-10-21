@@ -48,6 +48,8 @@ export interface TransactionFormFieldsProps {
   readonly onAdjustBalance?: (accountId: string) => void;
   /** FR-T6 (Record sheet): "Jadwalkan" in the date picker, and the "Ulangi" field under the tags. */
   readonly schedule?: { readonly repeat: ReactNode };
+  /** FR-G4 (Record sheet): "Bayar dari tujuan …" under "Ulangi". */
+  readonly goalUse?: ReactNode;
 }
 
 const KIND_ICON_CLASS: Readonly<Record<EntryKind, string>> = {
@@ -65,6 +67,7 @@ export function TransactionFormFields({
   onRecordIncomeFirst,
   onAdjustBalance,
   schedule,
+  goalUse,
 }: TransactionFormFieldsProps) {
   const id = useId();
   const ids = {
@@ -342,6 +345,7 @@ export function TransactionFormFields({
       )}
 
       {schedule?.repeat}
+      {goalUse}
 
       {scheduled ? (
         <p

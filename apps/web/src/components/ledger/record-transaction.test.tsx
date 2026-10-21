@@ -4,10 +4,11 @@ import type { LocalDate } from '@wf/domain/period';
 import { toast, Toaster } from '@wf/ui/toast';
 import { Component, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { page, userEvent } from 'vitest/browser';
+import { page, userEvent, type Locator } from 'vitest/browser';
 import { budgetStatus, RECORD_BUDGET } from '../../../test/budget-fixtures.ts';
 import { visa } from '../../../test/debt-fixtures.ts';
-import { ACCOUNTS, BCA, CARD, CATEGORIES, categoryId, OVO, TAGS } from '../../../test/ledger-fixtures.ts';
+import { PERPANJANG_STNK, SERVIS_MOTOR, source } from '../../../test/goal-fixtures.ts';
+import { ACCOUNTS, BCA, CARD, CATEGORIES, categoryId, JAGO, OVO, TAGS } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import {
   MissingRecordTransactionProviderError,
@@ -46,8 +47,24 @@ const debts = vi.hoisted(() => ({
   recordCardPayment: vi.fn(),
 }));
 vi.mock('../../server/fn/debts.ts', () => debts);
+const goals = vi.hoisted(() => ({ listGoals: vi.fn(), spendFromGoal: vi.fn() }));
+vi.mock('../../server/fn/goals.ts', () => goals);
 
 const ZONE = 'Asia/Jakarta';
+/** Perpanjang STNK at 100%, kept in BCA Tahapan; Servis motor kept in Bank Jago. */
+const STNK = { ...PERPANJANG_STNK, savedMinor: 850_000n };
+const SERVIS = {
+  ...SERVIS_MOTOR,
+  sources: [
+    source({
+      id: 'jago',
+      accountId: JAGO.id,
+      accountName: JAGO.displayName,
+      amountMinor: 720_000n,
+      valueMinor: 720_000n,
+    }),
+  ],
+};
 
 function Opener({ prefill }: { readonly prefill?: RecordPrefill }) {
   const record = useRecordTransaction();
@@ -108,6 +125,7 @@ beforeEach(() => {
   writes.removeDraft.mockResolvedValue({ ok: true, value: undefined });
   writes.saveDraft.mockResolvedValue({ ok: true, value: { id: 'draft-new' } });
   budget.getBudgetStatus.mockResolvedValue({ ok: false, code: 'NOT_FOUND' });
+  goals.listGoals.mockResolvedValue({ ok: true, value: [STNK, SERVIS] });
 });
 
 afterEach(() => {
@@ -649,5 +667,149 @@ describe('RecordTransactionProvider', () => {
       await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
       expect(writes.recordTransaction).toHaveBeenCalled();
     });
+  });
+});
+
+describe('Bayar dari tujuan (FR-G4)', () => {
+  const food = (sheet: Locator) => userEvent.click(sheet.getByRole('button', { name: 'Makan & Dapur' }));
+  const noOffer = async (prefill: RecordPrefill) => {
+    const { sheet } = await open(prefill);
+    await expect.element(sheet.getByRole('textbox', { name: 'Jumlah' })).toBeVisible();
+    expect(sheet.getByRole('region', { name: /^Bayar dari tujuan/ }).query()).toBeNull();
+  };
+
+  it('golden (itVPf): "Pakai dana" of STNK pays Rp812.000 from it, marks it Terpakai, and offers to move the rest', async () => {
+    goals.spendFromGoal.mockResolvedValueOnce({
+      ok: true,
+      value: { transactionId: 'tx-stnk', goal: { ...STNK, status: 'used', savedMinor: 38_000n } },
+    });
+    const { sheet, amount, invalidate, router } = await open({
+      type: 'expense',
+      goalId: STNK.id,
+      description: 'Perpanjang STNK — Samsat Jaksel',
+      accountId: BCA.id,
+    });
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue();
+    const block = sheet.getByRole('region', { name: 'Bayar dari tujuan Perpanjang STNK' });
+    await expect.element(block).toMatchTextContent('100% · Rp850.000');
+    await expect
+      .element(block.getByRole('button', { name: 'Pakai dana tujuan' }))
+      .toHaveAttribute('aria-pressed', 'true');
+    await userEvent.fill(amount, '812000');
+    await food(sheet);
+    await expect.element(block).toMatchTextContent(/Sisa Rp38\.000 bisa dipindah ke tujuan lain setelah disimpan\./);
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    expect(goals.spendFromGoal).toHaveBeenCalledWith({
+      data: {
+        goalId: STNK.id,
+        markUsed: true,
+        entry: expect.objectContaining({
+          type: 'expense',
+          accountId: BCA.id,
+          amountMinor: 812_000n,
+          description: 'Perpanjang STNK — Samsat Jaksel',
+        }) as unknown,
+      },
+    });
+    expect(writes.recordTransaction).not.toHaveBeenCalled();
+    const region = page.getByRole('region', { name: 'Notifikasi' });
+    await expect.element(region.getByText('Perpanjang STNK ditandai Terpakai')).toBeVisible();
+    await userEvent.click(region.getByRole('button', { name: 'Pindahkan sisa' }));
+    expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ to: '/goals', search: { remainder: STNK.id } }));
+    expect(invalidate).toHaveBeenCalled();
+    toast.dismiss();
+  });
+
+  it('offers the goal an expense names and pays it from the account the goal’s money is in', async () => {
+    goals.spendFromGoal.mockResolvedValueOnce({
+      ok: true,
+      value: { transactionId: 'tx-servis', goal: { ...SERVIS, status: 'used', savedMinor: 0n } },
+    });
+    const { sheet, amount } = await open();
+    await userEvent.fill(amount, '720000');
+    await food(sheet);
+    await userEvent.fill(sheet.getByRole('textbox', { name: 'Catatan', exact: true }), 'Servis motor besar');
+    const block = sheet.getByRole('region', { name: 'Bayar dari tujuan Servis motor' });
+    await expect
+      .element(block.getByRole('button', { name: 'Pakai dana tujuan' }))
+      .toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(block.getByRole('button', { name: 'Pakai dana tujuan' }));
+    await expect.element(sheet.getByRole('button', { name: 'Rekening' })).toMatchTextContent(JAGO.displayName);
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    expect(goals.spendFromGoal).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        goalId: SERVIS.id,
+        entry: expect.objectContaining({ accountId: JAGO.id }) as unknown,
+      }) as unknown,
+    });
+    const region = page.getByRole('region', { name: 'Notifikasi' });
+    await expect.element(region.getByText('Servis motor ditandai Terpakai')).toBeVisible();
+    expect(region.getByRole('button', { name: 'Pindahkan sisa' }).query()).toBeNull();
+    toast.dismiss();
+  });
+
+  it('records a plain expense when the goal is declined', async () => {
+    const { sheet, amount } = await open();
+    await userEvent.fill(amount, '50000');
+    await food(sheet);
+    await userEvent.fill(sheet.getByRole('textbox', { name: 'Catatan', exact: true }), 'perpanjang stnk');
+    const offer = sheet.getByRole('region', { name: 'Bayar dari tujuan Perpanjang STNK' });
+    await userEvent.click(offer.getByRole('button', { name: 'Pakai dana tujuan' }));
+    // Already on BCA Tahapan, where STNK's money is.
+    await expect.element(sheet.getByRole('button', { name: 'Rekening' })).toMatchTextContent(BCA.displayName);
+    await userEvent.click(offer.getByRole('button', { name: 'Catat sebagai pengeluaran biasa' }));
+    await expect.element(offer).not.toBeInTheDocument();
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    expect(writes.recordTransaction).toHaveBeenCalled();
+    expect(goals.spendFromGoal).not.toHaveBeenCalled();
+    toast.dismiss();
+  });
+
+  it('keeps the sheet open on a refused payment, and forgets the goal for the next entry', async () => {
+    goals.spendFromGoal
+      .mockResolvedValueOnce({ ok: false, code: 'INVALID_GOAL' })
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { transactionId: 'tx', goal: { ...STNK, sources: [], savedMinor: 0n } },
+      });
+    const { sheet, amount } = await open({ goalId: STNK.id });
+    await userEvent.fill(amount, '100000');
+    await food(sheet);
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    await expect.element(sheet.getByText('Periksa lagi data tujuan tabungan.')).toBeVisible();
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    await expect.element(sheet.getByText('Transaksi tidak bisa disimpan. Coba lagi.')).toBeVisible();
+    await userEvent.click(sheet.getByRole('checkbox', { name: 'Tambah lagi setelah simpan' }));
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    await expect.element(sheet.getByRole('region', { name: /^Bayar dari tujuan/ })).not.toBeInTheDocument();
+    toast.dismiss();
+  });
+
+  it('offers nothing on income', async () => {
+    await noOffer({ type: 'income', goalId: STNK.id });
+    expect(goals.listGoals).toHaveBeenCalledWith({ data: { status: 'active' } });
+  });
+
+  it('offers nothing on a scheduled expense', async () => {
+    await noOffer({ goalId: STNK.id, date: '2026-12-01' as LocalDate });
+  });
+
+  it('offers nothing when goals are refused', async () => {
+    goals.listGoals.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' });
+    await noOffer({ goalId: STNK.id });
+  });
+
+  it('offers nothing when goals cannot be loaded', async () => {
+    goals.listGoals.mockRejectedValueOnce(new TypeError('offline'));
+    await noOffer({ goalId: STNK.id });
+  });
+
+  it('leaves the account alone for a goal without sources', async () => {
+    const bare = { ...STNK, id: 'bare', name: 'Kado', tag: 'kado', sources: [] };
+    goals.listGoals.mockResolvedValueOnce({ ok: true, value: [bare] });
+    const { sheet } = await open({ goalId: bare.id, accountId: OVO.id });
+    await userEvent.click(sheet.getByRole('button', { name: 'Pakai dana tujuan' }));
+    await expect.element(sheet.getByRole('button', { name: 'Rekening' })).toMatchTextContent(OVO.displayName);
   });
 });

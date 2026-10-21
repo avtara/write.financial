@@ -8,8 +8,9 @@
  * opens again. "Ulangi" (FR-T6) makes the saved transaction the first occurrence of a recurrence; a future date
  * ("Jadwalkan") records nothing and schedules it (and its repeats) for the Review queue instead.
  */
-import { useRouter } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import type { DraftView } from '@wf/db/drafts';
+import type { GoalView } from '@wf/db/goals';
 import type { Locale } from '@wf/domain/money';
 import type { LocalDate } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
@@ -25,6 +26,7 @@ import { createContext, use, useMemo, useState, type ReactNode } from 'react';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { getBudgetStatus } from '../../server/fn/budget.ts';
+import { listGoals, spendFromGoal } from '../../server/fn/goals.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
 import { createRecurrence } from '../../server/fn/schedules.ts';
 import {
@@ -37,6 +39,8 @@ import {
 import { recordCardInstallment, recordCardPayment } from '../../server/fn/debts.ts';
 import { INSTALLMENT_MIN_MINOR } from '@wf/domain/creditcard';
 import { Button, FormError } from '../form.tsx';
+import { GoalUseField } from '../goals/goal-use-field.tsx';
+import { matchGoal } from '../goals/goals-model.ts';
 import { Modal } from '../modal.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { useShortcuts } from '../shortcuts.tsx';
@@ -75,6 +79,8 @@ export interface RecordPrefill {
   readonly accountId?: string;
   readonly toAccountId?: string;
   readonly amountMinor?: bigint;
+  /** FR-G4 "Pakai dana" of a goal: the expense is paid from it ("Bayar dari tujuan" on). */
+  readonly goalId?: string;
 }
 
 export interface RecordTransactionApi {
@@ -133,7 +139,13 @@ export function announceSaved(saved: {
 type Loaded =
   | { readonly status: 'loading' }
   | { readonly status: 'failed'; readonly message: string }
-  | { readonly status: 'ready'; readonly data: LedgerData; readonly drafts: readonly DraftView[] };
+  | {
+      readonly status: 'ready';
+      readonly data: LedgerData;
+      readonly drafts: readonly DraftView[];
+      /** Active goals for "Bayar dari tujuan"; empty when they could not be loaded. */
+      readonly goals: readonly GoalView[];
+    };
 
 interface Session {
   /** Remounts the form for a fresh entry. */
@@ -166,8 +178,10 @@ export function RecordTransactionProvider({
       listDrafts({ data: { kind: 'transaction' } }),
       // The budget only adds notes (FR-T2/T3): recording works without it.
       getBudgetStatus({ data: {} }).catch(() => null),
+      // Goals only offer "Bayar dari tujuan": recording works without them.
+      listGoals({ data: { status: 'active' } }).catch(() => null),
     ]).then(
-      ([accounts, categories, tags, drafts, budget]) => {
+      ([accounts, categories, tags, drafts, budget, goals]) => {
         const fail = (code: string) => {
           setLoaded({ status: 'failed', message: ledgerErrorMessage(code, preferences.locale) });
         };
@@ -188,6 +202,7 @@ export function RecordTransactionProvider({
                 : {}),
             },
             drafts: drafts.value,
+            goals: goals?.ok === true ? goals.value : [],
           });
         }
       },
@@ -229,6 +244,7 @@ export function RecordTransactionProvider({
             prefill={prefill}
             data={loaded.data}
             drafts={loaded.drafts}
+            goals={loaded.goals}
             timeZone={timeZone}
             locale={preferences.locale}
             platform={preferences.platform}
@@ -272,6 +288,7 @@ function RecordSheet({
   prefill,
   data,
   drafts: initialDrafts,
+  goals,
   timeZone,
   locale,
   platform,
@@ -280,12 +297,14 @@ function RecordSheet({
   readonly prefill: RecordPrefill;
   readonly data: LedgerData;
   readonly drafts: readonly DraftView[];
+  readonly goals: readonly GoalView[];
   readonly timeZone: string;
   readonly locale: Locale;
   readonly platform: 'mac' | 'other';
   readonly onClose: () => void;
 }) {
   const router = useRouter();
+  const navigate = useNavigate();
   const today: LocalDate = toLocalDate(new Date(), timeZone);
   const fresh = (start: { readonly type: EntryKind; readonly accountId?: string | null }): TransactionFormValues =>
     emptyValues({
@@ -313,9 +332,18 @@ function RecordSheet({
   const [failure, setFailure] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [repeat, setRepeat] = useState<RepeatValues | null>(null);
+  // FR-G4 "Bayar dari tujuan": the goal paying (on), and the goal offered that the user declined.
+  const [usingGoalId, setUsingGoalId] = useState<string | null>(prefill.goalId ?? null);
+  const [plainGoalId, setPlainGoalId] = useState<string | null>(null);
   const form = useTransactionForm({ initial: session.initial, data, locale });
   const { values } = form;
   const scheduled = values.date > today;
+  const offeredGoal =
+    values.type !== 'expense' || scheduled
+      ? null
+      : (goals.find((goal) => goal.id === usingGoalId) ?? matchGoal(goals, values));
+  const goalOffer = offeredGoal === null || offeredGoal.id === plainGoalId ? null : offeredGoal;
+  const payingGoal = goalOffer !== null && goalOffer.id === usingGoalId ? goalOffer : null;
   const account = data.accounts.find((candidate) => candidate.id === values.accountId);
   const category = data.categories.find((candidate) => candidate.id === values.categoryId);
   const currency = account?.currency ?? data.baseCurrency;
@@ -345,6 +373,8 @@ function RecordSheet({
     setRepeat(null);
     setInstallment({ on: false, terms: DEFAULT_TERMS });
     setCardPayment({ priority: null, mode: 'reduce_amount' });
+    setUsingGoalId(null);
+    setPlainGoalId(null);
     setFailure(null);
   };
 
@@ -386,21 +416,31 @@ function RecordSheet({
         description: m.record_scheduled_description({ date: formatDate(values.date, locale, 'date') }),
       });
     } else {
-      // A card expense split into installments and a payment into a card are recorded with their debt changes.
-      const pending: Promise<{ ok: true; value: { id: string } } | { ok: false; code: string }> =
-        split !== null && input.type !== 'transfer'
-          ? recordCardInstallment({ data: { transaction: { ...input, type: 'expense' }, ...split } }).then((saved) =>
-              saved.ok ? { ok: true, value: { id: saved.value.transactionId } } : saved,
+      // Paid from a goal (FR-G4); a card expense split into installments and a payment into a card are recorded with
+      // their debt changes.
+      type Saved = { ok: true; value: { id: string; goal: GoalView | null } } | { ok: false; code: string };
+      const pending: Promise<Saved> =
+        payingGoal !== null
+          ? spendFromGoal({ data: { goalId: payingGoal.id, markUsed: true, entry: input } }).then((spent) =>
+              spent.ok ? { ok: true, value: { id: spent.value.transactionId, goal: spent.value.goal } } : spent,
             )
-          : cardId !== null && input.type === 'transfer'
-            ? recordCardPayment({
-                data: {
-                  transaction: input,
-                  mode: cardPayment.mode,
-                  ...(cardPayment.priority === null ? {} : { priority: [...cardPayment.priority] }),
-                },
-              }).then((saved) => (saved.ok ? { ok: true, value: { id: saved.value.transactionId } } : saved))
-            : recordTransaction({ data: input });
+          : split !== null && input.type !== 'transfer'
+            ? recordCardInstallment({ data: { transaction: { ...input, type: 'expense' }, ...split } }).then((saved) =>
+                saved.ok ? { ok: true, value: { id: saved.value.transactionId, goal: null } } : saved,
+              )
+            : cardId !== null && input.type === 'transfer'
+              ? recordCardPayment({
+                  data: {
+                    transaction: input,
+                    mode: cardPayment.mode,
+                    ...(cardPayment.priority === null ? {} : { priority: [...cardPayment.priority] }),
+                  },
+                }).then((saved) =>
+                  saved.ok ? { ok: true, value: { id: saved.value.transactionId, goal: null } } : saved,
+                )
+              : recordTransaction({ data: input }).then((saved) =>
+                  saved.ok ? { ok: true, value: { id: saved.value.id, goal: null } } : saved,
+                );
       const result = await pending.catch(() => null);
       if (result === null || !result.ok) {
         setSaving(false);
@@ -416,17 +456,44 @@ function RecordSheet({
       }
       setSaving(false);
       const amount = input.type === 'transfer' ? input.sentMinor : input.amountMinor;
-      announceSaved({
-        id: result.value.id,
-        label: values.type === 'transfer' || category === undefined ? m.record_type_transfer() : categoryName(category),
-        amountMinor: values.type === 'income' ? amount : -amount,
-        currency,
-        accountName: account?.displayName,
-        locale,
-        onChange: () => {
-          void router.invalidate();
-        },
-      });
+      const usedGoal = result.value.goal;
+      if (usedGoal === null) {
+        announceSaved({
+          id: result.value.id,
+          label:
+            values.type === 'transfer' || category === undefined ? m.record_type_transfer() : categoryName(category),
+          amountMinor: values.type === 'income' ? amount : -amount,
+          currency,
+          accountName: account?.displayName,
+          locale,
+          onChange: () => {
+            void router.invalidate();
+          },
+        });
+      } else {
+        // Paid from a goal, which is now "Terpakai"; what is left can go to another goal.
+        toast({
+          tone: 'success',
+          title: m.record_goal_saved_title({ name: usedGoal.name }),
+          description: (
+            <>
+              <Money minor={-amount} currency={currency} context="amount" locale={locale} />
+              {' · '}
+              {account?.displayName}
+            </>
+          ),
+          ...(usedGoal.savedMinor > 0n
+            ? {
+                action: {
+                  label: m.record_goal_saved_move(),
+                  onClick: () => {
+                    void navigate({ to: '/goals', search: { remainder: usedGoal.id } });
+                  },
+                },
+              }
+            : {}),
+        });
+      }
     }
     if (session.draftId !== null) {
       void removeDraft({ data: { id: session.draftId } });
@@ -572,6 +639,32 @@ function RecordSheet({
               <RepeatField value={repeat} onChange={setRepeat} date={values.date} kind={values.type} locale={locale} />
             ),
           }}
+          goalUse={
+            goalOffer === null ? undefined : (
+              <GoalUseField
+                goal={goalOffer}
+                amountMinor={values.amountMinor}
+                using={payingGoal !== null}
+                locale={locale}
+                onUse={() => {
+                  setUsingGoalId(goalOffer.id);
+                  // Paid with the goal's money: from the account it is kept in.
+                  const source =
+                    goalOffer.sources.find((candidate) => candidate.mode === 'fixed') ?? goalOffer.sources[0];
+                  if (
+                    source !== undefined &&
+                    !goalOffer.sources.some((other) => other.accountId === values.accountId)
+                  ) {
+                    form.update({ accountId: source.accountId });
+                  }
+                }}
+                onPlain={() => {
+                  setUsingGoalId(null);
+                  setPlainGoalId(goalOffer.id);
+                }}
+              />
+            )
+          }
         />
         {cardContext === null || cardContext === 'loading' || cardContext === 'failed' ? null : values.type ===
           'expense' ? (
