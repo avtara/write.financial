@@ -121,6 +121,7 @@ describe('getDebtsOverview', () => {
         priority: ['installments', 'spending'],
         receivables: { outstandingMinor: 542_500n },
         reminderTime: '09:00',
+        timeZone: 'Asia/Jakarta',
         month: { incomeMinor: 26_000_000n, expenseMinor: 16_500_000n },
       },
     });

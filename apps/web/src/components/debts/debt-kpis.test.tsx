@@ -2,15 +2,16 @@
 import type { LocalDate } from '@wf/domain/period';
 import { describe, expect, it } from 'vitest';
 import { CARD_AFTER_PAYMENT, KULKAS_AFTER, MACBOOK, visa } from '../../../test/debt-fixtures.ts';
+import { NADIA, NO_RECEIVABLES, RAKA, receivable, receivablesOverview } from '../../../test/receivable-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { cardState, debtKpis, type DebtKpis as Kpis } from '../../lib/debts.ts';
 import { DebtKpis } from './debt-kpis.tsx';
 
 const d = (value: string) => value as LocalDate;
 
-async function kpisOf(kpis: Kpis, today: LocalDate, receivablesMinor = 0n) {
+async function kpisOf(kpis: Kpis, today: LocalDate, receivables = NO_RECEIVABLES) {
   const { screen } = await renderApp(
-    <DebtKpis kpis={kpis} receivablesMinor={receivablesMinor} baseCurrency="IDR" today={today} locale="id" />,
+    <DebtKpis kpis={kpis} receivables={receivables} baseCurrency="IDR" today={today} locale="id" />,
   );
   return { screen, region: screen.getByRole('region', { name: 'Ringkasan utang' }) };
 }
@@ -27,11 +28,36 @@ describe('DebtKpis', () => {
 
   it('golden rHTMd: the card bill, due 5 Nov in 21 days, and open receivables', async () => {
     const today = d('2026-10-15');
-    const { region } = await kpisOf(debtKpis([], [cardState(visa(), [], today)], today, 'IDR'), today, 542_500n);
+    const { region } = await kpisOf(
+      debtKpis([], [cardState(visa(), [], today)], today, 'IDR'),
+      today,
+      receivablesOverview(),
+    );
     await expect.element(region).toMatchTextContent(/Sisa utangRp1\.250\.0001 tagihan kartu kredit/);
     await expect.element(region).toMatchTextContent(/Harus dibayarRp1\.250\.000BCA Visa · tempo 5 Nov/);
     await expect.element(region).toMatchTextContent(/5 NovBCA Visa · 21 hari lagi/);
-    await expect.element(region).toMatchTextContent(/PiutangRp542\.500uang ditalangi yang belum kembali/);
+    await expect.element(region).toMatchTextContent(/PiutangRp542\.5002 orang · 1 jatuh tempo 3 hari lagi/);
+  });
+
+  it('golden KZZZy: debt-free, the nearest due date is Nadia’s receivable', async () => {
+    const today = d('2026-10-15');
+    const { region } = await kpisOf(debtKpis([], [], today, 'IDR'), today, receivablesOverview());
+    await expect.element(region).toMatchTextContent(/Jatuh tempo terdekat18 OktNadia · piutang Rp242\.500/);
+  });
+
+  it('counts receivables due today, without a due date, and overdue ones only by person', async () => {
+    const today = d('2026-10-18');
+    const due = await kpisOf(debtKpis([], [], today, 'IDR'), today, receivablesOverview());
+    await expect.element(due.region).toMatchTextContent(/2 orang · 1 jatuh tempo hari ini/);
+    await due.screen.unmount();
+    const later = d('2026-11-01');
+    const none = await kpisOf(
+      debtKpis([], [], later, 'IDR'),
+      later,
+      receivablesOverview({ active: [NADIA, RAKA, receivable({ id: 'x', counterparty: 'Nadia' })] }),
+    );
+    await expect.element(none.region).toMatchTextContent(/Rp542\.5002 orang$/);
+    await expect.element(none.region).toMatchTextContent(/Jatuh tempo terdekat—tidak ada jadwal/);
   });
 
   it('golden A7ttc: 1 cicilan · 1 tagihan berjalan, the statement with the installment', async () => {

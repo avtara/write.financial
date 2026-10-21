@@ -60,6 +60,8 @@ export interface DebtsOverview {
   readonly receivables: ReceivablesOverview;
   /** `HH:mm` of the user's reminders ("pengingat H-1 jam 09.00"). */
   readonly reminderTime: string;
+  /** The user's IANA time zone (dates typed in the receivable dialogs). */
+  readonly timeZone: string;
   /** Income and spending of the current calendar month ("pola Oktober", FR-U5), in the base currency. */
   readonly month: { readonly incomeMinor: bigint; readonly expenseMinor: bigint };
 }
@@ -142,7 +144,7 @@ function cardPlan(
 /** FR-U1, FR-R7: everything the Debts page shows. */
 export const getDebtsOverview = createServerFn({ method: 'GET' }).handler(
   ({ context }): Promise<Result<DebtsOverview>> =>
-    forUser(context, async (userId, all) => {
+    forUser(context, async (userId, all, _today, timeZone) => {
       const [list, cards, accounts, preferences, receivables, notifications] = await Promise.all([
         all.debts.list(userId),
         all.debts.cards(userId),
@@ -182,6 +184,7 @@ export const getDebtsOverview = createServerFn({ method: 'GET' }).handler(
         priority: paymentPriority(preferences.ccPaymentPriority),
         receivables,
         reminderTime: notifications.reminderTime,
+        timeZone,
         month: { incomeMinor: summary.inMinor, expenseMinor: summary.outMinor },
       };
     }),

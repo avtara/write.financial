@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * The Debts page KPI strip (FR-U1, design `qDXjl`/`bQZ9M`/`iSIXj`): "Sisa utang", "Harus dibayar", "Jatuh tempo
- * terdekat", and "Piutang" (read-only total of open receivables).
+ * terdekat" (the nearest receivable due date when no debt is due, design KZZZy), and "Piutang" (Σ open receivables,
+ * how many people, and how many are due soonest).
  */
+import type { ReceivablesOverview } from '@wf/db/receivables';
 import { countDays, type LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
@@ -11,10 +13,12 @@ import { Money } from '@wf/ui/money';
 import { CalendarClock, HandCoins, Landmark, Timer, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { DebtKpis as Kpis } from '../../lib/debts.ts';
+import { receivableKpis } from '../../lib/receivables.ts';
+import { RichMessage } from '../rich-message.tsx';
 
 export interface DebtKpisProps {
   readonly kpis: Kpis;
-  readonly receivablesMinor: bigint;
+  readonly receivables: Pick<ReceivablesOverview, 'active' | 'outstandingMinor'>;
   readonly baseCurrency: string;
   readonly today: LocalDate;
   readonly locale: Locale;
@@ -29,7 +33,7 @@ function remainingNote(kpis: Kpis): string {
   return kpis.billCount === 0 ? installments : `${installments} · ${m.debts_kpi_bills({ count: kpis.billCount })}`;
 }
 
-export function DebtKpis({ kpis, receivablesMinor, baseCurrency, today, locale }: DebtKpisProps) {
+export function DebtKpis({ kpis, receivables, baseCurrency, today, locale }: DebtKpisProps) {
   const card = kpis.dueCard;
   let dueNote = m.debts_kpi_due_none();
   if (card?.cycle != null) {
@@ -43,6 +47,42 @@ export function DebtKpis({ kpis, receivablesMinor, baseCurrency, today, locale }
   }
   const { nearest } = kpis;
   const days = nearest === null ? 0 : countDays(today, nearest.date) - 1;
+  const owed = receivableKpis(receivables, today);
+  const lent = owed.nearest;
+  const fallback = nearest === null ? lent : null;
+  let nearestNote: ReactNode = m.debts_kpi_nearest_none();
+  if (nearest !== null) {
+    nearestNote =
+      days === 0
+        ? m.debts_kpi_nearest_today({ name: nearest.name })
+        : m.debts_kpi_nearest_days({ name: nearest.name, days });
+  } else if (fallback !== null) {
+    nearestNote = (
+      <RichMessage
+        message={m.debts_kpi_nearest_receivable}
+        slots={{
+          name: fallback.name,
+          amount: (
+            <Money minor={fallback.remainingMinor} currency={fallback.currency} context="amount" locale={locale} />
+          ),
+        }}
+      />
+    );
+  }
+  const receivablesNote =
+    owed.people === 0
+      ? m.debts_kpi_receivables_none()
+      : [
+          m.debts_kpi_receivables_people({ count: owed.people }),
+          lent === null
+            ? null
+            : lent.days === 0
+              ? m.debts_kpi_receivables_due_today({ count: lent.count })
+              : m.debts_kpi_receivables_due_days({ count: lent.count, days: lent.days }),
+        ]
+          .filter((part) => part !== null)
+          .join(' · ');
+  const nearestDate = nearest?.date ?? fallback?.date ?? null;
   return (
     <section
       aria-label={m.debts_kpis_label()}
@@ -70,29 +110,15 @@ export function DebtKpis({ kpis, receivablesMinor, baseCurrency, today, locale }
           />
         }
       </Kpi>
-      <Kpi
-        icon={Timer}
-        label={m.debts_kpi_nearest()}
-        note={
-          nearest === null
-            ? m.debts_kpi_nearest_none()
-            : days === 0
-              ? m.debts_kpi_nearest_today({ name: nearest.name })
-              : m.debts_kpi_nearest_days({ name: nearest.name, days })
-        }
-      >
+      <Kpi icon={Timer} label={m.debts_kpi_nearest()} note={nearestNote}>
         <span className="font-mono text-[22px] leading-tight font-medium text-fg">
-          {nearest === null ? '—' : formatDate(nearest.date, locale, 'day')}
+          {nearestDate === null ? '—' : formatDate(nearestDate, locale, 'day')}
         </span>
       </Kpi>
-      <Kpi
-        icon={HandCoins}
-        label={m.debts_kpi_receivables()}
-        note={receivablesMinor === 0n ? m.debts_kpi_receivables_none() : m.debts_kpi_receivables_open()}
-      >
+      <Kpi icon={HandCoins} label={m.debts_kpi_receivables()} note={receivablesNote}>
         {
           <Money
-            minor={receivablesMinor}
+            minor={receivables.outstandingMinor}
             currency={baseCurrency}
             context="amount"
             locale={locale}
@@ -112,7 +138,7 @@ function Kpi({
 }: {
   readonly icon: LucideIcon;
   readonly label: string;
-  readonly note: string;
+  readonly note: ReactNode;
   readonly children: ReactNode;
 }) {
   return (

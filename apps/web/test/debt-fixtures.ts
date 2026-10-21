@@ -173,6 +173,7 @@ export function debtsOverview(overrides: Partial<DebtsOverview> = {}): DebtsOver
     priority: ['installments', 'spending'],
     receivables: NO_RECEIVABLES,
     reminderTime: '09:00',
+    timeZone: 'Asia/Jakarta',
     month: { incomeMinor: 26_000_000n, expenseMinor: 16_500_000n },
     ...overrides,
   };
