@@ -210,7 +210,10 @@ export function zonedInstant(date: LocalDate, time: string, timeZone: string): D
   return new Date(wall - second);
 }
 
-/** When to remind about a bill due on `due`: 09.00 local on `due − offsetDays` (H-1 → the day before). */
-export function reminderAt(due: LocalDate, offsetDays: number, timeZone: string): Date {
-  return zonedInstant(addDays(due, -offsetDays), REMINDER_TIME, timeZone);
+/**
+ * When to remind about a bill due on `due`: `time` (default 09.00, Settings › Notifikasi) local on `due − offsetDays`
+ * (H-1 → the day before).
+ */
+export function reminderAt(due: LocalDate, offsetDays: number, timeZone: string, time = REMINDER_TIME): Date {
+  return zonedInstant(addDays(due, -offsetDays), time, timeZone);
 }

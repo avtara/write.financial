@@ -37,6 +37,13 @@ const schedules = vi.hoisted(() => ({ countActiveSubscriptions: vi.fn(), createR
 vi.mock('../server/fn/schedules.ts', () => schedules);
 const review = vi.hoisted(() => ({ getReviewCounts: vi.fn() }));
 vi.mock('../server/fn/review.ts', () => review);
+const notifications = vi.hoisted(() => ({
+  getNotificationCounts: vi.fn(),
+  getNextReminder: vi.fn(),
+  listNotifications: vi.fn(),
+  markNotificationsRead: vi.fn(),
+}));
+vi.mock('../server/fn/notifications.ts', () => notifications);
 // The reconcile provider's server functions only run when it opens.
 vi.mock('../server/fn/accounts.ts', () => ({ reconcileAccount: vi.fn() }));
 
@@ -97,7 +104,13 @@ describe('/_app layout', () => {
     transactions.countPeriodTransactions.mockResolvedValue({ ok: true, value: 128 });
     schedules.countActiveSubscriptions.mockResolvedValue({ ok: true, value: 7 });
     review.getReviewCounts.mockResolvedValue({ ok: true, value: { total: 2, byReason: {} } });
-    expect(await loader({} as never)).toEqual({ navCounts: { transactions: 128, review: 2, subscriptions: 7 } });
+    notifications.getNotificationCounts.mockResolvedValue({ ok: true, value: { unread: 4 } });
+    expect(await loader({} as never)).toEqual({
+      navCounts: { transactions: 128, review: 2, subscriptions: 7, notifications: 4 },
+    });
+    expect(notifications.getNotificationCounts).toHaveBeenCalledWith({ data: {} });
+    notifications.getNotificationCounts.mockResolvedValueOnce({ ok: false, code: 'INTERNAL' });
+    expect(await loader({} as never)).toEqual({ navCounts: null });
     expect(transactions.countPeriodTransactions).toHaveBeenCalledWith();
     expect(review.getReviewCounts).toHaveBeenCalledWith();
     expect(schedules.countActiveSubscriptions).toHaveBeenCalledWith();

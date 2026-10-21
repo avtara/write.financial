@@ -2,7 +2,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeSession } from '../../../test/fixtures.ts';
 import { call, requestContext, validatorOf } from '../../../test/server-fn.ts';
-import { getNextReminder, getNotificationCounts, listNotifications, markNotificationsRead } from './notifications.ts';
+import { DEFAULT_NOTIFICATION_SETTINGS } from '@wf/db/notification-settings';
+import {
+  getNextReminder,
+  getNotificationCounts,
+  getNotificationSettings,
+  listNotifications,
+  markNotificationsRead,
+  updateNotificationSettings,
+} from './notifications.ts';
 
 const ID = '0192a6c0-0000-7000-8000-000000000001';
 
@@ -14,12 +22,21 @@ const fake = vi.hoisted(() => ({
     markRead: vi.fn(() => Promise.resolve({ updated: 1 })),
     nextReminder: vi.fn(() => Promise.resolve(null)),
   },
+  notificationSettings: {
+    get: vi.fn(() => Promise.resolve('settings')),
+    update: vi.fn(() => Promise.resolve({ settings: 'settings', movedReminders: 2 })),
+  },
 }));
 
 // vi.mock factories run before imports; they load the shared helper themselves.
 vi.mock('@tanstack/react-start', async () => (await import('../../../test/server-fn.ts')).serverFnModule());
 vi.mock('../runtime.ts', () => ({
-  services: () => Promise.resolve({ notifications: fake.notifications, now: () => new Date('2026-10-15T09:42:00Z') }),
+  services: () =>
+    Promise.resolve({
+      notifications: fake.notifications,
+      notificationSettings: fake.notificationSettings,
+      now: () => new Date('2026-10-15T09:42:00Z'),
+    }),
 }));
 
 const USER_ID = fakeSession().user.id;
@@ -58,6 +75,31 @@ describe('notification server functions', () => {
     expect(fake.notifications.markRead).toHaveBeenCalledWith(USER_ID, { ids: [ID] });
     expect(await call(getNextReminder, { context: signedIn(), data: undefined })).toEqual({ ok: true, value: null });
     expect(fake.notifications.nextReminder).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('reads and saves Settings › Notifikasi', async () => {
+    expect(await call(getNotificationSettings, { context: signedIn(), data: undefined })).toEqual({
+      ok: true,
+      value: 'settings',
+    });
+    expect(fake.notificationSettings.get).toHaveBeenCalledWith(USER_ID);
+    const settings = parse(updateNotificationSettings, { ...DEFAULT_NOTIFICATION_SETTINGS, reminderTime: '07:30' });
+    expect(await call(updateNotificationSettings, { context: signedIn(), data: settings })).toEqual({
+      ok: true,
+      value: { settings: 'settings', movedReminders: 2 },
+    });
+    expect(fake.notificationSettings.update).toHaveBeenCalledWith(USER_ID, {
+      ...DEFAULT_NOTIFICATION_SETTINGS,
+      reminderTime: '07:30',
+    });
+    expect(await call(getNotificationSettings, { context: signedOut(), data: undefined })).toMatchObject({ ok: false });
+    expect(await call(updateNotificationSettings, { context: signedOut(), data: settings })).toMatchObject({
+      ok: false,
+      code: 'UNAUTHENTICATED',
+    });
+    const update = validatorOf(updateNotificationSettings);
+    expect(update.safeParse({ ...DEFAULT_NOTIFICATION_SETTINGS, reminderTime: '24:00' }).success).toBe(false);
+    expect(update.safeParse({ ...DEFAULT_NOTIFICATION_SETTINGS, groups: { bills: {} } }).success).toBe(false);
   });
 
   it('turns ledger errors into expected results', async () => {

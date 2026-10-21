@@ -5,6 +5,7 @@ import { FormError } from '../../components/form.tsx';
 import { usePreferences } from '../../components/preferences.tsx';
 import { CategoriesSection } from '../../components/settings/categories-section.tsx';
 import { InstanceSection } from '../../components/settings/instance-section.tsx';
+import { NotificationsSection } from '../../components/settings/notifications-section.tsx';
 import { PeriodSection } from '../../components/settings/period-section.tsx';
 import { ProfileSection } from '../../components/settings/profile-section.tsx';
 import { SecuritySection } from '../../components/settings/security-section.tsx';
@@ -15,6 +16,7 @@ import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
 import { getPeriodSettings } from '../../server/fn/budget.ts';
 import { listCategories, listTags } from '../../server/fn/ledger.ts';
+import { getNotificationSettings } from '../../server/fn/notifications.ts';
 import { listSimilarTags } from '../../server/fn/tags.ts';
 
 /**
@@ -33,6 +35,7 @@ export const Route = createFileRoute('/_app/settings/$section')({
     }
     if (section === 'security') return { section, security: await getSecurity() };
     if (section === 'period') return { section, period: await getPeriodSettings() };
+    if (section === 'notifications') return { section, notifications: await getNotificationSettings() };
     if (section === 'categories')
       return { section, categories: await listCategories({ data: { includeArchived: true } }) };
     if (section === 'tags') {
@@ -58,6 +61,12 @@ function SettingsPage() {
       <PeriodSection {...data.period.value} />
     ) : (
       <FormError>{ledgerErrorMessage(data.period.code, preferences.locale)}</FormError>
+    );
+  } else if (data.section === 'notifications') {
+    content = data.notifications.ok ? (
+      <NotificationsSection settings={data.notifications.value} email={viewer.email} />
+    ) : (
+      <FormError>{ledgerErrorMessage(data.notifications.code, preferences.locale)}</FormError>
     );
   } else if (data.section === 'categories') {
     content = data.categories.ok ? (

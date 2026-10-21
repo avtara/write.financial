@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { OutboxMessage } from '@wf/db/outbox';
+import type { LocalDate } from '@wf/domain/period';
 import { MailNotConfiguredError } from '@wf/integrations/mailer';
 import { describe, expect, it } from 'vitest';
 import { fakeDb, fakeDeps, fakeMailer } from '../../test/fakes.ts';
@@ -9,18 +10,19 @@ const USER = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c7d';
 const OUTBOX = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c7e';
 const job = { id: `ntf.${OUTBOX}`, data: { userId: USER, outboxId: OUTBOX }, attemptsMade: 0 };
 
+const BILL = {
+  kind: 'bill_reminder',
+  name: 'Netflix',
+  dueDate: '2026-10-18' as LocalDate,
+  amount: { amountMinor: '186000', currency: 'IDR' },
+  path: '/subscriptions',
+} as const;
 const MESSAGE: OutboxMessage = {
   to: 'avtara@example.test',
   locale: 'id',
   recipientName: 'Avtara',
   instanceName: 'Keuangan Keluarga',
-  payload: {
-    kind: 'bill_reminder',
-    name: 'Netflix',
-    dueDate: '2026-10-18' as OutboxMessage['payload']['dueDate'],
-    amount: { amountMinor: '186000', currency: 'IDR' },
-    path: '/subscriptions',
-  },
+  payload: BILL,
   sentAt: null,
 };
 
@@ -65,9 +67,31 @@ describe('notify processor', () => {
   });
 
   it('sends no amount when the payload has none (privacy mode)', async () => {
-    const d = deps({ ...MESSAGE, payload: { ...MESSAGE.payload, amount: null } });
+    const d = deps({ ...MESSAGE, payload: { ...BILL, amount: null } });
     await createNotifyProcessor(d)(job);
     expect(d.mailer.sent[0]?.template).toMatchObject({ amount: null });
+  });
+
+  it('emails any other notification with its message keys, opening its page or the notifications page', async () => {
+    const payload = {
+      kind: 'notification',
+      titleKey: 'notification_low_balance_title',
+      bodyKey: 'notification_low_balance_body',
+      params: { account: 'GoPay', balance: null },
+      path: '/accounts',
+    } as const;
+    const d = deps({ ...MESSAGE, payload });
+    await createNotifyProcessor(d)(job);
+    expect(d.mailer.sent[0]?.template).toEqual({
+      kind: 'notification',
+      titleKey: 'notification_low_balance_title',
+      bodyKey: 'notification_low_balance_body',
+      params: { account: 'GoPay', balance: null },
+      url: 'https://uang.example/accounts',
+    });
+    const pageless = deps({ ...MESSAGE, payload: { ...payload, path: null } });
+    await createNotifyProcessor(pageless)(job);
+    expect(pageless.mailer.sent[0]?.template).toMatchObject({ url: 'https://uang.example/notifications' });
   });
 
   it('skips a row already sent or gone', async () => {

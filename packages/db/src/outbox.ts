@@ -8,19 +8,31 @@ import type { LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { withUser, type Database, type Transaction } from './db.ts';
-import { instanceSettings, notificationOutbox, userPreferences, users } from './schema.ts';
+import { readNotificationSettings, type NotificationSettings } from './notification-settings.ts';
+import { instanceSettings, notificationOutbox, userPreferences, users, type JsonObject } from './schema.ts';
 
 /** What an email shows; amounts as decimal strings of minor units (JSON has no bigint). */
-export type OutboxPayload = {
-  readonly kind: 'bill_reminder';
-  /** Subscription or schedule name. */
-  readonly name: string;
-  readonly dueDate: LocalDate;
-  /** `null` with privacy mode on. */
-  readonly amount: { readonly amountMinor: string; readonly currency: string } | null;
-  /** App path of the call to action, e.g. `/subscriptions`. */
-  readonly path: string;
-};
+export type OutboxPayload =
+  | {
+      readonly kind: 'bill_reminder';
+      /** Subscription or schedule name. */
+      readonly name: string;
+      readonly dueDate: LocalDate;
+      /** `null` with privacy mode on. */
+      readonly amount: { readonly amountMinor: string; readonly currency: string } | null;
+      /** App path of the call to action, e.g. `/subscriptions`. */
+      readonly path: string;
+    }
+  | {
+      /** Any other in-app notification the user also wants by email (Settings › Notifikasi). */
+      readonly kind: 'notification';
+      /** Message keys and params as the notification stores them; with privacy mode on, amounts are `null`. */
+      readonly titleKey: string;
+      readonly bodyKey: string;
+      readonly params: JsonObject;
+      /** The notification's page, or `null` (the email then opens the notifications page). */
+      readonly path: string | null;
+    };
 
 export interface OutboxMessage {
   /** `users.email`. */
@@ -45,8 +57,8 @@ export interface Outbox {
 
 /** How a user wants to be notified outside the app. */
 export interface DeliveryPreferences {
-  /** Email unless `user_preferences.notif.email === false`. */
-  readonly email: boolean;
+  /** Settings › Notifikasi: the email opt-in and which kinds are emailed. */
+  readonly settings: NotificationSettings;
   /** Privacy mode: emails carry no amounts. */
   readonly hideBalances: boolean;
 }
@@ -56,23 +68,23 @@ export async function deliveryPreferencesIn(tx: Transaction, userId: string): Pr
     .select({ notif: userPreferences.notif, hideBalances: userPreferences.hideBalances })
     .from(userPreferences)
     .where(eq(userPreferences.userId, userId));
-  return { email: row?.notif['email'] !== false, hideBalances: row?.hideBalances ?? false };
+  return { settings: readNotificationSettings(row?.notif ?? {}), hideBalances: row?.hideBalances ?? false };
 }
 
 /**
  * Queues the email of notification `notificationId` once (`UNIQUE (notification_id, channel)`), due at `sendAt` (the
- * job's clock, so the dispatch, which scans with the same clock, picks it up).
+ * job's clock, so the dispatch, which scans with the same clock, picks it up; default the database's now).
  */
 export async function insertOutboxIn(
   tx: Transaction,
   userId: string,
   notificationId: string,
   payload: OutboxPayload,
-  sendAt: Date,
+  sendAt?: Date,
 ): Promise<boolean> {
   const rows = await tx
     .insert(notificationOutbox)
-    .values({ userId, notificationId, channel: 'email', payload, sendAt })
+    .values({ userId, notificationId, channel: 'email', payload, ...(sendAt === undefined ? {} : { sendAt }) })
     .onConflictDoNothing({ target: [notificationOutbox.notificationId, notificationOutbox.channel] })
     .returning({ id: notificationOutbox.id });
   return rows.length > 0;

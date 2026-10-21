@@ -9,6 +9,7 @@ import { CommandPaletteProvider } from '../components/command-palette/command-pa
 import { RecordTransactionProvider } from '../components/ledger/record-transaction.tsx';
 import type { NavCounts } from '../components/nav.ts';
 import { countActiveSubscriptions } from '../server/fn/schedules.ts';
+import { getNotificationCounts } from '../server/fn/notifications.ts';
 import { getReviewCounts } from '../server/fn/review.ts';
 import { countPeriodTransactions } from '../server/fn/transactions.ts';
 
@@ -37,15 +38,21 @@ export const Route = createFileRoute('/_app')({
       if (error instanceof TypeError) return null;
       throw error;
     };
-    const [transactions, review, subscriptions] = await Promise.all([
+    const [transactions, review, subscriptions, notifications] = await Promise.all([
       countPeriodTransactions().catch(offline),
       getReviewCounts().catch(offline),
       countActiveSubscriptions().catch(offline),
+      getNotificationCounts({ data: {} }).catch(offline),
     ]);
     return {
       navCounts:
-        transactions?.ok === true && review?.ok === true && subscriptions?.ok === true
-          ? { transactions: transactions.value, review: review.value.total, subscriptions: subscriptions.value }
+        transactions?.ok === true && review?.ok === true && subscriptions?.ok === true && notifications?.ok === true
+          ? {
+              transactions: transactions.value,
+              review: review.value.total,
+              subscriptions: subscriptions.value,
+              notifications: notifications.value.unread,
+            }
           : null,
     };
   },

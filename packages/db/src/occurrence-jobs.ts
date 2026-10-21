@@ -16,6 +16,7 @@ import { and, asc, eq, gte, inArray, isNotNull, lt, lte } from 'drizzle-orm';
 import { withUser, type Database, type Transaction } from './db.ts';
 import { insertNotificationIn } from './notifications.ts';
 import { decodeTemplate, materializeIn, templateAmount, userClockIn, type ScheduleSourceType } from './occurrences.ts';
+import { emailsType } from './notification-settings.ts';
 import { deliveryPreferencesIn, insertOutboxIn } from './outbox.ts';
 import { insertReviewItemIn, occurrenceReviewItemIn } from './review-items.ts';
 import { accounts, categories, recurrences, scheduledOccurrences, subscriptions } from './schema.ts';
@@ -368,7 +369,7 @@ export function createOccurrenceJobs(
         });
         const preferences = await deliveryPreferencesIn(tx, userId);
         const emailed =
-          preferences.email &&
+          emailsType(preferences.settings, 'bill_reminder') &&
           (await insertOutboxIn(
             tx,
             userId,

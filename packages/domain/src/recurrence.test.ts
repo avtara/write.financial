@@ -293,6 +293,8 @@ describe('reminderAt', () => {
 
   it('supports same-day and multi-day offsets', () => {
     expect(reminderAt(d('2026-10-18'), 0, 'Asia/Jakarta').toISOString()).toBe('2026-10-18T02:00:00.000Z');
+    // Another time of day (Settings › Notifikasi).
+    expect(reminderAt(d('2026-10-18'), 1, 'Asia/Jakarta', '19:30').toISOString()).toBe('2026-10-17T12:30:00.000Z');
     expect(reminderAt(d('2026-11-01'), 3, 'Europe/Berlin').toISOString()).toBe('2026-10-29T08:00:00.000Z');
   });
 });

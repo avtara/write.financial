@@ -21,7 +21,12 @@ import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createGoals, type GoalsRepository } from '@wf/db/goals';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
-import { createNotifications, type NotificationsRepository } from '@wf/db/notifications';
+import {
+  createNotifications,
+  createNotificationSettings,
+  type NotificationSettingsRepository,
+  type NotificationsRepository,
+} from '@wf/db/notifications';
 import { createOnboarding, type OnboardingRepository } from '@wf/db/onboarding';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-items';
@@ -101,6 +106,8 @@ export interface Services extends BaseRuntime {
   /** Review queue, notifications, recurrences, and subscriptions (M3), on `wf_app`. */
   readonly review: ReviewRepository;
   readonly notifications: NotificationsRepository;
+  /** Settings › Notifikasi (FR-ST3). */
+  readonly notificationSettings: NotificationSettingsRepository;
   readonly schedules: SchedulesRepository;
   /** ⌘K "Baru dibuka". */
   readonly recentItems: RecentItemsRepository;
@@ -161,6 +168,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     logoStore: createObjectStore({ s3: config.s3, bucket: 'avatars', getDek }),
     review: createReview(appDb, { getDek, now }),
     notifications: createNotifications(appDb, { now }),
+    notificationSettings: createNotificationSettings(appDb, { now }),
     schedules: createSchedules(appDb, { now }),
     recentItems: createRecentItems(appDb, { now }),
     onboarding: createOnboarding(appDb, { now }),

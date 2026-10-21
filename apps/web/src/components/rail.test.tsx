@@ -2,9 +2,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
+import type { NavCounts } from './nav.ts';
 import { CommandPaletteProvider } from './command-palette/command-palette.tsx';
 import { Rail } from './rail.tsx';
 
+const app = vi.hoisted(() => ({
+  viewer: undefined as object | undefined,
+  counts: null as NavCounts | null,
+}));
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useRouteContext: () => ({ viewer: app.viewer }),
+}));
+vi.mock('./sidebar.tsx', () => ({ useNavCounts: () => app.counts }));
+vi.mock('./notifications/notification-bell.tsx', () => ({
+  NotificationBell: (props: { unread: number | null }) => (
+    <span data-testid="bell" data-unread={String(props.unread)} />
+  ),
+}));
 vi.mock('../server/fn/search.ts', () => ({
   listRecent: () => Promise.resolve({ ok: true, value: [] }),
   searchEverything: vi.fn(),
@@ -22,6 +37,19 @@ beforeEach(async () => {
 });
 
 describe('Rail', () => {
+  it('has the bell for a signed-in user, with the unread count when known', async () => {
+    app.viewer = { name: 'Avtara K.', email: 'avtara@example.test', image: null, timezone: 'Asia/Jakarta' };
+    app.counts = { transactions: 1, review: 0, notifications: 5 };
+    const { screen } = await renderApp(rail);
+    await expect.element(screen.getByTestId('bell')).toHaveAttribute('data-unread', '5');
+    await screen.unmount();
+    app.counts = null;
+    const unknown = await renderApp(rail);
+    await expect.element(unknown.screen.getByTestId('bell')).toHaveAttribute('data-unread', 'null');
+    await unknown.screen.unmount();
+    app.viewer = undefined;
+  });
+
   it('is a 64 px icon rail between 768 and 1279 px', async () => {
     const { screen } = await renderApp(rail);
     const aside = screen.getByRole('complementary');

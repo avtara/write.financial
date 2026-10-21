@@ -16,6 +16,13 @@ const TEMPLATES: readonly EmailTemplate[] = [
   { kind: 'invitation', url: URL_, inviterName: 'Sari', expiresAt: at, timeZone: 'Asia/Jakarta' },
   { kind: 'smtp_test', url: URL_ },
   { kind: 'bill_reminder', url: URL_, name: 'Netflix', dueDate: '2026-10-18', amount: null },
+  {
+    kind: 'notification',
+    url: URL_,
+    titleKey: 'notification_low_balance_title',
+    bodyKey: 'notification_low_balance_body',
+    params: { account: 'GoPay', balance: null, threshold: null },
+  },
 ];
 
 describe('renderEmail', () => {
@@ -53,6 +60,42 @@ describe('renderEmail', () => {
     expect(hidden.subject).toBe('Netflix due Oct 18, 2026');
     expect(hidden.text).toContain('Your Netflix bill is due Oct 18, 2026.');
     expect(hidden.text).not.toMatch(/Rp|186/);
+  });
+
+  it('emails any notification with its params: amounts (hidden in privacy mode), dates, and built-in names', async () => {
+    const budget = {
+      kind: 'notification',
+      url: 'https://wf.example/budget',
+      titleKey: 'notification_budget_threshold_title',
+      bodyKey: 'notification_budget_threshold_body',
+      params: {
+        category: 'system:food',
+        usedPct: 91,
+        spent: { amountMinor: '3200000', currency: 'IDR' },
+        limit: null,
+      },
+    } as const;
+    const email = await renderEmail(budget, id);
+    expect(email.subject).toBe('Makan & Dapur 91%');
+    expect(email.text).toContain('Rp3.200.000 dari •••• (91%)');
+    expect(email.text).toContain('Ubah di Pengaturan › Notifikasi.');
+    const trial = await renderEmail(
+      {
+        kind: 'notification',
+        url: URL_,
+        titleKey: 'notification_trial_ending_title',
+        bodyKey: 'notification_trial_ending_body',
+        params: { name: 'Spotify', trialEndsOn: '2026-10-20', firstBill: '2026-10-21', amount: null },
+      },
+      en,
+    );
+    expect(trial.subject).toBe('Spotify trial ends Oct 20, 2026');
+    // A key this version does not know (a newer worker): a generic subject and no body.
+    const unknown = await renderEmail(
+      { ...budget, titleKey: 'notification_x_title', bodyKey: 'notification_x', params: { flag: true } },
+      id,
+    );
+    expect(unknown.subject).toBe('Notifikasi dari Keuangan Keluarga');
   });
 
   it('names a schedule after its built-in category in the recipient language', async () => {

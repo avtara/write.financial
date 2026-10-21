@@ -7,9 +7,19 @@
  * the UI; its action only opens a page.
  */
 import { addDays, type LocalDate } from '@wf/domain/period';
-import { and, asc, desc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { zonedInstant } from '@wf/domain/recurrence';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notInArray, sql, type SQL } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { localDateOf, userContextIn } from './ledger-core.ts';
+import {
+  emailsType,
+  hiddenTypes,
+  NOTIFICATION_GROUPS,
+  notificationSettingsIn,
+  readNotificationSettings,
+  type NotificationSettings,
+} from './notification-settings.ts';
+import { deliveryPreferencesIn, insertOutboxIn } from './outbox.ts';
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_TYPES,
@@ -17,6 +27,7 @@ import {
   recurrences,
   scheduledOccurrences,
   subscriptions,
+  userPreferences,
   type JsonObject,
 } from './schema.ts';
 
@@ -104,7 +115,21 @@ export interface NotificationsRepository {
   nextReminder: (userId: string) => Promise<NextReminder | null>;
 }
 
-/** INSERT … ON CONFLICT (user_id, ref) DO NOTHING; returns the existing id when not created. Works as `wf_worker`. */
+/** `params` with every amount (`{ amountMinor, currency }`) replaced by `null`. */
+function withoutAmounts(params: JsonObject): JsonObject {
+  return Object.fromEntries(
+    Object.entries(params).map(([key, value]) => [
+      key,
+      typeof value === 'object' && value !== null && !Array.isArray(value) && 'amountMinor' in value ? null : value,
+    ]),
+  );
+}
+
+/**
+ * INSERT … ON CONFLICT (user_id, ref) DO NOTHING; returns the existing id when not created. Works as `wf_worker`. A
+ * new notification is also queued for email when Settings › Notifikasi asks for it (bill reminders do that
+ * themselves).
+ */
 export async function insertNotificationIn(
   tx: Transaction,
   userId: string,
@@ -124,12 +149,35 @@ export async function insertNotificationIn(
     })
     .onConflictDoNothing({ target: [notifications.userId, notifications.ref] })
     .returning({ id: notifications.id });
-  if (row !== undefined) return { id: row.id, created: true };
+  if (row !== undefined) {
+    // Bill reminders queue their own email (`occurrence-jobs`); every other kind is emailed when the user asked for it.
+    if (input.type !== 'bill_reminder') {
+      const { settings, hideBalances } = await deliveryPreferencesIn(tx, userId);
+      if (emailsType(settings, input.type)) {
+        const params = input.params ?? {};
+        await insertOutboxIn(tx, userId, row.id, {
+          kind: 'notification',
+          titleKey: input.titleKey,
+          bodyKey: input.bodyKey,
+          // Privacy mode: no amounts leave the app.
+          params: hideBalances ? withoutAmounts(params) : params,
+          path: input.action?.href ?? null,
+        });
+      }
+    }
+    return { id: row.id, created: true };
+  }
   const existing = firstRow(
     await tx.select({ id: notifications.id }).from(notifications).where(eq(notifications.ref, input.ref)),
     'notifications',
   );
   return { id: existing.id, created: false };
+}
+
+/** The kinds the user shows in the app (Settings › Notifikasi); hidden kinds stay stored, for their emails. */
+async function shownIn(tx: Transaction, userId: string): Promise<SQL | undefined> {
+  const hidden = hiddenTypes(await notificationSettingsIn(tx, userId));
+  return hidden.length === 0 ? undefined : notInArray(notifications.type, hidden);
 }
 
 const DEFAULT_LIMIT = 30;
@@ -153,7 +201,7 @@ export function createNotifications(
     list: (userId, filter = {}) =>
       withUser(db, userId, async (tx) => {
         const limit = Math.min(Math.max(Math.trunc(filter.limit ?? DEFAULT_LIMIT), 1), MAX_LIMIT);
-        const conditions = [await rangeIn(tx, userId, now(), filter)];
+        const conditions = [await rangeIn(tx, userId, now(), filter), await shownIn(tx, userId)];
         if (filter.filter === 'unread') conditions.push(isNull(notifications.readAt));
         if (filter.type !== undefined) conditions.push(eq(notifications.type, filter.type));
         if (filter.category !== undefined) conditions.push(eq(notifications.category, filter.category));
@@ -202,7 +250,7 @@ export function createNotifications(
             unread: sql<number>`(count(*) filter (where ${notifications.readAt} is null))::int`,
           })
           .from(notifications)
-          .where(await rangeIn(tx, userId, now(), range))
+          .where(and(await rangeIn(tx, userId, now(), range), await shownIn(tx, userId)))
           .groupBy(notifications.type, notifications.category);
         const unreadByCategory = Object.fromEntries(NOTIFICATION_CATEGORIES.map((key) => [key, 0])) as Record<
           NotificationCategory,
@@ -278,6 +326,77 @@ export function createNotifications(
         return row === undefined
           ? null
           : { ...row, sourceType: row.sourceType as NextReminder['sourceType'], remindAt: row.remindAt as Date };
+      }),
+  };
+}
+
+export interface NotificationSettingsRepository {
+  get: (userId: string) => Promise<NotificationSettings>;
+  /**
+   * Saves the settings; a new reminder time moves every reminder not sent yet (and still in the future) to that time
+   * on its day. Returns the saved settings and how many reminders moved.
+   */
+  update: (
+    userId: string,
+    settings: NotificationSettings,
+  ) => Promise<{ settings: NotificationSettings; movedReminders: number }>;
+}
+
+export function createNotificationSettings(
+  db: Database,
+  { now = () => new Date() }: { now?: () => Date } = {},
+): NotificationSettingsRepository {
+  return {
+    get: (userId) => withUser(db, userId, (tx) => notificationSettingsIn(tx, userId)),
+
+    update: (userId, settings) =>
+      withUser(db, userId, async (tx) => {
+        const [row] = await tx
+          .select({ notif: userPreferences.notif })
+          .from(userPreferences)
+          .where(eq(userPreferences.userId, userId));
+        const before = readNotificationSettings(row?.notif ?? {});
+        // Other keys of `notif` (none today) are kept.
+        const notif: JsonObject = {
+          ...(row?.notif ?? {}),
+          email: settings.email,
+          reminderTime: settings.reminderTime,
+          groups: Object.fromEntries(
+            NOTIFICATION_GROUPS.map((group) => [
+              group,
+              { inApp: settings.groups[group].inApp, email: settings.groups[group].email },
+            ]),
+          ),
+        };
+        await tx
+          .insert(userPreferences)
+          .values({ userId, notif })
+          .onConflictDoUpdate({ target: userPreferences.userId, set: { notif, updatedAt: now() } });
+        const saved = readNotificationSettings(notif);
+        if (saved.reminderTime === before.reminderTime) return { settings: saved, movedReminders: 0 };
+        const at = now();
+        const { timezone } = await userContextIn(tx, userId);
+        const pending = await tx
+          .select({ id: scheduledOccurrences.id, remindAt: scheduledOccurrences.remindAt })
+          .from(scheduledOccurrences)
+          .where(
+            and(
+              isNull(scheduledOccurrences.remindedAt),
+              isNotNull(scheduledOccurrences.remindAt),
+              gt(scheduledOccurrences.remindAt, at),
+              inArray(scheduledOccurrences.status, ['scheduled', 'due_review']),
+            ),
+          );
+        let movedReminders = 0;
+        for (const occurrence of pending) {
+          const day = localDateOf(occurrence.remindAt as Date, timezone);
+          const remindAt = zonedInstant(day, saved.reminderTime, timezone);
+          // A time earlier today than now would fire at once; such a reminder keeps its time.
+          if (remindAt <= at) continue;
+          await tx.update(scheduledOccurrences).set({ remindAt }).where(eq(scheduledOccurrences.id, occurrence.id));
+          movedReminders += 1;
+        }
+        return { settings: saved, movedReminders };
       }),
   };
 }
