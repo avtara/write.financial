@@ -47,6 +47,18 @@ const card = (page: Page, name: string) => page.getByRole('article', { name, exa
 const badge = (page: Page) =>
   page.getByRole('navigation', { name: 'Navigasi utama' }).getByRole('link', { name: /^Perlu ditinjau/ });
 
+for (const width of [1024, 768]) {
+  test(`the queue at ${String(width)} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await openReview(page);
+    await expect(page.getByRole('region', { name: /tagihan langganan jatuh tempo/ })).toBeVisible();
+    await expect(card(page, 'Pindahkan sisa anggaran ke Dana Darurat')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    await screenshot(page, `review-${String(width)}`);
+  });
+}
+
 test('Netflix is due on /review; "Sudah dibayar" takes Rp186.000 from BCA Tahapan only then', async ({ page }) => {
   const before = await bcaBalance(page);
   await openReview(page);
@@ -102,12 +114,12 @@ test('keyboard only: ⌘K finds the iCloud+ bill, and Enter marks it paid', asyn
   const before = await bcaBalance(page);
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Cari atau jalankan perintah' });
-  await expect(palette).toBeVisible();
+  // The palette's content loads on first open; type once its field has the focus.
+  await expect(palette.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('icloud');
-  const result = palette.getByRole('option', { name: /iCloud\+/ }).first();
+  // iCloud+'s past bills are transactions too; the pending one is in "Perlu ditinjau", after them.
+  const result = palette.getByRole('group', { name: /Perlu ditinjau/ }).getByRole('option', { name: /iCloud\+/ });
   await expect(result).toBeVisible();
-  await expect(palette.getByRole('group', { name: /Perlu ditinjau/ })).toBeVisible();
-  // The review item comes after the transactions group; arrows reach it.
   while ((await result.getAttribute('aria-selected')) !== 'true') await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/review\?item=/);
@@ -119,17 +131,6 @@ test('keyboard only: ⌘K finds the iCloud+ bill, and Enter marks it paid', asyn
   await expect(card(page, 'iCloud+')).toHaveCount(0);
   expect(await bcaBalance(page)).toBe(before - 45_000);
 });
-
-for (const width of [1024, 768]) {
-  test(`the queue at ${String(width)} px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 1000 });
-    await openReview(page);
-    await expect(page.getByRole('region').first()).toBeVisible();
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    expect(overflow).toBeLessThanOrEqual(0);
-    await screenshot(page, `review-${String(width)}`);
-  });
-}
 
 test('"Ulangi" repeats a new expense weekly; the detail stops it after asking, and Urungkan brings it back', async ({
   page,
