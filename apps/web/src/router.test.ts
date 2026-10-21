@@ -70,6 +70,7 @@ describe('getRouter', () => {
       '/calendar',
       '/debts',
       '/forgot',
+      '/goals',
       '/healthz',
       '/notifications',
       '/onboarding/$step',
