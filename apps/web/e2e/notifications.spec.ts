@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Notifications (FR-S5) and Settings › Notifikasi (FR-ST3) as the invited user, after `review` ran the scheduled jobs
- * to 18 Okt: Netflix's H-1 reminder and the due/overdue bills are in the bell's popover ("Anggaran & tagihan"), an
- * action opens `/review` (never records), "Tandai dibaca" leaves "Semua sudah dibaca" with the next reminder, the
- * page filters, searches, and pages; the settings hide a kind from the app and move the reminder time. Keyboard only,
- * and the rail's bell at 1024/768.
+ * Notifications (FR-S5) and Settings › Notifikasi (FR-ST3) as the Review queue's own invited user (`REVIEW_USER`),
+ * after `review` ran the scheduled jobs to 18 Okt: Netflix's H-1 reminder and the due/overdue bills are in the bell's
+ * popover ("Anggaran & tagihan"), an action opens `/review` (never records), "Tandai dibaca" leaves "Semua sudah
+ * dibaca" with the next reminder, the page filters, searches, and pages; the settings hide a kind from the app and
+ * move the reminder time. Keyboard only, and the rail's bell at 1024/768.
  */
 import type { Page } from '@playwright/test';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, REVIEW_USER, screenshot, test } from './support.ts';
 
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 1000 } });
-
-test.beforeAll(async () => {
-  await seedDesignPersona(loadAccount('user').email);
-});
+test.use({ storageState: REVIEW_USER.state, viewport: { width: 1440, height: 1000 } });
 
 async function open(page: Page, path: string) {
   await page.goto(path);
