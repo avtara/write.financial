@@ -82,13 +82,14 @@ async function cardExpense(page: Page, amount: string, description: string, spli
 
 test('debt-free: the KPIs, "Kamu bebas utang", and the debt types (exCE7)', async ({ page }) => {
   await openDebts(page);
-  await expect(page.getByText('Tidak ada utang tercatat')).toBeVisible();
+  // The persona's receivables (Section 19) are the only entries.
+  await expect(page.getByText('Bebas utang · 2 piutang aktif Rp542.500')).toBeVisible();
   const kpis = page.getByRole('region', { name: 'Ringkasan utang' });
   await expect(kpis).toContainText('Sisa utangRp0tidak ada utang aktif');
-  await expect(kpis).toContainText('Jatuh tempo terdekat—tidak ada jadwal');
+  await expect(kpis).toContainText('Jatuh tempo terdekat18 OktNadia · piutang Rp242.500');
   await expect(kpis).toContainText('PiutangRp542.500');
   await expect(page.getByText('Kamu bebas utang')).toBeVisible();
-  await expect(page.getByRole('list', { name: 'Jenis utang' }).getByRole('button')).toHaveCount(5);
+  await expect(page.getByRole('list', { name: 'Jenis utang' }).getByRole('button')).toHaveCount(6);
   await expect(page.getByRole('link', { name: 'Utang & cicilan' })).toBeVisible();
   await screenshot(page, 'debts-empty-1440');
 });

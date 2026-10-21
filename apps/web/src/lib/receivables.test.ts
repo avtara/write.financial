@@ -41,7 +41,9 @@ describe('receivableBadge', () => {
 });
 
 describe('avatarClass', () => {
-  it('keeps a tint per name', () => {
+  it('keeps a tint per name: Nadia violet, Raka Pratama blue (KZZZy)', () => {
+    expect(avatarClass('Nadia')).toBe('bg-violet-tint-2 text-violet');
+    expect(avatarClass('Raka Pratama')).toBe('bg-blue-tint-2 text-blue-fg');
     expect(avatarClass('Nadia')).toBe(avatarClass('Nadia'));
     expect(
       new Set(['Nadia', 'Raka Pratama', 'Dimas', 'Sari', 'Bima Aditya', ''].map(avatarClass)).size,

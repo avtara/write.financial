@@ -299,7 +299,7 @@ export function SplitBillSheet({ bill, date, account, category, locale, onBack, 
                       onChange={(event) => {
                         setPerson(index, { name: event.target.value });
                       }}
-                      className="w-full min-w-0 rounded-[4px] bg-transparent text-[13px] font-medium text-fg outline-none placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-ring aria-invalid:text-red-fg"
+                      className="w-full min-w-0 rounded-[4px] bg-transparent text-[13px] [&::-webkit-calendar-picker-indicator]:hidden font-medium text-fg outline-none placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-ring aria-invalid:text-red-fg"
                     />
                     <span className="text-[11.5px] text-subtle">
                       {dueDate === null

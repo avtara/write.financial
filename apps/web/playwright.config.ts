@@ -61,6 +61,7 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   onboarding: { testMatch: 'onboarding.spec.ts' },
   debts: { testMatch: 'debts.spec.ts' },
   goals: { testMatch: 'goals.spec.ts', use: { viewport: { width: 1440, height: 1198 } } },
+  receivables: { testMatch: 'receivables.spec.ts' },
 };
 
 /**
