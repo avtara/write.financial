@@ -191,11 +191,14 @@ test('works with the keyboard only', async ({ page }) => {
   await page.locator('body').press('/');
   await page.keyboard.type('Warteg');
   await expect(page).toHaveURL(/q=Warteg/);
-  // On a focused row, Space selects it, Escape clears the selection, and Enter opens its detail.
+  // On a focused row, Space selects it, Escape clears the selection, and Enter opens its detail. The filtered rows
+  // replace the table once they load, which may be after the URL changed: a Space on a replaced row is retried.
   const target = row(page, 'Warteg Bahari');
-  await target.focus();
-  await page.keyboard.press('Space');
-  await expect(target.getByRole('checkbox')).toBeChecked();
+  await expect(async () => {
+    await target.focus();
+    await page.keyboard.press('Space');
+    await expect(target.getByRole('checkbox')).toBeChecked({ timeout: 1000 });
+  }).toPass();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('complementary', { name: 'Detail transaksi' })).toBeVisible();
