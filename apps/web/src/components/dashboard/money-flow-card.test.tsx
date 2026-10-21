@@ -193,7 +193,10 @@ describe('MoneyFlowCard names', () => {
         loadedAt={LOADED}
       />,
     );
-    pointer(node(/^Tanpa kategori/).element(), 'mouseover');
+    // The diagram's nodes appear once the card has measured itself.
+    const uncategorized = node(/^Tanpa kategori/);
+    await expect.element(uncategorized).toBeInTheDocument();
+    pointer(uncategorized.element(), 'mouseover');
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Lainnya → Tanpa kategori');
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Transaksi4×');
     await userEvent.click(screen.getByRole('button', { name: 'Opsi arus uang' }));

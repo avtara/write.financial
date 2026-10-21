@@ -86,7 +86,10 @@ describe('DropdownMenu', () => {
     await expect.element(page.getByRole('menuitem', { name: /^Ubah/ })).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}');
     await expect.element(page.getByRole('menuitem', { name: 'Hapus' })).toHaveFocus();
-    await userEvent.keyboard('{ArrowUp}{Enter}');
+    // Radix moves the focus in a timeout after an arrow key: Enter typed with it would still hit "Hapus".
+    await userEvent.keyboard('{ArrowUp}');
+    await expect.element(page.getByRole('menuitem', { name: /^Ubah/ })).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
     expect(onEdit).toHaveBeenCalledOnce();
     await expect.element(menu).not.toBeInTheDocument();
     await expect.element(trigger).toHaveFocus();
