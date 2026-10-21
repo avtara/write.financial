@@ -142,3 +142,22 @@ export function parseMoneyInput(input: string, options: ParseMoneyOptions): bigi
   const value = BigInt(`${integerDigits}${scaledFraction}`);
   return negative ? -value : value;
 }
+
+/** Non-negative `numerator ÷ denominator` (denominator > 0) rounded half up. */
+export function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
+  return (numerator * 2n + denominator) / (denominator * 2n);
+}
+
+/** Non-negative `numerator ÷ denominator` (denominator > 0) rounded up. */
+export function divideCeil(numerator: bigint, denominator: bigint): bigint {
+  return (numerator + denominator - 1n) / denominator;
+}
+
+/**
+ * `totalMinor` in `count` (≥ 1) equal parts, the rounding remainder in the first one (1.000.000 / 3 → 333.334,
+ * 333.333, 333.333: FR-U3 installments, FR-L5 "Sama rata").
+ */
+export function splitEvenly(totalMinor: bigint, count: number): bigint[] {
+  const base = totalMinor / BigInt(count);
+  return Array.from({ length: count }, (_, index) => (index === 0 ? totalMinor - base * BigInt(count - 1) : base));
+}

@@ -178,6 +178,15 @@ export const BUILT_IN_CATEGORIES = [
     isFixed: false,
   },
   {
+    key: 'system:bad_debt',
+    kind: 'fee',
+    group: 'financial',
+    icon: 'hand-coins',
+    color: 'subtle',
+    isSystem: true,
+    isFixed: false,
+  },
+  {
     key: 'system:salary',
     kind: 'income',
     group: 'active',
@@ -274,6 +283,9 @@ export type BuiltInCategoryKey = (typeof BUILT_IN_CATEGORIES)[number]['key'];
 /** Category of the FX difference recorded automatically on cross-currency transfers (FR-T4). */
 export const FX_DIFFERENCE_CATEGORY = 'system:fx_difference' satisfies BuiltInCategoryKey;
 
+/** Category of the expense a receivable write-off ("Hapuskan") records (FR-U7). */
+export const BAD_DEBT_CATEGORY = 'system:bad_debt' satisfies BuiltInCategoryKey;
+
 /** Verbatim Indonesian design names, for tests and CLI output (UI names come from i18n). */
 export const BUILT_IN_NAMES_ID: Readonly<Record<BuiltInCategoryKey, string>> = {
   'system:rent': 'Sewa Kos',
@@ -292,6 +304,7 @@ export const BUILT_IN_NAMES_ID: Readonly<Record<BuiltInCategoryKey, string>> = {
   'system:monthly_admin': 'Admin bulanan',
   'system:tax_stamp': 'Pajak & meterai',
   'system:fx_difference': 'Selisih kurs',
+  'system:bad_debt': 'Piutang tak tertagih',
   'system:salary': 'Gaji',
   'system:freelance': 'Freelance',
   'system:bonus': 'Bonus / THR',

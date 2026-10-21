@@ -25,6 +25,7 @@ const BUILT_IN_NAMES: Readonly<Record<BuiltInCategoryKey, () => string>> = {
   'system:monthly_admin': m.category_builtin_monthly_admin,
   'system:tax_stamp': m.category_builtin_tax_stamp,
   'system:fx_difference': m.category_builtin_fx_difference,
+  'system:bad_debt': m.category_builtin_bad_debt,
   'system:salary': m.category_builtin_salary,
   'system:freelance': m.category_builtin_freelance,
   'system:bonus': m.category_builtin_bonus,

@@ -148,10 +148,10 @@ describe('create and update', () => {
       transactionCount: 0,
     });
     const card = await asApp(() => repo.create(alice, input({ kind: 'fee', group: 'financial', name: 'Biaya kartu' })));
-    expect(card).toMatchObject({ isFixed: false, isSystem: false, sortOrder: 16 });
+    expect(card).toMatchObject({ isFixed: false, isSystem: false, sortOrder: 17 });
     expect(
       await asApp(() => repo.create(alice, input({ kind: 'income', group: 'other', name: 'kopi' }))),
-    ).toMatchObject({ sortOrder: 26 });
+    ).toMatchObject({ sortOrder: 27 });
     await expect(asApp(() => repo.create(alice, input({ name: 'KOPI' })))).rejects.toMatchObject({
       code: 'CATEGORY_NAME_TAKEN',
     });

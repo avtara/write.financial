@@ -3,7 +3,8 @@
  * Subscriptions (FR-SUB1–SUB6): billing schedules, totals, pause/cancel plans, savings, price increases, the
  * "Bisa dihemat" card and detection of recurring charges from transactions. Amounts are bigint minor units.
  */
-import { addDays, type LocalDate, type YearMonth } from './period.ts';
+import { divideHalfUp } from './money.ts';
+import { addDays, addMonths, type LocalDate, type YearMonth } from './period.ts';
 import { nextOccurrences, type IsoWeekday, type RecurrenceRule } from './recurrence.ts';
 
 export const SUBSCRIPTION_CYCLES = ['weekly', 'monthly', 'yearly'] as const;
@@ -184,30 +185,11 @@ function dayOfMonth(date: LocalDate): number {
   return Number(date.slice(8, 10));
 }
 
-/**
- * `date` shifted by whole calendar months, the day clamped to the target month's end (31 Jan + 1 → 28/29 Feb).
- */
-function addMonths(date: LocalDate, months: number): LocalDate {
-  const target = new Date(0);
-  target.setUTCFullYear(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1 + months, 1);
-  const last = new Date(0);
-  last.setUTCFullYear(target.getUTCFullYear(), target.getUTCMonth() + 1, 0);
-  return addDays(
-    `${String(target.getUTCFullYear()).padStart(4, '0')}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-01` as LocalDate,
-    Math.min(dayOfMonth(date), last.getUTCDate()) - 1,
-  );
-}
-
 /** Yearly cost of one subscription: monthly × 12, weekly × 52, yearly × 1. */
 function yearlyMinorOf(subscription: PricedSubscription): bigint {
   if (subscription.cycle === 'weekly') return subscription.priceMinor * WEEKS_PER_YEAR;
   if (subscription.cycle === 'monthly') return subscription.priceMinor * MONTHS_PER_YEAR;
   return subscription.priceMinor;
-}
-
-/** Non-negative `numerator / denominator` rounded half-up. */
-function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
-  return (numerator * 2n + denominator) / (denominator * 2n);
 }
 
 /** The billing rule of a subscription whose bill falls on `anchor` (weekday / day of month / date of year). */

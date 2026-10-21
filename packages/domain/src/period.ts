@@ -130,6 +130,39 @@ export function countDays(start: LocalDate, end: LocalDate): number {
   return epochDay(...parts(end)) - epochDay(...parts(start)) + 1;
 }
 
+/** Epoch day of `day` in `month` of `year` (the month may overflow), clamped to that month's last day. */
+function clampedEpochDay(year: number, month: number, day: number): number {
+  return Math.min(epochDay(year, month, day), epochDay(year, month + 1, 0));
+}
+
+function monthParts(month: YearMonth): [year: number, month: number] {
+  return [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+}
+
+/** `date` shifted by whole calendar months, the day clamped to the target month's end (31 Jan + 1 → 28/29 Feb). */
+export function addMonths(date: LocalDate, months: number): LocalDate {
+  const [year, month, day] = parts(date);
+  return fromEpochDay(clampedEpochDay(year, month + months, day));
+}
+
+/** Day `day` (1–31) of `month`, clamped to the month's last day (day 31 of 2027-02 → 2027-02-28). */
+export function dateInMonth(month: YearMonth, day: number): LocalDate {
+  return fromEpochDay(clampedEpochDay(...monthParts(month), day));
+}
+
+/** `month` shifted by whole months (2026-11 + 12 → 2027-11). */
+export function shiftMonth(month: YearMonth, months: number): YearMonth {
+  const [year, monthNumber] = monthParts(month);
+  return fromEpochDay(epochDay(year, monthNumber + months, 1)).slice(0, 7) as YearMonth;
+}
+
+/** Whole months from `from` to `to` (2026-10 → 2027-02 = 4); negative when `to` is earlier. */
+export function monthsBetween(from: YearMonth, to: YearMonth): number {
+  const [fromYear, fromMonth] = monthParts(from);
+  const [toYear, toMonth] = monthParts(to);
+  return (toYear - fromYear) * 12 + toMonth - fromMonth;
+}
+
 function makePeriod(kind: PeriodKind, start: LocalDate, end: LocalDate): Period {
   return { kind, start, end, days: countDays(start, end), label: end.slice(0, 7) as YearMonth };
 }

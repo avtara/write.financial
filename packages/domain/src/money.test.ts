@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { MINUS, currencyInfo, formatMoney, parseMoneyInput, type Locale, type MoneyContext } from './money.ts';
+import {
+  MINUS,
+  currencyInfo,
+  divideCeil,
+  divideHalfUp,
+  formatMoney,
+  parseMoneyInput,
+  splitEvenly,
+  type Locale,
+  type MoneyContext,
+} from './money.ts';
 
 describe('currencyInfo', () => {
   it('returns the design symbols for known currencies, case-insensitively', () => {
@@ -138,6 +148,43 @@ describe('parseMoneyInput', () => {
           expect(parseMoneyInput(text, { locale, currency })).toBe(minor);
         },
       ),
+    );
+  });
+});
+
+describe('bigint division helpers', () => {
+  it('divideHalfUp rounds halves up', () => {
+    expect(divideHalfUp(5n, 2n)).toBe(3n);
+    expect(divideHalfUp(7n, 3n)).toBe(2n);
+    expect(divideHalfUp(8n, 3n)).toBe(3n);
+    expect(divideHalfUp(6n, 3n)).toBe(2n);
+    expect(divideHalfUp(0n, 7n)).toBe(0n);
+  });
+
+  it('divideCeil rounds up', () => {
+    expect(divideCeil(42_875_000n, 3_500_000n)).toBe(13n);
+    expect(divideCeil(7_000_000n, 3_500_000n)).toBe(2n);
+    expect(divideCeil(1n, 3n)).toBe(1n);
+    expect(divideCeil(0n, 3n)).toBe(0n);
+  });
+
+  it('splitEvenly puts the rounding remainder in the first part (FR-U3)', () => {
+    expect(splitEvenly(1_000_000n, 3)).toEqual([333_334n, 333_333n, 333_333n]);
+    expect(splitEvenly(485_000n, 2)).toEqual([242_500n, 242_500n]);
+    expect(splitEvenly(5n, 1)).toEqual([5n]);
+    expect(splitEvenly(2n, 3)).toEqual([2n, 0n, 0n]);
+  });
+
+  it('splitEvenly parts add up and differ by less than the count', () => {
+    fc.assert(
+      fc.property(fc.bigInt({ min: 0n, max: 10n ** 15n }), fc.integer({ min: 1, max: 600 }), (total, count) => {
+        const parts = splitEvenly(total, count);
+        expect(parts).toHaveLength(count);
+        expect(parts.reduce((sum, part) => sum + part, 0n)).toBe(total);
+        const [first, ...rest] = parts as [bigint, ...bigint[]];
+        for (const part of rest) expect(part).toBe(total / BigInt(count));
+        expect(first - total / BigInt(count)).toBeLessThan(BigInt(count));
+      }),
     );
   });
 });
