@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { setLocale } from '@wf/i18n/runtime';
 import type { ComponentType } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../../../test/render.tsx';
 import { Route } from './review.tsx';
 
@@ -33,6 +34,11 @@ function stubRoute(data: unknown, search: { item?: string } = {}) {
   vi.spyOn(Route, 'useSearch').mockReturnValue(search);
   vi.spyOn(Route, 'useRouteContext').mockReturnValue({ viewer: { timezone: 'Asia/Jakarta' } });
 }
+
+// Other files in the same browser may leave English as the current locale.
+beforeAll(async () => {
+  await setLocale('id', { reload: false });
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
