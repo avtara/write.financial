@@ -125,6 +125,15 @@ describe('GoalStep', () => {
         accountId: null,
         sortOrder: 0,
         archivedAt: null,
+        kind: 'savings',
+        targetMode: 'fixed',
+        targetMonths: null,
+        status: 'active',
+        completedAt: null,
+        sources: [],
+        savedMinor: 0n,
+        plans: [],
+        monthlyPlanMinor: 0n,
       },
     });
     await expect.element(screen.getByText('Tujuan Dana Darurat sudah dibuat.')).toBeVisible();

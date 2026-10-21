@@ -2,11 +2,13 @@
 /**
  * Loads the design persona (`DESIGN_SEED`: September 2026 closed, 1–15 Oktober 2026) into an existing user's empty
  * ledger through the repositories, as the app would: manual rates, built-in categories, accounts, 121 September and
- * 128 October transactions, the period start day, the budget, the closed September period, goals, and (M3) the
- * subscriptions and recurring transfers with their earlier bills linked to the seed transactions that paid them. Used
- * by `wf-db seed --email <user>` and the exit E2Es. The result has every account's balance by seed key, to compare
- * with `seedClosingBalances`. {@link seedAutomation} then runs, as the worker, what the scheduled jobs would have
- * produced by now (review items for due bills, the September close proposals).
+ * 128 October transactions, the period start day, the budget, the closed September period, goals with their account
+ * sources, (M3) the subscriptions and recurring transfers with their earlier bills linked to the seed transactions
+ * that paid them and (M4) their goal shares, and (M4) the receivables, recorded without ledger transactions so the
+ * designed balances and flows stay. Used by `wf-db seed --email <user>` and the exit E2Es. The result has every
+ * account's balance by seed key, to compare with `seedClosingBalances`. {@link seedAutomation} then runs, as the
+ * worker, what the scheduled jobs would have produced by now (review items for due bills, the September close
+ * proposals).
  */
 import { randomUUID } from 'node:crypto';
 import type { Dek } from '@wf/crypto/envelope';
@@ -25,6 +27,7 @@ import { createOccurrenceJobs } from './occurrence-jobs.ts';
 import { createPeriodClose } from './period-close.ts';
 import { createPeriods, ensureIn } from './periods.ts';
 import { createPreferences } from './preferences.ts';
+import { createReceivables } from './receivables.ts';
 import { createSchedules } from './schedules.ts';
 import { accounts, periods, users } from './schema.ts';
 import { createTransactions } from './transactions.ts';
@@ -37,6 +40,8 @@ export interface SeedResult {
   /** Periods closed by the seed (September). */
   readonly closedPeriods: number;
   readonly goals: number;
+  /** Receivables in any state (2 active = Rp542.500 outstanding, 3 settled). */
+  readonly receivables: number;
   /** Subscriptions in any state (7 active, 1 paused, 3 cancelled). */
   readonly subscriptions: number;
   readonly recurrences: number;
@@ -171,11 +176,18 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     await periods.lock(userId, period.id);
   }
 
-  const goals = createGoals(db);
+  const goals = createGoals(db, { getDek, now });
   const goalIds = new Map<string, string>();
-  for (const goal of seed.goals) {
+  for (const { accountKey, sources, targetMonths, ...goal } of seed.goals) {
     // Fixture months are `YYYY-MM`; goals.create validates them.
-    const created = await goals.create(userId, { ...goal, deadlineMonth: goal.deadlineMonth as YearMonth | null });
+    const created = await goals.create(userId, {
+      ...goal,
+      deadlineMonth: goal.deadlineMonth as YearMonth | null,
+      targetMode: targetMonths === null ? 'fixed' : 'monthly_expenses',
+      targetMonths,
+      accountId: accountKey === null ? null : accountOf(accountKey),
+      sources: sources.map(({ accountKey: key, ...source }) => ({ ...source, accountId: accountOf(key) })),
+    });
     goalIds.set(goal.name, created.id);
   }
 
@@ -249,6 +261,27 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     }
   }
 
+  const receivables = createReceivables(db, { getDek, now });
+  for (const { accountKey, lentAt, dueDate, payments, ...receivable } of seed.receivables) {
+    const { receivable: recorded } = await receivables.record(userId, {
+      ...receivable,
+      clientId: randomUUID(),
+      fromAccountId: accountOf(accountKey),
+      lentAt: new Date(lentAt),
+      dueDate: dueDate === null ? null : parseLocalDate(dueDate),
+      recordTransaction: false,
+    });
+    for (const payment of payments) {
+      await receivables.receivePayment(userId, recorded.id, {
+        clientId: randomUUID(),
+        amountMinor: payment.amountMinor,
+        accountId: accountOf(payment.accountKey),
+        receivedAt: new Date(payment.receivedAt),
+        recordTransaction: false,
+      });
+    }
+  }
+
   const overview = await accountRepo.list(userId);
   const balanceOf = (id: string) =>
     firstRow(
@@ -260,6 +293,7 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     transactions: seed.septemberTransactions.length + seed.transactions.length,
     closedPeriods: seed.closedPeriods.length,
     goals: seed.goals.length,
+    receivables: seed.receivables.length,
     subscriptions: seed.subscriptions.length,
     recurrences: seed.recurrences.length,
     availableMinor: overview.availableMinor,

@@ -343,6 +343,29 @@ beforeAll(async () => {
                        (user_id, merchant_key, merchant, day_of_month, amount_minor, currency, occurrences, last_seen_on, account_id)
                      VALUES (${userId}, 'spotify', 'Spotify', 20, 86900, 'IDR', 3, '2026-09-20', ${bcaId})`),
     );
+    // Goals, debts, card payments, receivables (M4): user actions through wf_app, rows of every new table.
+    await withUser(dbs.app, userId, async (tx) => {
+      const [goal] = await tx.execute<{ id: string }>(sql`SELECT id FROM goals`);
+      const [recurrence] = await tx.execute<{ id: string }>(sql`SELECT id FROM recurrences`);
+      const [transfer] = await tx.execute<{ id: string }>(sql`SELECT id FROM transactions WHERE type = 'transfer'`);
+      const goalId = goal?.id as string;
+      await tx.execute(sql`INSERT INTO goal_funding_sources (user_id, goal_id, account_id, mode, amount_minor)
+                           VALUES (${userId}, ${goalId}, ${bcaId}, 'fixed', 500000)`);
+      await tx.execute(sql`INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor)
+                           VALUES (${userId}, ${goalId}, ${recurrence?.id as string}, 500000)`);
+      const [debt] = await tx.execute<{ id: string }>(sql`INSERT INTO debts
+          (user_id, kind, name, pay_from_account_id, principal_minor, currency, tenor_months, first_due_date)
+        VALUES (${userId}, 'paylater', 'MacBook Air M4', ${bcaId}, 18999000, 'IDR', 12, '2026-11-25') RETURNING id`);
+      await tx.execute(sql`INSERT INTO debt_installments (user_id, debt_id, seq, due_date, principal_minor)
+                           VALUES (${userId}, ${debt?.id as string}, 1, '2026-11-25', 1583250)`);
+      await tx.execute(sql`INSERT INTO card_payment_allocations (user_id, transaction_id, bucket, amount_minor)
+                           VALUES (${userId}, ${transfer?.id as string}, 'spending', 1000000)`);
+      const [receivable] = await tx.execute<{ id: string }>(sql`INSERT INTO receivables
+          (user_id, counterparty_enc, principal_minor, currency, from_account_id, source, lent_on)
+        VALUES (${userId}, decode('010203', 'hex'), 400000, 'IDR', ${bcaId}, 'loan', '2026-10-02') RETURNING id`);
+      await tx.execute(sql`INSERT INTO receivable_payments (user_id, receivable_id, account_id, amount_minor, received_on)
+                           VALUES (${userId}, ${receivable?.id as string}, ${bcaId}, 100000, '2026-10-10')`);
+    });
   }
 
   owned = [
@@ -633,12 +656,13 @@ describe('ledger roles', () => {
     const { created } = await withUser(dbs.worker, alice, (tx) =>
       materializeIn(tx, alice, { now: new Date('2026-10-15T03:00:00Z') }),
     );
-    expect(created).toBe(0);
+    // The paylater installment inserted with raw SQL (25 Nov) had no occurrence yet (FR-U6).
+    expect(created).toBe(1);
     const [row] = await withUser(dbs.worker, alice, (tx) =>
       tx.execute(sql`SELECT count(*)::int AS n FROM scheduled_occurrences`),
     );
-    // Netflix 18 Okt, 18 Nov, 18 Des and the recurrence on 1 Nov, 1 Des, 1 Jan.
-    expect(row).toEqual({ n: 6 });
+    // Netflix 18 Okt, 18 Nov, 18 Des, the recurrence on 1 Nov, 1 Des, 1 Jan, and the installment on 25 Nov.
+    expect(row).toEqual({ n: 7 });
     for (const statement of [
       sql`UPDATE recurrences SET status = 'stopped', stopped_at = now()`,
       sql`DELETE FROM recurrences`,
@@ -652,6 +676,51 @@ describe('ledger roles', () => {
         INSUFFICIENT_PRIVILEGE,
       );
     }
+  });
+
+  it('lets the worker read goals, debts, card payments, and receivables but never write them (D14)', async () => {
+    const [row] = await withUser(dbs.worker, alice, (tx) =>
+      tx.execute(sql`SELECT (SELECT count(*) FROM goal_funding_sources)::int AS sources,
+                            (SELECT count(*) FROM goal_contribution_plans)::int AS plans,
+                            (SELECT count(*) FROM debt_installments)::int AS installments,
+                            (SELECT count(*) FROM card_payment_allocations)::int AS allocations,
+                            (SELECT count(*) FROM receivable_payments)::int AS payments`),
+    );
+    expect(row).toEqual({ sources: 1, plans: 1, installments: 1, allocations: 1, payments: 1 });
+    for (const statement of [
+      sql`UPDATE goals SET status = 'completed', completed_at = now()`,
+      sql`UPDATE goal_funding_sources SET amount_minor = 1`,
+      sql`DELETE FROM goal_contribution_plans`,
+      sql`UPDATE debts SET status = 'paid_off', paid_off_at = now()`,
+      sql`UPDATE debt_installments SET status = 'paid', paid_at = now()`,
+      sql`DELETE FROM card_payment_allocations`,
+      sql`UPDATE receivables SET status = 'settled', settled_at = now()`,
+      sql`INSERT INTO receivable_payments (user_id, receivable_id, account_id, amount_minor, received_on)
+          SELECT user_id, receivable_id, account_id, 1, received_on FROM receivable_payments`,
+    ]) {
+      expect(await pgErrorCode(withUser(dbs.worker, alice, (tx) => tx.execute(statement)))).toBe(
+        INSUFFICIENT_PRIVILEGE,
+      );
+    }
+  });
+
+  it('never lets receivable payments exceed the principal, even with raw SQL (FR-U7)', async () => {
+    const repay = (amountMinor: bigint) =>
+      withUser(dbs.app, alice, (tx) =>
+        tx.execute(sql`INSERT INTO receivable_payments (user_id, receivable_id, account_id, amount_minor, received_on)
+                       SELECT user_id, receivable_id, account_id, ${amountMinor}, received_on FROM receivable_payments`),
+      );
+    // 400.000 lent, 100.000 back: 300.001 more is one rupiah too many, as is lowering the principal below 100.000.
+    expect(await pgErrorCode(repay(300_001n))).toBe('23514');
+    expect(
+      await pgErrorCode(
+        withUser(dbs.app, alice, (tx) => tx.execute(sql`UPDATE receivables SET principal_minor = 99999`)),
+      ),
+    ).toBe('23514');
+    expect(await pgErrorCode(repay(300_000n))).toBeUndefined();
+    await withUser(dbs.app, alice, (tx) =>
+      tx.execute(sql`DELETE FROM receivable_payments WHERE amount_minor = 300000`),
+    );
   });
 
   it('refuses transaction writes dated inside a closed period (FR-P3)', async () => {

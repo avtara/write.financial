@@ -283,14 +283,12 @@ describe('occurrenceReviewItemIn', () => {
         toAccountId: to,
         sentMinor: 500_000n,
         receivedMinor: 500_000n,
-        allocations: [{ goalId: randomUUID(), amountMinor: 500_000n }],
       }),
     );
     const sameItem = await build(await occurrence('recurrence', same, '2026-10-18', 600_000));
     expect(sameItem.payload).toMatchObject({
       draft: { type: 'transfer', sentMinor: 600_000n, receivedMinor: 600_000n },
     });
-    expect(sameItem.payload.kind === 'transaction' && 'allocations' in sameItem.payload.draft).toBe(false);
 
     const cross = await recurrence(
       encodeTemplate({

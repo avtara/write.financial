@@ -41,7 +41,10 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./transactions` | `createTransactions(db, { getDek })` → create (idempotent per `client_id`), get, update, soft delete + restore, duplicate, split/unsplit, bulk edits, attachments |
 | `./transaction-query` | `createTransactionQuery(db, { getDek })` → Transactions page list, by-day/by-category groups, summary |
 | `./fx-rates` | `createFxRates(db)` → manual rates, `referenceRate`; worker: `upsertGlobal`, `latestGlobal`, `currenciesInUse` |
-| `./drafts`, `./recent-items`, `./goals`, `./activity` | Encrypted form drafts, ⌘K recently opened, minimal goals (with the "Simpan di" account), per-entity timeline |
+| `./drafts`, `./recent-items`, `./activity` | Encrypted form drafts, ⌘K recently opened, per-entity timeline |
+| `./goals` | `createGoals(db)` → savings goals and sinking funds (FR-G1–G4, FR-B6): account funding sources (whole or fixed amount), recurring contributions as plans on recurrences, deposit/withdraw (labeled transfers), pay from goal, complete/reopen, allocations per account |
+| `./debts` | `createDebts(db)` → debts and installment plans (FR-U1–U6): schedules computed by `@wf/domain/debt`, card installments from card expenses, card payment allocation + recalculation (FR-U4), installment payments; non-card installments reach the Review queue as occurrences |
+| `./receivables` | `createReceivables(db, { getDek })` → receivables (FR-U7): record (`receivable_out`), receive payment (`receivable_in`), write off (`writeoff` expense), H-1 reminder; the person and note are encrypted |
 | `./onboarding` | `createOnboarding(db, { now? })` → FR-A4 progress: `progress`, `completeStep` (resume step moves forward only), `finish` ("Ke Ringkasan"), `setBaseCurrency` (refused once an account exists) |
 | `./periods` | `createPeriods(db)` → materialized periods (FR-P1–P3): `list`, `get`, `covering`, `previewStartDay`/`changeStartDay` (FR-P2 (a) next period with a transition, (b) recalculate), `lock` (period close, worker) |
 | `./budgets` | `createBudgets(db)` → versioned budgets (FR-B1–B5): `status` of a period, `history`, `saveVersion` (without `lines`: only the expected income), `setLine`, `removeLine`, `fillFromAverage`, `moveLeftover`/`undoMove`, `dismissAlert`/`restoreAlert` |
@@ -51,7 +54,7 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./review-items` | Shared Review queue producer (app + worker): `ReviewPayload` (transaction draft, category, rollover, leftover; encrypted with the user's DEK), `insertReviewItemIn` (idempotent per `dedupe_key`), `readReviewPayload`, `occurrenceReviewItemIn` |
 | `./review` | `createReview(db, { getDek })` → Review queue (FR-L7): `list`, `counts` (badge), `confirm` (the only place a proposal is applied; item id = transaction `client_id`), `confirmBulk`, `ignore`, `markUnpaid`, `confirmOccurrence` |
 | `./notifications` | `createNotifications(db)` → `list` (filters, search, cursor), `counts`, `markRead`, `nextReminder`; shared `insertNotificationIn` (idempotent per `ref`) |
-| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget, goals, 11 subscriptions, 4 recurring transfers with their paid bills) through the repositories; `seedAutomation(workerDb, userId, { getDek })` (as `wf_worker`): what the jobs would have created by now (overdue bills, September close proposal) |
+| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget, goals with their account sources, 11 subscriptions, 4 recurring transfers with their paid bills and goal shares, 5 receivables recorded without ledger transactions) through the repositories; `seedAutomation(workerDb, userId, { getDek })` (as `wf_worker`): what the jobs would have created by now (overdue bills, September close proposal) |
 | `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)`, `purgeNotifications(now)` (90 days) (worker only, via `wf_maintenance_purge_auth` / `wf_maintenance_purge_notifications`) |
 | `./dispatch` | Worker: `createDispatch(db)` → `users()`, `dueReminders(now, limit)`, `pendingOutbox(now, limit)` (SECURITY DEFINER `wf_worker_users`, `wf_due_reminders`, `wf_pending_outbox`: ids and time zones only) |
 | `./occurrence-jobs` | Worker: `createOccurrenceJobs(db, { getDek })` → `advance(userId, now)` (materialize, due → Review queue, overdue → unconfirmed, trial/pause reminders), `remind(userId, occurrenceId, now)` (notification + email outbox, once) |
@@ -94,6 +97,7 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `periods`                                                  | S I U D                        | S I, U(`status`, `closed_at`, `updated_at`) | – | –                | own rows (worker: `periods.lock` only)                   |
 | `budget_versions`, `budget_lines`, `budget_period_overrides`, `budget_alert_dismissals` | S I U D | S (D14)  | –                 | –                        | own rows                                                 |
 | `recurrences`, `subscriptions`                             | S I U D                        | S (D14)      | –                 | –                        | own rows                                                 |
+| `goal_funding_sources`, `goal_contribution_plans`, `debts`, `debt_installments`, `card_payment_allocations`, `receivables`, `receivable_payments` | S I U D | S (D14) | – | – | own rows |
 | `scheduled_occurrences`                                    | S I U D                        | S I, U(`status`, `remind_at`, `reminded_at`, `expected_minor`, `updated_at`) | – | – | own rows; `wf_migrate`: dispatch scan (S)        |
 | `detected_recurring`                                       | S I U D                        | S I U        | –                 | –                        | own rows                                                 |
 | `review_items`                                             | S I U D                        | S I (D14: no UPDATE) | –         | –                        | own rows                                                 |
@@ -127,7 +131,8 @@ DELETE on `notifications`) for them.
 
 Ledger rows reference their parents with composite `(user_id, id)` foreign keys, so a row can never point at another
 user's account, category, transaction, or tag (foreign-key checks bypass RLS). A trigger limits a transaction to five
-tags. `pg_trgm` backs the merchant/description/goal-name search indexes.
+tags; another keeps the payments of a receivable within its principal (FR-U7), also against raw SQL. `pg_trgm` backs
+the merchant/description/goal-name search indexes.
 
 ## Tests
 

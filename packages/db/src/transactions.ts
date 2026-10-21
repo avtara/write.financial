@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Confirmed transactions (FR-T1–T9, FR-L3–L6): record, read with everything the detail sheet shows, edit, soft
- * delete with Undo, duplicate, split, bulk edits, and attachments. Every method is one user transaction.
+ * delete with Undo, duplicate, split, bulk edits, and attachments. Every method is one user transaction. Edits,
+ * deletes, copies, and splits refuse the transactions a receivable or debt manages
+ * ({@link assertUnmanagedTransactionsIn}).
  *
  * Deleting is soft (`deleted_at`): the row, its postings and attachments stay so Undo (`restore`) can bring them back;
  * maintenance purges deleted rows and their stored objects once the restore window ends.
@@ -19,7 +21,7 @@ import {
   type TransactionSource,
   type TransactionType,
 } from '@wf/domain/transactions';
-import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity, type ActivityEntry } from './activity.ts';
 import {
@@ -40,6 +42,9 @@ import {
   accounts,
   activityLog,
   attachments,
+  cardPaymentAllocations,
+  debtInstallments,
+  debts,
   postings,
   tags,
   transactions,
@@ -280,6 +285,46 @@ async function liveHeaderIn(tx: Transaction, id: string) {
   return row;
 }
 
+/** Transaction types only their receivable writes (FR-U7). */
+const RECEIVABLE_TYPES: TransactionType[] = ['receivable_out', 'receivable_in', 'writeoff'];
+
+/**
+ * Refuses transactions another repository manages, which change only through it: a receivable's lending,
+ * repayments, and write-off (FR-U7), a debt installment's payment, a card expense turned into an installment plan
+ * (FR-U2), and a card payment allocated to its buckets (FR-U4). Soft-deleted rows among `ids` count too.
+ * @throws {LedgerError} `INVALID_TRANSACTION`
+ */
+export async function assertUnmanagedTransactionsIn(tx: Transaction, ids: readonly string[]): Promise<void> {
+  const [managed] = await tx
+    .select({ id: transactions.id })
+    .from(transactions)
+    .where(
+      and(
+        inArray(transactions.id, [...ids]),
+        or(
+          inArray(transactions.type, RECEIVABLE_TYPES),
+          exists(
+            tx
+              .select({ id: debtInstallments.id })
+              .from(debtInstallments)
+              .where(eq(debtInstallments.transactionId, transactions.id)),
+          ),
+          exists(tx.select({ id: debts.id }).from(debts).where(eq(debts.sourceTransactionId, transactions.id))),
+          exists(
+            tx
+              .select({ id: cardPaymentAllocations.id })
+              .from(cardPaymentAllocations)
+              .where(eq(cardPaymentAllocations.transactionId, transactions.id)),
+          ),
+        ),
+      ),
+    )
+    .limit(1);
+  if (managed !== undefined) {
+    throw new LedgerError('INVALID_TRANSACTION', 'The transaction is managed by its receivable or debt');
+  }
+}
+
 async function tagSlugsIn(tx: Transaction, transactionId: string): Promise<string[]> {
   const rows = await tx
     .select({ slug: tags.slug })
@@ -463,6 +508,7 @@ export function createTransactions(
       const dek = await getDek(userId);
       const stored = await withUser(db, userId, async (tx) => {
         const before = await liveHeaderIn(tx, id);
+        await assertUnmanagedTransactionsIn(tx, [id]);
         await assertOpenDatesIn(tx, [before.localDate]);
         const beforeLines = await tx
           .select({
@@ -507,6 +553,7 @@ export function createTransactions(
     remove: (userId, ids) =>
       withUser(db, userId, async (tx) => {
         await assertOpenTransactionsIn(tx, ids);
+        await assertUnmanagedTransactionsIn(tx, ids);
         const rows = await tx
           .update(transactions)
           .set({ deletedAt: now() })
@@ -533,6 +580,7 @@ export function createTransactions(
     duplicate: (userId, id, { clientId }) =>
       withUser(db, userId, async (tx) => {
         const source = await liveHeaderIn(tx, id);
+        await assertUnmanagedTransactionsIn(tx, [id]);
         const { type } = source;
         let draft: TransactionDraft;
         if (isEntry(type)) draft = await entryDraftIn(tx, source, type);
@@ -565,6 +613,7 @@ export function createTransactions(
         if (replayed.length > 0) return { partIds: replayed.map((row) => row.id) };
 
         const parent = await liveHeaderIn(tx, id);
+        await assertUnmanagedTransactionsIn(tx, [id]);
         const { type } = parent;
         if (!isEntry(type)) throw new LedgerError('INVALID_TRANSACTION', 'Only an expense or income can be split');
         const base = await entryDraftIn(tx, parent, type);
@@ -622,6 +671,7 @@ export function createTransactions(
     unsplit: (userId, parentId) =>
       withUser(db, userId, async (tx) => {
         await assertOpenTransactionsIn(tx, [parentId]);
+        await assertUnmanagedTransactionsIn(tx, [parentId]);
         const restored = await tx
           .update(transactions)
           .set({ deletedAt: null })
@@ -642,6 +692,7 @@ export function createTransactions(
     bulkSetCategory: (userId, ids, categoryId) =>
       withUser(db, userId, async (tx) => {
         await assertOpenTransactionsIn(tx, ids);
+        await assertUnmanagedTransactionsIn(tx, ids);
         const rows = await tx
           .select({ id: transactions.id, type: transactions.type, categoryId: transactions.categoryId })
           .from(transactions)
@@ -666,6 +717,7 @@ export function createTransactions(
           .from(accounts)
           .where(eq(accounts.id, accountId));
         if (account === undefined) throw new LedgerError('NOT_FOUND', 'No such account');
+        await assertUnmanagedTransactionsIn(tx, ids);
         const rows = await tx
           .select({ ...HEADER, principalAccountId: postings.accountId, currency: postings.currency })
           .from(transactions)

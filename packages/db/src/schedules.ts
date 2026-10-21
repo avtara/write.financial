@@ -71,7 +71,10 @@ import {
 import {
   accounts,
   categories,
+  debtInstallments,
+  debts,
   detectedRecurring,
+  goalContributionPlans,
   goals,
   type OCCURRENCE_STATUSES,
   postings,
@@ -90,8 +93,28 @@ export interface NextOccurrence {
   readonly status: OccurrenceStatus;
 }
 
+/** "DIBAGI KE": the part of a recurring transfer planned for a goal, in the destination account's currency. */
+export interface GoalAllocation {
+  readonly goalId: string;
+  readonly amountMinor: bigint;
+}
+
+/**
+ * A recurrence template as this repository takes and shows it: a transfer also carries its goal split
+ * (`goal_contribution_plans` rows, the active ones when shown; always listed on a shown transfer, maybe empty).
+ */
+export type ScheduleTemplate =
+  | Exclude<RecurrenceTemplate, { readonly type: 'transfer' }>
+  | (Extract<RecurrenceTemplate, { readonly type: 'transfer' }> & {
+      /**
+       * "Sisihkan dana tidak rutin": Σ ≤ the received amount, one part per goal. Creating stores them as active
+       * plans; updating replaces the recurrence's plans, or keeps them when omitted.
+       */
+      readonly allocations?: readonly GoalAllocation[];
+    });
+
 export interface RecurrenceInput {
-  readonly template: RecurrenceTemplate;
+  readonly template: ScheduleTemplate;
   readonly freq: RecurrenceFreq;
   /** Every N weeks/months/years (1–99, default 1). */
   readonly interval?: number;
@@ -108,7 +131,7 @@ export interface RecurrenceInput {
 
 export interface RecurrenceView {
   readonly id: string;
-  readonly template: RecurrenceTemplate;
+  readonly template: ScheduleTemplate;
   /** Currency of the template's paying (or receiving) account. */
   readonly currency: string;
   readonly freq: RecurrenceFreq;
@@ -284,9 +307,10 @@ export interface DetectedOverview {
 export interface ScheduledItem {
   /** `null` for dates beyond the materialized horizon (computed from the rule). */
   readonly occurrenceId: string | null;
-  readonly sourceType: ScheduleSourceType;
+  /** `installment`: a non-card debt's row (FR-U6; source = the debt). */
+  readonly sourceType: ScheduleSourceType | 'installment';
   readonly sourceId: string;
-  /** Subscription name, or the recurrence's description / merchant. */
+  /** Subscription name, the recurrence's description / merchant, or the debt's name. */
   readonly name: string | null;
   readonly icon: string | null;
   readonly dueDate: LocalDate;
@@ -360,7 +384,7 @@ export interface SchedulesRepository {
   /** "Bukan langganan". */
   dismissDetected: (userId: string, ids: readonly string[]) => Promise<{ dismissed: number }>;
 
-  /** Calendar events in `from`–`to` (≤ 366 days). @throws {LedgerError} `INVALID_PERIOD` */
+  /** Calendar events in `from`–`to` (≤ 366 days), with the installments of non-card debts. @throws {LedgerError} `INVALID_PERIOD` */
   listScheduled: (
     userId: string,
     range: { readonly from: LocalDate; readonly to: LocalDate },
@@ -380,7 +404,8 @@ const CURRENCY = /^[A-Z]{3}$/;
 const OPEN_STATUSES = ['scheduled', 'due_review', 'unconfirmed'] as const;
 const BPS = 10_000n;
 
-type RecurrenceRow = typeof recurrences.$inferSelect;
+/** A stored recurrence. */
+export type RecurrenceRow = typeof recurrences.$inferSelect;
 type SubscriptionRow = typeof subscriptions.$inferSelect;
 
 function isRemindDays(value: number | null): boolean {
@@ -463,19 +488,27 @@ async function isCategoryIn(tx: Transaction, id: string, kinds: readonly ('expen
   return row !== undefined;
 }
 
+interface CheckedTemplate {
+  /** What `recurrences.template` stores. */
+  readonly template: RecurrenceTemplate;
+  /** A transfer's goal split as sent (`undefined` when omitted); entries have none. */
+  readonly allocations: readonly GoalAllocation[] | undefined;
+}
+
 /** The template validated against the user's accounts, categories, and goals, with text trimmed. */
-async function checkTemplateIn(tx: Transaction, template: RecurrenceTemplate): Promise<RecurrenceTemplate> {
-  const tags = template.tags ?? [];
+async function checkTemplateIn(tx: Transaction, input: ScheduleTemplate): Promise<CheckedTemplate> {
+  const tags = input.tags ?? [];
   if (tags.length > MAX_TAGS_PER_TRANSACTION) throw invalidRecurrence('Too many tags');
-  const description = clean(template.description);
-  if (template.type !== 'transfer') {
-    if (template.amountMinor <= 0n) throw invalidRecurrence('Amount must be positive');
-    if ((await activeAccountsIn(tx, [template.accountId])).size === 0) throw invalidRecurrence('Unknown account');
-    if (template.categoryId !== null && !(await isCategoryIn(tx, template.categoryId, [template.type]))) {
+  const description = clean(input.description);
+  if (input.type !== 'transfer') {
+    if (input.amountMinor <= 0n) throw invalidRecurrence('Amount must be positive');
+    if ((await activeAccountsIn(tx, [input.accountId])).size === 0) throw invalidRecurrence('Unknown account');
+    if (input.categoryId !== null && !(await isCategoryIn(tx, input.categoryId, [input.type]))) {
       throw invalidRecurrence('Unknown category');
     }
-    return { ...template, description, merchant: clean(template.merchant), tags };
+    return { template: { ...input, description, merchant: clean(input.merchant), tags }, allocations: undefined };
   }
+  const { allocations, ...template } = input;
   if (template.sentMinor <= 0n || template.receivedMinor <= 0n) throw invalidRecurrence('Amount must be positive');
   if (template.fromAccountId === template.toAccountId) throw invalidRecurrence('Same account');
   const found = await activeAccountsIn(tx, [template.fromAccountId, template.toAccountId]);
@@ -488,24 +521,61 @@ async function checkTemplateIn(tx: Transaction, template: RecurrenceTemplate): P
     if (fee.minor <= 0n) throw invalidRecurrence('Fee must be positive');
     if (!(await isCategoryIn(tx, fee.categoryId, ['fee', 'expense']))) throw invalidRecurrence('Unknown category');
   }
-  const allocations = template.allocations ?? [];
-  if (allocations.length > 0) {
+  if (allocations !== undefined && allocations.length > 0) {
     if (allocations.some((part) => part.amountMinor <= 0n)) throw invalidRecurrence('Allocation must be positive');
     const total = allocations.reduce((sum, part) => sum + part.amountMinor, 0n);
-    if (total > template.sentMinor) throw invalidRecurrence('Allocations exceed the amount');
+    if (total > template.receivedMinor) throw invalidRecurrence('Allocations exceed the amount');
     const goalIds = [...new Set(allocations.map((part) => part.goalId))];
     const rows = await tx.select({ id: goals.id }).from(goals).where(inArray(goals.id, goalIds));
     if (rows.length !== goalIds.length || goalIds.length !== allocations.length) {
       throw invalidRecurrence('Unknown or repeated goal');
     }
   }
-  return { ...template, description, fee: fee ?? null, tags, allocations };
+  return { template: { ...template, description, fee: fee ?? null, tags }, allocations };
+}
+
+/** Σ amounts of the recurrence's active goal plans (0 when none), in the destination account's currency. */
+export async function activePlannedIn(tx: Transaction, recurrenceId: string): Promise<bigint> {
+  const rows = await tx
+    .select({ total: sql<bigint>`coalesce(sum(${goalContributionPlans.amountMinor}), 0)::bigint`.mapWith(BigInt) })
+    .from(goalContributionPlans)
+    .where(and(eq(goalContributionPlans.recurrenceId, recurrenceId), eq(goalContributionPlans.active, true)));
+  return firstRow(rows, 'goal_contribution_plans').total;
+}
+
+/**
+ * Stores the goal split of a recurrence as its plans: the given parts replace them (active); a transfer whose split
+ * was omitted keeps its plans as long as they still fit the received amount; an entry has none.
+ */
+async function writePlansIn(
+  tx: Transaction,
+  userId: string,
+  recurrenceId: string,
+  { template, allocations }: CheckedTemplate,
+): Promise<void> {
+  if (template.type === 'transfer' && allocations === undefined) {
+    if ((await activePlannedIn(tx, recurrenceId)) > template.receivedMinor) {
+      throw invalidRecurrence('Allocations exceed the amount');
+    }
+    return;
+  }
+  await tx.delete(goalContributionPlans).where(eq(goalContributionPlans.recurrenceId, recurrenceId));
+  if (allocations !== undefined && allocations.length > 0) {
+    await tx
+      .insert(goalContributionPlans)
+      .values(
+        allocations.map((part) => ({ userId, recurrenceId, goalId: part.goalId, amountMinor: part.amountMinor })),
+      );
+  }
 }
 
 type RecurrenceValues = Omit<typeof recurrences.$inferInsert, 'userId'>;
 
-/** Validated column values of a recurrence input. */
-async function recurrenceValuesIn(tx: Transaction, input: RecurrenceInput): Promise<RecurrenceValues> {
+/** Validated column values of a recurrence input, and its checked template. */
+async function recurrenceValuesIn(
+  tx: Transaction,
+  input: RecurrenceInput,
+): Promise<{ values: RecurrenceValues; checked: CheckedTemplate }> {
   if (!RECURRENCE_FREQS.includes(input.freq)) throw invalidRecurrence('Unknown frequency');
   const rule: RecurrenceRule = {
     freq: input.freq,
@@ -522,17 +592,20 @@ async function recurrenceValuesIn(tx: Transaction, input: RecurrenceInput): Prom
     throw invalidRecurrence((error as InvalidRecurrenceError).message);
   }
   if (!isRemindDays(input.remindOffsetDays)) throw invalidRecurrence('Reminder offset must be 0–30 days');
-  const template = await checkTemplateIn(tx, input.template);
+  const checked = await checkTemplateIn(tx, input.template);
   return {
-    template: encodeTemplate(template),
-    freq: rule.freq,
-    interval: rule.interval,
-    startOn: rule.startOn,
-    weekday: rule.weekday,
-    monthDay: rule.monthDay,
-    endType: rule.end.type,
-    endCount: rule.end.type === 'after' ? rule.end.count : null,
-    remindOffsetDays: input.remindOffsetDays,
+    values: {
+      template: encodeTemplate(checked.template),
+      freq: rule.freq,
+      interval: rule.interval,
+      startOn: rule.startOn,
+      weekday: rule.weekday,
+      monthDay: rule.monthDay,
+      endType: rule.end.type,
+      endCount: rule.end.type === 'after' ? rule.end.count : null,
+      remindOffsetDays: input.remindOffsetDays,
+    },
+    checked,
   };
 }
 
@@ -578,6 +651,35 @@ async function occurrenceStatsIn(
   return { counts, next };
 }
 
+/** A recurrence's active goal plan with its goal's name (the Review queue's "DIBAGI KE"). */
+export interface ActivePlan extends GoalAllocation {
+  readonly goalName: string;
+}
+
+/** The active goal plans of `recurrenceIds` by recurrence, in the order they were made. */
+export async function activePlansIn(
+  tx: Transaction,
+  recurrenceIds: readonly string[],
+): Promise<Map<string, ActivePlan[]>> {
+  const byRecurrence = new Map<string, ActivePlan[]>();
+  if (recurrenceIds.length === 0) return byRecurrence;
+  const rows = await tx
+    .select({
+      recurrenceId: goalContributionPlans.recurrenceId,
+      goalId: goalContributionPlans.goalId,
+      goalName: goals.name,
+      amountMinor: goalContributionPlans.amountMinor,
+    })
+    .from(goalContributionPlans)
+    .innerJoin(goals, eq(goals.id, goalContributionPlans.goalId))
+    .where(and(inArray(goalContributionPlans.recurrenceId, [...recurrenceIds]), eq(goalContributionPlans.active, true)))
+    .orderBy(asc(goalContributionPlans.createdAt), asc(goalContributionPlans.id));
+  for (const { recurrenceId, ...plan } of rows) {
+    byRecurrence.set(recurrenceId, [...(byRecurrence.get(recurrenceId) ?? []), plan]);
+  }
+  return byRecurrence;
+}
+
 async function recurrenceViewsIn(tx: Transaction, today: LocalDate, where: SQL | undefined): Promise<RecurrenceView[]> {
   const rows = await tx
     .select()
@@ -589,13 +691,18 @@ async function recurrenceViewsIn(tx: Transaction, today: LocalDate, where: SQL |
     tx,
     templates.map((template) => templateAmount(template).accountId),
   );
-  const stats = await occurrenceStatsIn(
-    tx,
-    'recurrence',
-    rows.map((row) => row.id),
-  );
+  const ids = rows.map((row) => row.id);
+  const stats = await occurrenceStatsIn(tx, 'recurrence', ids);
+  const plans = await activePlansIn(tx, ids);
   return rows.map((row, index) => {
-    const template = templates[index] as RecurrenceTemplate;
+    const stored = templates[index] as RecurrenceTemplate;
+    const template: ScheduleTemplate =
+      stored.type === 'transfer'
+        ? {
+            ...stored,
+            allocations: (plans.get(row.id) ?? []).map(({ goalId, amountMinor }) => ({ goalId, amountMinor })),
+          }
+        : stored;
     const preview =
       row.status === 'stopped'
         ? []
@@ -605,7 +712,7 @@ async function recurrenceViewsIn(tx: Transaction, today: LocalDate, where: SQL |
           });
     const counts = stats.counts.get(row.id);
     const count = (status: OccurrenceStatus) => counts?.get(status) ?? 0;
-    const stored = stats.next.get(row.id);
+    const next = stats.next.get(row.id);
     const computed = preview[0];
     return {
       id: row.id,
@@ -621,8 +728,7 @@ async function recurrenceViewsIn(tx: Transaction, today: LocalDate, where: SQL |
       status: row.status,
       stoppedAt: row.stoppedAt,
       preview,
-      nextDue:
-        stored ?? (computed === undefined ? null : { occurrenceId: null, dueDate: computed, status: 'scheduled' }),
+      nextDue: next ?? (computed === undefined ? null : { occurrenceId: null, dueDate: computed, status: 'scheduled' }),
       occurrences: {
         confirmed: count('confirmed'),
         skipped: count('skipped'),
@@ -810,7 +916,8 @@ function inputOf(row: SubscriptionRow): SubscriptionInput {
   };
 }
 
-async function lockedRecurrenceIn(tx: Transaction, id: string): Promise<RecurrenceRow> {
+/** The recurrence, locked for the change. @throws {LedgerError} `NOT_FOUND` */
+export async function lockedRecurrenceIn(tx: Transaction, id: string): Promise<RecurrenceRow> {
   const [row] = await tx.select().from(recurrences).where(eq(recurrences.id, id)).for('update');
   if (row === undefined) throw new LedgerError('NOT_FOUND', 'No such recurrence');
   return row;
@@ -828,6 +935,80 @@ async function linkedTransactionsIn(tx: Transaction, recurrenceId: string): Prom
       ),
     );
   return rows.map((row) => row.id);
+}
+
+/**
+ * Validates and inserts a recurrence with its goal plans and materializes its occurrences.
+ * @throws {LedgerError} `INVALID_RECURRENCE`
+ */
+export async function createRecurrenceIn(
+  tx: Transaction,
+  userId: string,
+  input: RecurrenceInput,
+  at: Date,
+): Promise<RecurrenceRow> {
+  const { values, checked } = await recurrenceValuesIn(tx, input);
+  const row = firstRow(
+    await tx
+      .insert(recurrences)
+      .values({ ...values, userId })
+      .returning(),
+    'recurrences',
+  );
+  await writePlansIn(tx, userId, row.id, checked);
+  await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id: row.id } });
+  return row;
+}
+
+/** After a change to the rule or template: future `scheduled` occurrences from `today` are rebuilt. */
+export async function rebuildRecurrenceIn(
+  tx: Transaction,
+  userId: string,
+  id: string,
+  at: Date,
+  today: LocalDate,
+): Promise<void> {
+  const source = { type: 'recurrence', id } as const;
+  await pruneFutureIn(tx, userId, source, today);
+  await materializeIn(tx, userId, { now: at, source });
+}
+
+/** FR-L8 stop of a locked recurrence: future scheduled occurrences go (idempotent); returns how many. */
+export async function stopRecurrenceIn(
+  tx: Transaction,
+  userId: string,
+  row: RecurrenceRow,
+  at: Date,
+  today: LocalDate,
+): Promise<number> {
+  if (row.status === 'active') {
+    await tx
+      .update(recurrences)
+      .set({ status: 'stopped', stoppedAt: at, updatedAt: at })
+      .where(eq(recurrences.id, row.id));
+  }
+  const deletedOccurrences = await pruneFutureIn(tx, userId, { type: 'recurrence', id: row.id }, today);
+  if (row.status === 'active') {
+    await logActivity(tx, userId, 'transaction', await linkedTransactionsIn(tx, row.id), 'recurrence_stopped', {
+      recurrenceId: row.id,
+      deleted: deletedOccurrences,
+    });
+  }
+  return deletedOccurrences;
+}
+
+/** "Urungkan" of {@link stopRecurrenceIn} for a locked recurrence: active again, occurrences rebuilt (idempotent). */
+export async function resumeRecurrenceIn(tx: Transaction, userId: string, row: RecurrenceRow, at: Date): Promise<void> {
+  if (row.status === 'stopped') {
+    await tx
+      .update(recurrences)
+      .set({ status: 'active', stoppedAt: null, updatedAt: at })
+      .where(eq(recurrences.id, row.id));
+    await logActivity(tx, userId, 'transaction', await linkedTransactionsIn(tx, row.id), 'recurrence_resumed', {
+      recurrenceId: row.id,
+    });
+  }
+  await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id: row.id } });
 }
 
 /**
@@ -938,15 +1119,7 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
       withUser(db, userId, async (tx) => {
         const at = now();
         const { today } = await userClockIn(tx, userId, at);
-        const values = await recurrenceValuesIn(tx, input);
-        const row = firstRow(
-          await tx
-            .insert(recurrences)
-            .values({ ...values, userId })
-            .returning(),
-          'recurrences',
-        );
-        await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id: row.id } });
+        const row = await createRecurrenceIn(tx, userId, input, at);
         if (createOptions.transactionId !== undefined) {
           await linkTransactionIn(tx, userId, row, createOptions.transactionId, at);
         }
@@ -981,14 +1154,13 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
         const at = now();
         const { today } = await userClockIn(tx, userId, at);
         await lockedRecurrenceIn(tx, id);
-        const values = await recurrenceValuesIn(tx, input);
+        const { values, checked } = await recurrenceValuesIn(tx, input);
         await tx
           .update(recurrences)
           .set({ ...values, updatedAt: at })
           .where(eq(recurrences.id, id));
-        const source = { type: 'recurrence', id } as const;
-        await pruneFutureIn(tx, userId, source, today);
-        await materializeIn(tx, userId, { now: at, source });
+        await writePlansIn(tx, userId, id, checked);
+        await rebuildRecurrenceIn(tx, userId, id, at, today);
         return recurrenceViewIn(tx, today, id);
       }),
 
@@ -997,37 +1169,14 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
         const at = now();
         const { today } = await userClockIn(tx, userId, at);
         const row = await lockedRecurrenceIn(tx, id);
-        if (row.status === 'active') {
-          await tx
-            .update(recurrences)
-            .set({ status: 'stopped', stoppedAt: at, updatedAt: at })
-            .where(eq(recurrences.id, id));
-        }
-        const deletedOccurrences = await pruneFutureIn(tx, userId, { type: 'recurrence', id }, today);
-        if (row.status === 'active') {
-          await logActivity(tx, userId, 'transaction', await linkedTransactionsIn(tx, id), 'recurrence_stopped', {
-            recurrenceId: id,
-            deleted: deletedOccurrences,
-          });
-        }
-        return { deletedOccurrences };
+        return { deletedOccurrences: await stopRecurrenceIn(tx, userId, row, at, today) };
       }),
 
     undoStopRecurrence: (userId, id) =>
       withUser(db, userId, async (tx) => {
         const at = now();
         const { today } = await userClockIn(tx, userId, at);
-        const row = await lockedRecurrenceIn(tx, id);
-        if (row.status === 'stopped') {
-          await tx
-            .update(recurrences)
-            .set({ status: 'active', stoppedAt: null, updatedAt: at })
-            .where(eq(recurrences.id, id));
-          await logActivity(tx, userId, 'transaction', await linkedTransactionsIn(tx, id), 'recurrence_resumed', {
-            recurrenceId: id,
-          });
-        }
-        await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id } });
+        await resumeRecurrenceIn(tx, userId, await lockedRecurrenceIn(tx, id), at);
         return recurrenceViewIn(tx, today, id);
       }),
 
@@ -1596,6 +1745,55 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
           for (const row of subscriptionRows) {
             for (const due of subscriptionDueDates(row, start, range.to)) computed('subscription', row.id, due);
           }
+        }
+        // FR-U6: the rows of non-card debts, paid or not, with their occurrence where one is stored.
+        const installments = await tx
+          .select({
+            debtId: debts.id,
+            name: debts.name,
+            accountId: debts.payFromAccountId,
+            currency: debts.currency,
+            dueDate: debtInstallments.dueDate,
+            principalMinor: debtInstallments.principalMinor,
+            interestMinor: debtInstallments.interestMinor,
+            feeMinor: debtInstallments.feeMinor,
+            status: debtInstallments.status,
+            transactionId: debtInstallments.transactionId,
+            occurrenceId: scheduledOccurrences.id,
+            occurrenceStatus: scheduledOccurrences.status,
+          })
+          .from(debtInstallments)
+          .innerJoin(debts, eq(debts.id, debtInstallments.debtId))
+          .leftJoin(
+            scheduledOccurrences,
+            and(
+              eq(scheduledOccurrences.sourceType, 'installment'),
+              eq(scheduledOccurrences.sourceId, debts.id),
+              eq(scheduledOccurrences.dueDate, debtInstallments.dueDate),
+            ),
+          )
+          .where(
+            and(
+              ne(debts.kind, 'card_installment'),
+              gte(debtInstallments.dueDate, range.from),
+              lte(debtInstallments.dueDate, range.to),
+            ),
+          );
+        for (const row of installments) {
+          items.push({
+            occurrenceId: row.occurrenceId,
+            sourceType: 'installment',
+            sourceId: row.debtId,
+            name: row.name,
+            icon: null,
+            dueDate: row.dueDate,
+            expectedMinor: row.principalMinor + row.interestMinor + row.feeMinor,
+            currency: row.currency,
+            status: row.status === 'paid' ? 'confirmed' : (row.occurrenceStatus ?? 'scheduled'),
+            transactionId: row.transactionId,
+            accountId: row.accountId as string,
+            direction: 'out',
+          });
         }
         return items.sort(
           (a, b) =>

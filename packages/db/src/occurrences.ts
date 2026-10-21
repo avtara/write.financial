@@ -2,27 +2,47 @@
 /**
  * Scheduled occurrences (plan §4.3), shared by the app (wf_app) and the worker (wf_worker): the user's clock, the
  * stored shape of a recurrence's transaction template, the due dates of recurrences and subscriptions, and
- * materializing them `MATERIALIZE_DAYS` ahead. Everything runs inside the caller's `withUser` transaction and never
- * writes the ledger (D14); materializing only inserts missing rows, so it is idempotent and safe as wf_worker.
+ * materializing them, non-card installments (FR-U6), and card payment due dates (FR-R7) `MATERIALIZE_DAYS` ahead.
+ * Everything runs inside the caller's `withUser` transaction and never writes the ledger (D14); materializing only
+ * inserts missing rows, so it is idempotent and safe as wf_worker.
  */
 import { addDays, type LocalDate } from '@wf/domain/period';
 import { nextOccurrences, reminderAt, type IsoWeekday, type RecurrenceRule } from '@wf/domain/recurrence';
 import { cycleRule } from '@wf/domain/subscriptions';
-import { and, eq, gte, inArray } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
 import { localDateOf, userContextIn } from './ledger-core.ts';
 import { notificationSettingsIn } from './notification-settings.ts';
-import { accounts, recurrences, scheduledOccurrences, subscriptions, type JsonObject } from './schema.ts';
+import {
+  accounts,
+  debtInstallments,
+  debts,
+  recurrences,
+  scheduledOccurrences,
+  subscriptions,
+  type JsonObject,
+} from './schema.ts';
 
 /** How far ahead occurrences are stored; calendar reads beyond it are computed from the rules. */
 export const MATERIALIZE_DAYS = 90;
 
 export type ScheduleSourceType = 'recurrence' | 'subscription';
 
+/**
+ * Occurrence sources of the debts page: a non-card installment row (source = the debt; reviewed like a bill) and a
+ * credit card payment due date (source = the card account; reminder only, never reviewed, expected 0).
+ */
+export type DebtSourceType = 'installment' | 'cc_statement';
+
 export interface ScheduleSource {
-  readonly type: ScheduleSourceType;
+  readonly type: ScheduleSourceType | DebtSourceType;
   readonly id: string;
 }
+
+/** H-1: installment reminders, like recurring bills. */
+const INSTALLMENT_REMIND_DAYS = 1;
+/** H-3: the card payment due date reminder (FR-R7). */
+const CC_STATEMENT_REMIND_DAYS = 3;
 
 /** The transaction every occurrence of a recurrence proposes (FR-T6); amounts in the account currencies. */
 export type RecurrenceTemplate =
@@ -44,8 +64,6 @@ export type RecurrenceTemplate =
       readonly fee?: { readonly minor: bigint; readonly categoryId: string } | null;
       readonly description?: string | null;
       readonly tags?: readonly string[];
-      /** "Sisihkan dana tidak rutin": the part of `sentMinor` set aside for each goal. */
-      readonly allocations?: readonly { readonly goalId: string; readonly amountMinor: bigint }[];
     };
 
 /** `recurrences.template` JSON of a template (bigints as decimal strings; never a note). */
@@ -71,10 +89,6 @@ export function encodeTemplate(template: RecurrenceTemplate): JsonObject {
     sentMinor: template.sentMinor.toString(),
     receivedMinor: template.receivedMinor.toString(),
     fee: template.fee ? { minor: template.fee.minor.toString(), categoryId: template.fee.categoryId } : null,
-    allocations: (template.allocations ?? []).map((part) => ({
-      goalId: part.goalId,
-      amountMinor: part.amountMinor.toString(),
-    })),
     ...common,
   };
 }
@@ -90,7 +104,6 @@ interface StoredTemplate {
   readonly sentMinor: string;
   readonly receivedMinor: string;
   readonly fee: { readonly minor: string; readonly categoryId: string } | null;
-  readonly allocations: readonly { readonly goalId: string; readonly amountMinor: string }[];
   readonly description: string | null;
   readonly tags: readonly string[];
 }
@@ -116,7 +129,6 @@ export function decodeTemplate(json: JsonObject): RecurrenceTemplate {
     sentMinor: BigInt(stored.sentMinor),
     receivedMinor: BigInt(stored.receivedMinor),
     fee: stored.fee ? { minor: BigInt(stored.fee.minor), categoryId: stored.fee.categoryId } : null,
-    allocations: stored.allocations.map((part) => ({ goalId: part.goalId, amountMinor: BigInt(part.amountMinor) })),
     ...common,
   };
 }
@@ -200,11 +212,13 @@ export async function userClockIn(
 type NewOccurrence = typeof scheduledOccurrences.$inferInsert;
 
 /**
- * Inserts the missing occurrences of the user's active recurrences and subscriptions (or only `source`) due in
+ * Inserts the missing occurrences of the user's active recurrences and subscriptions, the unpaid rows of active
+ * non-card debts, and the payment due dates (`cc_due_day`, monthly) of active credit cards (or only `source`) due in
  * [today, today + `MATERIALIZE_DAYS`]; a subscription's window starts at its `next_billing_date` when that is earlier,
- * so the next unpaid bill always has a row. `remind_at` is the user's reminder time (Settings › Notifikasi, default
- * 09.00) local on `due − offset` (no reminder without an offset or for a bill already overdue). Existing rows are
- * never modified.
+ * so the next unpaid bill always has a row. Installments expect the row total in the debt currency; card due dates
+ * expect 0. `remind_at` is the user's reminder time (Settings › Notifikasi, default 09.00) local on `due − offset`
+ * (installments H-1, card due dates H-3; no reminder without an offset or for a bill already overdue). Existing rows
+ * are never modified.
  */
 export async function materializeIn(
   tx: Transaction,
@@ -217,7 +231,7 @@ export async function materializeIn(
   const { source } = options;
   const rows: NewOccurrence[] = [];
   const occurrence = (
-    sourceType: ScheduleSourceType,
+    sourceType: ScheduleSource['type'],
     sourceId: string,
     dueDate: LocalDate,
     expectedMinor: bigint,
@@ -233,7 +247,9 @@ export async function materializeIn(
     remindAt: offset === null || dueDate < today ? null : reminderAt(dueDate, offset, timeZone, reminderTime),
   });
 
-  if (source?.type !== 'subscription') {
+  const wants = (type: ScheduleSource['type']) => source === undefined || source.type === type;
+
+  if (wants('recurrence')) {
     const schedules = await tx
       .select()
       .from(recurrences)
@@ -253,7 +269,7 @@ export async function materializeIn(
       }
     });
   }
-  if (source?.type !== 'recurrence') {
+  if (wants('subscription')) {
     const subs = await tx
       .select()
       .from(subscriptions)
@@ -262,6 +278,59 @@ export async function materializeIn(
       const start = row.nextBillingDate < today ? row.nextBillingDate : today;
       for (const due of subscriptionDueDates(row, start, until)) {
         rows.push(occurrence('subscription', row.id, due, row.priceMinor, row.currency, row.remindDaysBefore));
+      }
+    }
+  }
+  if (wants('installment')) {
+    const due = await tx
+      .select({
+        debtId: debts.id,
+        currency: debts.currency,
+        dueDate: debtInstallments.dueDate,
+        principalMinor: debtInstallments.principalMinor,
+        interestMinor: debtInstallments.interestMinor,
+        feeMinor: debtInstallments.feeMinor,
+      })
+      .from(debtInstallments)
+      .innerJoin(debts, eq(debts.id, debtInstallments.debtId))
+      .where(
+        and(
+          ne(debts.kind, 'card_installment'),
+          eq(debts.status, 'active'),
+          eq(debtInstallments.status, 'scheduled'),
+          gte(debtInstallments.dueDate, today),
+          lte(debtInstallments.dueDate, until),
+          source === undefined ? undefined : eq(debts.id, source.id),
+        ),
+      );
+    for (const row of due) {
+      const expected = row.principalMinor + row.interestMinor + row.feeMinor;
+      rows.push(occurrence('installment', row.debtId, row.dueDate, expected, row.currency, INSTALLMENT_REMIND_DAYS));
+    }
+  }
+  if (wants('cc_statement')) {
+    const cards = await tx
+      .select({ id: accounts.id, currency: accounts.currency, dueDay: accounts.ccDueDay })
+      .from(accounts)
+      .where(
+        and(
+          eq(accounts.type, 'credit_card'),
+          eq(accounts.status, 'active'),
+          isNotNull(accounts.ccDueDay),
+          source === undefined ? undefined : eq(accounts.id, source.id),
+        ),
+      );
+    for (const card of cards) {
+      const rule: RecurrenceRule = {
+        freq: 'monthly',
+        interval: 1,
+        startOn: today,
+        weekday: null,
+        monthDay: card.dueDay,
+        end: { type: 'never' },
+      };
+      for (const due of nextOccurrences(rule, { from: today, until })) {
+        rows.push(occurrence('cc_statement', card.id, due, 0n, card.currency, CC_STATEMENT_REMIND_DAYS));
       }
     }
   }

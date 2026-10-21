@@ -12,9 +12,10 @@ import type { TransactionType } from '@wf/domain/transactions';
 import { and, asc, count, eq, gt, inArray, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
+import { markInstallmentPaidIn } from './debts.ts';
 import { assertOpenTransactionsIn, checkCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
-import { decodeTemplate, subscriptionDueDates } from './occurrences.ts';
+import { subscriptionDueDates } from './occurrences.ts';
 import {
   insertReviewItemIn,
   occurrenceReviewItemIn,
@@ -25,6 +26,7 @@ import {
   type ReviewSource,
   type ReviewStatus,
 } from './review-items.ts';
+import { activePlansIn } from './schedules.ts';
 import {
   budgetPeriodOverrides,
   goals,
@@ -103,7 +105,7 @@ export interface ReviewItemView {
   readonly subjectTransactionId: string | null;
   /** `category` items: the transaction itself; `null` otherwise (or once it is gone). */
   readonly subject: ReviewSubject | null;
-  /** Occurrences of a recurring transfer: the goal allocations of its template (empty otherwise). */
+  /** Occurrences of a recurring transfer: its active goal plans, in the order they were made (empty otherwise). */
   readonly allocations: readonly ReviewAllocation[];
   readonly periodId: string | null;
   readonly dueDate: LocalDate | null;
@@ -316,6 +318,22 @@ async function leftoverIn(
   return result.id;
 }
 
+/**
+ * A recurring transfer planned for exactly one goal counts toward it: the transaction confirming its occurrence gets
+ * that `goal_id` (a split over several goals stays unlinked; its tags tell the parts apart).
+ */
+async function linkPlannedGoalIn(
+  tx: Transaction,
+  occurrence: Pick<ReviewOccurrenceView, 'sourceType' | 'sourceId'>,
+  transactionId: string,
+  now: Date,
+): Promise<void> {
+  if (occurrence.sourceType !== 'recurrence') return;
+  const [plan, ...others] = (await activePlansIn(tx, [occurrence.sourceId])).get(occurrence.sourceId) ?? [];
+  if (plan === undefined || others.length > 0) return;
+  await tx.update(transactions).set({ goalId: plan.goalId, updatedAt: now }).where(eq(transactions.id, transactionId));
+}
+
 /** Applies and resolves one pending item inside the caller's transaction. */
 async function confirmIn(
   tx: Transaction,
@@ -340,6 +358,11 @@ async function confirmIn(
           .set({ status: 'confirmed', transactionId, updatedAt: now })
           .where(eq(scheduledOccurrences.id, occurrence.id));
         await advanceSubscriptionIn(tx, occurrence, now);
+        await linkPlannedGoalIn(tx, occurrence, transactionId, now);
+        // FR-U6: the installment row this occurrence stands for is paid by the expense just recorded.
+        if (occurrence.sourceType === 'installment') {
+          await markInstallmentPaidIn(tx, occurrence.sourceId, occurrence.dueDate, transactionId, now);
+        }
       }
       break;
     }
@@ -431,7 +454,6 @@ export function createReview(
               string | null
             >`coalesce(${subscriptions.name}, ${recurrences.template}->>'merchant', ${recurrences.template}->>'description', ${transactions.merchant}, ${transactions.description})`,
             periodLabel: periods.label,
-            template: recurrences.template,
             subject: {
               type: transactions.type,
               occurredAt: transactions.occurredAt,
@@ -468,6 +490,10 @@ export function createReview(
         const goalNames = new Map(
           (await tx.select({ id: goals.id, name: goals.name }).from(goals)).map((goal) => [goal.id, goal.name]),
         );
+        const plans = await activePlansIn(
+          tx,
+          rows.flatMap(({ occurrence }) => (occurrence?.sourceType === 'recurrence' ? [occurrence.sourceId] : [])),
+        );
         const subjectIds = rows.flatMap((row) =>
           row.subject === null || row.subject.deletedAt !== null ? [] : [row.item.subjectTransactionId as string],
         );
@@ -488,7 +514,7 @@ export function createReview(
             if (!principals.has(transactionId)) principals.set(transactionId, leg);
           }
         }
-        const items = rows.map(({ item, occurrence, label, periodLabel, template, subject }): ReviewItemView => {
+        const items = rows.map(({ item, occurrence, label, periodLabel, subject }): ReviewItemView => {
           const payload = readReviewPayload(dek, userId, item.payloadEnc);
           const proposed =
             payload.kind === 'transaction'
@@ -497,7 +523,6 @@ export function createReview(
                 ? (goalNames.get(payload.goalId) ?? null)
                 : null;
           const principal = principals.get(item.subjectTransactionId ?? '');
-          const decoded = template === null ? null : decodeTemplate(template);
           return {
             id: item.id,
             reason: item.reason,
@@ -518,15 +543,7 @@ export function createReview(
                     description: subject.description,
                     ...principal,
                   },
-            allocations:
-              decoded?.type === 'transfer'
-                ? // `decodeTemplate` always lists them (maybe none).
-                  (decoded.allocations as NonNullable<typeof decoded.allocations>).map((part) => ({
-                    goalId: part.goalId,
-                    goalName: goalNames.get(part.goalId) ?? '',
-                    amountMinor: part.amountMinor,
-                  }))
-                : [],
+            allocations: occurrence?.sourceType === 'recurrence' ? (plans.get(occurrence.sourceId) ?? []) : [],
             periodId: item.periodId,
             dueDate: item.dueDate,
             aiConfidence: item.aiConfidence,

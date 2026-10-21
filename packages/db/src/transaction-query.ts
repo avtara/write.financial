@@ -192,8 +192,12 @@ const MAX_LIMIT = 200;
 
 /** Lines that count as In: the principal of an income. */
 export const isIn = sql`(${transactions.type} = 'income' and ${postings.role} = 'principal')`;
-/** Lines that count as Out: the principal of an expense, fees, and FX-difference losses. */
-export const isOut = sql`((${transactions.type} = 'expense' and ${postings.role} = 'principal') or ${postings.role} = 'fee' or (${postings.role} = 'fx_diff' and ${postings.amountBaseMinor} < 0))`;
+/**
+ * Lines that count as Out: the principal of an expense or a receivable write-off (FR-U7, its principal moves no money:
+ * amount 0, the written-off value in the base amount), fees, and FX-difference losses. Lending and repayments
+ * (`receivable_out`/`receivable_in`) are neither In nor Out.
+ */
+export const isOut = sql`((${transactions.type} in ('expense', 'writeoff') and ${postings.role} = 'principal') or ${postings.role} = 'fee' or (${postings.role} = 'fx_diff' and ${postings.amountBaseMinor} < 0))`;
 /** The sent leg of a transfer. */
 const isSent = sql`(${transactions.type} = 'transfer' and ${postings.role} = 'principal' and ${postings.amountMinor} < 0)`;
 const sumIn = sql`sum(case when ${isIn} then ${postings.amountBaseMinor} else 0 end)`;

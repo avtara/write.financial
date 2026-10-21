@@ -445,34 +445,49 @@ describe('list and counts', () => {
     expect((await asApp(() => review.counts(userId))).total).toBe(10);
   });
 
-  it("shows a transfer's goal allocations and the outgoing leg of a transaction to categorize", async () => {
-    const goal = await one(
-      `INSERT INTO goals (user_id, name, icon, color, target_minor, currency) VALUES ($1, 'Liburan Bali', 'plane', 'green', 1, 'IDR') RETURNING id`,
-      [userId],
-    );
-    const lost = randomUUID();
-    const sisihkan = await one(
-      `INSERT INTO recurrences (user_id, template, freq, start_on, month_day)
-       VALUES ($1, $2, 'monthly', '2026-01-25', 25) RETURNING id`,
-      [
-        userId,
-        JSON.stringify({
-          type: 'transfer',
-          fromAccountId: ledger.bca,
-          toAccountId: ledger.jago,
-          sentMinor: '1150000',
-          receivedMinor: '1150000',
-          fee: null,
-          description: 'Sisihkan dana tidak rutin',
-          tags: [],
-          allocations: [
-            { goalId: goal, amountMinor: '867000' },
-            { goalId: lost, amountMinor: '283000' },
-          ],
-        }),
-      ],
-    );
+  it("shows a transfer's goal plans and the outgoing leg of a transaction to categorize", async () => {
+    const goalNamed = (name: string) =>
+      one(
+        `INSERT INTO goals (user_id, name, icon, color, target_minor, currency) VALUES ($1, $2, 'plane', 'green', 1, 'IDR') RETURNING id`,
+        [userId, name],
+      );
+    const goal = await goalNamed('Liburan Bali');
+    const servis = await goalNamed('Servis motor');
+    const stnk = await goalNamed('Perpanjang STNK');
+    const transferRule = (description: string, amount: string) =>
+      one(
+        `INSERT INTO recurrences (user_id, template, freq, start_on, month_day)
+         VALUES ($1, $2, 'monthly', '2026-01-25', 25) RETURNING id`,
+        [
+          userId,
+          JSON.stringify({
+            type: 'transfer',
+            fromAccountId: ledger.bca,
+            toAccountId: ledger.jago,
+            sentMinor: amount,
+            receivedMinor: amount,
+            fee: null,
+            description,
+            tags: [],
+          }),
+        ],
+      );
+    const plan = (recurrenceId: string, goalId: string, amount: number, active = true) =>
+      test.query(
+        'INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor, active) VALUES ($1, $2, $3, $4, $5)',
+        [userId, goalId, recurrenceId, amount, active],
+      );
+    const sisihkan = await transferRule('Sisihkan dana tidak rutin', '1150000');
+    await plan(sisihkan, goal, 867_000);
+    await plan(sisihkan, servis, 283_000);
+    await plan(sisihkan, stnk, 43_000, false);
+    const setor = await transferRule('Setor dana darurat', '500000');
+    await plan(setor, goal, 500_000);
     const due = await occurrenceItem(await occurrence(sisihkan, '2026-10-25', 'due_review', 'recurrence'));
+    const single = await occurrenceItem(await occurrence(setor, '2026-10-25', 'due_review', 'recurrence'));
+    const unplanned = await occurrenceItem(
+      await occurrence(await transferRule('Pindah dana', '1000'), '2026-10-25', 'due_review', 'recurrence'),
+    );
     const transfer = await ledger.transfer('2026-10-14', 3_000_000n);
     const gone = await ledger.entry('expense', '2026-10-13', 5_000n, null);
     await test.query('UPDATE transactions SET deleted_at = now() WHERE id = $1', [gone]);
@@ -493,11 +508,22 @@ describe('list and counts', () => {
       label: 'Sisihkan dana tidak rutin',
       allocations: [
         { goalId: goal, goalName: 'Liburan Bali', amountMinor: 867_000n },
-        { goalId: lost, goalName: '', amountMinor: 283_000n },
+        { goalId: servis, goalName: 'Servis motor', amountMinor: 283_000n },
       ],
     });
+    expect(byId(single)?.allocations).toEqual([{ goalId: goal, goalName: 'Liburan Bali', amountMinor: 500_000n }]);
     expect(byId(moved)?.subject).toMatchObject({ type: 'transfer', accountId: ledger.bca, amountMinor: -3_000_000n });
     expect(byId(deleted)?.subject).toBeNull();
+
+    // Confirming links the transfer to its goal only when it was planned for exactly one.
+    const goalOf = async (itemId: string) => {
+      const { transactionId } = await asApp(() => review.confirm(userId, itemId));
+      return (await row<{ goal_id: string | null }>('SELECT goal_id FROM transactions WHERE id = $1', [transactionId]))
+        .goal_id;
+    };
+    expect(await goalOf(due)).toBeNull();
+    expect(await goalOf(single)).toBe(goal);
+    expect(await goalOf(unplanned)).toBeNull();
   });
 
   it('lists nothing for a new user and uses the real clock by default', async () => {

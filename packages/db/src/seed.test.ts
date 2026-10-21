@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { randomUUID } from 'node:crypto';
 import { generateDek } from '@wf/crypto/envelope';
+import { netWorth } from '@wf/domain/ledger';
+import type { LocalDate } from '@wf/domain/period';
 import { DESIGN_SEED, seedClosingBalances, type DesignSeed, type SeedTransaction } from '@wf/domain/seed';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { insertUser, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
+import { createAccounts } from './accounts.ts';
+import { createGoals } from './goals.ts';
+import { createReceivables } from './receivables.ts';
 import { createReview } from './review.ts';
 import { createSchedules } from './schedules.ts';
 import { SeedMismatchError, seedAutomation, seedLedger, SeedTargetNotEmptyError } from './seed.ts';
+import { createTransactionQuery } from './transaction-query.ts';
 
 let test: TestDatabase;
 let userId: string;
@@ -25,6 +32,7 @@ const tiny = (overrides: Partial<DesignSeed>): DesignSeed => ({
   fxRates: [],
   subscriptions: [],
   recurrences: [],
+  receivables: [],
   ...overrides,
 });
 
@@ -55,6 +63,7 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
       transactions: 249,
       closedPeriods: 1,
       goals: DESIGN_SEED.goals.length,
+      receivables: 5,
       subscriptions: 11,
       recurrences: 4,
       availableMinor: 55_023_000n,
@@ -155,6 +164,113 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     // Nothing applied before a confirmation (D14).
     expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 249 }]);
     expect(await test.query('SELECT count(*)::int AS n FROM budget_period_overrides')).toEqual([{ n: 0 }]);
+  });
+
+  it('M4: goals with their sources and plans, Rp542.500 of receivables, and the Section 19 exit scenario', async () => {
+    const result = await asApp(() => seedLedger(test.db, userId, options));
+    expect(result.balances).toEqual(seedClosingBalances(DESIGN_SEED));
+    expect(result.availableMinor).toBe(55_023_000n);
+    // Receivables are recorded without ledger transactions: the Section 00 counts and flows stay.
+    expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 249 }]);
+
+    const goals = createGoals(test.db, options);
+    expect(
+      (await asApp(() => goals.list(userId))).map((goal) => [
+        goal.name,
+        goal.kind,
+        goal.targetMode,
+        goal.savedMinor,
+        goal.monthlyPlanMinor,
+      ]),
+    ).toEqual([
+      ['Dana Darurat', 'savings', 'monthly_expenses', 8_125_000n, 3_500_000n],
+      ['DP Rumah', 'savings', 'fixed', 5_000_000n, 0n],
+      ['Dana Pensiun', 'savings', 'fixed', 0n, 0n],
+      ['Liburan Bali', 'sinking', 'fixed', 2_800_000n, 867_000n],
+      ['Servis motor', 'sinking', 'fixed', 720_000n, 240_000n],
+      ['Perpanjang STNK', 'sinking', 'fixed', 680_000n, 43_000n],
+    ]);
+    // Accounts page: "Rp17.300.000 dialokasikan ke tabungan · bebas Rp37.700.000" (the design rounds 17.325.000).
+    const allocations = await asApp(() => goals.allocations(userId));
+    expect(allocations.reduce((sum, row) => sum + row.allocatedMinor, 0n)).toBe(17_325_000n);
+    expect(allocations.map((row) => [row.allocatedMinor, row.goalIds.length]).sort()).toEqual([
+      [8_125_000n, 1],
+      [9_200_000n, 4],
+    ]);
+
+    const receivables = createReceivables(test.db, options);
+    const before = await asApp(() => receivables.list(userId));
+    expect(before.outstandingMinor).toBe(542_500n);
+    expect(before.active.map((row) => [row.counterparty, row.remainingMinor, row.dueDate])).toEqual([
+      ['Nadia', 242_500n, '2026-10-18'],
+      ['Raka Pratama', 300_000n, '2026-10-31'],
+    ]);
+    expect(before.history.map((row) => [row.counterparty, row.settledAt])).toEqual([
+      ['Dimas', new Date('2026-10-02T12:00:00+07:00')],
+      ['Sari', new Date('2026-09-21T12:00:00+07:00')],
+    ]);
+    expect(before.people).toEqual(['Nadia', 'Raka Pratama', 'Dimas', 'Sari', 'Bima Aditya']);
+    // Nadia's H-1 reminder: 17 Okt 09.00 WIB.
+    expect(
+      await test.query(
+        `SELECT due_date::text AS due, remind_at FROM scheduled_occurrences WHERE source_type = 'receivable'`,
+      ),
+    ).toEqual([{ due: '2026-10-18', remind_at: new Date('2026-10-17T02:00:00Z') }]);
+
+    // Section 19 exit: lend Bima Rp500.000 from BCA → Rp1.042.500, BCA 42.310.000, October expenses stay 16.500.000.
+    const accounts = createAccounts(test.db, options);
+    const accountOf = async (name: string) =>
+      (await asApp(() => accounts.list(userId))).accounts.find((account) => account.displayName === name);
+    const bca = await accountOf('BCA Tahapan');
+    const gopay = await accountOf('GoPay');
+    const query = createTransactionQuery(test.db, { getDek: options.getDek });
+    const october = { from: '2026-10-01' as LocalDate, to: '2026-10-31' as LocalDate };
+    const flowsBefore = await asApp(() => query.summary(userId, october));
+    expect([flowsBefore.inMinor, flowsBefore.outMinor]).toEqual([26_000_000n, 16_500_000n]);
+    await asApp(() =>
+      receivables.record(userId, {
+        clientId: randomUUID(),
+        counterparty: 'Bima Aditya',
+        amountMinor: 500_000n,
+        fromAccountId: bca?.id as string,
+        source: 'loan',
+        description: null,
+        note: 'Pinjam untuk servis motor',
+        lentAt: options.now(),
+        dueDate: '2026-10-31' as LocalDate,
+        remind: true,
+      }),
+    );
+    expect((await asApp(() => receivables.list(userId))).outstandingMinor).toBe(1_042_500n);
+    expect((await accountOf('BCA Tahapan'))?.balanceMinor).toBe(42_310_000n);
+    const overview = await asApp(() => accounts.list(userId));
+    expect(overview.availableMinor).toBe(54_523_000n);
+    // Net worth is unchanged by lending (design investments Rp61.420.000; the dialog's "116.443.000 tetap" leaves the
+    // receivables out, with them it is 116.985.500 before and after).
+    const worth = (available: bigint, receivablesOutstanding: bigint) =>
+      netWorth({ available, investments: 61_420_000n, receivablesOutstanding, debtRemaining: 0n });
+    expect(worth(overview.availableMinor, 1_042_500n)).toBe(worth(55_023_000n, 542_500n));
+    expect(worth(55_023_000n, 542_500n)).toBe(116_985_500n);
+    expect((await asApp(() => query.summary(userId, october))).outMinor).toBe(16_500_000n);
+
+    // Receive Raka Rp200.000 into GoPay → remaining 100.000 (75% back), GoPay 612.000, October income unchanged.
+    const raka = before.active.find((row) => row.counterparty === 'Raka Pratama');
+    const paid = await asApp(() =>
+      receivables.receivePayment(userId, raka?.id as string, {
+        clientId: randomUUID(),
+        amountMinor: 200_000n,
+        accountId: gopay?.id as string,
+        receivedAt: options.now(),
+      }),
+    );
+    expect([paid.remainingMinor, paid.repaidBps, paid.status, paid.dueDate]).toEqual([
+      100_000n,
+      7_500,
+      'partial',
+      '2026-10-31',
+    ]);
+    expect((await accountOf('GoPay'))?.balanceMinor).toBe(612_000n);
+    expect((await asApp(() => query.summary(userId, october))).inMinor).toBe(26_000_000n);
   });
 
   it('M3: fails on a bill, goal, or closed period the fixture does not have', async () => {

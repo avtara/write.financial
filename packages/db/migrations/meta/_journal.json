@@ -71,6 +71,13 @@
       "when": 1792557434813,
       "tag": "0009_recurrence_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792575340980,
+      "tag": "0010_goals_debts_receivables",
+      "breakpoints": true
     }
   ]
 }
