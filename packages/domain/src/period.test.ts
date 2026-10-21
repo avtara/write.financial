@@ -9,9 +9,12 @@ import {
   InvalidTransitionError,
   PRORATION_BASE_DAYS,
   addDays,
+  addMonths,
   countDays,
+  dateInMonth,
   detectPayday,
   formatPeriodLabel,
+  monthsBetween,
   nextPeriod,
   parseLocalDate,
   periodAfter,
@@ -22,6 +25,7 @@ import {
   previousPeriod,
   prorateLimit,
   recalculatedPeriods,
+  shiftMonth,
   transitionPeriod,
   type LocalDate,
   type Period,
@@ -482,5 +486,56 @@ describe('formatPeriodLabel', () => {
     expect(formatPeriodLabel(label, 'en', 'month')).toBe(english);
     expect(formatPeriodLabel(label, 'id', 'monthYear')).toBe(`${indonesian} 2026`);
     expect(formatPeriodLabel(label, 'en', 'monthYear')).toBe(`${english} 2026`);
+  });
+});
+
+describe('month arithmetic (installments, card cycles, goal deadlines)', () => {
+  const ym = (value: string) => value as YearMonth;
+
+  it('addMonths keeps the day and clamps it to short months', () => {
+    expect(addMonths(d('2026-11-25'), 11)).toBe('2027-10-25');
+    expect(addMonths(d('2026-01-31'), 1)).toBe('2026-02-28');
+    expect(addMonths(d('2028-01-31'), 1)).toBe('2028-02-29');
+    expect(addMonths(d('2026-03-31'), -1)).toBe('2026-02-28');
+    expect(addMonths(d('2026-12-15'), 1)).toBe('2027-01-15');
+    expect(addMonths(d('2026-10-15'), 0)).toBe('2026-10-15');
+    expect(addMonths(d('2026-05-30'), 1)).toBe('2026-06-30');
+  });
+
+  it('dateInMonth clamps the day to the month', () => {
+    expect(dateInMonth(ym('2026-10'), 20)).toBe('2026-10-20');
+    expect(dateInMonth(ym('2027-02'), 31)).toBe('2027-02-28');
+    expect(dateInMonth(ym('2026-04'), 31)).toBe('2026-04-30');
+    expect(dateInMonth(ym('2026-12'), 31)).toBe('2026-12-31');
+    expect(dateInMonth(ym('2026-10'), 1)).toBe('2026-10-01');
+  });
+
+  it('shiftMonth crosses years both ways', () => {
+    expect(shiftMonth(ym('2026-11'), 12)).toBe('2027-11');
+    expect(shiftMonth(ym('2026-11'), 2)).toBe('2027-01');
+    expect(shiftMonth(ym('2026-01'), -1)).toBe('2025-12');
+    expect(shiftMonth(ym('2026-10'), 0)).toBe('2026-10');
+  });
+
+  it('monthsBetween counts whole months, negative backwards', () => {
+    expect(monthsBetween(ym('2026-10'), ym('2027-02'))).toBe(4);
+    expect(monthsBetween(ym('2026-11'), ym('2027-06'))).toBe(7);
+    expect(monthsBetween(ym('2027-02'), ym('2026-10'))).toBe(-4);
+    expect(monthsBetween(ym('2026-10'), ym('2026-10'))).toBe(0);
+    expect(monthsBetween(ym('2025-12'), ym('2026-01'))).toBe(1);
+  });
+
+  it('shiftMonth and monthsBetween are inverse', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1900, max: 2100 }),
+        fc.integer({ min: 1, max: 12 }),
+        fc.integer({ min: -600, max: 600 }),
+        (year, month, shift) => {
+          const from = `${year}-${String(month).padStart(2, '0')}` as YearMonth;
+          expect(monthsBetween(from, shiftMonth(from, shift))).toBe(shift);
+        },
+      ),
+    );
   });
 });
