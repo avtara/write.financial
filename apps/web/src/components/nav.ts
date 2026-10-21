@@ -7,6 +7,7 @@ import { m } from '@wf/i18n/messages';
 import type { KbdKey } from '@wf/ui/kbd-hint';
 import {
   ArrowLeftRight,
+  CalendarDays,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
@@ -69,6 +70,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         shortcut: ['G', 'L'],
         badge: 'subscriptions',
       },
+      { to: '/calendar', label: m.nav_calendar, icon: CalendarDays, railIcon: CalendarDays },
       { to: '/review', label: m.review_title, icon: Inbox, railIcon: Inbox, badge: 'review' },
     ],
   },

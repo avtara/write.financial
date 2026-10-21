@@ -67,6 +67,7 @@ describe('getRouter', () => {
       '/api/subscription-logo/$id',
       '/api/transactions/$id/attachments/$attachmentId',
       '/budget',
+      '/calendar',
       '/forgot',
       '/healthz',
       '/notifications',

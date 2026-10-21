@@ -17,6 +17,7 @@ import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
 import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
 import { Route as AppBudgetRouteImport } from './../routes/_app/budget.tsx';
+import { Route as AppCalendarRouteImport } from './../routes/_app/calendar.tsx';
 import { Route as AppNotificationsRouteImport } from './../routes/_app/notifications.tsx';
 import { Route as AppReviewRouteImport } from './../routes/_app/review.tsx';
 import { Route as AppSubscriptionsRouteImport } from './../routes/_app/subscriptions.tsx';
@@ -71,6 +72,11 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
 const AppBudgetRoute = AppBudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppCalendarRoute = AppCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => AppRoute,
 } as any);
 const AppNotificationsRoute = AppNotificationsRouteImport.update({
@@ -167,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/calendar': typeof AppCalendarRoute;
   '/notifications': typeof AppNotificationsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
@@ -192,6 +199,7 @@ export interface FileRoutesByTo {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/calendar': typeof AppCalendarRoute;
   '/notifications': typeof AppNotificationsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/_app/accounts': typeof AppAccountsRoute;
   '/_app/budget': typeof AppBudgetRoute;
+  '/_app/calendar': typeof AppCalendarRoute;
   '/_app/notifications': typeof AppNotificationsRoute;
   '/_app/review': typeof AppReviewRoute;
   '/_app/subscriptions': typeof AppSubscriptionsRoute;
@@ -247,6 +256,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/calendar'
     | '/notifications'
     | '/review'
     | '/subscriptions'
@@ -272,6 +282,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/calendar'
     | '/notifications'
     | '/review'
     | '/subscriptions'
@@ -298,6 +309,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/_app/accounts'
     | '/_app/budget'
+    | '/_app/calendar'
     | '/_app/notifications'
     | '/_app/review'
     | '/_app/subscriptions'
@@ -388,6 +400,13 @@ declare module '@tanstack/react-router' {
       path: '/budget';
       fullPath: '/budget';
       preLoaderRoute: typeof AppBudgetRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/calendar': {
+      id: '/_app/calendar';
+      path: '/calendar';
+      fullPath: '/calendar';
+      preLoaderRoute: typeof AppCalendarRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_app/notifications': {
@@ -515,6 +534,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute;
   AppBudgetRoute: typeof AppBudgetRoute;
+  AppCalendarRoute: typeof AppCalendarRoute;
   AppNotificationsRoute: typeof AppNotificationsRoute;
   AppReviewRoute: typeof AppReviewRoute;
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute;
@@ -526,6 +546,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
   AppBudgetRoute: AppBudgetRoute,
+  AppCalendarRoute: AppCalendarRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppReviewRoute: AppReviewRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,

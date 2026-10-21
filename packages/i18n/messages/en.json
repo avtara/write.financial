@@ -507,8 +507,163 @@
   "budget_transition_label": "Next transition period",
   "budget_transition_title": "Next: transition period {month} {range}",
   "budget_undo": "Undo",
+  "calendar_cell_out": "has spending",
+  "calendar_day_by_category": "Spending by category",
+  "calendar_day_empty": "No transactions yet",
+  "calendar_day_in": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "in {days} day",
+        "daysPlural=*": "in {days} days"
+      }
+    }
+  ],
+  "calendar_day_items": "Transactions & schedule",
+  "calendar_day_no_transactions": "No transactions on this day.",
+  "calendar_day_no_transactions_future": "No transactions yet — spending is recorded when you record it.",
+  "calendar_day_open_subscription": "Open in Subscriptions",
+  "calendar_day_open_transactions": "Open in Transactions",
+  "calendar_day_projection": "Estimated from the {month} pattern. Exact figures appear once you record the transactions.",
+  "calendar_day_record": "Record on this day",
+  "calendar_day_recurring": "Recurring",
+  "calendar_day_regular_income": "Regular income · projection",
+  "calendar_day_scheduled": "{count} scheduled",
+  "calendar_day_scheduled_status": "scheduled",
+  "calendar_day_weekend": "weekend",
+  "calendar_description": "Daily spending, income, and scheduled bills in one view",
+  "calendar_empty_description": "Every day will show its total spending and scheduled bills — as soon as the first transaction or subscription is recorded.",
+  "calendar_empty_title": "The calendar is still empty",
+  "calendar_group_needs": "Needs",
+  "calendar_group_wants": "Wants",
+  "calendar_kpi_average": "Daily average",
+  "calendar_kpi_bills": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} bill",
+        "countPlural=*": "{count} bills"
+      }
+    }
+  ],
+  "calendar_kpi_costliest": "Costliest day",
+  "calendar_kpi_costliest_note": "{date} · {times}× the average",
+  "calendar_kpi_days": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} day",
+        "countPlural=*": "{count} days"
+      }
+    }
+  ],
+  "calendar_kpi_elapsed": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "{days} day so far",
+        "daysPlural=*": "{days} days so far"
+      }
+    }
+  ],
+  "calendar_kpi_frugal": "Frugal days",
+  "calendar_kpi_frugal_note": "below {amount}",
+  "calendar_kpi_largest_bill": "Largest bill",
+  "calendar_kpi_no_transactions": "no transactions yet",
+  "calendar_kpi_payday": "Payday",
+  "calendar_kpi_payday_estimate": "about {amount}",
+  "calendar_kpi_scheduled": "Scheduled",
+  "calendar_kpi_transfers": "transfers {amount}",
+  "calendar_kpi_weekend": "Weekend",
+  "calendar_kpi_weekend_note": "more than on weekdays",
+  "calendar_kpis_label": "Calendar summary",
+  "calendar_layer_income": "Income",
+  "calendar_layer_savings": "Savings transfers",
+  "calendar_layer_scheduled": "Scheduled",
+  "calendar_layer_spending": "Spending",
+  "calendar_legend": "Show in the calendar",
+  "calendar_load_failed": "The calendar failed to load",
+  "calendar_load_failed_hint": "Daily totals and scheduled bills could not be computed. Try again, or open the transactions list.",
+  "calendar_loading": "Loading the calendar…",
+  "calendar_month_future": "The month has not started · showing schedules & projections",
+  "calendar_month_hint": "Click a day to see its breakdown",
+  "calendar_month_income_hidden": "Income hidden · spending only",
+  "calendar_next": "Next",
   "calendar_next_month": "Next month",
+  "calendar_open_transactions": "Open Transactions",
+  "calendar_pattern_caption": "Average spending per weekday",
+  "calendar_pattern_title": "Pattern by weekday",
+  "calendar_pattern_weekend": "Weekends average {amount}/day, {times}× weekdays.",
+  "calendar_previous": "Previous",
   "calendar_previous_month": "Previous month",
+  "calendar_projection": "projection",
+  "calendar_record": "Record transaction",
+  "calendar_scheduled_unnamed": "Scheduled",
+  "calendar_surplus": "surplus",
+  "calendar_tip_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} transaction",
+        "countPlural=*": "{count} transactions"
+      }
+    }
+  ],
+  "calendar_tip_future": "Not yet",
+  "calendar_tip_largest": "largest {name}",
+  "calendar_tip_open": "Click for the breakdown",
+  "calendar_tip_out": "Out",
+  "calendar_tip_ratio": "{times}× the average",
+  "calendar_today": "Today",
+  "calendar_total": "Total",
+  "calendar_uncategorized": "Uncategorized",
+  "calendar_untitled": "Untitled",
+  "calendar_view_label": "Calendar view",
+  "calendar_view_month": "Month",
+  "calendar_view_week": "Week",
+  "calendar_view_year": "Year",
+  "calendar_week_average": "average {amount}",
+  "calendar_week_days": "Days of the week",
+  "calendar_week_description": "{passed} days so far, {ahead} days ahead",
+  "calendar_week_in": "In",
+  "calendar_week_label": "W{week}",
+  "calendar_week_limit": "Limit {amount}",
+  "calendar_week_out": "Out this week",
+  "calendar_week_out_note": [
+    {
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
+      "match": {
+        "daysPlural=one": "{days} day",
+        "daysPlural=*": "{days} days"
+      }
+    }
+  ],
+  "calendar_week_record": "Record on {date}",
+  "calendar_week_record_short": "Record",
+  "calendar_week_safe": "Safe limit for the rest of the week",
+  "calendar_week_safe_none": "set a budget first",
+  "calendar_week_safe_note": "{amount} × {days} days",
+  "calendar_week_scheduled": "Scheduled",
+  "calendar_week_total_scheduled": "+{amount} scheduled",
+  "calendar_week_vs": "vs last {days}",
+  "calendar_year_average": "average {amount}/month",
+  "calendar_year_costliest_day": "Costliest day",
+  "calendar_year_costliest_month": "Costliest month",
+  "calendar_year_description": "{range} {year} · click a month to open it",
+  "calendar_year_in": "In {year}",
+  "calendar_year_months": "Months of {year}",
+  "calendar_year_of_income": "of income",
+  "calendar_year_out": "Out {year}",
+  "calendar_year_running": "in progress",
+  "calendar_year_saved": "Saved",
+  "calendar_year_trend": "Monthly trend {year}",
+  "calendar_year_trend_caption": "Income vs spending, and the share saved",
   "category_action_failed": "Couldn’t save the category change",
   "category_archived": "{name} archived",
   "category_archived_group": "Archived",
@@ -1013,6 +1168,7 @@
   "ledger_error_too_many_tags": "At most 5 tags per transaction.",
   "locale_switcher_label": "Language",
   "nav_budget": "Budget",
+  "nav_calendar": "Calendar",
   "nav_group_account": "Account",
   "nav_main_label": "Main navigation",
   "nav_menu": "Menu",
