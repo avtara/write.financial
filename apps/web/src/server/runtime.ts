@@ -15,6 +15,7 @@ import { createAccounts, type AccountsRepository } from '@wf/db/accounts';
 import { createBudgets, type BudgetsRepository } from '@wf/db/budgets';
 import { createCategories, type CategoriesRepository } from '@wf/db/categories';
 import { createDashboard, type DashboardRepository } from '@wf/db/dashboard';
+import { createDebts, type DebtsRepository } from '@wf/db/debts';
 import { createDb } from '@wf/db/db';
 import { createDrafts, type DraftsRepository } from '@wf/db/drafts';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
@@ -30,6 +31,7 @@ import {
 import { createOnboarding, type OnboardingRepository } from '@wf/db/onboarding';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-items';
+import { createReceivables, type ReceivablesRepository } from '@wf/db/receivables';
 import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
 import { createReview, type ReviewRepository } from '@wf/db/review';
 import { createSchedules, type SchedulesRepository } from '@wf/db/schedules';
@@ -114,6 +116,10 @@ export interface Services extends BaseRuntime {
   /** FR-A4 onboarding progress and the first savings goal (step 4), on `wf_app`. */
   readonly onboarding: OnboardingRepository;
   readonly goals: GoalsRepository;
+  /** Debts, installments, and credit card payments (M4), on `wf_app`. */
+  readonly debts: DebtsRepository;
+  /** Receivables (M4); the Debts page reads their total. */
+  readonly receivables: ReceivablesRepository;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -173,6 +179,8 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     recentItems: createRecentItems(appDb, { now }),
     onboarding: createOnboarding(appDb, { now }),
     goals: createGoals(appDb),
+    debts: createDebts(appDb, { getDek, now }),
+    receivables: createReceivables(appDb, { getDek, now }),
     mailer,
     sendWith,
     invite: createInviter({

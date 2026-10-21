@@ -35,6 +35,7 @@ import * as budgetWrite from '../../src/server/fn/budget-write.ts';
 import * as budget from '../../src/server/fn/budget.ts';
 import { getCalendarRange, getCalendarYear } from '../../src/server/fn/calendar.ts';
 import * as categories from '../../src/server/fn/categories.ts';
+import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
 import * as ledger from '../../src/server/fn/ledger.ts';
 import * as notifications from '../../src/server/fn/notifications.ts';
@@ -142,6 +143,7 @@ export const FUNCTIONS = {
   ...budget,
   ...budgetWrite,
   ...categories,
+  ...debts,
   ...gate,
   ...ledger,
   ...notifications,
@@ -247,6 +249,8 @@ export const ledgerIds = async (userId: string) =>
       UNION ALL SELECT id::text FROM recurrences WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM scheduled_occurrences WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM review_items WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM debts WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM debt_installments WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM detected_recurring WHERE user_id = ${userId}
       ORDER BY 1`
   ).map((row) => row.id);
