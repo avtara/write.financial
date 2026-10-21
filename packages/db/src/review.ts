@@ -3,16 +3,19 @@
  * The Review queue ("Perlu ditinjau", FR-L7) as the user works it (wf_app): list with decrypted proposals, the sidebar
  * badge, and the only place a proposal is applied (PRD §1 "nothing changes without confirmation", D14). Confirming
  * records the proposed transaction with the review item id as `client_id` (a replay returns the same transaction),
- * assigns a category, applies a rollover override, or moves the period leftover; ignoring skips the occurrence.
+ * assigns a category, applies a rollover override, or moves the period leftover (a confirmed contribution or leftover
+ * is credited to its goals in the account it went to); ignoring skips the occurrence.
  * Every state change runs in one `withUser` transaction with the item locked (`FOR UPDATE`).
  */
 import type { Dek } from '@wf/crypto/envelope';
+import { occurrenceShares, planRunsIn } from '@wf/domain/goals';
 import { addDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import type { TransactionType } from '@wf/domain/transactions';
 import { and, asc, count, eq, gt, inArray, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import { markInstallmentPaidIn } from './debts.ts';
+import { creditGoalIn } from './goals.ts';
 import { assertOpenTransactionsIn, checkCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
 import { subscriptionDueDates } from './occurrences.ts';
@@ -296,6 +299,7 @@ async function leftoverIn(
     tag = goal.slug;
   }
   const amountMinor = edits.amountMinor ?? payload.amountMinor;
+  const receivedMinor = edits.receivedMinor ?? amountMinor;
   const result = await recordTransactionIn(
     tx,
     userId,
@@ -306,7 +310,7 @@ async function leftoverIn(
       fromAccountId,
       toAccountId,
       sentMinor: amountMinor,
-      receivedMinor: edits.receivedMinor ?? amountMinor,
+      receivedMinor,
       description: edits.description ?? null,
       note: edits.note ?? null,
       tags: tag === null ? [] : [tag],
@@ -315,23 +319,39 @@ async function leftoverIn(
     dek,
     now,
   );
+  // The leftover now belongs to the goal in the account it went to.
+  if (goalId !== null) await creditGoalIn(tx, userId, goalId, toAccountId, receivedMinor, now);
   return result.id;
 }
 
 /**
- * A recurring transfer planned for exactly one goal counts toward it: the transaction confirming its occurrence gets
- * that `goal_id` (a split over several goals stays unlinked; its tags tell the parts apart).
+ * A confirmed occurrence of a recurring transfer planned for goals: each plan running in its month gets its share of
+ * what arrived (`@wf/domain/goals` `occurrenceShares`) credited in the destination account; a transfer planned for
+ * exactly one such goal counts toward it (`goal_id`; a split over several goals stays unlinked, its tags tell the
+ * parts apart).
  */
-async function linkPlannedGoalIn(
+async function creditPlannedGoalsIn(
   tx: Transaction,
-  occurrence: Pick<ReviewOccurrenceView, 'sourceType' | 'sourceId'>,
+  userId: string,
+  occurrence: Pick<ReviewOccurrenceView, 'sourceType' | 'sourceId' | 'dueDate'>,
+  draft: ReviewDraft,
   transactionId: string,
   now: Date,
 ): Promise<void> {
-  if (occurrence.sourceType !== 'recurrence') return;
-  const [plan, ...others] = (await activePlansIn(tx, [occurrence.sourceId])).get(occurrence.sourceId) ?? [];
-  if (plan === undefined || others.length > 0) return;
-  await tx.update(transactions).set({ goalId: plan.goalId, updatedAt: now }).where(eq(transactions.id, transactionId));
+  if (occurrence.sourceType !== 'recurrence' || draft.type !== 'transfer') return;
+  const month = occurrence.dueDate.slice(0, 7) as YearMonth;
+  const plans = (await activePlansIn(tx, [occurrence.sourceId])).get(occurrence.sourceId) ?? [];
+  const shares = occurrenceShares(
+    plans.map((plan) => ({ ...plan, active: true })),
+    month,
+    draft.receivedMinor,
+  );
+  for (const [index, plan] of plans.entries()) {
+    await creditGoalIn(tx, userId, plan.goalId, draft.toAccountId, shares[index] as bigint, now);
+  }
+  const [only, ...others] = plans.filter((plan) => planRunsIn(plan, month));
+  if (only === undefined || others.length > 0) return;
+  await tx.update(transactions).set({ goalId: only.goalId, updatedAt: now }).where(eq(transactions.id, transactionId));
 }
 
 /** Applies and resolves one pending item inside the caller's transaction. */
@@ -358,7 +378,7 @@ async function confirmIn(
           .set({ status: 'confirmed', transactionId, updatedAt: now })
           .where(eq(scheduledOccurrences.id, occurrence.id));
         await advanceSubscriptionIn(tx, occurrence, now);
-        await linkPlannedGoalIn(tx, occurrence, transactionId, now);
+        await creditPlannedGoalsIn(tx, userId, occurrence, draft, transactionId, now);
         // FR-U6: the installment row this occurrence stands for is paid by the expense just recorded.
         if (occurrence.sourceType === 'installment') {
           await markInstallmentPaidIn(tx, occurrence.sourceId, occurrence.dueDate, transactionId, now);
@@ -543,7 +563,15 @@ export function createReview(
                     description: subject.description,
                     ...principal,
                   },
-            allocations: occurrence?.sourceType === 'recurrence' ? (plans.get(occurrence.sourceId) ?? []) : [],
+            // "DIBAGI KE": the plans running in the occurrence's month.
+            allocations:
+              occurrence?.sourceType === 'recurrence'
+                ? (plans.get(occurrence.sourceId) ?? []).flatMap((plan): ReviewAllocation[] =>
+                    planRunsIn(plan, occurrence.dueDate.slice(0, 7) as YearMonth)
+                      ? [{ goalId: plan.goalId, goalName: plan.goalName, amountMinor: plan.amountMinor }]
+                      : [],
+                  )
+                : [],
             periodId: item.periodId,
             dueDate: item.dueDate,
             aiConfidence: item.aiConfidence,

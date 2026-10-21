@@ -5,7 +5,8 @@ import { DESIGN_SEED } from '@wf/domain/seed';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fixtureGetDek, ledgerFixture, type LedgerFixture } from '../test/ledger-fixture.ts';
 import { insertUser, pgError, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
-import { createGoals, type GoalInput, type GoalSourceInput, type GoalsRepository } from './goals.ts';
+import { creditGoalIn, createGoals, type GoalInput, type GoalSourceInput, type GoalsRepository } from './goals.ts';
+import { withUser } from './db.ts';
 import { createSchedules } from './schedules.ts';
 import { createTransactions } from './transactions.ts';
 
@@ -675,9 +676,154 @@ describe('goals: recurring contributions (plans on recurring transfers)', () => 
     });
   });
 
-  it('removes a goal: its transactions stay unlinked, a transfer left without plans stops', async () => {
-    const goal = await asApp(() =>
+  it('runs each plan in its months: a Nov–Apr fund joining the set-aside is not in October’s', async () => {
+    const liburan = await asApp(() =>
+      repo.create(alice.userId, input({ name: 'Liburan', kind: 'sinking', tag: null, accountId: alice.jago })),
+    );
+    const asuransi = await asApp(() =>
+      repo.create(alice.userId, input({ name: 'Asuransi', kind: 'sinking', tag: null })),
+    );
+    const planned = await asApp(() =>
+      repo.addPlan(alice.userId, liburan.id, {
+        amountMinor: 867_000n,
+        monthDay: 25,
+        fromAccountId: alice.bca,
+        startOn: '2026-10-25' as LocalDate,
+        endMonth: '2027-03' as YearMonth,
+      }),
+    );
+    expect(planned.plans[0]).toMatchObject({ startMonth: '2026-10', endMonth: '2027-03' });
+    const recurrenceId = planned.plans[0]?.recurrenceId as string;
+    await test.query(
+      `UPDATE recurrences SET template = jsonb_set(jsonb_set(template, '{sentMinor}', '"1117000"'), '{receivedMinor}', '"1117000"') WHERE id = $1`,
+      [recurrenceId],
+    );
+    const joined = await asApp(() =>
+      repo.addPlan(alice.userId, asuransi.id, {
+        recurrenceId,
+        amountMinor: 250_000n,
+        startMonth: '2026-11' as YearMonth,
+        endMonth: '2027-04' as YearMonth,
+      }),
+    );
+    expect(joined.plans[0]).toMatchObject({ startMonth: '2026-11', endMonth: '2027-04', toAccountId: alice.jago });
+    // Fully planned now: October sends Liburan's share only, then both (the join rebuilt the coming occurrences).
+    expect(
+      await test.query(
+        `SELECT due_date::text AS due, expected_minor::text AS expected FROM scheduled_occurrences
+         WHERE source_id = $1 ORDER BY due_date`,
+        [recurrenceId],
+      ),
+    ).toEqual([
+      { due: '2026-10-25', expected: '867000' },
+      { due: '2026-11-25', expected: '1117000' },
+      { due: '2026-12-25', expected: '1117000' },
+    ]);
+
+    // Joining without months runs from this month on; months must be YYYY-MM and not end before they start.
+    const other = await asApp(() => repo.create(alice.userId, input({ name: 'Other', tag: null })));
+    for (const months of [
+      { startMonth: '2026-11' as YearMonth, endMonth: '2026-10' as YearMonth },
+      { startMonth: '2026-13' as YearMonth },
+    ]) {
+      await expect(
+        asApp(() => repo.addPlan(alice.userId, other.id, { recurrenceId, amountMinor: 1n, ...months })),
+      ).rejects.toMatchObject({ code: 'INVALID_GOAL' });
+    }
+    await test.query(
+      `UPDATE recurrences SET template = jsonb_set(jsonb_set(template, '{sentMinor}', '"2000000"'), '{receivedMinor}', '"2000000"'),
+         status = 'stopped', stopped_at = now() WHERE id = $1`,
+      [recurrenceId],
+    );
+    // A stopped transfer keeps no occurrences to rebuild.
+    const later = await asApp(() => repo.addPlan(alice.userId, other.id, { recurrenceId, amountMinor: 1n }));
+    expect(later.plans[0]).toMatchObject({ startMonth: '2026-10', endMonth: null, recurrenceStatus: 'stopped' });
+  });
+
+  it('keeps other goals out of an account a goal holds wholly', async () => {
+    const darurat = await asApp(() =>
       repo.create(alice.userId, input({ accountId: alice.jago, sources: [{ accountId: alice.jago, mode: 'whole' }] })),
+    );
+    const servis = await asApp(() =>
+      repo.create(alice.userId, input({ name: 'Servis', tag: null, accountId: alice.jago })),
+    );
+    const own = await asApp(() =>
+      repo.addPlan(alice.userId, darurat.id, {
+        amountMinor: 500_000n,
+        monthDay: 1,
+        fromAccountId: alice.bca,
+        startOn: '2026-11-01' as LocalDate,
+      }),
+    );
+    const recurrenceId = own.plans[0]?.recurrenceId as string;
+    await test.query(
+      `UPDATE recurrences SET template = jsonb_set(jsonb_set(template, '{sentMinor}', '"900000"'), '{receivedMinor}', '"900000"') WHERE id = $1`,
+      [recurrenceId],
+    );
+    await expect(
+      asApp(() => repo.addPlan(alice.userId, servis.id, { recurrenceId, amountMinor: 100_000n })),
+    ).rejects.toMatchObject({ code: 'INVALID_GOAL' });
+    await expect(
+      asApp(() =>
+        repo.addPlan(alice.userId, servis.id, {
+          amountMinor: 100_000n,
+          monthDay: 25,
+          fromAccountId: alice.bca,
+          startOn: '2026-10-25' as LocalDate,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_GOAL' });
+    // A deposit there would count for the holder: refused too.
+    await expect(
+      asApp(() =>
+        repo.deposit(alice.userId, servis.id, {
+          clientId: randomUUID(),
+          occurredAt: at('2026-10-15'),
+          fromAccountId: alice.bca,
+          amountMinor: 1n,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_GOAL' });
+  });
+
+  it('credits money that reached an account for a goal: fixed amounts grow or are made, never whole or foreign', async () => {
+    const goal = await asApp(() =>
+      repo.create(
+        alice.userId,
+        input({ tag: null, sources: [{ accountId: alice.bca, mode: 'fixed', amountMinor: 100_000n }] }),
+      ),
+    );
+    const mandiri = await account(alice.userId);
+    const usd = await account(alice.userId, { currency: 'USD' });
+    const holder = await asApp(() =>
+      repo.create(alice.userId, input({ name: 'Holder', tag: null, sources: [{ accountId: mandiri, mode: 'whole' }] })),
+    );
+    const credit = (goalId: string, accountId: string, amountMinor: bigint) =>
+      asApp(() =>
+        withUser(test.db, alice.userId, (tx) => creditGoalIn(tx, alice.userId, goalId, accountId, amountMinor, NOW)),
+      );
+    await credit(goal.id, alice.bca, 50_000n);
+    await credit(goal.id, alice.jago, 20_000n);
+    await credit(goal.id, alice.jago, 0n);
+    await credit(goal.id, mandiri, 10_000n);
+    await credit(holder.id, mandiri, 10_000n);
+    await credit(goal.id, usd, 10_000n);
+    expect((await asApp(() => repo.get(alice.userId, goal.id))).sources).toMatchObject([
+      { accountId: alice.bca, mode: 'fixed', amountMinor: 150_000n, sortOrder: 0 },
+      { accountId: alice.jago, mode: 'fixed', amountMinor: 20_000n, sortOrder: 1 },
+    ]);
+    expect((await asApp(() => repo.get(alice.userId, holder.id))).sources).toMatchObject([
+      { accountId: mandiri, mode: 'whole', amountMinor: null },
+    ]);
+  });
+
+  it('removes a goal: its transactions stay unlinked, a transfer left without plans stops', async () => {
+    // A fixed amount of Bank Jago, so another goal can be planned into it too.
+    const goal = await asApp(() =>
+      repo.create(
+        alice.userId,
+        input({ accountId: alice.jago, sources: [{ accountId: alice.jago, mode: 'fixed', amountMinor: 100_000n }] }),
+      ),
     );
     const other = await asApp(() =>
       repo.create(alice.userId, input({ name: 'Other', tag: null, accountId: alice.jago })),

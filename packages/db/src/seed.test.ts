@@ -273,6 +273,39 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     expect((await asApp(() => query.summary(userId, october))).inMinor).toBe(26_000_000n);
   });
 
+  it('M4: confirming the 25 Okt set-aside puts Rp1.150.000 in Bank Jago for the sinking funds, not Dana Darurat', async () => {
+    await asApp(() => seedLedger(test.db, userId, options));
+    const schedules = createSchedules(test.db, options);
+    const sisihkan = (await asApp(() => schedules.listRecurrences(userId))).find((row) => row.monthDay === 25);
+    expect(sisihkan?.template).toMatchObject({
+      allocations: [
+        { amountMinor: 867_000n, startMonth: '2026-10', endMonth: '2027-03' },
+        { amountMinor: 240_000n, startMonth: '2026-10', endMonth: '2026-12' },
+        { amountMinor: 43_000n, startMonth: '2026-10', endMonth: '2027-02' },
+      ],
+    });
+    expect(sisihkan?.nextDue?.dueDate).toBe('2026-10-25');
+    const review = createReview(test.db, options);
+    await asApp(() => review.confirmOccurrence(userId, sisihkan?.nextDue?.occurrenceId as string));
+
+    const goals = createGoals(test.db, options);
+    expect((await asApp(() => goals.list(userId))).map((goal) => [goal.name, goal.savedMinor])).toEqual([
+      ['Dana Darurat', 8_125_000n],
+      ['DP Rumah', 5_000_000n],
+      ['Dana Pensiun', 0n],
+      ['Liburan Bali', 3_667_000n],
+      ['Servis motor', 960_000n],
+      ['Perpanjang STNK', 723_000n],
+    ]);
+    const allocations = await asApp(() => goals.allocations(userId));
+    expect(allocations.reduce((sum, row) => sum + row.allocatedMinor, 0n)).toBe(17_325_000n + 1_150_000n);
+    // Bank Jago: Dana Darurat's Rp8.125.000 and the three set-aside shares, nothing free.
+    expect(allocations.map((row) => [row.allocatedMinor, row.goalIds.length]).sort()).toEqual([
+      [9_200_000n, 4],
+      [9_275_000n, 4],
+    ]);
+  });
+
   it('M3: fails on a bill, goal, or closed period the fixture does not have', async () => {
     const [subscription] = DESIGN_SEED.subscriptions;
     const [, , , sisihkan] = DESIGN_SEED.recurrences;
@@ -287,7 +320,9 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
           ...options,
           seed: tiny({
             accounts: DESIGN_SEED.accounts,
-            recurrences: [{ ...sisihkan, allocations: [{ goal: 'Nope', amountMinor: 1n }] }],
+            recurrences: [
+              { ...sisihkan, allocations: [{ goal: 'Nope', amountMinor: 1n, startMonth: '2026-10', endMonth: null }] },
+            ],
           }),
         }),
       ),

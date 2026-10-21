@@ -322,9 +322,10 @@ describe('DESIGN_SEED goals (Section 00 card "Tujuan tabungan")', () => {
     const bca = sources.filter((source) => source.accountKey === 'bca');
     expect(bca).toHaveLength(4);
     expect(bca.reduce((sum, source) => sum + valueOf(source), 0n)).toBe(9_200_000n);
-    expect(sources.filter((source) => source.mode === 'whole')).toEqual([
-      { accountKey: 'jago', mode: 'whole', amountMinor: null },
-    ]);
+    // Dana Darurat's Bank Jago is a fixed amount (all of it today), so set-asides into Bank Jago can count elsewhere.
+    expect(sources.filter((source) => source.mode === 'whole')).toEqual([]);
+    expect(DESIGN_SEED.goals[0]?.sources).toEqual([{ accountKey: 'jago', mode: 'fixed', amountMinor: 8_125_000n }]);
+    expect(closing.get('jago')).toBe(8_125_000n);
     for (const source of sources) {
       expect(accounts.find((account) => account.key === source.accountKey)?.includeInAvailable).toBe(true);
       expect(source.mode === 'fixed').toBe(source.amountMinor !== null);
@@ -426,9 +427,26 @@ describe('DESIGN_SEED recurrences (Section 00 "Setoran rutin & investasi")', () 
     for (const allocation of sisihkan?.allocations ?? []) expect(goals.has(allocation.goal)).toBe(true);
     // Dana Darurat "Rp3.500.000/bulan · tgl 1 & 14".
     expect([...(kantong?.allocations ?? []), ...(bibit?.allocations ?? [])]).toEqual([
-      { goal: 'Dana Darurat', amountMinor: 500_000n },
-      { goal: 'Dana Darurat', amountMinor: 3_000_000n },
+      { goal: 'Dana Darurat', amountMinor: 500_000n, startMonth: '2026-09', endMonth: null },
+      { goal: 'Dana Darurat', amountMinor: 3_000_000n, startMonth: '2026-10', endMonth: null },
     ]);
+  });
+
+  it('golden: the set-aside runs each sinking fund from October to its due month, into an account no goal holds wholly', () => {
+    const sisihkan = DESIGN_SEED.recurrences[3];
+    expect(sisihkan?.allocations.map((part) => [part.goal, part.startMonth, part.endMonth])).toEqual(
+      DESIGN_SEED.goals
+        .filter((goal) => goal.kind === 'sinking')
+        .map((goal) => [goal.name, '2026-10', goal.deadlineMonth]),
+    );
+    for (const recurrence of DESIGN_SEED.recurrences) {
+      for (const part of recurrence.allocations) {
+        const others = DESIGN_SEED.goals.filter((goal) => goal.name !== part.goal);
+        const held = others.flatMap((goal) => goal.sources).filter((source) => source.mode === 'whole');
+        expect(held.map((source) => source.accountKey)).not.toContain(recurrence.toAccountKey);
+        expect(part.endMonth === null || part.startMonth <= part.endMonth).toBe(true);
+      }
+    }
   });
 
   it('golden: the monthly plan is Rp4.650.000 ("dari rencana Rp4.650.000"), every split adds up to its transfer', () => {

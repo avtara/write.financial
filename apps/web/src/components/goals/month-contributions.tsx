@@ -16,6 +16,7 @@ import type { GoalsOverview } from '../../server/fn/goals.ts';
 import { CategoryIcon } from '../category-icon.tsx';
 import { monthName } from '../dashboard/dashboard-format.ts';
 import { Chip } from './goal-list.tsx';
+import { monthSummary } from './goals-model.ts';
 
 const STATUS: Readonly<Record<MovementStatus, { label: () => string; className: string }>> = {
   recorded: { label: m.goals_status_recorded, className: 'bg-green-tint-2 text-green-fg' },
@@ -53,9 +54,7 @@ export function MonthContributions({
   const { movements, month, goals } = overview;
   const byId = new Map(goals.map((goal) => [goal.id, goal]));
   const names = new Map(goals.map((goal) => [goal.id, goal.name]));
-  const plannedMinor = goals
-    .filter((goal) => goal.status === 'active' && goal.currency === overview.baseCurrency)
-    .reduce((sum, goal) => sum + goal.monthlyPlanMinor, 0n);
+  const { plannedMinor } = monthSummary(goals, movements, overview.baseCurrency, month);
   return (
     <section
       aria-labelledby="goals-month"

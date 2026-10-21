@@ -6,10 +6,11 @@
  * Everything runs inside the caller's `withUser` transaction and never writes the ledger (D14); materializing only
  * inserts missing rows, so it is idempotent and safe as wf_worker.
  */
-import { addDays, type LocalDate } from '@wf/domain/period';
+import { occurrenceAmount, type PlanShare } from '@wf/domain/goals';
+import { addDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import { nextOccurrences, reminderAt, type IsoWeekday, type RecurrenceRule } from '@wf/domain/recurrence';
 import { cycleRule } from '@wf/domain/subscriptions';
-import { and, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
 import { localDateOf, userContextIn } from './ledger-core.ts';
 import { notificationSettingsIn } from './notification-settings.ts';
@@ -17,6 +18,7 @@ import {
   accounts,
   debtInstallments,
   debts,
+  goalContributionPlans,
   recurrences,
   scheduledOccurrences,
   subscriptions,
@@ -215,8 +217,10 @@ type NewOccurrence = typeof scheduledOccurrences.$inferInsert;
  * Inserts the missing occurrences of the user's active recurrences and subscriptions, the unpaid rows of active
  * non-card debts, and the payment due dates (`cc_due_day`, monthly) of active credit cards (or only `source`) due in
  * [today, today + `MATERIALIZE_DAYS`]; a subscription's window starts at its `next_billing_date` when that is earlier,
- * so the next unpaid bill always has a row. Installments expect the row total in the debt currency; card due dates
- * expect 0. `remind_at` is the user's reminder time (Settings › Notifikasi, default 09.00) local on `due − offset`
+ * so the next unpaid bill always has a row. A transfer fully planned for goals (the payday set-aside) expects the
+ * plans running in the due month (`@wf/domain/goals` `occurrenceAmount`) and has no occurrence when none runs;
+ * installments expect the row total in the debt currency; card due dates expect 0. `remind_at` is the user's reminder
+ * time (Settings › Notifikasi, default 09.00) local on `due − offset`
  * (installments H-1, card due dates H-3; no reminder without an offset or for a bill already overdue). Existing rows
  * are never modified.
  */
@@ -254,17 +258,30 @@ export async function materializeIn(
       .select()
       .from(recurrences)
       .where(and(eq(recurrences.status, 'active'), source === undefined ? undefined : eq(recurrences.id, source.id)));
-    const templates = schedules.map((row) => templateAmount(decodeTemplate(row.template)));
+    const decoded = schedules.map((row) => decodeTemplate(row.template));
+    const templates = decoded.map(templateAmount);
     const currencies = await accountCurrenciesIn(
       tx,
       templates.map((template) => template.accountId),
     );
+    const plans = await planSharesIn(
+      tx,
+      schedules.map((row) => row.id),
+    );
     schedules.forEach((row, index) => {
       const { accountId, amountMinor } = templates[index] as TemplateAmount;
+      const template = decoded[index] as RecurrenceTemplate;
+      // Only a transfer within one currency can be fully planned for goals (it then sends the plans running).
+      const shares =
+        template.type === 'transfer' && template.sentMinor === template.receivedMinor ? plans.get(row.id) : undefined;
       const start = row.startOn > today ? row.startOn : today;
       for (const due of recurrenceDueDates(row, start, until)) {
+        const expected =
+          shares === undefined ? amountMinor : occurrenceAmount(amountMinor, shares, due.slice(0, 7) as YearMonth);
+        // A set-aside none of whose plans runs that month has nothing to send.
+        if (expected === 0n) continue;
         rows.push(
-          occurrence('recurrence', row.id, due, amountMinor, currencies.get(accountId) as string, row.remindOffsetDays),
+          occurrence('recurrence', row.id, due, expected, currencies.get(accountId) as string, row.remindOffsetDays),
         );
       }
     });
@@ -352,6 +369,26 @@ async function accountCurrenciesIn(tx: Transaction, ids: readonly string[]): Pro
     .from(accounts)
     .where(inArray(accounts.id, [...new Set(ids)]));
   return new Map(rows.map((row) => [row.id, row.currency]));
+}
+
+/** The goal plans of `recurrenceIds` by recurrence (only recurrences with plans are keys). */
+async function planSharesIn(tx: Transaction, recurrenceIds: readonly string[]): Promise<Map<string, PlanShare[]>> {
+  const byRecurrence = new Map<string, PlanShare[]>();
+  if (recurrenceIds.length === 0) return byRecurrence;
+  const rows = await tx
+    .select({
+      recurrenceId: goalContributionPlans.recurrenceId,
+      amountMinor: goalContributionPlans.amountMinor,
+      active: goalContributionPlans.active,
+      startMonth: sql<YearMonth>`to_char(${goalContributionPlans.startMonth}, 'YYYY-MM')`,
+      endMonth: sql<YearMonth | null>`to_char(${goalContributionPlans.endMonth}, 'YYYY-MM')`,
+    })
+    .from(goalContributionPlans)
+    .where(inArray(goalContributionPlans.recurrenceId, [...recurrenceIds]));
+  for (const { recurrenceId, ...plan } of rows) {
+    byRecurrence.set(recurrenceId, [...(byRecurrence.get(recurrenceId) ?? []), plan]);
+  }
+  return byRecurrence;
 }
 
 /**

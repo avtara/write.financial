@@ -351,8 +351,8 @@ beforeAll(async () => {
       const goalId = goal?.id as string;
       await tx.execute(sql`INSERT INTO goal_funding_sources (user_id, goal_id, account_id, mode, amount_minor)
                            VALUES (${userId}, ${goalId}, ${bcaId}, 'fixed', 500000)`);
-      await tx.execute(sql`INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor)
-                           VALUES (${userId}, ${goalId}, ${recurrence?.id as string}, 500000)`);
+      await tx.execute(sql`INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor, start_month)
+                           VALUES (${userId}, ${goalId}, ${recurrence?.id as string}, 500000, '2026-10-01')`);
       const [debt] = await tx.execute<{ id: string }>(sql`INSERT INTO debts
           (user_id, kind, name, pay_from_account_id, principal_minor, currency, tenor_months, first_due_date)
         VALUES (${userId}, 'paylater', 'MacBook Air M4', ${bcaId}, 18999000, 'IDR', 12, '2026-11-25') RETURNING id`);

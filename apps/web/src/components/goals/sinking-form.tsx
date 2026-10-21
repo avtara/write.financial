@@ -62,8 +62,10 @@ function SinkingFormBody({ overview, accounts, locale, onOpenChange, onSaved }: 
     (account) => account.status === 'active' && account.currency === currency && account.type !== 'credit_card',
   );
   const sinking = goals.filter((goal) => goal.kind === 'sinking' && goal.status === 'active');
-  // Where the other sinking funds' money is, else the first account another goal does not hold wholly.
+  // Where the payday set-aside lands (confirming it credits the fund there) unless another goal holds that account
+  // wholly, else where the other sinking funds' money is, else the first account no other goal holds wholly.
   const storedAt =
+    usable.find((account) => account.id === setAside?.toAccountId && freeBalance(account, goals, null) !== null)?.id ??
     sinking.flatMap((goal) => goal.sources.map((source) => source.accountId))[0] ??
     usable.find((account) => freeBalance(account, goals, null) !== null)?.id ??
     null;
@@ -117,6 +119,8 @@ function SinkingFormBody({ overview, accounts, locale, onOpenChange, onSaved }: 
     if (Object.values(errors).some((error) => error !== null) || plan === null) return;
     setPending(true);
     setFailure(null);
+    // The fund runs from the first month it is set aside in to its due month ("6 bulan · Nov–Apr").
+    const months = { startMonth: from, endMonth: plan.deadline };
     const plans =
       !setAsideOn || plan.monthlyMinor <= 0n
         ? []
@@ -128,9 +132,10 @@ function SinkingFormBody({ overview, accounts, locale, onOpenChange, onSaved }: 
                 fromAccountId: fromId as string,
                 toAccountId: storeId,
                 startOn,
+                ...months,
               },
             ]
-          : [{ recurrenceId: setAside.recurrenceId, amountMinor: plan.monthlyMinor }];
+          : [{ recurrenceId: setAside.recurrenceId, amountMinor: plan.monthlyMinor, ...months }];
     const result = await createGoal({
       data: {
         name: name.trim(),

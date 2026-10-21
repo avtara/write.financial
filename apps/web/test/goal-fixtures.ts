@@ -37,6 +37,8 @@ export function plan(overrides: Partial<GoalPlanView> & Pick<GoalPlanView, 'id'>
     recurrenceId: `rec-${overrides.id}`,
     amountMinor: 0n,
     active: true,
+    startMonth: '2026-09' as YearMonth,
+    endMonth: null,
     monthDay: 25,
     fromAccountId: BCA.id,
     toAccountId: JAGO.id,

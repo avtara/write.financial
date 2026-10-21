@@ -9,6 +9,7 @@
 import type { GoalView } from '@wf/db/goals';
 import type { RecurrenceView, ScheduledItem } from '@wf/db/schedules';
 import type { TransactionRow } from '@wf/db/transaction-query';
+import { planRunsIn } from '@wf/domain/goals';
 import type { LocalDate, YearMonth } from '@wf/domain/period';
 
 /** `recorded`: in Transactions; `review`: waiting in "Perlu ditinjau"; `scheduled`: still to come. */
@@ -62,8 +63,12 @@ export function goalMovements(
   const occurrenceTransactions = new Set(scheduled.flatMap((item) => item.transactionId ?? []));
   for (const item of scheduled) {
     if (item.sourceType !== 'recurrence') continue;
+    const month = item.dueDate.slice(0, 7) as YearMonth;
+    // Only plans running in the occurrence's month have a share of it ("Nov–Apr" is not in October's).
     const linked = goals.flatMap((goal) =>
-      goal.plans.filter((plan) => plan.recurrenceId === item.sourceId).map((plan) => ({ goalId: goal.id, plan })),
+      goal.plans
+        .filter((plan) => plan.recurrenceId === item.sourceId && planRunsIn(plan, month))
+        .map((plan) => ({ goalId: goal.id, plan })),
     );
     const active = linked.filter(({ plan }) => plan.active);
     // A recorded occurrence also sent the shares of plans paused since — unless the active plans alone make up what
@@ -116,21 +121,23 @@ export function goalMovements(
 
 /**
  * The month of a goal's next recurring contribution, the base of its estimate ("Estimasi tercapai"): the earliest
- * next due date of its active plans' recurrences, never before `currentMonth` (`currentMonth` without any).
+ * month an active plan sends in — its recurrence's next due date, or the plan's first month when that is later —
+ * never before `currentMonth` (`currentMonth` without any; plans already ended do not count).
  */
 export function nextContributionMonth(
   goal: Pick<GoalView, 'plans'>,
   recurrences: readonly RecurrenceView[],
   currentMonth: YearMonth,
 ): YearMonth {
-  const due = goal.plans
-    .flatMap((plan) => {
-      const date = plan.active
-        ? recurrences.find((recurrence) => recurrence.id === plan.recurrenceId)?.nextDue?.dueDate
-        : undefined;
-      return date === undefined ? [] : [date];
-    })
-    .sort()[0];
-  const month = due === undefined ? currentMonth : (due.slice(0, 7) as YearMonth);
+  const months = goal.plans.flatMap((plan) => {
+    const due = plan.active
+      ? recurrences.find((recurrence) => recurrence.id === plan.recurrenceId)?.nextDue?.dueDate
+      : undefined;
+    if (due === undefined) return [];
+    const dueMonth = due.slice(0, 7) as YearMonth;
+    const month = dueMonth < plan.startMonth ? plan.startMonth : dueMonth;
+    return planRunsIn(plan, month) ? [month] : [];
+  });
+  const month = months.sort()[0] ?? currentMonth;
   return month < currentMonth ? currentMonth : month;
 }

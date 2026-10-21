@@ -78,8 +78,17 @@ describe('GoalForm', () => {
         currency: 'IDR',
         tag: 'Laptop kerja baru',
         sources: [],
+        // "8× setoran (Nov 2026 – Jun 2027)": the plan runs in exactly those months.
         plans: [
-          { amountMinor: 2_250_000n, monthDay: 25, fromAccountId: BCA.id, toAccountId: JAGO.id, startOn: '2026-11-25' },
+          {
+            amountMinor: 2_250_000n,
+            monthDay: 25,
+            fromAccountId: BCA.id,
+            toAccountId: JAGO.id,
+            startOn: '2026-11-25',
+            startMonth: '2026-11',
+            endMonth: '2027-06',
+          },
         ],
       },
     });

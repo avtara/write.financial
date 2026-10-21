@@ -472,17 +472,23 @@ describe('list and counts', () => {
           }),
         ],
       );
-    const plan = (recurrenceId: string, goalId: string, amount: number, active = true) =>
+    const plan = (recurrenceId: string, goalId: string, amount: number, active = true, months = ['2026-01-01', null]) =>
       test.query(
-        'INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor, active) VALUES ($1, $2, $3, $4, $5)',
-        [userId, goalId, recurrenceId, amount, active],
+        `INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor, active, start_month, end_month)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, goalId, recurrenceId, amount, active, ...months],
       );
+    const asuransi = await goalNamed('Asuransi motor');
     const sisihkan = await transferRule('Sisihkan dana tidak rutin', '1150000');
     await plan(sisihkan, goal, 867_000);
     await plan(sisihkan, servis, 283_000);
     await plan(sisihkan, stnk, 43_000, false);
+    // Ended in September: not part of October's.
+    await plan(sisihkan, asuransi, 250_000, true, ['2026-04-01', '2026-09-01']);
     const setor = await transferRule('Setor dana darurat', '500000');
     await plan(setor, goal, 500_000);
+    // Starts in November: October's goes to Liburan Bali alone.
+    await plan(setor, asuransi, 250_000, true, ['2026-11-01', '2027-04-01']);
     const due = await occurrenceItem(await occurrence(sisihkan, '2026-10-25', 'due_review', 'recurrence'));
     const single = await occurrenceItem(await occurrence(setor, '2026-10-25', 'due_review', 'recurrence'));
     const unplanned = await occurrenceItem(
@@ -524,6 +530,14 @@ describe('list and counts', () => {
     expect(await goalOf(due)).toBeNull();
     expect(await goalOf(single)).toBe(goal);
     expect(await goalOf(unplanned)).toBeNull();
+    // Each running plan was credited its share of the Rp186.000 that arrived in Bank Jago, in plan order.
+    expect(
+      await test.query(
+        `SELECT g.name, s.mode, s.amount_minor::text AS amount FROM goal_funding_sources s JOIN goals g ON g.id = s.goal_id
+         WHERE s.account_id = $1 ORDER BY g.name`,
+        [ledger.jago],
+      ),
+    ).toEqual([{ name: 'Liburan Bali', mode: 'fixed', amount: '372000' }]);
   });
 
   it('lists nothing for a new user and uses the real clock by default', async () => {
@@ -852,5 +866,16 @@ describe('category, rollover, and leftover proposals', () => {
     expect(await row(`SELECT count(*)::int AS n FROM transactions WHERE source = 'period_close'`, [])).toEqual({
       n: 3,
     });
+    // Each move belongs to its goal in the account it went to; one without a goal stays free.
+    expect(
+      await test.query(
+        `SELECT g.name, s.account_id = $1 AS jago, s.amount_minor::text AS amount FROM goal_funding_sources s
+         JOIN goals g ON g.id = s.goal_id ORDER BY g.name`,
+        [ledger.jago],
+      ),
+    ).toEqual([
+      { name: 'Dana Darurat', jago: true, amount: '1150000' },
+      { name: 'Liburan', jago: false, amount: '500000' },
+    ]);
   });
 });

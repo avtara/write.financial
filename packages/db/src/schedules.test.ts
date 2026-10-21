@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from 'node:crypto';
 import { convert } from '@wf/domain/fx';
-import type { LocalDate } from '@wf/domain/period';
+import type { LocalDate, YearMonth } from '@wf/domain/period';
 import { cancelledSavings, detectionImpact, subscriptionTotals } from '@wf/domain/subscriptions';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ledgerFixture, type LedgerFixture } from '../test/ledger-fixture.ts';
@@ -23,6 +23,7 @@ let repo: SchedulesRepository;
 /** 15 Okt 2026, 10.00 WIB. */
 const NOW = new Date('2026-10-15T03:00:00Z');
 const d = (value: string) => value as LocalDate;
+const ym = (value: string) => value as YearMonth;
 
 beforeAll(async () => {
   test = await startMigrated();
@@ -205,7 +206,10 @@ describe('recurrences', () => {
       fee: { minor: 2_500n, categoryId: fx.category('system:bank_fee') },
       description: 'Sisihkan dana',
     } as const;
-    const sisihkan: ScheduleTemplate = { ...unsplit, allocations: [{ goalId, amountMinor: 500_000n }] };
+    const sisihkan: ScheduleTemplate = {
+      ...unsplit,
+      allocations: [{ goalId, amountMinor: 500_000n, startMonth: ym('2026-11'), endMonth: ym('2027-04') }],
+    };
     const view = await app((s) => s.createRecurrence(fx.userId, { ...rent(), template: sisihkan }));
     expect(view.template).toEqual({
       type: 'transfer',
@@ -216,7 +220,7 @@ describe('recurrences', () => {
       fee: { minor: 2_500n, categoryId: fx.category('system:bank_fee') },
       description: 'Sisihkan dana',
       tags: [],
-      allocations: [{ goalId, amountMinor: 500_000n }],
+      allocations: [{ goalId, amountMinor: 500_000n, startMonth: '2026-11', endMonth: '2027-04' }],
     });
     // The split lives in plan rows, not in the stored template.
     const plans = () =>
@@ -258,13 +262,56 @@ describe('recurrences', () => {
         },
       }),
     );
+    // A part without months keeps its plan's, a new one runs from the recurrence's first month on.
     expect(replaced.template).toMatchObject({
       allocations: [
-        { goalId: other, amountMinor: 700_000n },
-        { goalId, amountMinor: 300_000n },
+        { goalId: other, amountMinor: 700_000n, startMonth: '2026-10', endMonth: null },
+        { goalId, amountMinor: 300_000n, startMonth: '2026-11', endMonth: '2027-04' },
       ],
     });
     expect(await plans()).toHaveLength(2);
+    for (const months of [
+      { startMonth: ym('2027-05'), endMonth: ym('2027-04') },
+      { startMonth: ym('2027-13') },
+      { endMonth: ym('2026-1') },
+    ]) {
+      await rejects(
+        app((s) =>
+          s.updateRecurrence(fx.userId, view.id, {
+            ...rent(),
+            template: { ...unsplit, allocations: [{ goalId, amountMinor: 300_000n, ...months }] },
+          }),
+        ),
+        'INVALID_RECURRENCE',
+      );
+    }
+    // A goal holding the destination wholly takes everything sent there: no other goal can be planned into it.
+    const holder = await goal();
+    await test.query(
+      `INSERT INTO goal_funding_sources (user_id, goal_id, account_id, mode) VALUES ($1, $2, $3, 'whole')`,
+      [fx.userId, holder, fx.jago],
+    );
+    await rejects(
+      app((s) => s.updateRecurrence(fx.userId, view.id, { ...rent(), template: unsplit })),
+      'INVALID_RECURRENCE',
+    );
+    await rejects(
+      app((s) =>
+        s.updateRecurrence(fx.userId, view.id, {
+          ...rent(),
+          template: { ...unsplit, allocations: [{ goalId, amountMinor: 300_000n }] },
+        }),
+      ),
+      'INVALID_RECURRENCE',
+    );
+    const own = await app((s) =>
+      s.updateRecurrence(fx.userId, view.id, {
+        ...rent(),
+        template: { ...unsplit, allocations: [{ goalId: holder, amountMinor: 300_000n }] },
+      }),
+    );
+    expect(own.template).toMatchObject({ allocations: [{ goalId: holder, amountMinor: 300_000n }] });
+    await test.query('DELETE FROM goal_funding_sources WHERE goal_id = $1', [holder]);
     // An entry has no split: its plans go.
     await app((s) => s.updateRecurrence(fx.userId, view.id, rent()));
     expect(await plans()).toEqual([]);

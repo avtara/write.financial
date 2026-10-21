@@ -11,6 +11,7 @@ import {
   startPglite,
   PGLITE_HOOK_TIMEOUT,
   TEST_PASSWORDS,
+  type PgliteServer,
   type TestDatabase,
 } from '../test/pglite.ts';
 import { createDb } from './db.ts';
@@ -249,24 +250,38 @@ describe('security_events', () => {
   });
 });
 
+/** A database migrated up to (not including) migration `tag`, as an instance of that time has it. */
+async function migratedBefore(tag: string): Promise<{ base: PgliteServer; folder: string }> {
+  const base = await startPglite();
+  const folder = await mkdtemp(path.join(tmpdir(), 'wf-migrations-'));
+  await bootstrapRoles(base.url, TEST_PASSWORDS);
+  await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+  const journalFile = path.join(folder, 'meta', '_journal.json');
+  const journal = JSON.parse(await readFile(journalFile, 'utf8')) as { entries: { tag: string }[] };
+  await writeFile(
+    journalFile,
+    JSON.stringify({ ...journal, entries: journal.entries.filter((entry) => entry.tag < tag) }),
+  );
+  await base.pg.exec('SET ROLE wf_migrate');
+  const db = createDb(base.url, { max: 1 });
+  await runMigrations(db, { migrationsFolder: folder });
+  await db.$client.end();
+  await base.pg.exec('RESET ROLE');
+  return { base, folder };
+}
+
+/** Applies the remaining migrations as wf_migrate. */
+async function migrateRest(base: PgliteServer): Promise<void> {
+  await base.pg.exec('SET ROLE wf_migrate');
+  await migrate(base.url);
+  await base.pg.exec('RESET ROLE');
+}
+
 describe('0010_goals_debts_receivables', () => {
   it('turns the goal splits of recurring transfers (M3 template allocations) into contribution plans', async () => {
-    const base = await startPglite();
-    const folder = await mkdtemp(path.join(tmpdir(), 'wf-migrations-'));
+    // The migrations up to 0009, as an M3 instance has them.
+    const { base, folder } = await migratedBefore('0010');
     try {
-      await bootstrapRoles(base.url, TEST_PASSWORDS);
-      // The migrations up to 0009, as an M3 instance has them.
-      await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
-      const journalFile = path.join(folder, 'meta', '_journal.json');
-      const journal = JSON.parse(await readFile(journalFile, 'utf8')) as { entries: { tag: string }[] };
-      const m3 = journal.entries.filter((entry) => entry.tag < '0010');
-      await writeFile(journalFile, JSON.stringify({ ...journal, entries: m3 }));
-      await base.pg.exec('SET ROLE wf_migrate');
-      const db = createDb(base.url, { max: 1 });
-      await runMigrations(db, { migrationsFolder: folder });
-      await db.$client.end();
-      await base.pg.exec('RESET ROLE');
-
       const userId = await insertUser(base, 'm3@example.test');
       const [account] = await base.query<{ id: string }>(
         `INSERT INTO accounts (user_id, type, provider_name, display_name, currency, opening_date, color)
@@ -297,9 +312,7 @@ describe('0010_goals_debts_receivables', () => {
         ],
       );
 
-      await base.pg.exec('SET ROLE wf_migrate');
-      await migrate(base.url);
-      await base.pg.exec('RESET ROLE');
+      await migrateRest(base);
 
       expect(
         await base.query(
@@ -316,6 +329,52 @@ describe('0010_goals_debts_receivables', () => {
       expect(
         await base.query(`SELECT relforcerowsecurity AS forced FROM pg_class WHERE relname = 'recurrences'`),
       ).toEqual([{ forced: true }]);
+    } finally {
+      await base.close();
+      await rm(folder, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
+
+describe('0011_plan_months', () => {
+  it('starts existing contribution plans in their recurrence’s first month, without an end', async () => {
+    const { base, folder } = await migratedBefore('0011');
+    try {
+      const userId = await insertUser(base, 'm4@example.test');
+      const [goal] = await base.query<{ id: string }>(
+        `INSERT INTO goals (user_id, name, icon, color, target_minor, currency) VALUES ($1, 'Liburan Bali', 'x', 'x', 1, 'IDR')
+         RETURNING id`,
+        [userId],
+      );
+      const [recurrence] = await base.query<{ id: string }>(
+        `INSERT INTO recurrences (user_id, template, freq, start_on, month_day)
+         VALUES ($1, '{"type":"transfer"}'::jsonb, 'monthly', '2026-10-25', 25) RETURNING id`,
+        [userId],
+      );
+      await base.query(
+        `INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor) VALUES ($1, $2, $3, 867000)`,
+        [userId, goal?.id, recurrence?.id],
+      );
+
+      await migrateRest(base);
+
+      expect(
+        await base.query(
+          `SELECT to_char(start_month, 'YYYY-MM-DD') AS start, end_month AS "end" FROM goal_contribution_plans`,
+        ),
+      ).toEqual([{ start: '2026-10-01', end: null }]);
+      expect(
+        await base.query(
+          `SELECT relname AS name, relforcerowsecurity AS forced FROM pg_class
+           WHERE relname IN ('goal_contribution_plans', 'recurrences') ORDER BY relname`,
+        ),
+      ).toEqual([
+        { name: 'goal_contribution_plans', forced: true },
+        { name: 'recurrences', forced: true },
+      ]);
+      await expect(base.query(`UPDATE goal_contribution_plans SET end_month = '2026-09-01'`)).rejects.toThrow(
+        /goal_contribution_plans_months_check/,
+      );
     } finally {
       await base.close();
       await rm(folder, { recursive: true, force: true });

@@ -248,7 +248,12 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
         receivedMinor: recurrence.receivedMinor,
         description: recurrence.description,
         tags: recurrence.tags,
-        allocations: recurrence.allocations.map(({ goal, amountMinor }) => ({ goalId: goalOf(goal), amountMinor })),
+        allocations: recurrence.allocations.map(({ goal, amountMinor, startMonth, endMonth }) => ({
+          goalId: goalOf(goal),
+          amountMinor,
+          startMonth: startMonth as YearMonth,
+          endMonth: endMonth as YearMonth | null,
+        })),
       },
       freq: 'monthly',
       startOn: parseLocalDate(recurrence.startOn),

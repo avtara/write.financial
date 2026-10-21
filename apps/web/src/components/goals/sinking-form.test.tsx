@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DANA_DARURAT, GOAL_ACCOUNTS, goalsOverview, SET_ASIDE } from '../../../test/goal-fixtures.ts';
+import { DANA_DARURAT, GOAL_ACCOUNTS, goalsOverview, SET_ASIDE, source } from '../../../test/goal-fixtures.ts';
 import { BCA, JAGO, OVO } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import type { GoalsOverview } from '../../server/fn/goals.ts';
@@ -56,6 +56,7 @@ describe('SinkingForm', () => {
         ),
       )
       .toBeVisible();
+    // Bank Jago, where the set-aside lands, is Dana Darurat's whole account here: the fund stays in BCA.
     await expect.element(dialog.getByRole('combobox', { name: 'Disimpan di' })).toMatchTextContent(BCA.displayName);
     await expect.element(dialog.getByText('bebas Rp33.610.000')).toBeVisible();
     // Joining the payday transfer needs no day or account of its own.
@@ -73,10 +74,21 @@ describe('SinkingForm', () => {
         tag: 'Asuransi motor',
         accountId: BCA.id,
         sources: [],
-        plans: [{ recurrenceId: SET_ASIDE.recurrenceId, amountMinor: 250_000n }],
+        plans: [
+          { recurrenceId: SET_ASIDE.recurrenceId, amountMinor: 250_000n, startMonth: '2026-11', endMonth: '2027-04' },
+        ],
       },
     });
     expect(onSaved).toHaveBeenCalledWith({ id: 'new', name: 'Asuransi motor' });
+  });
+
+  it('keeps a fund where the payday set-aside lands when no goal holds that account wholly', async () => {
+    const fixed = { ...DANA_DARURAT, sources: [source({ id: 's', accountId: JAGO.id, amountMinor: 8_125_000n })] };
+    const { view } = sinkingForm(goalsOverview({ goals: [fixed] }));
+    const { screen } = await view;
+    await expect
+      .element(screen.getByRole('dialog').getByRole('combobox', { name: 'Disimpan di' }))
+      .toMatchTextContent(JAGO.displayName);
   });
 
   it('makes its own monthly transfer on a chosen day when there is none to join, with what is already saved', async () => {
@@ -101,7 +113,15 @@ describe('SinkingForm', () => {
         accountId: BCA.id,
         sources: [{ accountId: BCA.id, mode: 'fixed', amountMinor: 500_000n }],
         plans: [
-          { amountMinor: 167_000n, monthDay: 1, fromAccountId: OVO.id, toAccountId: BCA.id, startOn: '2026-11-01' },
+          {
+            amountMinor: 167_000n,
+            monthDay: 1,
+            fromAccountId: OVO.id,
+            toAccountId: BCA.id,
+            startOn: '2026-11-01',
+            startMonth: '2026-11',
+            endMonth: '2027-04',
+          },
         ],
       }) as unknown,
     });
