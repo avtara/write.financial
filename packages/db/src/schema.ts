@@ -1605,6 +1605,10 @@ export const goalContributionPlans = pgTable(
     /** In the currency of the recurrence's destination account. */
     amountMinor: money('amount_minor').notNull(),
     active: boolean('active').notNull().default(true),
+    /** First day of the first month the plan sends its share in (FR-B6 "Nov–Apr" starts in November). */
+    startMonth: localDate('start_month').notNull(),
+    /** First day of the last month it sends in; null = until changed. */
+    endMonth: localDate('end_month'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1623,6 +1627,10 @@ export const goalContributionPlans = pgTable(
       foreignColumns: [recurrences.userId, recurrences.id],
     }).onDelete('cascade'),
     check('goal_contribution_plans_amount_check', sql`${table.amountMinor} > 0`),
+    check(
+      'goal_contribution_plans_months_check',
+      sql`extract(day from ${table.startMonth}) = 1 and (${table.endMonth} is null or (extract(day from ${table.endMonth}) = 1 and ${table.endMonth} >= ${table.startMonth}))`,
+    ),
   ],
 );
 

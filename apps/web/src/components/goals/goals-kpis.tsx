@@ -34,7 +34,7 @@ export function GoalsKpis({ overview, locale }: { readonly overview: GoalsOvervi
   const { goals, movements, baseCurrency, month } = overview;
   const active = goals.filter((goal) => goal.status === 'active' && goal.currency === baseCurrency);
   const total = active.reduce((sum, goal) => sum + goal.savedMinor, 0n);
-  const summary = monthSummary(goals, movements, baseCurrency);
+  const summary = monthSummary(goals, movements, baseCurrency, month);
   const emergency = emergencyGoal(goals);
   const coverage = emergency === null ? null : goalSnapshot(goalState(emergency)).coverageBps;
   const usedBps = summary.plannedMinor > 0n ? Number((summary.recordedMinor * 10_000n) / summary.plannedMinor) : null;

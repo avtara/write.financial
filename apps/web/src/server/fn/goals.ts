@@ -49,9 +49,12 @@ const goalFields = {
   accountId: id.nullable().optional(),
 };
 
+/** The months a plan runs in ("Nov–Apr"); omitted: from this month (a new transfer: its first month), until changed. */
+const planMonths = { startMonth: yearMonth.optional(), endMonth: yearMonth.nullable().optional() };
+
 /** A share of an existing recurring transfer ("Sisihkan tiap gajian"), or a new monthly one ("Setoran rutin"). */
 const plan = z.union([
-  z.object({ recurrenceId: id, amountMinor: positiveMinor }),
+  z.object({ recurrenceId: id, amountMinor: positiveMinor, ...planMonths }),
   z.object({
     amountMinor: positiveMinor,
     monthDay: z.number().int().min(1).max(31),
@@ -59,6 +62,7 @@ const plan = z.union([
     toAccountId: id.nullable().optional(),
     startOn: localDate,
     remindOffsetDays: z.number().int().min(0).max(30).nullable().optional(),
+    ...planMonths,
   }),
 ]);
 type PlanInput = z.output<typeof plan>;
@@ -142,7 +146,8 @@ function setAsideOf(recurrences: readonly RecurrenceView[], goals: readonly Goal
 
 /**
  * Adds a plan; a share of a transfer planned wholly for goals ("Sisihkan dana tidak rutin" Rp1.150.000) grows the
- * transfer by the share (Rp1.400.000) instead of being refused for exceeding it.
+ * transfer by the share (Rp1.400.000) instead of being refused for exceeding it — from the share's first month on, as
+ * the transfer's occurrences send the plans running each month.
  */
 async function addPlanIn(all: Services, userId: string, goalId: string, input: PlanInput): Promise<GoalView> {
   if (!('recurrenceId' in input)) return all.goals.addPlan(userId, goalId, defined(input));
@@ -159,7 +164,7 @@ async function addPlanIn(all: Services, userId: string, goalId: string, input: P
     planned !== template.sentMinor ||
     template.sentMinor !== template.receivedMinor
   ) {
-    return all.goals.addPlan(userId, goalId, input);
+    return all.goals.addPlan(userId, goalId, defined(input));
   }
   const total = planned + input.amountMinor;
   await all.schedules.updateRecurrence(userId, recurrence.id, {
@@ -174,7 +179,10 @@ async function addPlanIn(all: Services, userId: string, goalId: string, input: P
       ...template,
       sentMinor: total,
       receivedMinor: total,
-      allocations: [...allocations, { goalId, amountMinor: input.amountMinor }],
+      allocations: [
+        ...allocations,
+        defined({ goalId, amountMinor: input.amountMinor, startMonth: input.startMonth, endMonth: input.endMonth }),
+      ],
     },
   });
   return all.goals.get(userId, goalId);

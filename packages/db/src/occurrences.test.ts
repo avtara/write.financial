@@ -303,6 +303,63 @@ describe('materializeIn', () => {
     expect(await dues(stopped)).toEqual([]);
   });
 
+  it('expects the plans running each month from a set-aside, and nothing from a month none runs in', async () => {
+    const goal = async (name: string) =>
+      firstRow(
+        await test.query<{ id: string }>(
+          `INSERT INTO goals (user_id, name, icon, color, target_minor, currency, kind)
+           VALUES ($1, $2, 'x', 'x', 1, 'IDR', 'sinking') RETURNING id`,
+          [fx.userId, name],
+        ),
+        'goals',
+      ).id;
+    const plan = (recurrenceId: string, goalId: string, amount: bigint, start: string, end: string | null) =>
+      test.query(
+        `INSERT INTO goal_contribution_plans (user_id, goal_id, recurrence_id, amount_minor, start_month, end_month)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [fx.userId, goalId, recurrenceId, amount, start, end],
+      );
+    const transfer = (amountMinor: bigint): RecurrenceTemplate => ({
+      type: 'transfer',
+      fromAccountId: fx.bca,
+      toAccountId: fx.jago,
+      sentMinor: amountMinor,
+      receivedMinor: amountMinor,
+    });
+    const at25 = { startOn: d('2026-10-25'), monthDay: 25 };
+    const [liburan, servis, asuransi] = [
+      await goal('Liburan Bali'),
+      await goal('Servis motor'),
+      await goal('Asuransi'),
+    ];
+    // "Sisihkan dana tidak rutin" after Asuransi motor (Nov–Apr) joined: Rp1.400.000 a month, not in October.
+    const sisihkan = await recurrence(transfer(1_400_000n), at25);
+    await plan(sisihkan, liburan, 867_000n, '2026-10-01', '2027-03-01');
+    await plan(sisihkan, servis, 283_000n, '2026-10-01', '2026-12-01');
+    await plan(sisihkan, asuransi, 250_000n, '2026-11-01', '2027-04-01');
+    // Only October runs: no November or December occurrence.
+    const once = await recurrence(transfer(100_000n), at25);
+    await plan(once, liburan, 100_000n, '2026-10-01', '2026-10-01');
+    // Only partly planned: the transfer sends its own amount every month.
+    const dca = await recurrence(transfer(6_000_000n), at25);
+    await plan(dca, asuransi, 1_000_000n, '2026-11-01', null);
+
+    await materialize();
+    const expected = async (sourceId: string) =>
+      (await rows()).filter((row) => row.source_id === sourceId).map((row) => [row.due_date, row.expected_minor]);
+    expect(await expected(sisihkan)).toEqual([
+      ['2026-10-25', '1150000'],
+      ['2026-11-25', '1400000'],
+      ['2026-12-25', '1400000'],
+    ]);
+    expect(await expected(once)).toEqual([['2026-10-25', '100000']]);
+    expect(await expected(dca)).toEqual([
+      ['2026-10-25', '6000000'],
+      ['2026-11-25', '6000000'],
+      ['2026-12-25', '6000000'],
+    ]);
+  });
+
   it('limits to one source and does nothing without schedules', async () => {
     await expect(materialize()).resolves.toEqual({ created: 0 });
     const netflix = await subscription();

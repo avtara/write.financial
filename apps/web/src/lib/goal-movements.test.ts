@@ -8,6 +8,7 @@ import {
   DANA_PENSIUN,
   LIBURAN_BALI,
   PERPANJANG_STNK,
+  goalView,
   plan,
   SERVIS_MOTOR,
 } from '../../test/goal-fixtures.ts';
@@ -191,6 +192,25 @@ describe('goalMovements', () => {
     );
     expect(movements.map((movement) => movement.key)).toEqual(['a', 'b']);
   });
+
+  it('gives a plan a share only of the occurrences in its months ("Nov–Apr" is not in October’s)', () => {
+    const asuransi = goalView({
+      id: 'asuransi',
+      name: 'Asuransi motor',
+      plans: [
+        plan({
+          id: 'a',
+          recurrenceId: 'rec-sisihkan',
+          amountMinor: 250_000n,
+          startMonth: '2026-11' as YearMonth,
+          endMonth: '2027-04' as YearMonth,
+        }),
+      ],
+    });
+    const at = (dueDate: string) => item({ sourceId: 'rec-sisihkan', dueDate: d(dueDate), expectedMinor: 250_000n });
+    const movements = goalMovements([asuransi], [at('2026-10-25'), at('2026-11-25')], []);
+    expect(movements.map((movement) => [movement.date, movement.amountMinor])).toEqual([['2026-11-25', 250_000n]]);
+  });
 });
 
 describe('goalAccountIds', () => {
@@ -223,5 +243,16 @@ describe('nextContributionMonth', () => {
     expect(nextContributionMonth(LIBURAN_BALI, [recurrence('rec-sisihkan', null)], october)).toBe('2026-10');
     const paused = { plans: [plan({ id: 'p', recurrenceId: 'rec-sisihkan', active: false })] };
     expect(nextContributionMonth(paused, [recurrence('rec-sisihkan', '2027-01-25')], october)).toBe('2026-10');
+  });
+
+  it('waits for a plan’s first month and leaves out a plan that has ended', () => {
+    const asuransi = {
+      plans: [plan({ id: 'a', recurrenceId: 'rec-sisihkan', startMonth: '2026-11' as YearMonth, endMonth: null })],
+    };
+    expect(nextContributionMonth(asuransi, [recurrence('rec-sisihkan', '2026-10-25')], october)).toBe('2026-11');
+    const ended = {
+      plans: [plan({ id: 'e', recurrenceId: 'rec-sisihkan', endMonth: '2026-09' as YearMonth })],
+    };
+    expect(nextContributionMonth(ended, [recurrence('rec-sisihkan', '2026-12-25')], october)).toBe('2026-10');
   });
 });

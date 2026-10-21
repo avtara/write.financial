@@ -165,8 +165,17 @@ export interface SeedRecurrence {
   readonly sentMinor: bigint;
   readonly receivedMinor: bigint;
   readonly tags: readonly string[];
-  /** Goal split shown in the Review queue ("DIBAGI KE"), by goal name. */
-  readonly allocations: readonly { readonly goal: string; readonly amountMinor: bigint }[];
+  /**
+   * Goal split shown in the Review queue ("DIBAGI KE"), by goal name, with the months each share runs (YYYY-MM;
+   * `endMonth` `null` = until changed). Confirming an occurrence credits each running share to its goal in
+   * `toAccountKey` (its fixed amount there grows, or one is made), so no other goal may hold that account wholly.
+   */
+  readonly allocations: readonly {
+    readonly goal: string;
+    readonly amountMinor: bigint;
+    readonly startMonth: string;
+    readonly endMonth: string | null;
+  }[];
   readonly monthDay: number;
   readonly startOn: string;
   readonly remindOffsetDays: number;
@@ -1006,8 +1015,10 @@ const SUBSCRIPTIONS: readonly SeedSubscription[] = [
 /**
  * Section 00 "Setoran rutin & investasi": the monthly transfers, H-1 reminders. September and October transfers of
  * the seed paid the earlier occurrences. Goal shares (Section 13 "Setoran rutin"): Dana Darurat gets 500.000 on the
- * 1st and 3.000.000 on the 14th (Rp3.500.000/bulan, "tgl 1 & 14"); "Sisihkan dana tidak rutin" (25th) splits
- * Rp1.150.000 over three sinking funds; the DCA goes to DP Rumah and Dana Pensiun through their assets (M5).
+ * 1st and 3.000.000 on the 14th (Rp3.500.000/bulan, "tgl 1 & 14"); "Sisihkan dana tidak rutin" (25th, review card
+ * yNnG3 "BCA Tahapan → Bank Jago") splits Rp1.150.000 over three sinking funds from October to their due months, and
+ * confirming it puts each share in Bank Jago for its fund ("Dana tidak rutin (Bank Jago)", O4YIh2; "Disimpan di Bank
+ * Jago", McGzv); the DCA goes to DP Rumah and Dana Pensiun through their assets (M5).
  */
 const RECURRENCES: readonly SeedRecurrence[] = [
   {
@@ -1017,7 +1028,7 @@ const RECURRENCES: readonly SeedRecurrence[] = [
     sentMinor: 500_000n,
     receivedMinor: 500_000n,
     tags: ['dana-darurat'],
-    allocations: [{ goal: 'Dana Darurat', amountMinor: 500_000n }],
+    allocations: [{ goal: 'Dana Darurat', amountMinor: 500_000n, startMonth: '2026-09', endMonth: null }],
     monthDay: 1,
     startOn: '2026-09-01',
     remindOffsetDays: 1,
@@ -1049,7 +1060,7 @@ const RECURRENCES: readonly SeedRecurrence[] = [
     sentMinor: 3_000_000n,
     receivedMinor: 3_000_000n,
     tags: ['dana-darurat'],
-    allocations: [{ goal: 'Dana Darurat', amountMinor: 3_000_000n }],
+    allocations: [{ goal: 'Dana Darurat', amountMinor: 3_000_000n, startMonth: '2026-10', endMonth: null }],
     monthDay: 14,
     // "sejak Okt; Sep → Jago 2.000.000".
     startOn: '2026-10-14',
@@ -1064,9 +1075,9 @@ const RECURRENCES: readonly SeedRecurrence[] = [
     receivedMinor: 1_150_000n,
     tags: [],
     allocations: [
-      { goal: 'Liburan Bali', amountMinor: 867_000n },
-      { goal: 'Servis motor', amountMinor: 240_000n },
-      { goal: 'Perpanjang STNK', amountMinor: 43_000n },
+      { goal: 'Liburan Bali', amountMinor: 867_000n, startMonth: '2026-10', endMonth: '2027-03' },
+      { goal: 'Servis motor', amountMinor: 240_000n, startMonth: '2026-10', endMonth: '2026-12' },
+      { goal: 'Perpanjang STNK', amountMinor: 43_000n, startMonth: '2026-10', endMonth: '2027-02' },
     ],
     monthDay: 25,
     startOn: '2026-10-25',
@@ -1154,9 +1165,11 @@ export const DESIGN_SEED: DesignSeed = {
   budgets: BUDGETS,
   fxRates: [{ base: 'USD', quote: 'IDR', rate: '16350', asOf: '2026-10-15' }],
   // Section 00 card "Tujuan tabungan"; deadlines from the savings-goal seed table (docs/design-analysis/CrossCutting.md).
-  // Account sources (Section 05 "Rp17.300.000 dialokasikan ke tabungan", Section 13): Bank Jago wholly for Dana
-  // Darurat (Rp8.125.000), fixed amounts of BCA Tahapan for DP Rumah (5.000.000) and the three sinking funds
-  // ("Rp4.200.000 dipakai dana tidak rutin"); the investment parts (Bibit RDPU, SPY, IDX30, SCHD) come with M5.
+  // Account sources (Section 05 "Rp17.300.000 dialokasikan ke tabungan", Section 13): Dana Darurat's "Kantong darurat"
+  // is all of Bank Jago today (Rp8.125.000) as a fixed amount, so the sinking funds' set-asides can land in Bank Jago
+  // next to it (a whole source would take them for Dana Darurat); fixed amounts of BCA Tahapan for DP Rumah
+  // (5.000.000) and the three sinking funds ("Rp4.200.000 dipakai dana tidak rutin"); the investment parts (Bibit RDPU,
+  // SPY, IDX30, SCHD) come with M5.
   goals: [
     {
       name: 'Dana Darurat',
@@ -1169,7 +1182,7 @@ export const DESIGN_SEED: DesignSeed = {
       deadlineMonth: '2027-11',
       tag: 'dana-darurat',
       accountKey: 'jago',
-      sources: [{ accountKey: 'jago', mode: 'whole', amountMinor: null }],
+      sources: [{ accountKey: 'jago', mode: 'fixed', amountMinor: 8_125_000n }],
     },
     {
       name: 'DP Rumah',

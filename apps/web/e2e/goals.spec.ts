@@ -3,9 +3,11 @@
  * Tabungan (FR-G1, G3, G4, FR-B6; design 13) as its own invited user with the design persona on 15 Okt 2026: the
  * goldens (Rp17.325.000 in 6 goals, October Rp3.500.000 of Rp4.650.000, Dana Darurat 0,5 → with Bibit RDPU as a
  * source 0,6 months), "Setor manual" Rp1.000.000 (21% → 22%, Nov 2027 → Okt 2027), "Tarik dana", a new sinking fund
- * joining the payday set-aside (Rp1.150.000 → Rp1.400.000), "Tujuan baru" with 8× Rp2.250.000, STNK reached and
+ * joining the payday set-aside from November (Rp1.150.000 → Rp1.400.000 a month, October's stays Rp1.150.000),
+ * "Tujuan baru" with 8× Rp2.250.000, STNK reached and
  * completed with "Urungkan", paid from in the Record sheet (Terpakai) with its Rp38.000 moved to Servis motor, the
- * payday set-aside of 25 Okt waiting in the Review queue (`runScheduleJobs`) until "Sudah ditransfer", and the layout
+ * payday set-aside of 25 Okt waiting in the Review queue (`runScheduleJobs`) until "Sudah ditransfer", which puts each
+ * share in Bank Jago for its sinking fund (Dana Darurat unchanged), and the layout
  * at 1440, 1024, and 768 px. It changes the persona's goals, which no other project sees.
  */
 import type { Locator, Page } from '@playwright/test';
@@ -82,7 +84,8 @@ test('Bibit RDPU as a source: Dana Darurat Rp11.125.000, 21%, 0,6 months, reache
   await expect(form.getByRole('checkbox', { name: /Target dinamis/ })).toBeChecked();
   await form.getByRole('button', { name: 'Tambah sumber' }).click();
   await choose(page, form.getByRole('combobox', { name: 'Rekening sumber' }).nth(1), 'Bibit');
-  await form.getByRole('textbox', { name: 'Nominal tetap' }).fill('3.000.000');
+  // Dana Darurat's Bank Jago row is a fixed amount too: the new row is the last.
+  await form.getByRole('textbox', { name: 'Nominal tetap' }).last().fill('3.000.000');
   await form.getByRole('button', { name: 'Simpan' }).click();
   await expect(form).toBeHidden();
   await expect(goalRow(page, 'Dana Darurat')).toContainText('Rp11.125.000');
@@ -163,8 +166,9 @@ test('Dana tidak rutin baru: Asuransi motor Rp250.000 over Nov–Apr joins the p
   const sinking = page.getByRole('region', { name: 'Dana tidak rutin' });
   await expect(sinking.getByRole('button', { name: /^Asuransi motor/ })).toContainText('Rp250.000/bulan');
   await expect(sinking).toContainText('Total per bulanRp1.400.000/bulan');
+  // Asuransi motor runs Nov–Apr: October's set-aside stays Rp1.150.000.
   await expect(page.getByRole('region', { name: 'Setoran Oktober' }).getByRole('listitem').last()).toContainText(
-    'Rp1.400.000',
+    'Rp1.150.000',
   );
 });
 
@@ -248,31 +252,32 @@ test('STNK reached with "Pas target", completed with Urungkan, paid from, and it
   await expect(page.getByText('Sisa dipindah ke Servis motor')).toBeVisible();
   await expect(page.getByText('Servis motor sekarang Rp758.000 dari Rp1.200.000 (63%).')).toBeVisible();
   await expect(goalRow(page, 'Servis motor')).toContainText('Rp758.000');
-  // Used: STNK's Rp43.000 is no longer set aside on the 25th.
+  // Used: STNK's Rp43.000 is no longer set aside on the 25th; October's is Liburan Bali + Servis motor.
   await expect(page.getByRole('region', { name: 'Dana tidak rutin' })).toContainText(
     'Total per bulanRp1.357.000/bulan',
   );
   await expect(page.getByRole('region', { name: 'Setoran Oktober' }).getByRole('listitem').last()).toContainText(
-    'Rp1.357.000',
+    'Rp1.107.000',
   );
   await page.getByRole('tab', { name: 'Selesai · 1' }).click();
   await expect(goalRow(page, 'Perpanjang STNK')).toContainText('Terpakai');
 });
 
 test('"Sisihkan tiap gajian" on the 25th waits in Perlu ditinjau and is recorded once confirmed', async ({ page }) => {
-  // The payday set-aside (BCA Tahapan → Bank Jago, Rp1.357.000 without STNK) is due on 25 Okt.
+  // The payday set-aside (BCA Tahapan → Bank Jago, Rp1.107.000: no STNK, Asuransi motor only from November) is due on
+  // 25 Okt.
   runScheduleJobs(user.email, '2026-10-25T10:00:00+07:00');
   await openGoals(page);
   const setAside = page.getByRole('region', { name: 'Setoran Oktober' }).getByRole('listitem').last();
   await expect(setAside).toContainText('Sisihkan dana tidak rutin');
   await expect(setAside).toContainText('Perlu ditinjau');
-  // Nothing moved while it waits: Bank Jago is Dana Darurat's whole source.
+  // Nothing moved while it waits.
   await expect(goalRow(page, 'Dana Darurat')).toContainText('Rp11.125.000');
 
   await page.goto('/review');
   await page.waitForLoadState('networkidle');
   const card = page.getByRole('article', { name: 'Sisihkan dana tidak rutin', exact: true });
-  await expect(card).toContainText('Rp1.357.000');
+  await expect(card).toContainText('Rp1.107.000');
   await expect(card).toContainText('25 Okt');
   await screenshot(page, 'goals-review');
   await card.getByRole('button', { name: 'Sudah ditransfer' }).click();
@@ -280,8 +285,11 @@ test('"Sisihkan tiap gajian" on the 25th waits in Perlu ditinjau and is recorded
 
   await openGoals(page);
   await expect(setAside).toContainText('Tercatat');
-  await expect(setAside).toContainText('+1.357.000');
-  await expect(goalRow(page, 'Dana Darurat')).toContainText('Rp12.482.000');
+  await expect(setAside).toContainText('+1.107.000');
+  // Each share is now its fund's money in Bank Jago; Dana Darurat's fixed Rp8.125.000 there is unchanged.
+  await expect(goalRow(page, 'Dana Darurat')).toContainText('Rp11.125.000');
+  await expect(goalRow(page, 'Liburan Bali')).toContainText('Rp3.667.000');
+  await expect(goalRow(page, 'Servis motor')).toContainText('Rp998.000');
 });
 
 test('the layout holds at 1024 and 768 px', async ({ page }) => {

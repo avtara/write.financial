@@ -137,7 +137,7 @@ describe('sorting', () => {
 
 describe('the month and the KPIs', () => {
   it('sums October: Rp3.500.000 recorded of the Rp4.650.000 plan, the 25th still to come', () => {
-    expect(monthSummary(SEED_GOALS, OCTOBER_MOVEMENTS, 'IDR')).toEqual({
+    expect(monthSummary(SEED_GOALS, OCTOBER_MOVEMENTS, 'IDR', ym('2026-10'))).toEqual({
       recordedMinor: 3_500_000n,
       plannedMinor: 4_650_000n,
       pendingDays: [25],
@@ -146,11 +146,25 @@ describe('the month and the KPIs', () => {
     const usd = goalSummary({ id: 'usd', name: 'USD', currency: 'USD', plans: [plan({ id: 'u', amountMinor: 5n })] });
     const done = { ...LIBURAN_BALI, status: 'completed' as const };
     const earlier = { ...review, key: 'earlier', date: d('2026-10-20') };
-    expect(monthSummary([DANA_DARURAT, usd, done], [review, earlier, review], 'IDR')).toEqual({
+    expect(monthSummary([DANA_DARURAT, usd, done], [review, earlier, review], 'IDR', ym('2026-10'))).toEqual({
       recordedMinor: 0n,
       plannedMinor: 3_500_000n,
       pendingDays: [20, 25],
     });
+  });
+
+  it('plans only the plans running in the month: a Nov–Apr fund is not in October’s, a paused one never', () => {
+    const asuransi = goalSummary({
+      id: 'asuransi',
+      name: 'Asuransi motor',
+      plans: [
+        plan({ id: 'a', amountMinor: 250_000n, startMonth: ym('2026-11'), endMonth: ym('2027-04') }),
+        plan({ id: 'p', amountMinor: 1n, active: false }),
+      ],
+    });
+    expect(monthSummary([asuransi], [], 'IDR', ym('2026-10')).plannedMinor).toBe(0n);
+    expect(monthSummary([asuransi], [], 'IDR', ym('2026-11')).plannedMinor).toBe(250_000n);
+    expect(monthSummary([asuransi], [], 'IDR', ym('2027-05')).plannedMinor).toBe(0n);
   });
 
   it('finds the active emergency fund', () => {

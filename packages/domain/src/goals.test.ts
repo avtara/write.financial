@@ -6,16 +6,21 @@ import {
   GOAL_STATUSES,
   GOAL_TARGET_MODES,
   InvalidGoalError,
+  checkPlanMonths,
   contributionRule,
   depositPreview,
   dynamicTarget,
   goalSnapshot,
+  occurrenceAmount,
+  occurrenceShares,
   payFromGoal,
+  planRunsIn,
   sinkingFundPlan,
   withdrawPreview,
   type GoalState,
+  type PlanShare,
 } from './goals.ts';
-import { monthsBetween, parseLocalDate, type YearMonth } from './period.ts';
+import { monthsBetween, parseLocalDate, shiftMonth, type YearMonth } from './period.ts';
 import { nextOccurrences } from './recurrence.ts';
 
 const ym = (value: string) => value as YearMonth;
@@ -317,5 +322,71 @@ describe('contributionRule (FR-G1 "Setoran rutin bulanan")', () => {
 
   it('rejects an end before the start', () => {
     expectGoalError(() => contributionRule({ day: 25, from: ym('2026-11'), until: ym('2026-10') }), 'plan');
+  });
+});
+
+describe('plan months (FR-B6 "6 bulan · Nov–Apr")', () => {
+  /** The payday set-aside on 25 Okt after "Asuransi motor" (Nov–Apr) joined it; STNK paused. */
+  const SET_ASIDE: PlanShare[] = [
+    { amountMinor: 867_000n, active: true, startMonth: ym('2026-10'), endMonth: ym('2027-03') },
+    { amountMinor: 240_000n, active: true, startMonth: ym('2026-10'), endMonth: ym('2026-12') },
+    { amountMinor: 43_000n, active: false, startMonth: ym('2026-10'), endMonth: ym('2027-02') },
+    { amountMinor: 250_000n, active: true, startMonth: ym('2026-11'), endMonth: ym('2027-04') },
+  ];
+
+  it('runs from the start month to the end month, both included, or on without an end', () => {
+    const plan = { startMonth: ym('2026-11'), endMonth: ym('2027-04') };
+    expect(planRunsIn(plan, ym('2026-10'))).toBe(false);
+    expect(planRunsIn(plan, ym('2026-11'))).toBe(true);
+    expect(planRunsIn(plan, ym('2027-04'))).toBe(true);
+    expect(planRunsIn(plan, ym('2027-05'))).toBe(false);
+    expect(planRunsIn({ startMonth: ym('2026-09'), endMonth: null }, ym('2030-01'))).toBe(true);
+  });
+
+  it('golden: a Nov–Apr fund pays 6 times, not in the 25 Okt set-aside (Rp1.107.000, then Rp1.357.000)', () => {
+    const months = ['2026-10', '2026-11', '2026-12', '2027-01', '2027-03', '2027-04', '2027-05'].map(ym);
+    expect(months.map((month) => occurrenceAmount(1_357_000n, SET_ASIDE, month))).toEqual([
+      1_107_000n,
+      1_357_000n,
+      1_357_000n,
+      1_117_000n,
+      1_117_000n,
+      250_000n,
+      0n,
+    ]);
+    const asuransi = SET_ASIDE[3] as PlanShare;
+    const payments = Array.from({ length: 12 }, (_, index) => shiftMonth(ym('2026-10'), index)).filter((month) =>
+      planRunsIn(asuransi, month),
+    );
+    expect(payments).toHaveLength(6);
+  });
+
+  it('leaves a transfer that is not fully planned for goals at its own amount', () => {
+    const plans: PlanShare[] = [{ amountMinor: 1_000_000n, active: true, startMonth: ym('2026-11'), endMonth: null }];
+    expect(occurrenceAmount(6_000_000n, plans, ym('2026-10'))).toBe(6_000_000n);
+    expect(occurrenceAmount(6_000_000n, [], ym('2026-10'))).toBe(6_000_000n);
+    expect(occurrenceAmount(1_000_000n, [{ ...(plans[0] as PlanShare), active: false }], ym('2026-10'))).toBe(
+      1_000_000n,
+    );
+  });
+
+  it('credits each running plan its share in order while the received amount lasts', () => {
+    expect(occurrenceShares(SET_ASIDE, ym('2026-10'), 1_107_000n)).toEqual([867_000n, 240_000n, 0n, 0n]);
+    expect(occurrenceShares(SET_ASIDE, ym('2026-11'), 1_500_000n)).toEqual([867_000n, 240_000n, 0n, 250_000n]);
+    expect(occurrenceShares(SET_ASIDE, ym('2026-11'), 1_000_000n)).toEqual([867_000n, 133_000n, 0n, 0n]);
+    expect(occurrenceShares(SET_ASIDE, ym('2026-11'), 0n)).toEqual([0n, 0n, 0n, 0n]);
+    expect(occurrenceShares(SET_ASIDE, ym('2026-11'), -1n)).toEqual([0n, 0n, 0n, 0n]);
+  });
+
+  it('refuses a plan that ends before it starts', () => {
+    expect(() => {
+      checkPlanMonths({ startMonth: ym('2026-11'), endMonth: ym('2026-11') });
+    }).not.toThrow();
+    expect(() => {
+      checkPlanMonths({ startMonth: ym('2026-11'), endMonth: null });
+    }).not.toThrow();
+    expectGoalError(() => {
+      checkPlanMonths({ startMonth: ym('2026-11'), endMonth: ym('2026-10') });
+    }, 'plan');
   });
 });

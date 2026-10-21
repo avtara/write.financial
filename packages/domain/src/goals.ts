@@ -198,3 +198,55 @@ export function contributionRule(plan: ContributionPlan): RecurrenceRule {
     end: plan.until === null ? { type: 'never' } : { type: 'after', count: monthsBetween(plan.from, plan.until) + 1 },
   };
 }
+
+/**
+ * The months a recurring contribution runs in, both included (FR-G1 "8× setoran (Nov 2026 – Jun 2027)", FR-B6
+ * "6 bulan · Nov–Apr"); `endMonth` `null` = until changed.
+ */
+export interface PlanMonths {
+  readonly startMonth: YearMonth;
+  readonly endMonth: YearMonth | null;
+}
+
+/** A goal's share of a recurring transfer, in the destination account's currency. */
+export interface PlanShare extends PlanMonths {
+  readonly amountMinor: bigint;
+  readonly active: boolean;
+}
+
+/** @throws {InvalidGoalError} `plan` when the plan would end before it starts */
+export function checkPlanMonths(plan: PlanMonths): void {
+  if (plan.endMonth !== null && plan.endMonth < plan.startMonth) throw new InvalidGoalError('plan');
+}
+
+/** Whether a plan sends its share in `month`: started and not yet ended. */
+export function planRunsIn(plan: PlanMonths, month: YearMonth): boolean {
+  return plan.startMonth <= month && (plan.endMonth === null || month <= plan.endMonth);
+}
+
+/**
+ * What the occurrence of a recurring transfer in `month` sends. A transfer fully planned for goals (it sends exactly
+ * Σ active plans, the payday set-aside) sends the active plans running that month — a "Nov–Apr" fund is not in
+ * October's — and nothing at all when none runs (no occurrence); any other transfer sends `transferMinor`.
+ */
+export function occurrenceAmount(transferMinor: bigint, plans: readonly PlanShare[], month: YearMonth): bigint {
+  const active = plans.filter((plan) => plan.active);
+  const planned = active.reduce((sum, plan) => sum + plan.amountMinor, 0n);
+  if (active.length === 0 || planned !== transferMinor) return transferMinor;
+  return active.reduce((sum, plan) => sum + (planRunsIn(plan, month) ? plan.amountMinor : 0n), 0n);
+}
+
+/**
+ * The goals' parts of a confirmed occurrence in `month` that received `receivedMinor`: each active plan running that
+ * month gets its share in plan order while the amount lasts (an amount lowered with "Ubah nominal" shorts the last
+ * ones; anything above the shares stays free). One entry per plan, `0n` for plans that get nothing.
+ */
+export function occurrenceShares(plans: readonly PlanShare[], month: YearMonth, receivedMinor: bigint): bigint[] {
+  let left = receivedMinor > 0n ? receivedMinor : 0n;
+  return plans.map((plan) => {
+    if (!plan.active || !planRunsIn(plan, month)) return 0n;
+    const share = plan.amountMinor < left ? plan.amountMinor : left;
+    left -= share;
+    return share;
+  });
+}

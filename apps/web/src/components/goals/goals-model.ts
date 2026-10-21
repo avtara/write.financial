@@ -5,7 +5,7 @@
  * goal match (FR-G4), and the dates a new monthly contribution runs on.
  */
 import type { GoalView } from '@wf/db/goals';
-import { goalSnapshot, type GoalSnapshot, type GoalState } from '@wf/domain/goals';
+import { goalSnapshot, planRunsIn, type GoalSnapshot, type GoalState } from '@wf/domain/goals';
 import { dateInMonth, monthsBetween, shiftMonth, type LocalDate, type YearMonth } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import type { GoalMovement } from '../../lib/goal-movements.ts';
@@ -102,7 +102,7 @@ export function sortDone(goals: readonly GoalSummary[]): GoalSummary[] {
 export interface MonthSummary {
   /** Contributions recorded in the month (withdrawals subtract). */
   readonly recordedMinor: bigint;
-  /** Σ active goals' monthly plans ("dari rencana Rp4.650.000"). */
+  /** Σ active goals' plans running in the month ("dari rencana Rp4.650.000"; a "Nov–Apr" fund not in October). */
   readonly plannedMinor: bigint;
   /** Days of the month's contributions still to confirm ("sisa tgl 25"), ascending. */
   readonly pendingDays: number[];
@@ -112,6 +112,7 @@ export function monthSummary(
   goals: readonly GoalSummary[],
   movements: readonly GoalMovement[],
   currency: string,
+  month: YearMonth,
 ): MonthSummary {
   const active = goals.filter((goal) => goal.status === 'active' && goal.currency === currency);
   return {
@@ -119,7 +120,9 @@ export function monthSummary(
       (sum, movement) => (movement.status === 'recorded' ? sum + movement.amountMinor : sum),
       0n,
     ),
-    plannedMinor: active.reduce((sum, goal) => sum + goal.monthlyPlanMinor, 0n),
+    plannedMinor: active
+      .flatMap((goal) => goal.plans)
+      .reduce((sum, plan) => (plan.active && planRunsIn(plan, month) ? sum + plan.amountMinor : sum), 0n),
     pendingDays: [
       ...new Set(
         movements.flatMap((movement) =>

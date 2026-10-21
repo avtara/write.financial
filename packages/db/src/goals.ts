@@ -3,9 +3,11 @@
  * Savings goals and sinking funds (FR-G1–G4, FR-B6: one entity, `kind`). A goal's progress is the value of its
  * funding sources (FR-G2): an account wholly (its balance) or a fixed amount of it; investment assets join in M5.
  * Recurring contributions ("Setoran rutin") are goal plans on recurring transfers (`goal_contribution_plans`), so
- * they reach the Review queue like every recurrence (D14). Deposit and withdraw are labeled transfers (the goal's tag
- * and `transactions.goal_id`); "Bayar dari tujuan" is an expense with `paid_from_goal_id`. Every method is one user
- * transaction; percentages, ETA, and emergency-fund months are `@wf/domain/goals`' job.
+ * they reach the Review queue like every recurrence (D14); a plan runs in its months only, and confirming an
+ * occurrence credits each running plan's goal in the transfer's destination (`creditGoalIn`). Deposit and withdraw
+ * are labeled transfers (the goal's tag and `transactions.goal_id`); "Bayar dari tujuan" is an expense with
+ * `paid_from_goal_id`. Every method is one user transaction; percentages, ETA, and emergency-fund months are
+ * `@wf/domain/goals`' job.
  */
 import type { Dek } from '@wf/crypto/envelope';
 import type { GoalKind, GoalStatus, GoalTargetMode } from '@wf/domain/goals';
@@ -20,9 +22,12 @@ import {
   activePlannedIn,
   createRecurrenceIn,
   lockedRecurrenceIn,
+  planMonthColumns,
   rebuildRecurrenceIn,
   resumeRecurrenceIn,
   stopRecurrenceIn,
+  wholeHolderIn,
+  type PlanMonthColumns,
 } from './schedules.ts';
 import {
   accounts,
@@ -66,6 +71,10 @@ export interface GoalPlanView {
   /** In the destination account's currency. */
   readonly amountMinor: bigint;
   readonly active: boolean;
+  /** The first month it sends its share in. */
+  readonly startMonth: YearMonth;
+  /** The last one; `null` = until changed. */
+  readonly endMonth: YearMonth | null;
   /** Monthly recurrences only. */
   readonly monthDay: number | null;
   readonly fromAccountId: string;
@@ -157,8 +166,12 @@ export interface GoalWithdrawal {
   readonly note?: string | null;
 }
 
-/** A new recurring contribution: a share of an existing recurring transfer, or a new monthly one. */
-export type GoalPlanInput =
+/**
+ * A new recurring contribution: a share of an existing recurring transfer, or a new monthly one. It runs from
+ * `startMonth` (default: this month when joining, `startOn`'s month for a new transfer) to `endMonth` (default: until
+ * changed), so a "Nov–Apr" fund joining the payday set-aside is not in October's.
+ */
+export type GoalPlanInput = (
   | { readonly recurrenceId: string; readonly amountMinor: bigint }
   | {
       readonly amountMinor: bigint;
@@ -170,7 +183,13 @@ export type GoalPlanInput =
       readonly startOn: LocalDate;
       /** Default 1 (H-1); `null` = no reminder. */
       readonly remindOffsetDays?: number | null;
-    };
+    }
+) & {
+  /** `YYYY-MM`. */
+  readonly startMonth?: YearMonth;
+  /** `YYYY-MM`, not before `startMonth`. */
+  readonly endMonth?: YearMonth | null;
+};
 
 /** Per account: what goals hold of it (Accounts page "dialokasikan ke tabungan"). */
 export interface AccountAllocation {
@@ -234,7 +253,12 @@ export interface GoalsRepository {
   ) => Promise<{ goal: GoalView; stoppedPlanIds: string[] }>;
   /** "Urungkan": active again, the given plans of the goal reactivated. @throws {LedgerError} `NOT_FOUND` */
   reopen: (userId: string, id: string, input?: { readonly resumePlanIds?: readonly string[] }) => Promise<GoalView>;
-  /** @throws {LedgerError} `NOT_FOUND`, `INVALID_GOAL`, `INVALID_RECURRENCE` */
+  /**
+   * A share of a recurring transfer; its destination must not be held wholly by another goal (confirming credits the
+   * goal there).
+   * @throws {LedgerError} `NOT_FOUND`, `INVALID_GOAL` (also for months that are not `YYYY-MM` or end before they
+   * start), `INVALID_RECURRENCE`
+   */
   addPlan: (userId: string, goalId: string, input: GoalPlanInput) => Promise<GoalView>;
   /**
    * Pauses or resumes a plan. A recurrence fully planned for goals sends Σ active plans; with none left it stops,
@@ -315,6 +339,8 @@ async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<Go
       amountMinor: goalContributionPlans.amountMinor,
       active: goalContributionPlans.active,
       monthDay: recurrences.monthDay,
+      startMonth: sql<YearMonth>`to_char(${goalContributionPlans.startMonth}, 'YYYY-MM')`,
+      endMonth: sql<YearMonth | null>`to_char(${goalContributionPlans.endMonth}, 'YYYY-MM')`,
       template: recurrences.template,
       recurrenceStatus: recurrences.status,
     })
@@ -344,6 +370,8 @@ async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<Go
           recurrenceId: plan.recurrenceId,
           amountMinor: plan.amountMinor,
           active: plan.active,
+          startMonth: plan.startMonth,
+          endMonth: plan.endMonth,
           monthDay: plan.monthDay,
           fromAccountId: transfer.fromAccountId,
           toAccountId: transfer.toAccountId,
@@ -534,6 +562,44 @@ async function setFixedIn(tx: Transaction, sourceId: string, amountMinor: bigint
 }
 
 /**
+ * Money that reached `accountId` for goal `goalId` ("Setor manual", a confirmed contribution or leftover move): the
+ * goal's fixed amount there grows, or a fixed source is made. Nothing changes when the account is held wholly — by the
+ * goal itself it grew already, by another goal the money counts there — or is in another currency than the goal.
+ */
+export async function creditGoalIn(
+  tx: Transaction,
+  userId: string,
+  goalId: string,
+  accountId: string,
+  amountMinor: bigint,
+  at: Date,
+): Promise<void> {
+  if (amountMinor <= 0n || (await wholeHolderIn(tx, accountId)) !== null) return;
+  const currencies = firstRow(
+    await tx
+      .select({ goal: goals.currency, account: accounts.currency })
+      .from(goals)
+      .innerJoin(accounts, eq(accounts.id, accountId))
+      .where(eq(goals.id, goalId)),
+    'goals',
+  );
+  if (currencies.goal !== currencies.account) return;
+  const source = await sourceOnIn(tx, goalId, accountId);
+  if (source !== undefined) {
+    await setFixedIn(tx, source.id, (source.amountMinor as bigint) + amountMinor, at);
+    return;
+  }
+  await tx.insert(goalFundingSources).values({
+    userId,
+    goalId,
+    accountId,
+    mode: 'fixed',
+    amountMinor,
+    sortOrder: sql`(select coalesce(max(${goalFundingSources.sortOrder}) + 1, 0) from ${goalFundingSources} where ${goalFundingSources.goalId} = ${goalId})`,
+  });
+}
+
+/**
  * After the active plans of a recurrence changed from `before` to their current Σ: a recurrence fully planned for
  * goals (one currency, sending exactly `before`) sends the new Σ; with no active plan it stops, else it runs again.
  */
@@ -585,6 +651,24 @@ async function setPlanActiveIn(tx: Transaction, userId: string, planId: string, 
   await tx.update(goalContributionPlans).set({ active, updatedAt: at }).where(eq(goalContributionPlans.id, planId));
   await syncRecurrenceIn(tx, userId, plan.recurrenceId, before, at);
   return plan;
+}
+
+/**
+ * The stored months of a new plan of `goalId` sending to `toAccountId` (default: from `firstMonth` on, until changed),
+ * once no other goal holds that account wholly — confirming credits the goal there.
+ */
+async function newPlanMonthsIn(
+  tx: Transaction,
+  goalId: string,
+  toAccountId: string,
+  input: { readonly startMonth?: YearMonth; readonly endMonth?: YearMonth | null },
+  firstMonth: string,
+): Promise<PlanMonthColumns> {
+  const holder = await wholeHolderIn(tx, toAccountId);
+  if (holder !== null && holder !== goalId) throw invalid('Another goal holds the destination wholly');
+  const months = planMonthColumns(input.startMonth ?? firstMonth, input.endMonth ?? null);
+  if (months === null) throw invalid('A contribution runs from a YYYY-MM month to one not before it');
+  return months;
 }
 
 export function createGoals(
@@ -726,32 +810,11 @@ export function createGoals(
         if (row.status !== 'active') throw invalid('Only an active goal takes deposits');
         const toAccountId = input.toAccountId ?? (await homeAccountIn(tx, row));
         await checkAccountIn(tx, toAccountId, row.currency);
-        const [whole] = await tx
-          .select({ goalId: goalFundingSources.goalId })
-          .from(goalFundingSources)
-          .where(
-            and(
-              eq(goalFundingSources.accountId, toAccountId),
-              eq(goalFundingSources.mode, 'whole'),
-              ne(goalFundingSources.goalId, id),
-            ),
-          );
-        if (whole !== undefined) throw invalid('Another goal holds the whole account');
+        const holder = await wholeHolderIn(tx, toAccountId);
+        if (holder !== null && holder !== id) throw invalid('Another goal holds the whole account');
         const at = now();
         const transactionId = await transferIn(tx, userId, row, { ...input, toAccountId }, dek, at);
-        const source = await sourceOnIn(tx, id, toAccountId);
-        if (source === undefined) {
-          await tx.insert(goalFundingSources).values({
-            userId,
-            goalId: id,
-            accountId: toAccountId,
-            mode: 'fixed',
-            amountMinor: input.amountMinor,
-            sortOrder: sql`(select coalesce(max(${goalFundingSources.sortOrder}) + 1, 0) from ${goalFundingSources} where ${goalFundingSources.goalId} = ${id})`,
-          });
-        } else if (source.mode === 'fixed') {
-          await setFixedIn(tx, source.id, (source.amountMinor as bigint) + input.amountMinor, at);
-        }
+        await creditGoalIn(tx, userId, id, toAccountId, input.amountMinor, at);
         return { transactionId, goal: await viewIn(tx, userId, id) };
       });
     },
@@ -871,6 +934,8 @@ export function createGoals(
           const recurrence = await lockedRecurrenceIn(tx, input.recurrenceId);
           const template = decodeTemplate(recurrence.template);
           if (template.type !== 'transfer') throw invalid('Contributions are recurring transfers');
+          const { today } = await userClockIn(tx, userId, at);
+          const months = await newPlanMonthsIn(tx, goalId, template.toAccountId, input, today.slice(0, 7));
           const [taken] = await tx
             .select({ id: goalContributionPlans.id })
             .from(goalContributionPlans)
@@ -883,11 +948,15 @@ export function createGoals(
           }
           await tx
             .insert(goalContributionPlans)
-            .values({ userId, goalId, recurrenceId: recurrence.id, amountMinor: input.amountMinor });
+            .values({ userId, goalId, recurrenceId: recurrence.id, amountMinor: input.amountMinor, ...months });
+          // A share that makes the transfer fully planned changes what its coming occurrences send.
+          if (recurrence.status === 'active') await rebuildRecurrenceIn(tx, userId, recurrence.id, at, today);
           return viewIn(tx, userId, goalId);
         }
         const toAccountId = input.toAccountId ?? (await homeAccountIn(tx, row));
         await checkAccountIn(tx, toAccountId, row.currency);
+        const startMonth = input.startMonth ?? (input.startOn.slice(0, 7) as YearMonth);
+        await newPlanMonthsIn(tx, goalId, toAccountId, input, startMonth);
         const [tag] =
           row.tagId === null ? [] : await tx.select({ slug: tags.slug }).from(tags).where(eq(tags.id, row.tagId));
         await createRecurrenceIn(
@@ -902,7 +971,7 @@ export function createGoals(
               receivedMinor: input.amountMinor,
               description: row.name,
               tags: tag === undefined ? [] : [tag.slug],
-              allocations: [{ goalId, amountMinor: input.amountMinor }],
+              allocations: [{ goalId, amountMinor: input.amountMinor, startMonth, endMonth: input.endMonth ?? null }],
             },
             freq: 'monthly',
             startOn: input.startOn,

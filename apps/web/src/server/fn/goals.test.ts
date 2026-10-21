@@ -272,7 +272,11 @@ describe('making and changing goals', () => {
     expect(
       await call(fns.createGoal, {
         context: context(),
-        data: { ...input, kind: 'sinking', plans: [{ recurrenceId: REC_ID, amountMinor: 250_000n }] },
+        data: {
+          ...input,
+          kind: 'sinking',
+          plans: [{ recurrenceId: REC_ID, amountMinor: 250_000n, startMonth: '2026-11', endMonth: '2027-04' }],
+        },
       }),
     ).toEqual({ ok: true, value: { id: GOAL_ID, joined: true } });
     expect(fake.schedules.updateRecurrence).toHaveBeenCalledWith(USER_ID, REC_ID, {
@@ -289,7 +293,8 @@ describe('making and changing goals', () => {
         allocations: [
           { goalId: LIBURAN_BALI.id, amountMinor: 867_000n },
           { goalId: SERVIS_MOTOR.id, amountMinor: 283_000n },
-          { goalId: GOAL_ID, amountMinor: 250_000n },
+          // From its first month on: the transfer's occurrences send the plans running each month.
+          { goalId: GOAL_ID, amountMinor: 250_000n, startMonth: '2026-11', endMonth: '2027-04' },
         ],
       }) as unknown,
     });

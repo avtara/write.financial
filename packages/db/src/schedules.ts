@@ -6,7 +6,8 @@
  * future `scheduled` occurrences it affects and materializes them again (`@wf/db/occurrences`).
  */
 import { convert, type FxRate } from '@wf/domain/fx';
-import { addDays, countDays, type LocalDate } from '@wf/domain/period';
+import { checkPlanMonths } from '@wf/domain/goals';
+import { addDays, countDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import {
   checkRecurrence,
   type InvalidRecurrenceError,
@@ -75,6 +76,7 @@ import {
   debts,
   detectedRecurring,
   goalContributionPlans,
+  goalFundingSources,
   goals,
   type OCCURRENCE_STATUSES,
   postings,
@@ -97,6 +99,19 @@ export interface NextOccurrence {
 export interface GoalAllocation {
   readonly goalId: string;
   readonly amountMinor: bigint;
+  /**
+   * The months the part runs in (`YYYY-MM`, both included; `endMonth` `null` = until changed). Omitted: the goal's
+   * plan on this recurrence keeps its months, a new one runs from the recurrence's first month on (from this month on
+   * once it has started).
+   */
+  readonly startMonth?: YearMonth;
+  readonly endMonth?: YearMonth | null;
+}
+
+/** A stored goal plan's part with its months. */
+export interface PlannedAllocation extends GoalAllocation {
+  readonly startMonth: YearMonth;
+  readonly endMonth: YearMonth | null;
 }
 
 /**
@@ -107,8 +122,9 @@ export type ScheduleTemplate =
   | Exclude<RecurrenceTemplate, { readonly type: 'transfer' }>
   | (Extract<RecurrenceTemplate, { readonly type: 'transfer' }> & {
       /**
-       * "Sisihkan dana tidak rutin": Σ ≤ the received amount, one part per goal. Creating stores them as active
-       * plans; updating replaces the recurrence's plans, or keeps them when omitted.
+       * "Sisihkan dana tidak rutin": Σ ≤ the received amount, one part per goal; no other goal may hold the destination
+       * wholly (confirming credits each goal there). Creating stores them as active plans; updating replaces the
+       * recurrence's plans, or keeps them when omitted. Shown: the active plans with their months.
        */
       readonly allocations?: readonly GoalAllocation[];
     });
@@ -543,30 +559,85 @@ export async function activePlannedIn(tx: Transaction, recurrenceId: string): Pr
   return firstRow(rows, 'goal_contribution_plans').total;
 }
 
+const YEAR_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Plan months as stored: first days of the months. */
+export interface PlanMonthColumns {
+  readonly startMonth: LocalDate;
+  readonly endMonth: LocalDate | null;
+}
+
+/** The stored form of plan months, or `null` when one is not `YYYY-MM` or the plan would end before it starts. */
+export function planMonthColumns(startMonth: string, endMonth: string | null): PlanMonthColumns | null {
+  if (!YEAR_MONTH.test(startMonth) || (endMonth !== null && !YEAR_MONTH.test(endMonth))) return null;
+  try {
+    checkPlanMonths({ startMonth: startMonth as YearMonth, endMonth: endMonth as YearMonth | null });
+  } catch {
+    // A pure validator: it only throws `InvalidGoalError` (`plan`).
+    return null;
+  }
+  return {
+    startMonth: `${startMonth}-01` as LocalDate,
+    endMonth: endMonth === null ? null : (`${endMonth}-01` as LocalDate),
+  };
+}
+
+/** The goal holding `accountId` wholly, if any (FR-G2: at most one). */
+export async function wholeHolderIn(tx: Transaction, accountId: string): Promise<string | null> {
+  const [source] = await tx
+    .select({ goalId: goalFundingSources.goalId })
+    .from(goalFundingSources)
+    .where(and(eq(goalFundingSources.accountId, accountId), eq(goalFundingSources.mode, 'whole')));
+  return source?.goalId ?? null;
+}
+
 /**
- * Stores the goal split of a recurrence as its plans: the given parts replace them (active); a transfer whose split
- * was omitted keeps its plans as long as they still fit the received amount; an entry has none.
+ * Stores the goal split of a recurrence as its plans: the given parts replace them (active), each with its months, the
+ * months its plan had, or from `firstMonth` on; a transfer whose split was omitted keeps its plans as long as
+ * they still fit the received amount; an entry has none. A transfer's destination must not be held wholly by a goal
+ * other than those it is planned for: confirming credits each goal in that account.
  */
 async function writePlansIn(
   tx: Transaction,
   userId: string,
   recurrenceId: string,
+  firstMonth: LocalDate,
   { template, allocations }: CheckedTemplate,
 ): Promise<void> {
+  const current = await tx
+    .select({
+      goalId: goalContributionPlans.goalId,
+      active: goalContributionPlans.active,
+      startMonth: goalContributionPlans.startMonth,
+      endMonth: goalContributionPlans.endMonth,
+    })
+    .from(goalContributionPlans)
+    .where(eq(goalContributionPlans.recurrenceId, recurrenceId));
+  if (template.type === 'transfer') {
+    const goalIds =
+      allocations?.map((part) => part.goalId) ?? current.flatMap((plan) => (plan.active ? [plan.goalId] : []));
+    const holder = await wholeHolderIn(tx, template.toAccountId);
+    if (holder !== null && goalIds.some((goalId) => goalId !== holder)) {
+      throw invalidRecurrence('Another goal holds the destination wholly');
+    }
+  }
   if (template.type === 'transfer' && allocations === undefined) {
     if ((await activePlannedIn(tx, recurrenceId)) > template.receivedMinor) {
       throw invalidRecurrence('Allocations exceed the amount');
     }
     return;
   }
+  const values = (allocations ?? []).map((part) => {
+    const kept = current.find((plan) => plan.goalId === part.goalId);
+    const months = planMonthColumns(
+      part.startMonth ?? (kept?.startMonth ?? firstMonth).slice(0, 7),
+      part.endMonth !== undefined ? part.endMonth : (kept?.endMonth?.slice(0, 7) ?? null),
+    );
+    if (months === null) throw invalidRecurrence('A goal part must end after it starts, in YYYY-MM months');
+    return { userId, recurrenceId, goalId: part.goalId, amountMinor: part.amountMinor, ...months };
+  });
   await tx.delete(goalContributionPlans).where(eq(goalContributionPlans.recurrenceId, recurrenceId));
-  if (allocations !== undefined && allocations.length > 0) {
-    await tx
-      .insert(goalContributionPlans)
-      .values(
-        allocations.map((part) => ({ userId, recurrenceId, goalId: part.goalId, amountMinor: part.amountMinor })),
-      );
-  }
+  if (values.length > 0) await tx.insert(goalContributionPlans).values(values);
 }
 
 type RecurrenceValues = Omit<typeof recurrences.$inferInsert, 'userId'>;
@@ -651,8 +722,8 @@ async function occurrenceStatsIn(
   return { counts, next };
 }
 
-/** A recurrence's active goal plan with its goal's name (the Review queue's "DIBAGI KE"). */
-export interface ActivePlan extends GoalAllocation {
+/** A recurrence's active goal plan with its goal's name and months (the Review queue's "DIBAGI KE"). */
+export interface ActivePlan extends PlannedAllocation {
   readonly goalName: string;
 }
 
@@ -669,6 +740,8 @@ export async function activePlansIn(
       goalId: goalContributionPlans.goalId,
       goalName: goals.name,
       amountMinor: goalContributionPlans.amountMinor,
+      startMonth: sql<YearMonth>`to_char(${goalContributionPlans.startMonth}, 'YYYY-MM')`,
+      endMonth: sql<YearMonth | null>`to_char(${goalContributionPlans.endMonth}, 'YYYY-MM')`,
     })
     .from(goalContributionPlans)
     .innerJoin(goals, eq(goals.id, goalContributionPlans.goalId))
@@ -700,7 +773,14 @@ async function recurrenceViewsIn(tx: Transaction, today: LocalDate, where: SQL |
       stored.type === 'transfer'
         ? {
             ...stored,
-            allocations: (plans.get(row.id) ?? []).map(({ goalId, amountMinor }) => ({ goalId, amountMinor })),
+            allocations: (plans.get(row.id) ?? []).map(
+              ({ goalId, amountMinor, startMonth, endMonth }): PlannedAllocation => ({
+                goalId,
+                amountMinor,
+                startMonth,
+                endMonth,
+              }),
+            ),
           }
         : stored;
     const preview =
@@ -955,7 +1035,7 @@ export async function createRecurrenceIn(
       .returning(),
     'recurrences',
   );
-  await writePlansIn(tx, userId, row.id, checked);
+  await writePlansIn(tx, userId, row.id, row.startOn, checked);
   await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id: row.id } });
   return row;
 }
@@ -1159,7 +1239,7 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
           .update(recurrences)
           .set({ ...values, updatedAt: at })
           .where(eq(recurrences.id, id));
-        await writePlansIn(tx, userId, id, checked);
+        await writePlansIn(tx, userId, id, values.startOn > today ? values.startOn : today, checked);
         await rebuildRecurrenceIn(tx, userId, id, at, today);
         return recurrenceViewIn(tx, today, id);
       }),

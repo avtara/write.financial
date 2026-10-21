@@ -335,7 +335,18 @@ function GoalFormBody({
               sources: sourceInput,
               plans:
                 recurring && monthly !== null
-                  ? [{ amountMinor: monthly, monthDay: day, fromAccountId: fromId as string, toAccountId, startOn }]
+                  ? [
+                      {
+                        amountMinor: monthly,
+                        monthDay: day,
+                        fromAccountId: fromId as string,
+                        toAccountId,
+                        startOn,
+                        // "8× setoran (Nov 2026 – Jun 2027)": the months the form shows.
+                        startMonth: startOn.slice(0, 7),
+                        endMonth: deadlineMonth,
+                      },
+                    ]
                   : [],
             },
           }).catch(() => null)
