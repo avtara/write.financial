@@ -254,13 +254,18 @@ export interface TransactionPlan {
   readonly fxDifference: FxDifference | null;
 }
 
-interface AccountRow {
+/** An account as the ledger writes to it. */
+export interface LedgerAccount {
   readonly id: string;
   readonly currency: string;
   readonly status: 'active' | 'archived';
 }
 
-async function accountsIn(tx: Transaction, ids: readonly string[]): Promise<Map<string, AccountRow>> {
+/**
+ * The accounts `ids` by id, each existing and active.
+ * @throws {LedgerError} `NOT_FOUND`, `ACCOUNT_ARCHIVED`
+ */
+export async function accountsIn(tx: Transaction, ids: readonly string[]): Promise<Map<string, LedgerAccount>> {
   const rows = await tx
     .select({ id: accounts.id, currency: accounts.currency, status: accounts.status })
     .from(accounts)
@@ -328,7 +333,7 @@ export async function planTransactionIn(
 
   try {
     if (draft.type !== 'transfer') {
-      const account = (await accountsIn(tx, [draft.accountId])).get(draft.accountId) as AccountRow;
+      const account = (await accountsIn(tx, [draft.accountId])).get(draft.accountId) as LedgerAccount;
       if (draft.categoryId !== null) await checkCategoryIn(tx, draft.categoryId, draft.type);
       const valuation = await valuationIn(tx, context.baseCurrency, [account.currency], localDate);
       const build = draft.type === 'expense' ? expensePostings : incomePostings;
@@ -343,8 +348,8 @@ export async function planTransactionIn(
 
     if (draft.fromAccountId === draft.toAccountId) throw new SameAccountTransferError();
     const byId = await accountsIn(tx, [draft.fromAccountId, draft.toAccountId]);
-    const from = byId.get(draft.fromAccountId) as AccountRow;
-    const to = byId.get(draft.toAccountId) as AccountRow;
+    const from = byId.get(draft.fromAccountId) as LedgerAccount;
+    const to = byId.get(draft.toAccountId) as LedgerAccount;
     if (draft.fee) await checkCategoryIn(tx, draft.fee.categoryId, 'fee');
     let reference: FxRate | undefined;
     let rateSource: { rateSource: string; rateAsOf: LocalDate | null } | null = null;

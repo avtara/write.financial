@@ -11,6 +11,7 @@ import { encodeTemplate, recordPastChargeIn, type RecurrenceTemplate } from './o
 import {
   createSchedules,
   type RecurrenceInput,
+  type ScheduleTemplate,
   type SchedulesRepository,
   type SubscriptionInput,
 } from './schedules.ts';
@@ -192,23 +193,20 @@ describe('recurrences', () => {
     });
   });
 
-  it('stores transfers with a fee and a goal split', async () => {
+  it('stores transfers with a fee and a goal split kept as plans', async () => {
     const goalId = await goal();
-    const view = await app((s) =>
-      s.createRecurrence(fx.userId, {
-        ...rent(),
-        template: {
-          type: 'transfer',
-          fromAccountId: fx.bca,
-          toAccountId: fx.jago,
-          sentMinor: 2_000_000n,
-          receivedMinor: 2_000_000n,
-          fee: { minor: 2_500n, categoryId: fx.category('system:bank_fee') },
-          description: 'Sisihkan dana',
-          allocations: [{ goalId, amountMinor: 500_000n }],
-        },
-      }),
-    );
+    const other = await goal();
+    const unsplit = {
+      type: 'transfer',
+      fromAccountId: fx.bca,
+      toAccountId: fx.jago,
+      sentMinor: 2_000_000n,
+      receivedMinor: 2_000_000n,
+      fee: { minor: 2_500n, categoryId: fx.category('system:bank_fee') },
+      description: 'Sisihkan dana',
+    } as const;
+    const sisihkan: ScheduleTemplate = { ...unsplit, allocations: [{ goalId, amountMinor: 500_000n }] };
+    const view = await app((s) => s.createRecurrence(fx.userId, { ...rent(), template: sisihkan }));
     expect(view.template).toEqual({
       type: 'transfer',
       fromAccountId: fx.bca,
@@ -220,6 +218,57 @@ describe('recurrences', () => {
       tags: [],
       allocations: [{ goalId, amountMinor: 500_000n }],
     });
+    // The split lives in plan rows, not in the stored template.
+    const plans = () =>
+      test.query<{ goal_id: string; amount: string; active: boolean }>(
+        `SELECT goal_id, amount_minor::text AS amount, active FROM goal_contribution_plans WHERE recurrence_id = $1
+         ORDER BY created_at, id`,
+        [view.id],
+      );
+    expect(await plans()).toEqual([{ goal_id: goalId, amount: '500000', active: true }]);
+    expect(
+      await test.query(`SELECT template ? 'allocations' AS stored FROM recurrences WHERE id = $1`, [view.id]),
+    ).toEqual([{ stored: false }]);
+    // Inactive plans are not shown.
+    await test.query('UPDATE goal_contribution_plans SET active = false WHERE recurrence_id = $1', [view.id]);
+    expect((await app((s) => s.listRecurrences(fx.userId)))[0]?.template).toMatchObject({ allocations: [] });
+    await test.query('UPDATE goal_contribution_plans SET active = true WHERE recurrence_id = $1', [view.id]);
+
+    // An update without the split keeps the plans (as long as they fit); one with it replaces them.
+    const kept = await app((s) => s.updateRecurrence(fx.userId, view.id, { ...rent(), template: unsplit }));
+    expect(kept.template).toMatchObject({ allocations: [{ goalId, amountMinor: 500_000n }] });
+    await rejects(
+      app((s) =>
+        s.updateRecurrence(fx.userId, view.id, {
+          ...rent(),
+          template: { ...unsplit, sentMinor: 400_000n, receivedMinor: 400_000n },
+        }),
+      ),
+      'INVALID_RECURRENCE',
+    );
+    const replaced = await app((s) =>
+      s.updateRecurrence(fx.userId, view.id, {
+        ...rent(),
+        template: {
+          ...unsplit,
+          allocations: [
+            { goalId: other, amountMinor: 700_000n },
+            { goalId, amountMinor: 300_000n },
+          ],
+        },
+      }),
+    );
+    expect(replaced.template).toMatchObject({
+      allocations: [
+        { goalId: other, amountMinor: 700_000n },
+        { goalId, amountMinor: 300_000n },
+      ],
+    });
+    expect(await plans()).toHaveLength(2);
+    // An entry has no split: its plans go.
+    await app((s) => s.updateRecurrence(fx.userId, view.id, rent()));
+    expect(await plans()).toEqual([]);
+
     const plain = await app((s) =>
       s.createRecurrence(fx.userId, {
         ...rent(),
@@ -227,6 +276,10 @@ describe('recurrences', () => {
       }),
     );
     expect(plain.template).toMatchObject({ fee: null, allocations: [], description: null });
+    const emptied = await app((s) =>
+      s.updateRecurrence(fx.userId, plain.id, { ...rent(), template: { ...unsplit, allocations: [] } }),
+    );
+    expect(emptied.template).toMatchObject({ allocations: [] });
   });
 
   it('refuses invalid rules and templates', async () => {
@@ -240,7 +293,7 @@ describe('recurrences', () => {
       amountMinor: 3_500_000n,
       categoryId: fx.category('system:rent'),
     };
-    const transfer: RecurrenceTemplate = {
+    const transfer: ScheduleTemplate = {
       type: 'transfer',
       fromAccountId: fx.bca,
       toAccountId: fx.jago,

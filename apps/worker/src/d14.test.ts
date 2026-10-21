@@ -83,7 +83,15 @@ describe('D14: the worker cannot reach transactions, postings, budgets, goals, o
 
   it('forbids each D14 repository family', () => {
     expect(FORBIDDEN_IMPORTS.map(({ module }) => module)).toEqual(
-      expect.arrayContaining(['@wf/auth', '@wf/db/transactions', '@wf/db/postings', '@wf/db/budgets', '@wf/db/goals']),
+      expect.arrayContaining([
+        '@wf/auth',
+        '@wf/db/transactions',
+        '@wf/db/postings',
+        '@wf/db/budgets',
+        '@wf/db/goals',
+        '@wf/db/debts',
+        '@wf/db/receivables',
+      ]),
     );
     expect(WORKER_REPOSITORIES).toEqual([
       'maintenance',

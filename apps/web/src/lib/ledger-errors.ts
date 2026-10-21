@@ -34,6 +34,8 @@ const MESSAGES: Readonly<Record<LedgerErrorCode, () => string>> = {
   INVALID_RECURRENCE: m.ledger_error_invalid_recurrence,
   INVALID_SUBSCRIPTION: m.ledger_error_invalid_subscription,
   REVIEW_RESOLVED: m.ledger_error_review_resolved,
+  INVALID_DEBT: m.ledger_error_invalid_debt,
+  INVALID_RECEIVABLE: m.ledger_error_invalid_receivable,
 };
 
 export function ledgerErrorMessage(code: string, locale: Locale): string {

@@ -17,6 +17,7 @@ import {
   CalendarClock,
   CalendarX,
   Gauge,
+  HandCoins,
   Info,
   Lock,
   Repeat,
@@ -42,6 +43,7 @@ const ICONS: Readonly<Record<NotificationType, LucideIcon>> = {
   period_closed: Lock,
   subscriptions_detected: Repeat,
   system: Info,
+  receivable_due: HandCoins,
 };
 
 /** What the action button says, by the page it opens. */

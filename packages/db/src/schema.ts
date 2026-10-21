@@ -14,6 +14,9 @@ import { CATEGORY_GROUPS, CATEGORY_KINDS } from '@wf/domain/categories';
 import { POSTING_ROLES, TRANSACTION_SOURCES, TRANSACTION_TYPES } from '@wf/domain/transactions';
 import { RECURRENCE_END_TYPES, RECURRENCE_FREQS } from '@wf/domain/recurrence';
 import { CANCEL_MODES, SUBSCRIPTION_CYCLES, SUBSCRIPTION_STATUSES, USAGE_RATINGS } from '@wf/domain/subscriptions';
+import { GOAL_KINDS, GOAL_STATUSES, GOAL_TARGET_MODES } from '@wf/domain/goals';
+import { DEBT_KINDS, INTEREST_METHODS, RECALC_MODES } from '@wf/domain/debt';
+import { RECEIVABLE_SOURCES, RECEIVABLE_STATUSES } from '@wf/domain/receivables';
 import { LOCALES } from '@wf/i18n/locale';
 import type { AlertPct } from '@wf/domain/budget';
 import type { LocalDate, PeriodStartDay, YearMonth } from '@wf/domain/period';
@@ -41,6 +44,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import type { PgTableExtraConfigValue } from 'drizzle-orm/pg-core';
 
 /** `bytea` as `Uint8Array` (postgres.js returns `Buffer`, a `Uint8Array` subclass). */
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
@@ -219,7 +223,7 @@ export const userPreferences = pgTable(
     notif: jsonb('notif').$type<JsonObject>().notNull().default({}),
     dashboardLayout: jsonb('dashboard_layout').$type<JsonObject>().notNull().default({}),
     tablePrefs: jsonb('table_prefs').$type<JsonObject>().notNull().default({}),
-    /** Account ids in payment order. */
+    /** FR-U4 card payment buckets in allocation order (`installments`, `spending`); overpayment is always last. */
     ccPaymentPriority: jsonb('cc_payment_priority').$type<readonly string[]>().notNull().default([]),
     /**
      * FR-ST1 "Mata uang tambahan" (onboarding step 1): currencies besides the base one the user wants rates for,
@@ -584,7 +588,8 @@ export const transactions = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [
+  // Annotated: transactions and receivables reference each other, which TypeScript cannot infer.
+  (table): PgTableExtraConfigValue[] => [
     unique('transactions_user_id_id_key').on(table.userId, table.id),
     unique('transactions_user_id_client_id_key').on(table.userId, table.clientId),
     unique('transactions_import_key').on(table.userId, table.importBatchId, table.externalHash),
@@ -608,6 +613,17 @@ export const transactions = pgTable(
       columns: [table.userId, table.goalId],
       foreignColumns: [goals.userId, goals.id],
     }),
+    foreignKey({
+      name: 'transactions_paid_from_goal_fk',
+      columns: [table.userId, table.paidFromGoalId],
+      foreignColumns: [goals.userId, goals.id],
+    }),
+    foreignKey({
+      name: 'transactions_receivable_fk',
+      columns: [table.userId, table.receivableId],
+      foreignColumns: [receivables.userId, receivables.id],
+    }),
+    index('transactions_receivable_id_idx').on(table.userId, table.receivableId),
     check('transactions_confirmed_check', sql`${table.confirmedByUserAt} is not null`),
     check('transactions_category_type_check', sql`${table.categoryId} is null or ${table.type} <> 'transfer'`),
   ],
@@ -829,7 +845,15 @@ export const recentItems = pgTable(
   ],
 );
 
-/** Savings goals, minimal for onboarding step 4 (FR-A4); M4 adds funding sources and plans. */
+export const goalKind = pgEnum('goal_kind', GOAL_KINDS);
+export const goalTargetMode = pgEnum('goal_target_mode', GOAL_TARGET_MODES);
+/** "Tercapai" (reached) is not stored: it is the balance reaching the target while the goal is still `active`. */
+export const goalStatus = pgEnum('goal_status', GOAL_STATUSES);
+
+/**
+ * Savings goals and sinking funds (FR-G1–G4, FR-B6: one entity, `kind`). Progress comes from the funding sources
+ * (`goal_funding_sources`); recurring contributions are recurrences linked by `goal_contribution_plans`.
+ */
 export const goals = pgTable(
   'goals',
   {
@@ -838,13 +862,21 @@ export const goals = pgTable(
     name: varchar('name', { length: 40 }).notNull(),
     icon: text('icon').notNull(),
     color: text('color').notNull(),
+    kind: goalKind('kind').notNull().default('savings'),
+    /** The target in force; for `monthly_expenses` the value last computed from `target_months`. */
     targetMinor: money('target_minor').notNull(),
+    targetMode: goalTargetMode('target_mode').notNull().default('fixed'),
+    /** `monthly_expenses`: "N× pengeluaran bulanan" (an emergency fund is 3). */
+    targetMonths: smallint('target_months'),
     currency: currency('currency').notNull(),
     /** First day of the deadline month. */
     deadlineMonth: localDate('deadline_month'),
     tagId: uuid('tag_id'),
-    /** "Simpan di" (onboarding step 4): the account the goal's money is kept in; M4 adds mixed funding sources. */
+    /** "Simpan di": the account deposits go to by default (onboarding step 4, "Setor manual" › Ke). */
     accountId: uuid('account_id'),
+    status: goalStatus('status').notNull().default('active'),
+    /** When the goal was marked completed ("Tandai selesai") or used ("Terpakai"); null while active. */
+    completedAt: timestamptz('completed_at'),
     sortOrder: integer('sort_order').notNull().default(0),
     archivedAt: timestamptz('archived_at'),
     createdAt: createdAt(),
@@ -867,6 +899,57 @@ export const goals = pgTable(
     check('goals_target_check', sql`${table.targetMinor} > 0`),
     check('goals_deadline_check', sql`extract(day from ${table.deadlineMonth}) = 1`),
     check('goals_name_check', sql`length(btrim(${table.name})) > 0`),
+    check(
+      'goals_target_months_check',
+      sql`(${table.targetMode} = 'monthly_expenses') = (${table.targetMonths} is not null) and (${table.targetMonths} is null or ${table.targetMonths} between 1 and 24)`,
+    ),
+    check('goals_completed_check', sql`(${table.status} = 'active') = (${table.completedAt} is null)`),
+  ],
+);
+
+/** `whole`: the account's whole balance counts (one goal per account); `fixed`: an amount of it ("Nominal tetap"). */
+export const GOAL_SOURCE_MODES = ['whole', 'fixed'] as const;
+export const goalSourceMode = pgEnum('goal_source_mode', GOAL_SOURCE_MODES);
+
+/**
+ * FR-G2 funding sources of a goal: accounts, wholly or a fixed amount (≤ the free balance, checked by the repository).
+ * Investment assets (percentage of units or the whole asset) join in M5 together with the `assets` table.
+ */
+export const goalFundingSources = pgTable(
+  'goal_funding_sources',
+  {
+    id: id(),
+    userId: ownerId(),
+    goalId: uuid('goal_id').notNull(),
+    accountId: uuid('account_id').notNull(),
+    mode: goalSourceMode('mode').notNull(),
+    /** `fixed` only, in the account currency. */
+    amountMinor: money('amount_minor'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('goal_funding_sources_user_id_id_key').on(table.userId, table.id),
+    unique('goal_funding_sources_goal_account_key').on(table.goalId, table.accountId),
+    uniqueIndex('goal_funding_sources_whole_key')
+      .on(table.userId, table.accountId)
+      .where(sql`${table.mode} = 'whole'`),
+    index('goal_funding_sources_account_idx').on(table.userId, table.accountId),
+    foreignKey({
+      name: 'goal_funding_sources_goal_fk',
+      columns: [table.userId, table.goalId],
+      foreignColumns: [goals.userId, goals.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'goal_funding_sources_account_fk',
+      columns: [table.userId, table.accountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    check(
+      'goal_funding_sources_amount_check',
+      sql`(${table.mode} = 'fixed') = (${table.amountMinor} is not null) and (${table.amountMinor} is null or ${table.amountMinor} > 0)`,
+    ),
   ],
 );
 
@@ -1433,6 +1516,8 @@ export const NOTIFICATION_TYPES = [
   'period_closed',
   'subscriptions_detected',
   'system',
+  /** FR-U7: H-1 09.00 reminder of a receivable's due date, to the user only. */
+  'receivable_due',
 ] as const;
 export const notificationType = pgEnum('notification_type', NOTIFICATION_TYPES);
 export const NOTIFICATION_CATEGORIES = ['budget_bills', 'system'] as const;
@@ -1497,5 +1582,347 @@ export const notificationOutbox = pgTable(
       columns: [table.userId, table.notificationId],
       foreignColumns: [notifications.userId, notifications.id],
     }).onDelete('cascade'),
+  ],
+);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Goal contributions, debts and installments, credit card payments, receivables (M4, plan §4.4). The worker only
+// reads them (reminders, installment occurrences); every write is a user action through wf_app (D14).
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * FR-G1 "Setoran rutin": the part of a recurring transfer (`recurrences`) that goes to a goal; several per goal and
+ * several goals per recurrence ("Sisihkan dana tidak rutin" splits one transfer over three sinking funds). Day,
+ * from → to, and the Review-queue flow come from the recurrence; an inactive plan no longer contributes.
+ */
+export const goalContributionPlans = pgTable(
+  'goal_contribution_plans',
+  {
+    id: id(),
+    userId: ownerId(),
+    goalId: uuid('goal_id').notNull(),
+    recurrenceId: uuid('recurrence_id').notNull(),
+    /** In the currency of the recurrence's destination account. */
+    amountMinor: money('amount_minor').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('goal_contribution_plans_user_id_id_key').on(table.userId, table.id),
+    unique('goal_contribution_plans_recurrence_goal_key').on(table.recurrenceId, table.goalId),
+    index('goal_contribution_plans_goal_idx').on(table.userId, table.goalId),
+    foreignKey({
+      name: 'goal_contribution_plans_goal_fk',
+      columns: [table.userId, table.goalId],
+      foreignColumns: [goals.userId, goals.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'goal_contribution_plans_recurrence_fk',
+      columns: [table.userId, table.recurrenceId],
+      foreignColumns: [recurrences.userId, recurrences.id],
+    }).onDelete('cascade'),
+    check('goal_contribution_plans_amount_check', sql`${table.amountMinor} > 0`),
+  ],
+);
+
+export const debtKind = pgEnum('debt_kind', DEBT_KINDS);
+/** D12: cards and paylater charge flat interest, mortgages and loans annuity. */
+export const interestMethod = pgEnum('interest_method', INTEREST_METHODS);
+/** FR-U4 after a partial payoff: "Kurangi nominal (tenor tetap)" or "Persingkat tenor". */
+export const recalcMode = pgEnum('recalc_mode', RECALC_MODES);
+export const DEBT_STATUSES = ['active', 'paid_off'] as const;
+export const debtStatus = pgEnum('debt_status', DEBT_STATUSES);
+
+/**
+ * Debts and installment plans (FR-U1–U6). A card installment is held against its card's limit and is made from a
+ * card expense (FR-U2: the expense stays recorded on its date); other debts are paid from `pay_from_account_id`
+ * through the Review queue (FR-U6). The schedule is in `debt_installments` (computed by `@wf/domain/debt`).
+ */
+export const debts = pgTable(
+  'debts',
+  {
+    id: id(),
+    userId: ownerId(),
+    kind: debtKind('kind').notNull(),
+    name: varchar('name', { length: 60 }).notNull(),
+    /** "Penyedia" (Kredivo, BCA, …). */
+    provider: varchar('provider', { length: 40 }),
+    /** `card_installment` only: the credit card account. */
+    cardAccountId: uuid('card_account_id'),
+    /** Other kinds: the account the installments are paid from ("Bayar dari"). */
+    payFromAccountId: uuid('pay_from_account_id'),
+    /** `card_installment` made from a card expense ("Ubah jadi cicilan"). */
+    sourceTransactionId: uuid('source_transaction_id'),
+    /** Expense category of the installment payments (other kinds). */
+    categoryId: uuid('category_id'),
+    principalMinor: money('principal_minor').notNull(),
+    currency: currency('currency').notNull(),
+    interestMethod: interestMethod('interest_method').notNull().default('flat'),
+    /** Monthly interest in basis points (150 = 1,5% per bulan). */
+    monthlyRateBps: integer('monthly_rate_bps').notNull().default(0),
+    adminFeeMinor: money('admin_fee_minor')
+      .notNull()
+      .default(sql`0`),
+    tenorMonths: smallint('tenor_months').notNull(),
+    firstDueDate: localDate('first_due_date').notNull(),
+    /** The choice of the last recalculation after an early payoff. */
+    recalcMode: recalcMode('recalc_mode'),
+    recalculatedAt: timestamptz('recalculated_at'),
+    status: debtStatus('status').notNull().default('active'),
+    paidOffAt: timestamptz('paid_off_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('debts_user_id_id_key').on(table.userId, table.id),
+    index('debts_user_id_status_idx').on(table.userId, table.status),
+    uniqueIndex('debts_source_transaction_key')
+      .on(table.userId, table.sourceTransactionId)
+      .where(sql`${table.sourceTransactionId} is not null`),
+    foreignKey({
+      name: 'debts_card_account_fk',
+      columns: [table.userId, table.cardAccountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'debts_pay_from_account_fk',
+      columns: [table.userId, table.payFromAccountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'debts_source_transaction_fk',
+      columns: [table.userId, table.sourceTransactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'debts_category_fk',
+      columns: [table.userId, table.categoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }),
+    currencyCheck('debts_currency_check', table.currency),
+    check('debts_name_check', sql`length(btrim(${table.name})) > 0`),
+    check('debts_principal_check', sql`${table.principalMinor} > 0`),
+    check('debts_rate_check', sql`${table.monthlyRateBps} between 0 and 10000`),
+    check('debts_admin_fee_check', sql`${table.adminFeeMinor} >= 0`),
+    check('debts_tenor_check', sql`${table.tenorMonths} between 1 and 360`),
+    check(
+      'debts_accounts_check',
+      sql`(${table.kind} = 'card_installment') = (${table.cardAccountId} is not null) and (${table.kind} = 'card_installment') = (${table.payFromAccountId} is null)`,
+    ),
+    check(
+      'debts_source_transaction_check',
+      sql`${table.sourceTransactionId} is null or ${table.kind} = 'card_installment'`,
+    ),
+    check('debts_recalc_check', sql`(${table.recalcMode} is null) = (${table.recalculatedAt} is null)`),
+    check('debts_paid_off_check', sql`(${table.status} = 'paid_off') = (${table.paidOffAt} is not null)`),
+  ],
+);
+
+export const INSTALLMENT_STATUSES = ['scheduled', 'paid'] as const;
+export const installmentStatus = pgEnum('installment_status', INSTALLMENT_STATUSES);
+
+/**
+ * The schedule of a debt (FR-U3: a 0% split puts the rounding remainder in the first installment). A card
+ * installment is billed on its card statement on `due_date` and paid with the card; other installments are paid by
+ * an expense (`transaction_id`). A recalculation (FR-U4) replaces the rows not yet billed or paid.
+ */
+export const debtInstallments = pgTable(
+  'debt_installments',
+  {
+    id: id(),
+    userId: ownerId(),
+    debtId: uuid('debt_id').notNull(),
+    /** 1-based position ("1/3"). */
+    seq: smallint('seq').notNull(),
+    dueDate: localDate('due_date').notNull(),
+    principalMinor: money('principal_minor').notNull(),
+    interestMinor: money('interest_minor')
+      .notNull()
+      .default(sql`0`),
+    feeMinor: money('fee_minor')
+      .notNull()
+      .default(sql`0`),
+    status: installmentStatus('status').notNull().default('scheduled'),
+    paidAt: timestamptz('paid_at'),
+    /** The expense that paid it (non-card debts). */
+    transactionId: uuid('transaction_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('debt_installments_user_id_id_key').on(table.userId, table.id),
+    unique('debt_installments_debt_seq_key').on(table.debtId, table.seq),
+    index('debt_installments_user_id_due_date_idx').on(table.userId, table.dueDate),
+    foreignKey({
+      name: 'debt_installments_debt_fk',
+      columns: [table.userId, table.debtId],
+      foreignColumns: [debts.userId, debts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'debt_installments_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    check('debt_installments_seq_check', sql`${table.seq} between 1 and 360`),
+    check(
+      'debt_installments_amounts_check',
+      sql`${table.principalMinor} >= 0 and ${table.interestMinor} >= 0 and ${table.feeMinor} >= 0 and ${table.principalMinor} + ${table.interestMinor} + ${table.feeMinor} > 0`,
+    ),
+    check('debt_installments_paid_check', sql`(${table.status} = 'paid') = (${table.paidAt} is not null)`),
+    check('debt_installments_transaction_check', sql`${table.transactionId} is null or ${table.status} = 'paid'`),
+  ],
+);
+
+/** FR-U4 buckets of a card payment; `credit` is the overpayment kept as the card's credit balance. */
+export const CARD_PAYMENT_BUCKETS = ['installments', 'spending', 'credit'] as const;
+export const cardPaymentBucket = pgEnum('card_payment_bucket', CARD_PAYMENT_BUCKETS);
+
+/** How a payment to a credit card (a transfer into the card account) was allocated (FR-U4). */
+export const cardPaymentAllocations = pgTable(
+  'card_payment_allocations',
+  {
+    id: id(),
+    userId: ownerId(),
+    /** The transfer into the card account. */
+    transactionId: uuid('transaction_id').notNull(),
+    bucket: cardPaymentBucket('bucket').notNull(),
+    /** `installments` only: the card installment paid off early. */
+    debtId: uuid('debt_id'),
+    amountMinor: money('amount_minor').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique('card_payment_allocations_key').on(table.transactionId, table.bucket, table.debtId).nullsNotDistinct(),
+    index('card_payment_allocations_debt_idx').on(table.userId, table.debtId),
+    foreignKey({
+      name: 'card_payment_allocations_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'card_payment_allocations_debt_fk',
+      columns: [table.userId, table.debtId],
+      foreignColumns: [debts.userId, debts.id],
+    }).onDelete('cascade'),
+    check('card_payment_allocations_amount_check', sql`${table.amountMinor} > 0`),
+    check(
+      'card_payment_allocations_debt_check',
+      sql`(${table.bucket} = 'installments') = (${table.debtId} is not null)`,
+    ),
+  ],
+);
+
+export const receivableSource = pgEnum('receivable_source', RECEIVABLE_SOURCES);
+export const receivableStatus = pgEnum('receivable_status', RECEIVABLE_STATUSES);
+
+/**
+ * Money other people owe the user (FR-U7, FR-L5). Lending is a `receivable_out` transaction (not an expense),
+ * payments are `receivable_in` (not income), a write-off is a `writeoff` expense in "Piutang tak tertagih".
+ * `transaction_id` is null for a receivable recorded without moving money (lent before the ledger started, already
+ * reflected in the account balance). The person is personal data: `counterparty_enc` (user DEK).
+ */
+export const receivables = pgTable(
+  'receivables',
+  {
+    id: id(),
+    userId: ownerId(),
+    counterpartyEnc: bytea('counterparty_enc').notNull(),
+    /** What it was for ("Nonton bareng CGV Grand Indonesia"); also the lending transaction's description. */
+    description: text('description'),
+    noteEnc: bytea('note_enc'),
+    principalMinor: money('principal_minor').notNull(),
+    currency: currency('currency').notNull(),
+    /** The account the money left ("dari BCA Tahapan"). */
+    fromAccountId: uuid('from_account_id').notNull(),
+    source: receivableSource('source').notNull(),
+    /** `split_bill`: the user's own part of the split bill (FR-L5). */
+    sourceTransactionId: uuid('source_transaction_id'),
+    /** The `receivable_out` transaction; null when recorded without one. */
+    transactionId: uuid('transaction_id'),
+    lentOn: localDate('lent_on').notNull(),
+    dueDate: localDate('due_date'),
+    /** H-1 09.00 reminder to the user only. */
+    remind: boolean('remind').notNull().default(false),
+    status: receivableStatus('status').notNull().default('open'),
+    settledAt: timestamptz('settled_at'),
+    writtenOffAt: timestamptz('written_off_at'),
+    /** The `writeoff` expense ("Hapuskan"). */
+    writeoffTransactionId: uuid('writeoff_transaction_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table): PgTableExtraConfigValue[] => [
+    unique('receivables_user_id_id_key').on(table.userId, table.id),
+    index('receivables_user_id_status_idx').on(table.userId, table.status),
+    foreignKey({
+      name: 'receivables_from_account_fk',
+      columns: [table.userId, table.fromAccountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'receivables_source_transaction_fk',
+      columns: [table.userId, table.sourceTransactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'receivables_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'receivables_writeoff_transaction_fk',
+      columns: [table.userId, table.writeoffTransactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    currencyCheck('receivables_currency_check', table.currency),
+    check('receivables_principal_check', sql`${table.principalMinor} > 0`),
+    check('receivables_due_check', sql`${table.dueDate} is null or ${table.dueDate} >= ${table.lentOn}`),
+    check('receivables_remind_check', sql`not ${table.remind} or ${table.dueDate} is not null`),
+    check('receivables_settled_check', sql`(${table.status} = 'settled') = (${table.settledAt} is not null)`),
+    check(
+      'receivables_written_off_check',
+      sql`(${table.status} = 'written_off') = (${table.writtenOffAt} is not null) and (${table.writeoffTransactionId} is null or ${table.status} = 'written_off')`,
+    ),
+  ],
+);
+
+/**
+ * Repayments of a receivable (FR-U7 "Terima pembayaran"): Σ amount ≤ principal (trigger
+ * `receivable_payments_within_principal`). `transaction_id` is the `receivable_in` transaction, null when recorded
+ * without one.
+ */
+export const receivablePayments = pgTable(
+  'receivable_payments',
+  {
+    id: id(),
+    userId: ownerId(),
+    receivableId: uuid('receivable_id').notNull(),
+    /** The account the money came into ("Masuk ke"). */
+    accountId: uuid('account_id').notNull(),
+    amountMinor: money('amount_minor').notNull(),
+    receivedOn: localDate('received_on').notNull(),
+    transactionId: uuid('transaction_id'),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique('receivable_payments_user_id_id_key').on(table.userId, table.id),
+    index('receivable_payments_receivable_idx').on(table.userId, table.receivableId),
+    foreignKey({
+      name: 'receivable_payments_receivable_fk',
+      columns: [table.userId, table.receivableId],
+      foreignColumns: [receivables.userId, receivables.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'receivable_payments_account_fk',
+      columns: [table.userId, table.accountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'receivable_payments_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    check('receivable_payments_amount_check', sql`${table.amountMinor} > 0`),
   ],
 );

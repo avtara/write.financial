@@ -23,6 +23,15 @@ const GOAL: NonNullable<OnboardingView['goal']> = {
   accountId: jago.id,
   sortOrder: 0,
   archivedAt: null,
+  kind: 'savings',
+  targetMode: 'fixed',
+  targetMonths: null,
+  status: 'active',
+  completedAt: null,
+  sources: [],
+  savedMinor: 0n,
+  plans: [],
+  monthlyPlanMinor: 0n,
 };
 
 async function renderStep(overrides: Partial<OnboardingView> = {}) {

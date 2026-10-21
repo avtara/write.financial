@@ -53,6 +53,12 @@ export const LEDGER_ERROR_CODES = [
   'INVALID_SUBSCRIPTION',
   /** FR-L7: the review item was already confirmed or ignored (another tab, a double click). */
   'REVIEW_RESOLVED',
+  /** FR-U1–U4: invalid debt input (a schedule that does not add up, a card installment from a non-card or managed
+   * transaction, a card payment allocation beyond the payment or the remaining principal, …). */
+  'INVALID_DEBT',
+  /** FR-U7: invalid receivable input, a payment beyond the remaining amount, or an action on a settled or
+   * written-off receivable. */
+  'INVALID_RECEIVABLE',
 ] as const;
 
 export type LedgerErrorCode = (typeof LEDGER_ERROR_CODES)[number];

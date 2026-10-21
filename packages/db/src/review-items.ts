@@ -12,6 +12,7 @@ import type { LocalDate } from '@wf/domain/period';
 import { zonedInstant } from '@wf/domain/recurrence';
 import { eq } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
+import { installmentExpenseIn } from './debts.ts';
 import { userContextIn, type TransactionDraft } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
 import { decodeTemplate } from './occurrences.ts';
@@ -159,10 +160,10 @@ export async function insertReviewItemIn(
 }
 
 /**
- * The `due_occurrence` item for an occurrence (dedupe `occ.{occurrenceId}`): the transaction its recurrence or
- * subscription proposes, for the expected amount, on the due date at {@link OCCURRENCE_TIME} local, `source =
- * recurring`. Used by the worker's daily job and by "Tandai dibayar" before the due date. Read-only (works as
- * `wf_worker`).
+ * The `due_occurrence` item for an occurrence (dedupe `occ.{occurrenceId}`): the transaction its recurrence,
+ * subscription, or non-card installment (FR-U6: the expense `Cicilan {name} ({seq}/{tenor})` from "Bayar dari")
+ * proposes, for the expected amount, on the due date at {@link OCCURRENCE_TIME} local, `source = recurring`. Used by
+ * the worker's daily job and by "Tandai dibayar" before the due date. Read-only (works as `wf_worker`).
  * @throws {LedgerError} `NOT_FOUND` when the occurrence, its source, or a supported source type is missing.
  */
 export async function occurrenceReviewItemIn(
@@ -214,11 +215,8 @@ export async function occurrenceReviewItemIn(
     if (recurrence === undefined) throw new LedgerError('NOT_FOUND', 'No such recurrence');
     const template = decodeTemplate(recurrence.template);
     if (template.type === 'transfer') {
-      // Goal allocations ("Sisihkan dana") are not part of the transaction itself.
-      const transfer = { ...template };
-      delete transfer.allocations;
       draft = {
-        ...transfer,
+        ...template,
         ...common,
         sentMinor: occurrence.expectedMinor,
         // Within one currency the received amount follows the expected one; across currencies it stays as planned.
@@ -228,6 +226,9 @@ export async function occurrenceReviewItemIn(
     } else {
       draft = { ...template, ...common, amountMinor: occurrence.expectedMinor };
     }
+  } else if (occurrence.sourceType === 'installment') {
+    const expense = await installmentExpenseIn(tx, occurrence.sourceId, occurrence.dueDate);
+    draft = { ...expense, ...common, type: 'expense', amountMinor: occurrence.expectedMinor };
   } else {
     throw new LedgerError('NOT_FOUND', `Occurrences of ${occurrence.sourceType} have no proposal yet`);
   }

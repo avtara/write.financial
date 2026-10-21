@@ -298,6 +298,38 @@ describe('DESIGN_SEED goals (Section 00 card "Tujuan tabungan")', () => {
     ]);
     for (const goal of DESIGN_SEED.goals) expect(goal.tag).toMatch(TAG_SLUG_PATTERN);
   });
+
+  it('golden: Dana Darurat is 3× monthly spending; the "Dana tidak rutin" are sinking funds', () => {
+    expect(DESIGN_SEED.goals.map((goal) => [goal.name, goal.kind, goal.targetMonths])).toEqual([
+      ['Dana Darurat', 'savings', 3],
+      ['DP Rumah', 'savings', null],
+      ['Dana Pensiun', 'savings', null],
+      ['Liburan Bali', 'sinking', null],
+      ['Servis motor', 'sinking', null],
+      ['Perpanjang STNK', 'sinking', null],
+    ]);
+  });
+
+  it('golden: Rp17.325.000 of the available accounts is allocated (design "Rp17.300.000", "bebas Rp37.700.000")', () => {
+    const closing = seedClosingBalances(DESIGN_SEED);
+    const sources = DESIGN_SEED.goals.flatMap((goal) => goal.sources);
+    const valueOf = (source: (typeof sources)[number]) =>
+      source.mode === 'whole' ? (closing.get(source.accountKey) ?? 0n) : (source.amountMinor ?? 0n);
+    const allocated = sources.reduce((sum, source) => sum + valueOf(source), 0n);
+    expect(allocated).toBe(17_325_000n);
+    expect(55_023_000n - allocated).toBe(37_698_000n);
+    // BCA Tahapan "4 tujuan": DP Rumah 5.000.000 + "Rp4.200.000 dipakai dana tidak rutin".
+    const bca = sources.filter((source) => source.accountKey === 'bca');
+    expect(bca).toHaveLength(4);
+    expect(bca.reduce((sum, source) => sum + valueOf(source), 0n)).toBe(9_200_000n);
+    expect(sources.filter((source) => source.mode === 'whole')).toEqual([
+      { accountKey: 'jago', mode: 'whole', amountMinor: null },
+    ]);
+    for (const source of sources) {
+      expect(accounts.find((account) => account.key === source.accountKey)?.includeInAvailable).toBe(true);
+      expect(source.mode === 'fixed').toBe(source.amountMinor !== null);
+    }
+  });
 });
 
 describe('DESIGN_SEED subscriptions (Section 07 "Langganan", 15 Okt)', () => {
@@ -388,10 +420,26 @@ describe('DESIGN_SEED recurrences (Section 00 "Setoran rutin & investasi")', () 
       [14, 'bibit', 3_000_000n],
       [25, 'jago', 1_150_000n],
     ]);
-    const [, , , sisihkan] = DESIGN_SEED.recurrences;
+    const [kantong, , bibit, sisihkan] = DESIGN_SEED.recurrences;
     expect(sisihkan?.allocations.reduce((sum, allocation) => sum + allocation.amountMinor, 0n)).toBe(1_150_000n);
     const goals = new Set(DESIGN_SEED.goals.map((goal) => goal.name));
     for (const allocation of sisihkan?.allocations ?? []) expect(goals.has(allocation.goal)).toBe(true);
+    // Dana Darurat "Rp3.500.000/bulan · tgl 1 & 14".
+    expect([...(kantong?.allocations ?? []), ...(bibit?.allocations ?? [])]).toEqual([
+      { goal: 'Dana Darurat', amountMinor: 500_000n },
+      { goal: 'Dana Darurat', amountMinor: 3_000_000n },
+    ]);
+  });
+
+  it('golden: the monthly plan is Rp4.650.000 ("dari rencana Rp4.650.000"), every split adds up to its transfer', () => {
+    const planned = DESIGN_SEED.recurrences.flatMap((recurrence) => recurrence.allocations);
+    expect(planned.reduce((sum, allocation) => sum + allocation.amountMinor, 0n)).toBe(4_650_000n);
+    for (const recurrence of DESIGN_SEED.recurrences) {
+      if (recurrence.allocations.length === 0) continue;
+      expect(recurrence.allocations.reduce((sum, allocation) => sum + allocation.amountMinor, 0n)).toBe(
+        recurrence.sentMinor,
+      );
+    }
   });
 
   it('points every paid occurrence at the seed transfer that paid it', () => {
@@ -403,6 +451,50 @@ describe('DESIGN_SEED recurrences (Section 00 "Setoran rutin & investasi")', () 
           fromAccountKey: recurrence.fromAccountKey,
           toAccountKey: recurrence.toAccountKey,
         });
+      }
+    }
+  });
+});
+
+describe('DESIGN_SEED receivables (Section 19 "Piutang" `KZZZy`, 15 Okt)', () => {
+  const remaining = (receivable: DesignSeed['receivables'][number]) =>
+    receivable.payments.reduce((left, payment) => left - payment.amountMinor, receivable.amountMinor);
+
+  it('golden: Rp542.500 outstanding from 2 people — Nadia 242.500 (due 18 Okt) and Raka 300.000 of 400.000', () => {
+    const active = DESIGN_SEED.receivables.filter((receivable) => remaining(receivable) > 0n);
+    expect(active.map((receivable) => [receivable.counterparty, remaining(receivable), receivable.dueDate])).toEqual([
+      ['Nadia', 242_500n, '2026-10-18'],
+      ['Raka Pratama', 300_000n, '2026-10-31'],
+    ]);
+    expect(active.reduce((sum, receivable) => sum + remaining(receivable), 0n)).toBe(542_500n);
+    expect(DESIGN_SEED.receivables.find((receivable) => receivable.counterparty === 'Nadia')).toMatchObject({
+      source: 'split_bill',
+      accountKey: 'bca',
+      remind: true,
+    });
+  });
+
+  it('golden: Dimas 150.000 (2 Okt, GoPay) and Sari 385.000 (21 Sep, BCA) paid back within 90 days', () => {
+    const settled = DESIGN_SEED.receivables.filter(
+      (receivable) => remaining(receivable) === 0n && (receivable.payments.at(-1)?.receivedAt ?? '') >= '2026-07-17',
+    );
+    expect(
+      settled.map((receivable) => [receivable.counterparty, receivable.amountMinor, receivable.payments.at(-1)]),
+    ).toEqual([
+      ['Dimas', 150_000n, { amountMinor: 150_000n, accountKey: 'gopay', receivedAt: '2026-10-02T12:00:00+07:00' }],
+      ['Sari', 385_000n, { amountMinor: 385_000n, accountKey: 'bca', receivedAt: '2026-09-21T12:00:00+07:00' }],
+    ]);
+  });
+
+  it('never repays more than the principal, after lending, from seed accounts', () => {
+    const keys = new Set(accounts.map((account) => account.key));
+    for (const receivable of DESIGN_SEED.receivables) {
+      expect(remaining(receivable)).toBeGreaterThanOrEqual(0n);
+      expect(keys.has(receivable.accountKey)).toBe(true);
+      expect(receivable.remind).toBe(receivable.dueDate !== null && receivable.counterparty === 'Nadia');
+      for (const payment of receivable.payments) {
+        expect(keys.has(payment.accountKey)).toBe(true);
+        expect(payment.receivedAt > receivable.lentAt).toBe(true);
       }
     }
   });

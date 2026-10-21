@@ -25,6 +25,8 @@
     "./drafts": "./src/drafts.ts",
     "./fx-rates": "./src/fx-rates.ts",
     "./goals": "./src/goals.ts",
+    "./debts": "./src/debts.ts",
+    "./receivables": "./src/receivables.ts",
     "./ledger-core": "./src/ledger-core.ts",
     "./ledger-errors": "./src/ledger-errors.ts",
     "./recent-items": "./src/recent-items.ts",

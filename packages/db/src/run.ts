@@ -54,8 +54,8 @@ async function seed(args: readonly string[], config: Config, output: Output): Pr
     output.log(
       `Seeded ${result.balances.size} accounts, ${result.transactions} transactions, ${result.closedPeriods} closed ` +
         `period, a budget, ${result.goals} goals, ${result.subscriptions} subscriptions, ${result.recurrences} ` +
-        `recurring transfers, and ${automation.reviewItems} review items; available balance ` +
-        `${result.availableMinor} (minor units).`,
+        `recurring transfers, ${result.receivables} receivables, and ${automation.reviewItems} review items; ` +
+        `available balance ${result.availableMinor} (minor units).`,
     );
   } finally {
     await Promise.all([db.$client.end(), workerDb.$client.end()]);

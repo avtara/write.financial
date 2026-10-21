@@ -31,7 +31,11 @@ export const NOTIFICATION_GROUP_OF: Readonly<Record<NotificationType, Notificati
   period_closed: 'period',
   subscriptions_detected: 'detected',
   system: 'system',
+  receivable_due: 'bills',
 };
+
+/** Types only ever shown in the app, whatever the settings: a receivable reminder goes "hanya ke kamu" (FR-U7). */
+const IN_APP_ONLY: readonly NotificationType[] = ['receivable_due'];
 
 export interface ChannelSettings {
   /** Shown in the bell and on the notifications page. */
@@ -100,7 +104,7 @@ export function hiddenTypes(settings: NotificationSettings): NotificationType[] 
   );
 }
 
-/** Whether a notification of `type` is emailed (the opt-in and its group's email switch). */
+/** Whether a notification of `type` is emailed (the opt-in and its group's email switch; never in-app-only types). */
 export function emailsType(settings: NotificationSettings, type: NotificationType): boolean {
-  return settings.email && settings.groups[NOTIFICATION_GROUP_OF[type]].email;
+  return settings.email && settings.groups[NOTIFICATION_GROUP_OF[type]].email && !IN_APP_ONLY.includes(type);
 }

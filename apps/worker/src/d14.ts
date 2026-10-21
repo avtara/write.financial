@@ -41,6 +41,8 @@ export const FORBIDDEN_IMPORTS: readonly { readonly module: string; readonly rea
   { module: '@wf/db/budgets', reason: 'D14: the worker proposes budget changes as review items' },
   { module: '@wf/db/budget-core', reason: 'D14: budget versions and lines change only by a user' },
   { module: '@wf/db/goals', reason: 'D14: the worker proposes goal contributions as review items' },
+  { module: '@wf/db/debts', reason: 'D14: installment payments and card allocations are user actions' },
+  { module: '@wf/db/receivables', reason: 'D14: lending, repayments, and write-offs are user actions' },
   { module: '@wf/db/review', reason: 'D14: confirming a review item creates transactions; only the user confirms' },
   { module: '@wf/db/accounts', reason: 'D14: account changes (reconcile adjustments) are user actions' },
   { module: '@wf/db/schedules', reason: 'D14: schedules and subscriptions change only by a user' },

@@ -149,7 +149,6 @@ describe('templates', () => {
       fee: { minor: 2_500n, categoryId: 'f' },
       description: 'Sisihkan dana',
       tags: ['dana-darurat'],
-      allocations: [{ goalId: 'g', amountMinor: 500_000n }],
     };
     expect(encodeTemplate(transfer)).toMatchObject({ sentMinor: '2000000', fee: { minor: '2500', categoryId: 'f' } });
     expect(decodeTemplate(encodeTemplate(transfer))).toEqual(transfer);
@@ -163,7 +162,6 @@ describe('templates', () => {
       sentMinor: 5n,
       receivedMinor: 5n,
       fee: null,
-      allocations: [],
       description: null,
       tags: [],
     });

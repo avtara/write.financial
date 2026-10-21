@@ -1,8 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { readdirSync } from 'node:fs';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { migrate as runMigrations } from 'drizzle-orm/postgres-js/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { insertUser, startMigrated, PGLITE_HOOK_TIMEOUT, type TestDatabase } from '../test/pglite.ts';
+import {
+  insertUser,
+  startMigrated,
+  startPglite,
+  PGLITE_HOOK_TIMEOUT,
+  TEST_PASSWORDS,
+  type TestDatabase,
+} from '../test/pglite.ts';
+import { createDb } from './db.ts';
 import { migrate, MIGRATIONS_FOLDER } from './migrate.ts';
+import { bootstrapRoles } from './roles.ts';
 import { FEATURES } from './schema.ts';
 
 /** Global tables without Row-Level Security; every other table must have it (see the security migration). */
@@ -33,11 +46,17 @@ const GRANTS = {
   budget_period_overrides: LEDGER,
   budget_versions: LEDGER,
   categories: LEDGER,
+  // M4: user-managed; the worker reads them for installment occurrences and reminders (D14).
+  card_payment_allocations: LEDGER,
+  debt_installments: LEDGER,
+  debts: LEDGER,
   // M3: the worker suggests subscriptions (upsert) and the app acts on them.
   detected_recurring: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
   drafts: { wf_app: ALL },
   entitlements: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   fx_rates: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
+  goal_contribution_plans: LEDGER,
+  goal_funding_sources: LEDGER,
   goals: LEDGER,
   instance_settings: {
     wf_app: `SELECT,UPDATE(${SETUP_COLUMNS})`,
@@ -54,6 +73,8 @@ const GRANTS = {
   periods: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE(closed_at,status,updated_at)' },
   plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   postings: LEDGER,
+  receivable_payments: LEDGER,
+  receivables: LEDGER,
   recent_items: { wf_app: ALL },
   recurrences: { wf_app: ALL, wf_worker: 'SELECT' },
   // D14: the worker creates review items but cannot resolve them (no UPDATE); only confirmReview (wf_app) does.
@@ -226,4 +247,78 @@ describe('security_events', () => {
       ]),
     ).rejects.toThrow(/security_events_ip_hash_check/);
   });
+});
+
+describe('0010_goals_debts_receivables', () => {
+  it('turns the goal splits of recurring transfers (M3 template allocations) into contribution plans', async () => {
+    const base = await startPglite();
+    const folder = await mkdtemp(path.join(tmpdir(), 'wf-migrations-'));
+    try {
+      await bootstrapRoles(base.url, TEST_PASSWORDS);
+      // The migrations up to 0009, as an M3 instance has them.
+      await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+      const journalFile = path.join(folder, 'meta', '_journal.json');
+      const journal = JSON.parse(await readFile(journalFile, 'utf8')) as { entries: { tag: string }[] };
+      const m3 = journal.entries.filter((entry) => entry.tag < '0010');
+      await writeFile(journalFile, JSON.stringify({ ...journal, entries: m3 }));
+      await base.pg.exec('SET ROLE wf_migrate');
+      const db = createDb(base.url, { max: 1 });
+      await runMigrations(db, { migrationsFolder: folder });
+      await db.$client.end();
+      await base.pg.exec('RESET ROLE');
+
+      const userId = await insertUser(base, 'm3@example.test');
+      const [account] = await base.query<{ id: string }>(
+        `INSERT INTO accounts (user_id, type, provider_name, display_name, currency, opening_date, color)
+         VALUES ($1, 'bank', 'BCA', 'BCA', 'IDR', '2026-01-01', 'blue') RETURNING id`,
+        [userId],
+      );
+      const goal = async (name: string) =>
+        (
+          await base.query<{ id: string }>(
+            `INSERT INTO goals (user_id, name, icon, color, target_minor, currency) VALUES ($1, $2, 'x', 'x', 1, 'IDR')
+             RETURNING id`,
+            [userId, name],
+          )
+        )[0]?.id as string;
+      const [liburan, servis] = [await goal('Liburan Bali'), await goal('Servis motor')];
+      const template = (allocations?: unknown) =>
+        JSON.stringify({ type: 'transfer', fromAccountId: account?.id, sentMinor: '1107000', allocations });
+      await base.query(
+        `INSERT INTO recurrences (user_id, template, freq, start_on, month_day)
+         VALUES ($1, $2::jsonb, 'monthly', '2026-10-25', 25), ($1, $3::jsonb, 'monthly', '2026-10-01', 1)`,
+        [
+          userId,
+          template([
+            { goalId: liburan, amountMinor: '867000' },
+            { goalId: servis, amountMinor: '240000' },
+          ]),
+          template(),
+        ],
+      );
+
+      await base.pg.exec('SET ROLE wf_migrate');
+      await migrate(base.url);
+      await base.pg.exec('RESET ROLE');
+
+      expect(
+        await base.query(
+          `SELECT g.name, p.amount_minor::text AS amount, p.active FROM goal_contribution_plans p
+           JOIN goals g ON g.id = p.goal_id ORDER BY g.name`,
+        ),
+      ).toEqual([
+        { name: 'Liburan Bali', amount: '867000', active: true },
+        { name: 'Servis motor', amount: '240000', active: true },
+      ]);
+      expect(await base.query(`SELECT count(*)::int AS n FROM recurrences WHERE template ? 'allocations'`)).toEqual([
+        { n: 0 },
+      ]);
+      expect(
+        await base.query(`SELECT relforcerowsecurity AS forced FROM pg_class WHERE relname = 'recurrences'`),
+      ).toEqual([{ forced: true }]);
+    } finally {
+      await base.close();
+      await rm(folder, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

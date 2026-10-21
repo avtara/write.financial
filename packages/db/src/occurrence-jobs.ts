@@ -7,19 +7,31 @@
  * item (`occ.{occurrenceId}`) and a `review_due` notification → (from the day after the due date) `unconfirmed` with
  * one `bill_overdue` notification. Reminders fire at `remind_at` (09.00 local, H-N) exactly once: the notification
  * (`rem.{occurrenceId}`), its email (unless `notif.email === false`; no amount with privacy mode on), and
- * `reminded_at` are written in one transaction under a row lock. Every write is keyed (review `dedupe_key`,
- * notification `ref`, outbox `(notification_id, channel)`), so a retry or restart creates no duplicates.
+ * `reminded_at` are written in one transaction under a row lock. A receivable's due date (FR-U7) only reminds, in the
+ * app, never by email. Every write is keyed (review `dedupe_key`, notification `ref`, outbox `(notification_id,
+ * channel)`), so a retry or restart creates no duplicates.
  */
 import type { Dek } from '@wf/crypto/envelope';
 import { addDays, countDays, type LocalDate } from '@wf/domain/period';
 import { and, asc, eq, gte, inArray, isNotNull, lt, lte } from 'drizzle-orm';
 import { withUser, type Database, type Transaction } from './db.ts';
 import { insertNotificationIn } from './notifications.ts';
-import { decodeTemplate, materializeIn, templateAmount, userClockIn, type ScheduleSourceType } from './occurrences.ts';
+import { decodeTemplate, materializeIn, templateAmount, userClockIn, type ScheduleSource } from './occurrences.ts';
 import { emailsType } from './notification-settings.ts';
 import { deliveryPreferencesIn, insertOutboxIn } from './outbox.ts';
 import { insertReviewItemIn, occurrenceReviewItemIn } from './review-items.ts';
-import { accounts, categories, recurrences, scheduledOccurrences, subscriptions } from './schema.ts';
+import {
+  accounts,
+  categories,
+  debts,
+  receivables,
+  recurrences,
+  scheduledOccurrences,
+  subscriptions,
+} from './schema.ts';
+
+/** The Receivables tab of the Debts page. */
+const RECEIVABLES_HREF = '/debts?tab=receivables';
 
 /** What a notification about an occurrence names. */
 export interface OccurrenceSubject {
@@ -46,7 +58,7 @@ export async function occurrenceSubjectsIn(
   tx: Transaction,
   rows: readonly OccurrenceSourceRef[],
 ): Promise<Map<string, OccurrenceSubject>> {
-  const ids = (type: ScheduleSourceType) => [
+  const ids = (type: ScheduleSource['type']) => [
     ...new Set(rows.filter((row) => row.sourceType === type).map((row) => row.sourceId)),
   ];
   const subjects = new Map<string, Omit<OccurrenceSubject, 'accountName'>>();
@@ -96,6 +108,26 @@ export async function occurrenceSubjectsIn(
         href: '/calendar',
       });
     }
+  }
+  const debtIds = ids('installment');
+  if (debtIds.length > 0) {
+    const rowsOfDebts = await tx
+      .select({ id: debts.id, name: debts.name, accountId: debts.payFromAccountId })
+      .from(debts)
+      .where(inArray(debts.id, debtIds));
+    for (const debt of rowsOfDebts) {
+      // Only non-card debts (with "Bayar dari") have installment occurrences.
+      subjects.set(`installment.${debt.id}`, {
+        name: debt.name,
+        accountId: debt.accountId as string,
+        outflow: true,
+        href: '/debts',
+      });
+    }
+  }
+  // A card payment due date names the card itself (its name is filled in from the account below).
+  for (const cardId of ids('cc_statement')) {
+    subjects.set(`cc_statement.${cardId}`, { name: '', accountId: cardId, outflow: true, href: '/debts' });
   }
   const accountIds = [...new Set([...subjects.values()].map((subject) => subject.accountId))];
   const accountNames = new Map(
@@ -150,7 +182,8 @@ export interface OccurrenceJobs {
   remind: (userId: string, occurrenceId: string, now: Date) => Promise<RemindResult>;
 }
 
-const SCHEDULE_SOURCES: ScheduleSourceType[] = ['recurrence', 'subscription'];
+/** Sources whose due occurrences go to the Review queue; a `cc_statement` occurrence only reminds. */
+const SCHEDULE_SOURCES: ScheduleSource['type'][] = ['recurrence', 'subscription', 'installment'];
 
 const OCCURRENCE = {
   id: scheduledOccurrences.id,
@@ -349,40 +382,70 @@ export function createOccurrenceJobs(
         ) {
           return { reminded: false, emailed: false };
         }
-        const subject = (await occurrenceSubjectsIn(tx, [occurrence])).get(subjectKey(occurrence)) as OccurrenceSubject;
         const { today } = await userClockIn(tx, userId, now);
         const days = Math.max(0, daysUntil(today, occurrence.dueDate));
-        const notification = await insertNotificationIn(tx, userId, {
-          type: 'bill_reminder',
-          category: 'budget_bills',
-          titleKey: 'notification_bill_reminder_title',
-          bodyKey: days === 0 ? 'notification_bill_reminder_today_body' : 'notification_bill_reminder_body',
-          params: {
-            name: subject.name,
-            dueDate: occurrence.dueDate,
-            amount: amountOf(occurrence),
-            account: subject.accountName,
-            days,
-          },
-          action: { href: subject.href },
-          ref: `rem.${occurrence.id}`,
-        });
-        const preferences = await deliveryPreferencesIn(tx, userId);
-        const emailed =
-          emailsType(preferences.settings, 'bill_reminder') &&
-          (await insertOutboxIn(
-            tx,
-            userId,
-            notification.id,
-            {
-              kind: 'bill_reminder',
+        let emailed = false;
+        if (occurrence.sourceType === 'receivable') {
+          // FR-U7 "hanya ke kamu": in the app only. The person's name is encrypted personal data, so the reminder
+          // names what the money was for.
+          const [receivable] = await tx
+            .select({ description: receivables.description })
+            .from(receivables)
+            .where(eq(receivables.id, occurrence.sourceId));
+          if (receivable === undefined) return { reminded: false, emailed: false };
+          await insertNotificationIn(tx, userId, {
+            type: 'receivable_due',
+            category: 'budget_bills',
+            titleKey: 'notification_receivable_due_title',
+            bodyKey:
+              receivable.description === null
+                ? 'notification_receivable_due_plain_body'
+                : 'notification_receivable_due_body',
+            params: {
+              description: receivable.description,
+              amount: amountOf(occurrence),
+              dueDate: occurrence.dueDate,
+              days,
+            },
+            action: { href: RECEIVABLES_HREF },
+            ref: `rem.${occurrence.id}`,
+          });
+        } else {
+          const subject = (await occurrenceSubjectsIn(tx, [occurrence])).get(
+            subjectKey(occurrence),
+          ) as OccurrenceSubject;
+          const notification = await insertNotificationIn(tx, userId, {
+            type: 'bill_reminder',
+            category: 'budget_bills',
+            titleKey: 'notification_bill_reminder_title',
+            bodyKey: days === 0 ? 'notification_bill_reminder_today_body' : 'notification_bill_reminder_body',
+            params: {
               name: subject.name,
               dueDate: occurrence.dueDate,
-              amount: preferences.hideBalances ? null : amountOf(occurrence),
-              path: subject.href,
+              amount: amountOf(occurrence),
+              account: subject.accountName,
+              days,
             },
-            now,
-          ));
+            action: { href: subject.href },
+            ref: `rem.${occurrence.id}`,
+          });
+          const preferences = await deliveryPreferencesIn(tx, userId);
+          emailed =
+            emailsType(preferences.settings, 'bill_reminder') &&
+            (await insertOutboxIn(
+              tx,
+              userId,
+              notification.id,
+              {
+                kind: 'bill_reminder',
+                name: subject.name,
+                dueDate: occurrence.dueDate,
+                amount: preferences.hideBalances ? null : amountOf(occurrence),
+                path: subject.href,
+              },
+              now,
+            ));
+        }
         await tx
           .update(scheduledOccurrences)
           .set({ remindedAt: now, updatedAt: now })

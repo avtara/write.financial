@@ -63,15 +63,53 @@ export interface SeedFxRate {
   readonly asOf: string;
 }
 
+/** A funding source of a goal (FR-G2): an account wholly, or a fixed amount of it. Investment assets come in M5. */
+export interface SeedGoalSource {
+  readonly accountKey: string;
+  readonly mode: 'whole' | 'fixed';
+  /** `fixed` only. */
+  readonly amountMinor: bigint | null;
+}
+
 export interface SeedGoal {
   readonly name: string;
   readonly icon: string;
   readonly color: string;
+  /** "Dana tidak rutin" are sinking funds (FR-B6). */
+  readonly kind: 'savings' | 'sinking';
   readonly targetMinor: bigint;
+  /** Dana Darurat: "Target 3× pengeluaran bulanan"; `targetMinor` is the value in force. */
+  readonly targetMonths: number | null;
   readonly currency: string;
   /** YYYY-MM. */
   readonly deadlineMonth: string | null;
   readonly tag: string | null;
+  /** "Simpan di": where deposits go by default. */
+  readonly accountKey: string | null;
+  readonly sources: readonly SeedGoalSource[];
+}
+
+/**
+ * A receivable as of 15 Okt (Section 19 "Piutang", `KZZZy`). The seed records them without ledger transactions
+ * (lent and repaid before tracking, already reflected in the account balances), so the Section 00 balances, flows,
+ * and transaction counts stay as designed.
+ */
+export interface SeedReceivable {
+  readonly counterparty: string;
+  readonly source: 'split_bill' | 'loan';
+  readonly description: string | null;
+  readonly amountMinor: bigint;
+  readonly accountKey: string;
+  /** ISO 8601 with the +07:00 offset. */
+  readonly lentAt: string;
+  readonly dueDate: string | null;
+  /** H-1 09.00 reminder. */
+  readonly remind: boolean;
+  readonly payments: readonly {
+    readonly amountMinor: bigint;
+    readonly accountKey: string;
+    readonly receivedAt: string;
+  }[];
 }
 
 /** A budget version (`budget_versions` + `budget_lines`), lines by built-in category. */
@@ -153,6 +191,8 @@ export interface DesignSeed {
   /** 7 active (Rp904.900/bulan + Niagahoster Rp660.900/tahun), 1 paused, 3 cancelled. */
   readonly subscriptions: readonly SeedSubscription[];
   readonly recurrences: readonly SeedRecurrence[];
+  /** Outstanding Rp542.500 (Nadia 242.500 + Raka 300.000), Dimas and Sari settled within 90 days. */
+  readonly receivables: readonly SeedReceivable[];
 }
 
 /** The balances of {@link ACCOUNTS} are as of this day; the seed opens the accounts a month earlier. */
@@ -965,7 +1005,9 @@ const SUBSCRIPTIONS: readonly SeedSubscription[] = [
 
 /**
  * Section 00 "Setoran rutin & investasi": the monthly transfers, H-1 reminders. September and October transfers of
- * the seed paid the earlier occurrences; "Sisihkan dana tidak rutin" (25th) splits Rp1.150.000 over three goals.
+ * the seed paid the earlier occurrences. Goal shares (Section 13 "Setoran rutin"): Dana Darurat gets 500.000 on the
+ * 1st and 3.000.000 on the 14th (Rp3.500.000/bulan, "tgl 1 & 14"); "Sisihkan dana tidak rutin" (25th) splits
+ * Rp1.150.000 over three sinking funds; the DCA goes to DP Rumah and Dana Pensiun through their assets (M5).
  */
 const RECURRENCES: readonly SeedRecurrence[] = [
   {
@@ -975,7 +1017,7 @@ const RECURRENCES: readonly SeedRecurrence[] = [
     sentMinor: 500_000n,
     receivedMinor: 500_000n,
     tags: ['dana-darurat'],
-    allocations: [],
+    allocations: [{ goal: 'Dana Darurat', amountMinor: 500_000n }],
     monthDay: 1,
     startOn: '2026-09-01',
     remindOffsetDays: 1,
@@ -1007,7 +1049,7 @@ const RECURRENCES: readonly SeedRecurrence[] = [
     sentMinor: 3_000_000n,
     receivedMinor: 3_000_000n,
     tags: ['dana-darurat'],
-    allocations: [],
+    allocations: [{ goal: 'Dana Darurat', amountMinor: 3_000_000n }],
     monthDay: 14,
     // "sejak Okt; Sep → Jago 2.000.000".
     startOn: '2026-10-14',
@@ -1033,6 +1075,70 @@ const RECURRENCES: readonly SeedRecurrence[] = [
   },
 ];
 
+/**
+ * Section 19 "Piutang" (`KZZZy`, 15 Okt): Nadia's share of the CGV bill (due Sun 18 Okt, H-1 reminder) and Raka's
+ * cash loan (Rp100.000 back on 10 Okt, due Sat 31 Okt) are active, Rp542.500 in total; Dimas and Sari paid back
+ * within the last 90 days ("LUNAS · 90 HARI"); Bima Aditya is an older one ("pernah: … Bima Aditya"). Lending dates
+ * the design does not show are chosen before the repayment.
+ */
+const RECEIVABLES: readonly SeedReceivable[] = [
+  {
+    counterparty: 'Nadia',
+    source: 'split_bill',
+    description: 'Nonton bareng CGV Grand Indonesia',
+    amountMinor: 242_500n,
+    accountKey: 'bca',
+    lentAt: '2026-10-15T08:30:00+07:00',
+    dueDate: '2026-10-18',
+    remind: true,
+    payments: [],
+  },
+  {
+    counterparty: 'Raka Pratama',
+    source: 'loan',
+    description: null,
+    amountMinor: 400_000n,
+    accountKey: 'gopay',
+    lentAt: '2026-10-02T12:00:00+07:00',
+    dueDate: '2026-10-31',
+    remind: false,
+    payments: [{ amountMinor: 100_000n, accountKey: 'gopay', receivedAt: '2026-10-10T12:00:00+07:00' }],
+  },
+  {
+    counterparty: 'Dimas',
+    source: 'split_bill',
+    description: 'Patungan kado',
+    amountMinor: 150_000n,
+    accountKey: 'bca',
+    lentAt: '2026-09-26T19:00:00+07:00',
+    dueDate: null,
+    remind: false,
+    payments: [{ amountMinor: 150_000n, accountKey: 'gopay', receivedAt: '2026-10-02T12:00:00+07:00' }],
+  },
+  {
+    counterparty: 'Sari',
+    source: 'loan',
+    description: 'Talangan tiket kereta',
+    amountMinor: 385_000n,
+    accountKey: 'bca',
+    lentAt: '2026-09-12T12:00:00+07:00',
+    dueDate: null,
+    remind: false,
+    payments: [{ amountMinor: 385_000n, accountKey: 'bca', receivedAt: '2026-09-21T12:00:00+07:00' }],
+  },
+  {
+    counterparty: 'Bima Aditya',
+    source: 'loan',
+    description: null,
+    amountMinor: 300_000n,
+    accountKey: 'bca',
+    lentAt: '2026-06-05T12:00:00+07:00',
+    dueDate: null,
+    remind: false,
+    payments: [{ amountMinor: 300_000n, accountKey: 'bca', receivedAt: '2026-06-20T12:00:00+07:00' }],
+  },
+];
+
 export const DESIGN_SEED: DesignSeed = {
   baseCurrency: 'IDR',
   timezone: 'Asia/Jakarta',
@@ -1048,64 +1154,92 @@ export const DESIGN_SEED: DesignSeed = {
   budgets: BUDGETS,
   fxRates: [{ base: 'USD', quote: 'IDR', rate: '16350', asOf: '2026-10-15' }],
   // Section 00 card "Tujuan tabungan"; deadlines from the savings-goal seed table (docs/design-analysis/CrossCutting.md).
+  // Account sources (Section 05 "Rp17.300.000 dialokasikan ke tabungan", Section 13): Bank Jago wholly for Dana
+  // Darurat (Rp8.125.000), fixed amounts of BCA Tahapan for DP Rumah (5.000.000) and the three sinking funds
+  // ("Rp4.200.000 dipakai dana tidak rutin"); the investment parts (Bibit RDPU, SPY, IDX30, SCHD) come with M5.
   goals: [
     {
       name: 'Dana Darurat',
       icon: 'shield',
       color: 'green',
+      kind: 'savings',
       targetMinor: 54_000_000n,
+      targetMonths: 3,
       currency: 'IDR',
       deadlineMonth: '2027-11',
       tag: 'dana-darurat',
+      accountKey: 'jago',
+      sources: [{ accountKey: 'jago', mode: 'whole', amountMinor: null }],
     },
     {
       name: 'DP Rumah',
       icon: 'house',
       color: 'blue',
+      kind: 'savings',
       targetMinor: 150_000_000n,
+      targetMonths: null,
       currency: 'IDR',
       deadlineMonth: null,
       tag: 'dp-rumah',
+      accountKey: null,
+      sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 5_000_000n }],
     },
     {
       name: 'Dana Pensiun',
       icon: 'sunset',
       color: 'violet',
+      kind: 'savings',
       targetMinor: 500_000_000n,
+      targetMonths: null,
       currency: 'IDR',
       deadlineMonth: null,
       tag: 'dana-pensiun',
+      accountKey: null,
+      sources: [],
     },
     {
       name: 'Liburan Bali',
       icon: 'tree-palm',
       color: 'cyan',
+      kind: 'sinking',
       targetMinor: 8_000_000n,
+      targetMonths: null,
       currency: 'IDR',
       deadlineMonth: '2027-03',
       tag: 'liburan-bali',
+      accountKey: null,
+      sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 2_800_000n }],
     },
     {
       name: 'Servis motor',
       icon: 'wrench',
       color: 'amber',
+      kind: 'sinking',
       targetMinor: 1_200_000n,
+      targetMonths: null,
       currency: 'IDR',
       deadlineMonth: '2026-12',
       tag: 'servis-motor',
+      accountKey: null,
+      sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 720_000n }],
     },
     {
       name: 'Perpanjang STNK',
       icon: 'file-text',
       color: 'orange',
+      kind: 'sinking',
       targetMinor: 850_000n,
+      targetMonths: null,
       currency: 'IDR',
       deadlineMonth: '2027-02',
       tag: 'perpanjang-stnk',
+      accountKey: null,
+      sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 680_000n }],
     },
   ],
   subscriptions: SUBSCRIPTIONS,
   recurrences: RECURRENCES,
+  receivables: RECEIVABLES,
 };
 
 /**

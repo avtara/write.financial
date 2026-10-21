@@ -46,6 +46,7 @@ const TYPE_LABELS: Readonly<Record<NotificationType, () => string>> = {
   period_closed: m.notifications_type_period_closed,
   subscriptions_detected: m.notifications_type_subscriptions_detected,
   system: m.notifications_type_system,
+  receivable_due: m.notifications_type_receivable_due,
 };
 
 const CHIP =

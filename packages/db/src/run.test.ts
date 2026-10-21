@@ -155,7 +155,7 @@ describe('run', () => {
     // The review items depend on the real clock (bills overdue by today, the September proposal).
     expect(first.logs).toEqual([
       expect.stringMatching(
-        /^Seeded 11 accounts, 249 transactions, 1 closed period, a budget, 6 goals, 11 subscriptions, 4 recurring transfers, and \d+ review items; available balance 55023000 \(minor units\)\.$/,
+        /^Seeded 11 accounts, 249 transactions, 1 closed period, a budget, 6 goals, 11 subscriptions, 4 recurring transfers, 5 receivables, and \d+ review items; available balance 55023000 \(minor units\)\.$/,
       ),
     ]);
     expect(
