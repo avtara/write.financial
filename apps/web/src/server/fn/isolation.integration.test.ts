@@ -1000,7 +1000,7 @@ const MATRIX: Record<Name, Case> = {
       const ofB = await as<Result<SearchResults>>('B', 'searchEverything', input);
       expect(ofB.ok && ofB.value.accounts.hits.map((hit) => hit.displayName)).toEqual(['Rekening B']);
       const rahasia = await as<Result<SearchResults>>('B', 'searchEverything', { query: 'rahasia' });
-      expect(rahasia.ok && SEARCH_KINDS.map((kind) => rahasia.value[kind].total)).toEqual([0, 0, 0, 0, 0]);
+      expect(rahasia.ok && SEARCH_KINDS.map((kind) => rahasia.value[kind].total)).toEqual([0, 0, 0, 0, 0, 0]);
       // A's own: the transaction "Belanja Rahasia A", its two pending review items ("Langganan Rahasia A", "Kos Rahasia
       // A"), the account, the subscription "Langganan Rahasia A", "Rahasia A" and the budgeted "Anggaran rahasia-a", and
       // the tag.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 export interface SheetProps {
   /** Controlled: to keep a filled form open (FR-T9 "Buang / Simpan draf / Lanjut mengisi"), ignore the close. */
@@ -17,6 +17,12 @@ export interface SheetProps {
   size?: 'md' | 'lg';
   children: ReactNode;
 }
+
+/**
+ * The opener of a sheet that unmounted in this task: a sheet replacing it (Record Transaction's loading sheet, then
+ * its form) returns focus there, not to the body the replaced sheet left the focus on.
+ */
+let released: HTMLElement | null | undefined;
 
 /**
  * A panel sliding in from the right (design "Catat Transaksi (Sheet)": `$card` fill, header 17/600 with a subtitle,
@@ -35,6 +41,15 @@ export function Sheet({
   children,
 }: SheetProps) {
   const opener = useRef<HTMLElement | null>(null);
+  useEffect(
+    () => () => {
+      released = opener.current;
+      setTimeout(() => {
+        released = undefined;
+      }, 0);
+    },
+    [],
+  );
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -43,10 +58,12 @@ export function Sheet({
           {...(description === undefined ? { 'aria-describedby': undefined } : {})}
           onOpenAutoFocus={() => {
             // Radix restores focus only to a `Dialog.Trigger`; sheets are opened by the caller (a button, `N`).
-            opener.current = document.activeElement as HTMLElement | null;
+            opener.current = released === undefined ? (document.activeElement as HTMLElement | null) : released;
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
+            // A sheet that replaced this one has the focus already.
+            if (document.activeElement?.closest('[role="dialog"]') != null) return;
             opener.current?.focus();
           }}
           className={`fixed inset-y-0 right-0 z-50 flex max-w-full flex-col border-l border-border bg-card text-fg shadow-[-12px_0_40px_var(--shadow)] motion-safe:animate-[wf-sheet-in_200ms_ease-out] ${size === 'md' ? 'w-[460px]' : 'w-[560px]'}`}

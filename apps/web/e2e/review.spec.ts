@@ -1,30 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The Review queue (FR-L7) and repeating transactions (FR-T6, FR-L8) as the invited user with the design persona:
+ * The Review queue (FR-L7) and repeating transactions (FR-T6, FR-L8) as its own invited user with the design persona:
  * the scheduled jobs are run up to 18 Okt 10.00 (`runScheduleJobs`), so Netflix's Rp186.000 bill (BCA Tahapan) is
  * due next to the seed's overdue iCloud+ and September's leftover proposal (Rp1.150.000). Balances change only when
  * the user confirms: "Sudah dibayar" takes Rp186.000 from BCA Tahapan, "Terapkan" asks before it moves anything.
  * Also keyboard only (⌘K to a review item), the layout at 1440/1024/768, and "Ulangi" in the Record sheet with
- * "Hentikan pengulangan" and Urungkan in the transaction detail. Earlier projects change balances, so they are
- * compared before and after.
+ * "Hentikan pengulangan" and Urungkan in the transaction detail.
  */
 import type { Page } from '@playwright/test';
 import {
   cardBalance,
+  clearAuthCounters,
   expect,
-  loadAccount,
+  REVIEW_USER,
   runScheduleJobs,
   screenshot,
   seedDesignPersona,
+  signUpInvited,
   test,
-  USER_STATE,
 } from './support.ts';
 
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 1000 } });
+test.use({ storageState: REVIEW_USER.state, viewport: { width: 1440, height: 1000 } });
 
-test.beforeAll(async () => {
-  const { email } = loadAccount('user');
+test.beforeAll(async ({ browser }) => {
+  const { email } = REVIEW_USER;
+  await clearAuthCounters();
+  const page = await signUpInvited(browser, email, 'Tari Wulandari', 1440);
+  await expect(page).toHaveURL(/\/onboarding\/profile$/);
+  await page.context().storageState({ path: REVIEW_USER.state });
+  await page.context().close();
+  // The persona (it completes the onboarding).
   await seedDesignPersona(email);
   // Netflix (18 Okt) is due; its H-1 reminder (17 Okt 09.00) has been sent.
   runScheduleJobs(email, '2026-10-18T10:00:00+07:00');
@@ -137,8 +143,16 @@ test('"Ulangi" repeats a new expense weekly; the detail stops it after asking, a
 }) => {
   await page.goto('/transactions?range=2026-10-01..2026-10-15');
   await page.waitForLoadState('networkidle');
-  await page.keyboard.press('n');
+  // Opened with Enter on the header's button, the sheet keeps the focus (on Jumlah) once its data has loaded.
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: /^Catat/ })
+    .first()
+    .focus();
+  await page.keyboard.press('Enter');
   const sheet = page.getByRole('dialog', { name: 'Catat Transaksi' });
+  await expect(sheet.getByRole('button', { name: /^Hiburan/ })).toBeVisible();
+  await expect(sheet.getByRole('textbox', { name: 'Jumlah' })).toBeFocused();
   await sheet.getByRole('textbox', { name: 'Jumlah' }).fill('150000');
   await sheet.getByRole('button', { name: /^Hiburan/ }).click();
   await sheet.getByRole('textbox', { name: 'Catatan', exact: true }).fill('Futsal mingguan');

@@ -5,54 +5,13 @@
  * contribution that only reaches the Review queue), skipping the goal at 1024 px, and the quick path at 768 px. Every
  * user lands on Ringkasan and is never sent back to the onboarding.
  */
-import type { Browser, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import postgres from 'postgres';
-import { BASE_URL, e2eEnv } from './env.ts';
-import {
-  clearAuthCounters,
-  enterCode,
-  expect,
-  freshPassword,
-  loadAccount,
-  newContext,
-  signInWithPassword,
-  skipOnboarding,
-  test,
-  totp,
-} from './support.ts';
+import { e2eEnv } from './env.ts';
+import { clearAuthCounters, expect, signUpInvited, skipOnboarding, test } from './support.ts';
 
 test.describe.configure({ mode: 'serial' });
 test.beforeEach(clearAuthCounters);
-
-/** The admin invites `email` (registration "Dengan undangan", m0) and the invitee signs up at `width` px. */
-async function signUpInvited(browser: Browser, email: string, name: string, width: number): Promise<Page> {
-  const admin = loadAccount('admin');
-  const adminContext = await newContext(browser, { locale: 'id-ID', baseURL: BASE_URL });
-  const adminPage = await adminContext.newPage();
-  await signInWithPassword(adminPage, admin);
-  await enterCode(adminPage, 'Kode verifikasi', totp(admin.totpSecret ?? ''));
-  await expect(adminPage.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
-  await adminPage.goto('/settings/instance');
-  const invite = adminPage
-    .getByRole('region')
-    .filter({ has: adminPage.getByRole('heading', { name: 'Undang pengguna' }) });
-  await invite.getByRole('textbox', { name: 'Email' }).fill(email);
-  await invite.getByRole('button', { name: 'Buat undangan' }).click();
-  const link = adminPage.getByRole('textbox', { name: 'Tautan undangan', exact: true });
-  await expect(link).toBeVisible();
-  const url = (await link.inputValue()).trim();
-  await adminContext.close();
-
-  const context = await newContext(browser, { locale: 'id-ID', baseURL: BASE_URL, timezoneId: 'Asia/Jakarta' });
-  const page = await context.newPage();
-  await page.setViewportSize({ width, height: 1024 });
-  await page.goto(url);
-  await page.getByLabel('Nama').fill(name);
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Kata sandi', { exact: true }).fill(freshPassword());
-  await page.getByRole('button', { name: 'Buat akun' }).click();
-  return page;
-}
 
 async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `/tmp/wf-onboarding-${name}.png`, fullPage: true });

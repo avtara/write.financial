@@ -218,7 +218,8 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
                   <rect
                     x={x - slot / 2 + 2}
                     y={TOP}
-                    width={slot - 4}
+                    // Not negative while the card is measured at 0 px (hidden behind a sheet or still laying out).
+                    width={Math.max(slot - 4, 0)}
                     height={PLOT}
                     rx={6}
                     className={active === index ? 'fill-tint-04' : 'fill-transparent'}
