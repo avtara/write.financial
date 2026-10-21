@@ -59,13 +59,39 @@ describe('DateTimeField', () => {
         .element(page.getByRole('button', { name: new RegExp(`^${label}`) }))
         .toHaveTextContent(`${label}${day}`);
     }
-    await expect.element(page.getByText('Menjadwalkan ke tanggal mendatang segera hadir.')).toBeVisible();
+    // Without scheduling there is no "Jadwalkan", and the days after today stay disabled.
+    await expect.element(page.getByRole('button', { name: 'Jadwalkan' })).not.toBeInTheDocument();
     await expect
       .element(page.getByRole('button', { name: 'Selasa, 20 Oktober 2026' }))
       .toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(page.getByRole('button', { name: /^Sabtu lalu/ }));
     expect(onChange).toHaveBeenCalledWith({ date: '2026-10-17', time: '19:30' });
     await expect.element(trigger()).toHaveTextContent('17 Okt 2026, 19.30');
+  });
+
+  it('"Jadwalkan" opens the days after today (the Record sheet)', async () => {
+    server.listTransactionDays.mockResolvedValue({ ok: true, value: [] });
+    const onChange = vi.fn();
+    await renderApp(<Field onChange={onChange} allowSchedule />);
+    await userEvent.click(trigger());
+    const tomorrow = page.getByRole('button', { name: 'Selasa, 20 Oktober 2026' });
+    await expect.element(tomorrow).toHaveAttribute('aria-disabled', 'true');
+    const schedule = page.getByRole('button', { name: 'Jadwalkan' });
+    await expect.element(schedule).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(schedule);
+    await expect.element(schedule).toHaveAttribute('aria-pressed', 'true');
+    await expect.element(page.getByText('Pilih tanggal mendatang — masuk Perlu ditinjau pada hari itu.')).toBeVisible();
+    await expect.element(tomorrow).not.toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(tomorrow);
+    expect(onChange).toHaveBeenLastCalledWith({ date: '2026-10-20', time: '19:30' });
+    await expect.element(trigger()).toHaveTextContent('20 Okt 2026, 19.30');
+  });
+
+  it('a date already in the future keeps the future open', async () => {
+    server.listTransactionDays.mockResolvedValue({ ok: true, value: [] });
+    await renderApp(<Field date={'2026-10-25' as LocalDate} allowSchedule />);
+    await userEvent.click(page.getByRole('button', { name: /Okt 2026/ }));
+    await expect.element(page.getByRole('button', { name: 'Jadwalkan' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('marks days with transactions, loading each month once', async () => {

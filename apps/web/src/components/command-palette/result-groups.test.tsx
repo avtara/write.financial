@@ -4,7 +4,7 @@ import type { LocalDate } from '@wf/domain/period';
 import { setLocale } from '@wf/i18n/runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../../../test/render.tsx';
-import type { AccountHit, CategoryHit, SubscriptionHit, TagHit, TransactionHit } from '../../lib/search.ts';
+import type { AccountHit, CategoryHit, ReviewHit, SubscriptionHit, TagHit, TransactionHit } from '../../lib/search.ts';
 import { RESULT_GROUPS, type ResultView } from './result-groups.tsx';
 
 const EXPENSE: TransactionHit = {
@@ -46,6 +46,15 @@ const SUBSCRIPTION: SubscriptionHit = {
   cycle: 'monthly',
   status: 'active',
   nextBillingDate: '2026-10-18' as LocalDate,
+};
+
+const NETFLIX: ReviewHit = {
+  id: 'rv-1',
+  reason: 'due_occurrence',
+  title: 'Netflix',
+  dueDate: '2026-10-18' as LocalDate,
+  amountMinor: -186_000n,
+  currency: 'IDR',
 };
 
 /** A view as text: title | detail | aside (the aside rendered, for `<Money>`). */
@@ -107,10 +116,28 @@ describe('RESULT_GROUPS', () => {
     );
   });
 
+  it('shows pending review items by name, or by reason when they have none', async () => {
+    expect(RESULT_GROUPS.review.heading()).toBe('Perlu ditinjau');
+    expect(await shown(RESULT_GROUPS.review.view(NETFLIX, 'id'))).toEqual([
+      'Netflix',
+      'Jatuh tempo · 18 Okt',
+      '−Rp186.000',
+    ]);
+    const unnamed = { ...NETFLIX, title: null, dueDate: null };
+    expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'period_close_proposal' }, 'id')).toMatchObject({
+      title: 'Usulan penutupan periode',
+      detail: 'Usulan penutupan periode',
+    });
+    expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'ai_suggestion' }, 'id').title).toBe('Hasil AI');
+    expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'import_row' }, 'id').title).toBe('Hasil AI');
+    expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'category_deleted' }, 'id').title).toBe('Perlu kategori');
+  });
+
   it('remembers each hit under its recent kind and opens its page', async () => {
     const navigate = vi.fn(() => Promise.resolve()) as unknown as NavigateFn;
     expect(Object.values(RESULT_GROUPS).map((group) => group.recentKind)).toEqual([
       'transaction',
+      'review',
       'account',
       'subscription',
       'category',
@@ -121,12 +148,14 @@ describe('RESULT_GROUPS', () => {
     await RESULT_GROUPS.categories.open(CATEGORY, navigate);
     await RESULT_GROUPS.tags.open(TAG, navigate);
     await RESULT_GROUPS.subscriptions.open(SUBSCRIPTION, navigate);
+    await RESULT_GROUPS.review.open(NETFLIX, navigate);
     expect(vi.mocked(navigate).mock.calls).toEqual([
       [{ to: '/accounts', search: { account: 'acc-bca' } }],
       [{ to: '/accounts', search: { account: 'acc-1' } }],
       [{ to: '/settings/$section', params: { section: 'categories' } }],
       [{ to: '/settings/$section', params: { section: 'tags' } }],
       [{ to: '/subscriptions', search: { subscription: 'sub-1' } }],
+      [{ to: '/review', search: { item: 'rv-1' } }],
     ]);
   });
 });

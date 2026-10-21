@@ -37,6 +37,22 @@ const actions = vi.hoisted(() => ({
   copyAmount: vi.fn(),
 }));
 vi.mock('./transaction-actions.tsx', () => ({ useTransactionActions: () => actions }));
+/** The repeat section is tested on its own; here only where and with what it shows. */
+const repeat = vi.hoisted(() => {
+  const state: { value: object | null; reload: () => void } = { value: null, reload: vi.fn() };
+  return state;
+});
+vi.mock('./recurrence-section.tsx', () => ({
+  useTransactionRecurrence: () => ({ recurrence: repeat.value, reload: repeat.reload }),
+  RecurrenceBadge: () => <span>repeat badge</span>,
+  RecurrenceSection: (props: { route: string; onChanged: () => void }) => (
+    <section aria-label="repeat" data-route={props.route}>
+      <button type="button" onClick={props.onChanged}>
+        repeat changed
+      </button>
+    </section>
+  ),
+}));
 /** The attachments section is tested on its own. */
 vi.mock('./attachments.tsx', () => ({
   Attachments: (props: { readOnly: boolean; label: string; onChanged: () => void }) => (
@@ -87,6 +103,7 @@ async function renderPanel(detail: TransactionDetail, props: Partial<Transaction
 
 afterEach(() => {
   vi.clearAllMocks();
+  repeat.value = null;
 });
 
 describe('TransactionDetailPanel', () => {
@@ -174,6 +191,62 @@ describe('TransactionDetailPanel', () => {
     await vi.waitFor(() => {
       expect(server.getTransactionDetail).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('shows the repeat of a recurring transaction and its history', async () => {
+    repeat.value = { id: 'rec-1', status: 'active' };
+    const detail = transactionDetail('tx-r', {
+      type: 'transfer',
+      categoryId: null,
+      postings: [posting(BCA.id, -3_000_000n), posting(OVO.id, 3_000_000n)],
+      activity: [
+        entry('recurrence_set', { freq: 'monthly', monthDay: 14 }, '2026-10-14T12:31:00Z'),
+        entry('recurrence_set', { freq: 'weekly', weekday: 4 }, '2026-10-14T12:32:00Z'),
+        entry('recurrence_set', { freq: 'yearly' }, '2026-10-14T12:33:00Z'),
+        entry('recurrence_stopped', { deleted: 3 }, '2026-10-17T03:12:00Z'),
+        entry('recurrence_resumed', {}, '2026-10-17T03:13:00Z'),
+      ],
+    });
+    const { screen } = await renderPanel(detail);
+    await expect.element(screen.getByText('repeat badge')).toBeVisible();
+    await expect
+      .element(screen.getByRole('region', { name: 'repeat' }))
+      .toHaveAttribute('data-route', 'BCA Tahapan → OVO');
+    const history = screen.getByRole('region', { name: 'Riwayat' }).getByRole('listitem');
+    await expect.element(history.first()).toBeVisible();
+    expect(history.elements().map((item) => item.querySelector('span > span')?.textContent)).toEqual([
+      'Pengulangan dinyalakan lagi',
+      'Pengulangan dihentikan · 3 jadwal dihapus',
+      'Diulang tiap tahun',
+      'Diulang tiap minggu, hari Kamis',
+      'Diulang tiap bulan, tgl 14',
+    ]);
+    await userEvent.click(screen.getByRole('button', { name: 'repeat changed' }));
+    expect(repeat.reload).toHaveBeenCalledOnce();
+    await vi.waitFor(() => {
+      expect(server.getTransactionDetail).toHaveBeenCalledTimes(2);
+    });
+    await screen.unmount();
+
+    // An entry on an unknown account, and a transfer between unknown accounts.
+    const { screen: entryPanel } = await renderPanel(
+      transactionDetail('tx-e', { categoryId: KOPI.id, postings: [posting('acc-gone', -1n)] }),
+    );
+    await expect.element(entryPanel.getByRole('region', { name: 'repeat' })).toHaveAttribute('data-route', '');
+    await entryPanel.unmount();
+    const { screen: unknown } = await renderPanel(
+      transactionDetail('tx-u', {
+        type: 'transfer',
+        categoryId: null,
+        postings: [posting('acc-gone', -1n), posting('acc-lost', 1n)],
+      }),
+    );
+    await expect.element(unknown.getByRole('region', { name: 'repeat' })).toHaveAttribute('data-route', ' → ');
+    await unknown.unmount();
+    const { screen: account } = await renderPanel(
+      transactionDetail('tx-a', { categoryId: KOPI.id, postings: [posting(BCA.id, -1n)] }),
+    );
+    await expect.element(account.getByRole('region', { name: 'repeat' })).toHaveAttribute('data-route', 'BCA Tahapan');
   });
 
   it('marks a budget over its limit as full and red', async () => {
@@ -289,6 +362,8 @@ describe('TransactionDetailPanel', () => {
   });
 
   it('shows a deleted, uncategorized income read-only', async () => {
+    // A deleted transaction offers no repeat to stop.
+    repeat.value = { id: 'rec-1', status: 'active' };
     const detail = transactionDetail('tx-5', {
       type: 'income',
       description: 'Refund',
@@ -307,6 +382,8 @@ describe('TransactionDetailPanel', () => {
     await expect.element(screen.getByRole('definition').nth(0)).toHaveTextContent('Belum dikategorikan');
     await expect.element(screen.getByRole('definition').nth(1)).toHaveTextContent('');
     await expect.element(screen.getByRole('region', { name: 'attachments' })).toHaveAttribute('data-read-only', 'true');
+    await expect.element(screen.getByText('repeat badge')).toBeVisible();
+    await expect.element(screen.getByRole('region', { name: 'repeat' })).not.toBeInTheDocument();
   });
 
   it('explains a detail that cannot be loaded', async () => {

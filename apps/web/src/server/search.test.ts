@@ -89,6 +89,44 @@ const DETAILS: Record<string, TransactionDetail> = {
   'tx-empty': detail('tx-empty', { postings: [] }),
 };
 
+const at = new Date('2026-10-15T05:00:00Z');
+const reviewItem = (id: string, label: string | null, payload: unknown, extra: object = {}) =>
+  ({ id, reason: 'due_occurrence', label, dueDate: '2026-10-18', payload, subject: null, ...extra }) as never;
+const REVIEW_ITEMS = [
+  reviewItem('rv-netflix', 'Netflix', {
+    kind: 'transaction',
+    draft: { type: 'expense', accountId: 'acc-bca', amountMinor: 186_000n, categoryId: null, occurredAt: at },
+  }),
+  reviewItem('rv-salary', 'Gaji', {
+    kind: 'transaction',
+    draft: { type: 'income', accountId: 'acc-gopay', amountMinor: 1_000n, categoryId: null, occurredAt: at },
+  }),
+  reviewItem('rv-sisihkan', 'Sisihkan dana', {
+    kind: 'transaction',
+    draft: {
+      type: 'transfer',
+      fromAccountId: 'acc-bca',
+      toAccountId: 'acc-gopay',
+      sentMinor: 1_150_000n,
+      occurredAt: at,
+    },
+  }),
+  reviewItem(
+    'rv-kopi',
+    'Kopi Kenangan',
+    { kind: 'category' },
+    { reason: 'category_deleted', subject: { amountMinor: -20_000n, currency: 'IDR' } },
+  ),
+  reviewItem('rv-gone', 'Kopi lama', { kind: 'category' }, { reason: 'category_deleted' }),
+  reviewItem(
+    'rv-leftover',
+    'Dana Darurat',
+    { kind: 'leftover', amountMinor: 1_150_000n, fromAccountId: 'acc-missing' },
+    { reason: 'period_close_proposal', dueDate: null },
+  ),
+  reviewItem('rv-rollover', null, { kind: 'rollover', deltaMinor: -5_000n }, { reason: 'period_close_proposal' }),
+];
+
 function fakeServices() {
   return {
     accounts: {
@@ -140,6 +178,7 @@ function fakeServices() {
         }),
       ),
     },
+    review: { list: vi.fn(() => Promise.resolve({ items: REVIEW_ITEMS, total: REVIEW_ITEMS.length })) },
   };
 }
 
@@ -250,6 +289,36 @@ describe('searchFor', () => {
     expect(fake.schedules.listSubscriptions).toHaveBeenCalledWith(USER);
   });
 
+  it('finds pending review items by name with the amount confirming them would move', async () => {
+    const results = await searchFor(services(), USER, 'kopi');
+    expect(fake.review.list).toHaveBeenCalledWith(USER, { limit: 200 });
+    expect(results.review).toEqual({
+      total: 2,
+      hits: [
+        {
+          id: 'rv-kopi',
+          reason: 'category_deleted',
+          title: 'Kopi Kenangan',
+          dueDate: '2026-10-18',
+          amountMinor: -20_000n,
+          currency: 'IDR',
+        },
+        expect.objectContaining({ id: 'rv-gone', amountMinor: 0n, currency: 'IDR' }),
+      ],
+    });
+    const every = await searchFor(services(), USER, '');
+    expect(every.review.hits.map((hit) => [hit.id, hit.amountMinor, hit.currency])).toEqual([
+      ['rv-netflix', -186_000n, 'IDR'],
+      ['rv-salary', 1_000n, 'IDR'],
+      ['rv-sisihkan', -1_150_000n, 'IDR'],
+      ['rv-kopi', -20_000n, 'IDR'],
+      ['rv-gone', 0n, 'IDR'],
+    ]);
+    expect(every.review.total).toBe(6);
+    // The accounts are loaded once, also for the review amounts.
+    expect(fake.accounts.list).toHaveBeenCalledTimes(2);
+  });
+
   it('finds tags through the repository query', async () => {
     const results = await searchFor(services(), USER, 'dana');
     expect(fake.tags.list).toHaveBeenCalledWith(USER, { query: 'dana' });
@@ -312,6 +381,23 @@ describe('recentFor', () => {
       },
     ]);
     expect(fake.tags.list).toHaveBeenCalledWith(USER);
+  });
+
+  it('resolves remembered review items while they are pending', async () => {
+    fake.recentItems.list.mockResolvedValue([recent('review', 'rv-rollover'), recent('review', 'rv-done')]);
+    expect(await recentFor(services(), USER)).toEqual([
+      {
+        kind: 'review',
+        hit: {
+          id: 'rv-rollover',
+          reason: 'period_close_proposal',
+          title: null,
+          dueDate: '2026-10-18',
+          amountMinor: -5_000n,
+          currency: 'IDR',
+        },
+      },
+    ]);
   });
 
   it('skips sources without remembered items', async () => {
