@@ -8,7 +8,7 @@
  * balances are compared before and after rather than to the seed.
  */
 import type { Page } from '@playwright/test';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { cardBalance, expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
 
 test.describe.configure({ mode: 'serial' });
 test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 1000 } });
@@ -32,12 +32,6 @@ const row = (page: Page, name: string, text?: string) => {
   const rows = table(page).getByRole('group', { name, exact: true });
   return text === undefined ? rows.first() : rows.filter({ hasText: text }).first();
 };
-/** The balance on an account card, as a number ("Rp42.810.000" → 42810000). */
-async function cardBalance(page: Page, account: string): Promise<number> {
-  const card = page.getByRole('list', { name: 'Kartu rekening' }).getByRole('button', { name: new RegExp(account) });
-  const text = (await card.innerText()).match(/Rp([\d.]+)/)?.[1] ?? '';
-  return Number(text.replaceAll('.', ''));
-}
 const rupiah = (value: number) => `Rp${value.toLocaleString('id-ID')}`;
 /** "128 transaksi di 8 rekening · …" → 128. */
 async function transactionCount(page: Page): Promise<number> {

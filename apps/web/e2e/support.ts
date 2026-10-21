@@ -183,6 +183,27 @@ export async function seedDesignPersona(email: string): Promise<void> {
 }
 
 /**
+ * "Time travel" for the scheduled jobs: runs, as the worker, what the `occurrences` and `reminders` jobs would have
+ * done for `email` by `at` (an ISO instant after the run's clock), e.g. Netflix's bill due 18 Okt moving to the
+ * Review queue and its H-1 reminder (`schedule-jobs.ts`). Returns the job results.
+ */
+export function runScheduleJobs(email: string, at: string): Record<string, number> {
+  const output = execFileSync('node', [path.resolve(import.meta.dirname, 'schedule-jobs.ts'), email, at], {
+    cwd: path.resolve(import.meta.dirname, '..'),
+    env: { ...process.env, ...e2eEnv() },
+    encoding: 'utf8',
+  });
+  return JSON.parse(output) as Record<string, number>;
+}
+
+/** The balance on an account card of the Transactions page, as a number ("Rp42.810.000" → 42810000). */
+export async function cardBalance(page: Page, account: string): Promise<number> {
+  const card = page.getByRole('list', { name: 'Kartu rekening' }).getByRole('button', { name: new RegExp(account) });
+  const text = (await card.innerText()).match(/Rp([\d.]+)/)?.[1] ?? '';
+  return Number(text.replaceAll('.', ''));
+}
+
+/**
  * FR-A4: walks the onboarding the quickest way, through the real UI and keyboard-free of data: the profile as
  * prefilled, the period start (tanggal 1) without an income, no accounts, "Lewati" for the goal, and "Ke Ringkasan".
  * For the specs whose users only need to get past it (the design persona's ledger comes from `seedDesignPersona`).
