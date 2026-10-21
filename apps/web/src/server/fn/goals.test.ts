@@ -406,10 +406,25 @@ describe('moving money', () => {
       description: 'Perpanjang STNK — Samsat Jaksel',
       tags: undefined,
     };
-    fake.goals.spend.mockResolvedValueOnce({ transactionId: 'tx' });
+    const used = {
+      id: GOAL_ID,
+      plans: [
+        { id: 'paused', active: false },
+        { id: PLAN_ID, active: true },
+      ],
+    };
+    fake.goals.spend.mockResolvedValueOnce({ transactionId: 'tx', goal: used });
+    fake.goals.setPlanActive.mockResolvedValueOnce({ id: GOAL_ID, stopped: true });
     expect(
       await call(fns.spendFromGoal, { context: context(), data: { goalId: GOAL_ID, markUsed: true, entry } }),
-    ).toEqual({ ok: true, value: { transactionId: 'tx' } });
+    ).toEqual({ ok: true, value: { transactionId: 'tx', goal: { id: GOAL_ID, stopped: true } } });
+    expect(fake.goals.setPlanActive).toHaveBeenCalledTimes(1);
+    expect(fake.goals.setPlanActive).toHaveBeenCalledWith(USER_ID, PLAN_ID, false);
+    fake.goals.spend.mockResolvedValueOnce({ transactionId: 'tx-2', goal: used });
+    expect(
+      await call(fns.spendFromGoal, { context: context(), data: { goalId: GOAL_ID, markUsed: false, entry } }),
+    ).toEqual({ ok: true, value: { transactionId: 'tx-2', goal: used } });
+    expect(fake.goals.setPlanActive).toHaveBeenCalledTimes(1);
     const draft = {
       type: 'expense',
       clientId: move.clientId,

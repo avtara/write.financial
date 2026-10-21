@@ -414,17 +414,17 @@ describe('RemainderDialog', () => {
       .element(dialog.getByText('Perpanjang STNK sudah terpakai. Sisanya masih tersimpan di BCA Tahapan.'))
       .toBeVisible();
     const options = dialog.getByRole('radio');
-    // Sinking funds first, then the other goals, then "Lepas jadi saldo bebas".
-    await expect.element(options.nth(0)).toHaveAccessibleName(/^Liburan Bali/);
+    // Only the other sinking funds, the nearest due first, then "Lepas jadi saldo bebas".
+    expect(options.elements()).toHaveLength(3);
+    await expect.element(options.nth(0)).toHaveAccessibleName(/^Servis motor/);
     await expect.element(options.nth(0)).toBeChecked();
-    await expect.element(options.nth(1)).toHaveAccessibleName(/^Servis motor/);
-    await expect.element(options.nth(5)).toHaveAccessibleName(/^Lepas jadi saldo bebas/);
+    await expect.element(options.nth(1)).toHaveAccessibleName(/^Liburan Bali/);
+    await expect.element(options.nth(2)).toHaveAccessibleName(/^Lepas jadi saldo bebas/);
     await expect.element(dialog).toMatchTextContent('Servis motorRp720.000 → Rp758.000 dari Rp1.200.00060% → 63%');
     await expect.element(dialog.getByText('Tetap di BCA Tahapan, tidak terikat tujuan mana pun')).toBeVisible();
-    await options.nth(1).click();
     await dialog.getByRole('button', { name: 'Pindahkan' }).click();
     expect(onMove).toHaveBeenCalledWith(USED, SERVIS_MOTOR.id);
-    await options.nth(5).click();
+    await options.nth(2).click();
     await dialog.getByRole('button', { name: 'Pindahkan' }).click();
     expect(onMove).toHaveBeenLastCalledWith(USED, null);
   });

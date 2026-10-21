@@ -93,15 +93,17 @@ export function SinkingFunds({ overview, accounts, locale, onOpen, onNew }: Sink
                       </span>
                     </span>
                     <GoalBar color={goal.color} progressBps={snapshot.progressBps} />
-                    <span className="flex items-baseline justify-between gap-2 text-[11px] whitespace-nowrap text-subtle">
-                      <span>
+                    <span className="flex flex-wrap items-baseline justify-between gap-x-2 text-[11px] text-subtle">
+                      <span className="whitespace-nowrap">
                         <Money minor={goal.savedMinor} currency={goal.currency} context="amount" locale={locale} />
                         {' / '}
                         <Money minor={goal.targetMinor} currency={goal.currency} context="amount" locale={locale} />
                       </span>
-                      {goal.deadlineMonth === null
-                        ? null
-                        : m.goals_sinking_due({ month: periodLabel(goal.deadlineMonth, locale) })}
+                      {goal.deadlineMonth === null ? null : (
+                        <span className="whitespace-nowrap">
+                          {m.goals_sinking_due({ month: periodLabel(goal.deadlineMonth, locale) })}
+                        </span>
+                      )}
                     </span>
                   </span>
                 </button>

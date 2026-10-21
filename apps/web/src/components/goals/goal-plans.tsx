@@ -227,7 +227,7 @@ function AddPlan({
   const home = goal.accountId ?? goal.sources[0]?.accountId ?? null;
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<bigint | null>(null);
-  const [day, setDay] = useState(overview.payday ?? DEFAULT_DAY);
+  const [day, setDay] = useState(overview.setAside?.monthDay ?? overview.payday ?? DEFAULT_DAY);
   const [fromId, setFromId] = useState<string | null>(usable.find((account) => account.id !== home)?.id ?? null);
   const [toId, setToId] = useState<string | null>(home);
   const [pending, setPending] = useState(false);

@@ -214,6 +214,22 @@ describe('GoalForm', () => {
     expect(props.onSaved).not.toHaveBeenCalled();
   });
 
+  it('keeps an emergency fund’s target while its multiple stays, and recomputes it from the spending once it changes', async () => {
+    const { view } = form({ goal: DANA_DARURAT, averageSpendingMinor: 18_300_000n });
+    const { screen } = await view;
+    const dialog = screen.getByRole('dialog', { name: 'Ubah Dana Darurat' });
+    await expect.element(dialog.getByText('Rp54.000.000')).toBeVisible();
+    await dialog.getByRole('combobox', { name: 'Berapa bulan pengeluaran' }).selectOptions('6');
+    await expect.element(dialog.getByText('Rp109.800.000')).toBeVisible();
+    await dialog.getByRole('combobox', { name: 'Berapa bulan pengeluaran' }).selectOptions('3');
+    await dialog.getByRole('button', { name: 'Simpan' }).click();
+    expect(server.updateGoal).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        patch: expect.objectContaining({ targetMinor: 54_000_000n, targetMonths: 3 }) as unknown,
+      }) as unknown,
+    });
+  });
+
   it('renders nothing while closed, and a template without a dynamic target', async () => {
     const closed = form({ open: false });
     expect((await closed.view).screen.getByRole('dialog').query()).toBeNull();
