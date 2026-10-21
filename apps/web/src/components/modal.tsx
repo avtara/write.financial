@@ -13,7 +13,8 @@ export interface ModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description?: string;
+  /** A sentence; may hold `<Money>` amounts. */
+  description?: ReactNode;
   /** For content that shows its own heading (`TotpEnrollment`): the title is only announced. */
   hideTitle?: boolean;
   /** `md` 420 px (forms), `lg` 460 px (authenticator setup), `xl` 560 px (account form, reconciliation). */
