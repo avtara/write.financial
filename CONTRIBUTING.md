@@ -24,7 +24,7 @@ cp .env.example .env
 pnpm dev:up        # Postgres, Valkey, SeaweedFS, and Mailpit in Docker (stop with pnpm dev:down, wipe with pnpm dev:reset)
 pnpm --filter @wf/db db:bootstrap   # database roles, once per database (uses DATABASE_URL_SUPERUSER from .env)
 pnpm --filter @wf/db db:migrate     # tables, Row-Level Security, seed rows
-pnpm check         # everything CI checks before the slower jobs
+pnpm ci:fast       # the CI fast lane: static checks and the unit tests of your changes
 ```
 
 `.env` is for local development only and is gitignored. Never put real production credentials in it.
@@ -35,10 +35,31 @@ pnpm check         # everything CI checks before the slower jobs
 
 1. Create a branch from the latest `main`, for example `feat/budget-rollover` or `fix/period-boundary`.
 2. Make small, focused commits, each signed off (`git commit -s`, see [DCO](#developer-certificate-of-origin-dco)).
-3. Run `pnpm check` (and the other test commands that apply, see [Commands](#commands)) before pushing.
+3. Run `pnpm ci:fast` (and the other test commands that apply, see [Commands](#commands)) before pushing.
 4. Push and open a pull request against `main`. Describe what changed, why, and how you tested it; link the issue if there is one.
-5. CI must be green. Required checks: lint/format/typecheck/repo checks, unit tests (100% per-file coverage), mutation tests, integration tests, secret scan (gitleaks), and DCO sign-off.
+5. CI runs the [fast lane](#ci-lanes) on every push; the single required check, **CI gate**, passes when it (and the data lane, when it applies) is green. The pull request that closes a phase gets the `full-ci` label and must pass the full lane.
 6. Keep your branch up to date by **rebasing** onto `main` (`git fetch origin && git rebase origin/main`), never by merging `main` into it. `main` requires a linear history, and pull requests are merged with **rebase merge**, so every commit lands on `main` as you wrote it. Squash fixup commits (`git rebase -i origin/main`) before the pull request is merged, so each commit on `main` is meaningful and passes CI on its own.
+
+Rebase conflicts in generated or ordered files:
+
+- `routeTree.gen.ts` conflict: take either side (e.g. `git checkout --theirs apps/web/src/generated/routeTree.gen.ts`), run `pnpm routes`, stage the result. Never hand-merge it.
+- Migrations: renumber yours after the newest one on `main` (the SQL file, its `meta/_journal.json` entry, and its snapshot); `pnpm check:migrations` verifies the order.
+
+## CI lanes
+
+One workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) with two lanes; its first job, "Lane and changed paths", picks the lane.
+
+| Lane | Runs on | Jobs |
+|---|---|---|
+| **Fast** | every push to a pull request | format, lint, typecheck, repo checks (SPDX, test files, tokens, i18n, migration order); unit tests of the changed code (`vitest --changed`, no coverage gate; includes the D14 architecture test when worker code changes); E2E core (Playwright projects `m0`, `tablet`, `app` against the production build); gitleaks; DCO |
+| **Data** (added to the fast lane) | pull requests whose diff touches `packages/db`, `packages/auth`, `packages/crypto`, `apps/worker`, `apps/web/src/server`, or `deploy` | integration tests (Testcontainers) and the backup restore |
+| **Full** | pushes to `main`, manual runs (`workflow_dispatch`), and pull requests labelled `full-ci` | everything: unit tests with the 100% per-file coverage gate, mutation tests (domain + crypto, incremental on pull requests), integration, every E2E project, the Docker image build + boot with the install proof, and the backup restore |
+
+- **CI gate** is the only required check. It needs every job and passes when every job of the run's lane succeeded: the fast lane plus the data lane when it applies, or with `full-ci` the full lane (it lists the failed or skipped jobs otherwise).
+- **Unit tests are still required for every change**: the fast lane runs the tests of the changed code and the co-located test-file check. **The 100% per-file coverage gate is enforced at phase end**: the pull request that closes a phase gets the `full-ci` label and merges only after the full lane. Every push to `main` also runs the full lane; that run is informational (nothing waits for it), and a red run on `main` is fixed in the next pull request.
+- **The `full-ci` label** switches the pull request to the full lane: adding it starts a full run, and every later push runs full too while the label stays; removing it goes back to the fast lane. Any label change or push cancels the pull request's run in progress and starts a new one.
+- **Mutation tests** reuse Stryker's incremental results cached per base branch: a pull request re-tests the mutants in changed domain/crypto files, and every mutant when a domain/crypto test, the mutation config, or the lockfile changed. Pushes to `main` re-test every mutant.
+- **`pnpm ci:fast`** reproduces the fast lane locally with laptop-sized limits (ESLint with a 6 GB heap, two typecheck and Vitest workers, one command at a time): static checks, DCO, and the unit tests of the code changed since the merge base with `origin/main`. `pnpm ci:fast --e2e` adds the production build and E2E core (start the dev services first with `pnpm dev:up`).
 
 ## Developer Certificate of Origin (DCO)
 
@@ -66,8 +87,10 @@ For just the last commit, `git commit --amend --no-edit -s` works too. If the au
 Every change ships with unit tests, and CI blocks the merge otherwise ([PRD D27](docs/PRD.md#12-default-decisions--questions-for-the-product-owner), [plan §9](docs/IMPLEMENTATION_PLAN.md#9-testing-strategy)).
 
 - **Co-located tests.** Every source file `src/**/*.ts(x)` in `apps/*`, `packages/*`, and `tools/*` has a test file next to it: `foo.ts` → `foo.test.ts`, `Foo.tsx` → `Foo.test.tsx`. `pnpm check:test-files` fails when one is missing.
-- **100% coverage per file.** Lines, branches, functions, and statements, enforced per file by Vitest (v8 provider). Every source file is included in the coverage report, so a file without tests counts as 0%. A pull request that lowers any file below 100% cannot be merged.
+- **100% coverage per file.** Lines, branches, functions, and statements, enforced per file by Vitest (v8 provider). Every source file is included in the coverage report, so a file without tests counts as 0%. Keep every file you touch at 100%: the full CI lane enforces it at phase end (`full-ci`) and reports it on every push to `main` (see [CI lanes](#ci-lanes)), and a file below 100% blocks the phase.
 - **Integration tests** are named `*.integration.test.ts` and run against real Postgres/Valkey/SeaweedFS through Testcontainers (Docker required). They prove what unit tests fake (RLS, S3, queues), do not count toward coverage, and never replace the co-located unit test.
+- **Tenant isolation.** New server function: add its case to `apps/web/test/isolation/cases/<module>.ts`. New server-function module: add it to `FUNCTIONS` in `apps/web/test/isolation/harness.ts`, create `cases/<module>.ts`, and add one spread line to `MATRIX` in `apps/web/src/server/fn/isolation.integration.test.ts`; the completeness guard still fails on a missing case.
+- **E2E tests.** After `m0` (setup wizard), the feature projects run in parallel on `WF_E2E_WORKERS` workers (default 3). Each signs up its own invited user, with the design persona if it needs the ledger, in its `beforeAll`: `setUpProjectUser(browser, projectUser('<project>'), { persona })` from `e2e/support.ts`. A new spec gets its own project in `FEATURES` (`apps/web/playwright.config.ts`) and never shares a user. CI retries a failed test once and lists flaky tests in the job summary; fix them, don't rely on the retry.
 - **Mutation testing.** `packages/domain` and `packages/crypto` also run Stryker; the mutation score must stay at **≥ 90%** (aim for 100%). Coverage alone does not prove a test asserts anything.
 - **Coverage-ignore policy.** Exclusions are only for code we do not write (generated Paraglide output, generated code, `*.d.ts`, config files) and live in one shared list in [`vitest.config.ts`](vitest.config.ts), reviewed in pull requests. Inline `v8`/`c8`/`istanbul ignore` comments are rejected by lint unless they carry a reason and an issue reference, e.g. `/* v8 ignore next -- Node-only fallback, see #42 */`. Prefer deleting unreachable branches over ignoring them.
 - **Good tests** assert behavior and boundaries, not implementation details. Golden numbers come from [PRD §7](docs/PRD.md#7-canonical-calculation-rules) and [plan §5](docs/IMPLEMENTATION_PLAN.md#5-domain-package-golden-tests-from-the-design-seed); use property tests (`fast-check`) where a law exists (round-trips, sums).
@@ -76,9 +99,11 @@ Every change ships with unit tests, and CI blocks the merge otherwise ([PRD D27]
 
 | Command | What it does |
 |---|---|
-| `pnpm check` | Format check, lint, typecheck, SPDX header check, test-file check, and unit tests with the coverage gate. Run before every push. |
+| `pnpm ci:fast` | The CI fast lane locally (see [CI lanes](#ci-lanes)); `--e2e` adds E2E core. Run before every push. |
+| `pnpm check` | Format check, lint, typecheck, SPDX header, test-file, token, and migration-order checks, and unit tests with the coverage gate (the whole suite: needs a lot of RAM). |
+| `pnpm check:migrations` | `packages/db/migrations` is numbered consecutively without gaps or duplicates and matches `meta/_journal.json` (after a rebase, renumber yours after the newest one on `main`). |
 | `pnpm test` | Unit tests in watch mode. |
-| `pnpm test:unit` | Unit tests once, with the 100% per-file coverage gate (same as CI). |
+| `pnpm test:unit` | Unit tests once, with the 100% per-file coverage gate (same as the full CI lane). |
 | `pnpm test:integration` | Integration tests (`*.integration.test.ts`) against real services; needs Docker. |
 | `pnpm test:mutation` | Stryker mutation tests for `packages/domain` and `packages/crypto` (≥ 90%). Run it when you change those packages. |
 | `pnpm test:e2e` | Builds the web app and runs the Playwright smoke tests (`apps/web/e2e`) against the production server. Run `pnpm exec playwright install chromium` once first. |
@@ -86,6 +111,7 @@ Every change ships with unit tests, and CI blocks the merge otherwise ([PRD D27]
 | `pnpm --filter @wf/web dev` | The web app with hot reload at http://localhost:3000. Reads `.env`. |
 | `pnpm --filter @wf/web build` / `start` | Production build, then the Node server (`apps/web/.output/server/index.mjs`) on port 3000 (`PORT`). `start` reads `.env`. |
 | `pnpm format` | Format the repository with Prettier. |
+| `pnpm routes` | Regenerates `apps/web/src/generated/routeTree.gen.ts` from the route files without a build (~3 s: Vite runs the TanStack Router generator when it resolves the config). |
 | `pnpm lint` / `pnpm typecheck` | Run ESLint or TypeScript on their own. |
 
 ## Code conventions
