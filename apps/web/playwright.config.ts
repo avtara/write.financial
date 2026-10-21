@@ -26,6 +26,10 @@ const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse
  *   keyboard, 1440/1024/768) as the invited user,
  * - `subscriptions`: Langganan (FR-SUB1–SUB6): the seed's goldens, "Ya, catat" through the Review queue, detected
  *   candidates, a new subscription (keyboard only), pausing, ⌘K, 1440/1024/768 (it changes the persona's figures),
+ * - `review`: the Review queue (FR-L7) as its own invited user with the design persona, after the scheduled jobs ran to
+ *   18 Okt — Netflix "Sudah dibayar" and September's
+ *   leftover "Terapkan" change balances only once confirmed; keyboard only; 1440/1024/768; "Ulangi" and stopping it
+ *   (FR-T6, FR-L8),
  * - `onboarding`: the 5-step onboarding (FR-A4) for new users the admin invites (keyboard-only at 1440, skipping the
  *   goal at 1024, the quick path at 768). Last, so its extra users and admin sessions touch no other spec. (`m0`
  *   itself takes the admin and the invited user through the onboarding's quick path.)
@@ -116,9 +120,16 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {
+      // Its own invited user with the persona, so it does not depend on what `subscriptions` changes.
+      name: 'review',
+      testMatch: 'review.spec.ts',
+      dependencies: ['transactions'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
       name: 'onboarding',
       testMatch: 'onboarding.spec.ts',
-      dependencies: ['transactions', 'cmdk'],
+      dependencies: ['review', 'cmdk'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
   ],
