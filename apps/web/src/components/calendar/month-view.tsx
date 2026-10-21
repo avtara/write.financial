@@ -283,7 +283,7 @@ export function MonthGrid({
           ) : null}
           {shown('income') && day.inMinor > 0n ? (
             <span className="flex items-center gap-0.5 truncate text-[10px] text-green-fg">
-              <ArrowDownLeft aria-hidden="true" className="size-2.5 shrink-0" />
+              <ArrowDownLeft aria-hidden="true" className="size-2.5 shrink-0 max-lg:hidden" />
               {received}
             </span>
           ) : null}
@@ -328,10 +328,10 @@ export function MonthGrid({
                   currency={baseCurrency}
                   context="delta"
                   locale={locale}
-                  className="text-[11px]"
+                  className="text-[10px] lg:text-[11px]"
                 />
               ) : shown('spending') ? (
-                <span className="font-mono text-[11.5px] text-fg">{spentPlain}</span>
+                <span className="font-mono text-[10.5px] text-fg lg:text-[11.5px]">{spentPlain}</span>
               ) : null
             ) : null}
             {shown('spending') && needsShare !== null ? (
@@ -377,7 +377,7 @@ export function MonthGrid({
         </ul>
       </header>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] table-fixed border-separate border-spacing-1">
+        <table className="w-full table-fixed border-separate border-spacing-1">
           <thead>
             <tr>
               {weekdays.map((name) => (
@@ -390,7 +390,7 @@ export function MonthGrid({
                   {name.short}
                 </th>
               ))}
-              <th scope="col" className="w-[96px] text-right text-[11.5px] font-normal text-subtle">
+              <th scope="col" className="w-[96px] text-right text-[11.5px] font-normal text-subtle max-lg:hidden">
                 {m.calendar_total()}
               </th>
             </tr>
@@ -410,7 +410,7 @@ export function MonthGrid({
                       )}
                     </td>
                   ))}
-                  <td className="p-0 pl-2 text-right align-middle">
+                  <td className="p-0 pl-2 text-right align-middle max-lg:hidden">
                     <span className="flex flex-col items-end gap-0.5 text-[11px] text-subtle">
                       <span>{m.calendar_week_label({ week: index + 1 })}</span>
                       {future ? null : <span className="font-mono text-[13px] text-fg">{weekSpent}</span>}

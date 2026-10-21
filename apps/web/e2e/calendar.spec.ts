@@ -79,6 +79,7 @@ test('works with the keyboard only: a day, the legend, and recording on it', asy
   await page.keyboard.press('Enter');
   const sheet = page.getByRole('dialog');
   await expect(sheet).toContainText('5 Okt 2026, 12.00');
+  await expect(sheet.getByRole('textbox', { name: 'Jumlah' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
 });
@@ -126,6 +127,14 @@ test('the layout holds at 1024 and 768 px', async ({ page }) => {
       await expectNoSidewaysScroll(page);
     }
     await openCalendar(page);
+    // The month grid fits its card (FR-TB3): no sideways scrolling inside it either.
+    expect(
+      await page.evaluate(() =>
+        [...document.querySelectorAll('table')].every(
+          (table) => table.scrollWidth <= (table.parentElement?.clientWidth ?? 0),
+        ),
+      ),
+    ).toBe(true);
     await screenshot(page, `calendar-${String(width)}`);
   }
 });
