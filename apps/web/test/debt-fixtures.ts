@@ -8,6 +8,7 @@ import type { CardView, DebtView, InstallmentView } from '@wf/db/debts';
 import type { LocalDate } from '@wf/domain/period';
 import type { DebtsOverview } from '../src/server/fn/debts.ts';
 import { account, BCA, JAGO } from './ledger-fixtures.ts';
+import { NO_RECEIVABLES } from './receivable-fixtures.ts';
 import { transactionRow } from './transaction-fixtures.ts';
 
 const d = (value: string) => value as LocalDate;
@@ -170,7 +171,8 @@ export function debtsOverview(overrides: Partial<DebtsOverview> = {}): DebtsOver
     debts: [],
     cards: [],
     priority: ['installments', 'spending'],
-    receivablesMinor: 0n,
+    receivables: NO_RECEIVABLES,
+    reminderTime: '09:00',
     month: { incomeMinor: 26_000_000n, expenseMinor: 16_500_000n },
     ...overrides,
   };

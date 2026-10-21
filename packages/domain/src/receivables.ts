@@ -30,6 +30,9 @@ export const RECEIVABLE_REMIND_DAYS_BEFORE = 1;
 /** FR-U7 paid history window ("90 hari terakhir"). */
 export const PAID_HISTORY_DAYS = 90;
 
+/** Longest name of the person who owes the money (characters, trimmed). */
+export const MAX_COUNTERPARTY_LENGTH = 60;
+
 const BPS = 10_000n;
 const DAYS_PER_WEEK = 7;
 

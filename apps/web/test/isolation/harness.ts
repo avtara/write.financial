@@ -49,6 +49,7 @@ import {
   saveOnboardingProfile,
   skipOnboardingGoal,
 } from '../../src/server/fn/onboarding.ts';
+import * as receivables from '../../src/server/fn/receivables.ts';
 import * as review from '../../src/server/fn/review.ts';
 import * as schedules from '../../src/server/fn/schedules.ts';
 import * as search from '../../src/server/fn/search.ts';
@@ -149,6 +150,7 @@ export const FUNCTIONS = {
   ...goals,
   ...ledger,
   ...notifications,
+  ...receivables,
   ...review,
   ...schedules,
   ...search,

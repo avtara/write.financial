@@ -22,6 +22,7 @@ const fake = vi.hoisted(() => ({
   accounts: { list: vi.fn(), get: vi.fn() },
   preferences: { get: vi.fn(), update: vi.fn() },
   receivables: { list: vi.fn() },
+  notificationSettings: { get: vi.fn(() => Promise.resolve({ reminderTime: '09:00' })) },
   transactionQuery: { summary: vi.fn(), list: vi.fn() },
   transactions: { get: vi.fn() },
 }));
@@ -35,6 +36,7 @@ vi.mock('../runtime.ts', () => ({
       accounts: fake.accounts,
       preferences: fake.preferences,
       receivables: fake.receivables,
+      notificationSettings: fake.notificationSettings,
       transactionQuery: fake.transactionQuery,
       transactions: fake.transactions,
       // 15 Okt 2026, 09.42 WIB (the E2E clock).
@@ -117,7 +119,8 @@ describe('getDebtsOverview', () => {
           { ...visa({ accountId: 'acc-new', statementDay: null }), transactions: [] },
         ],
         priority: ['installments', 'spending'],
-        receivablesMinor: 542_500n,
+        receivables: { outstandingMinor: 542_500n },
+        reminderTime: '09:00',
         month: { incomeMinor: 26_000_000n, expenseMinor: 16_500_000n },
       },
     });

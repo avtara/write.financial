@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Server functions of "Utang & cicilan" (PRD §6.13 FR-R7, FR-U1–U6): the page data (debts, credit cards with their
- * current bill, the payment priority, the receivables total, and the month used by the impact simulation), adding a
+ * current bill, the payment priority, the receivables list, and the month used by the impact simulation), adding a
  * debt, turning a card expense into an installment plan (afterwards or while recording it), recording a payment to a
  * card with its allocation and recalculation, and the payment priority. Schedules and allocations are computed here
  * from `@wf/domain` (never taken from the browser); the repositories check their invariants. The user always comes
@@ -10,6 +10,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import type { AccountsOverview } from '@wf/db/accounts';
 import type { CardView, DebtView } from '@wf/db/debts';
+import type { ReceivablesOverview } from '@wf/db/receivables';
 import { localDateOf } from '@wf/db/ledger-core';
 import { LedgerError } from '@wf/db/ledger-errors';
 import type { TransactionRow } from '@wf/db/transaction-query';
@@ -55,8 +56,10 @@ export interface DebtsOverview {
   readonly debts: DebtItem[];
   readonly cards: CardBill[];
   readonly priority: CcPaymentBucket[];
-  /** "Piutang": Σ open receivables. */
-  readonly receivablesMinor: bigint;
+  /** The Receivables tab (FR-U7): active ones, the 90-day history, Σ outstanding ("Piutang"), and the people. */
+  readonly receivables: ReceivablesOverview;
+  /** `HH:mm` of the user's reminders ("pengingat H-1 jam 09.00"). */
+  readonly reminderTime: string;
   /** Income and spending of the current calendar month ("pola Oktober", FR-U5), in the base currency. */
   readonly month: { readonly incomeMinor: bigint; readonly expenseMinor: bigint };
 }
@@ -140,12 +143,13 @@ function cardPlan(
 export const getDebtsOverview = createServerFn({ method: 'GET' }).handler(
   ({ context }): Promise<Result<DebtsOverview>> =>
     forUser(context, async (userId, all) => {
-      const [list, cards, accounts, preferences, receivables] = await Promise.all([
+      const [list, cards, accounts, preferences, receivables, notifications] = await Promise.all([
         all.debts.list(userId),
         all.debts.cards(userId),
         all.accounts.list(userId),
         all.preferences.get(userId),
         all.receivables.list(userId),
+        all.notificationSettings.get(userId),
       ]);
       const month = list.today.slice(0, 7) as YearMonth;
       const planned = new Set(list.debts.map((debt) => debt.sourceTransactionId));
@@ -176,7 +180,8 @@ export const getDebtsOverview = createServerFn({ method: 'GET' }).handler(
         ),
         cards: bills,
         priority: paymentPriority(preferences.ccPaymentPriority),
-        receivablesMinor: receivables.outstandingMinor,
+        receivables,
+        reminderTime: notifications.reminderTime,
         month: { incomeMinor: summary.inMinor, expenseMinor: summary.outMinor },
       };
     }),
