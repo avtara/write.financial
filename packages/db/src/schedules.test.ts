@@ -339,6 +339,16 @@ describe('recurrences', () => {
     const undone = await app((s) => s.undoStopRecurrence(fx.userId, id));
     expect(undone).toMatchObject({ status: 'active', stoppedAt: null, occurrences: { confirmed: 1, open: 2 } });
     await expect(app((s) => s.undoStopRecurrence(fx.userId, id))).resolves.toEqual(undone);
+    // The paying transaction's history tells both, once each.
+    expect(
+      await test.query(
+        `SELECT action, meta FROM activity_log WHERE entity_id = $1 AND action::text LIKE 'recurrence%' ORDER BY at, id`,
+        [transactionId],
+      ),
+    ).toEqual([
+      { action: 'recurrence_stopped', meta: { recurrenceId: id, deleted: 2 } },
+      { action: 'recurrence_resumed', meta: { recurrenceId: id } },
+    ]);
     await rejects(
       app((s) => s.stopRecurrence(fx.userId, randomUUID())),
       'NOT_FOUND',
@@ -347,6 +357,54 @@ describe('recurrences', () => {
       app((s) => s.undoStopRecurrence(fx.userId, randomUUID())),
       'NOT_FOUND',
     );
+  });
+
+  it('links the transaction recorded with "Ulangi" as the first occurrence and finds it again', async () => {
+    const today = await fx.entry('expense', '2026-10-15', 150_000n, fx.category('system:rent'));
+    const weekly = await app((s) =>
+      s.createRecurrence(fx.userId, { ...rent(), freq: 'weekly', startOn: d('2026-10-15') }, { transactionId: today }),
+    );
+    // Today's occurrence is the recorded transaction, so the daily job never proposes it.
+    expect((await dues(weekly.id)).slice(0, 2)).toEqual(['2026-10-15 confirmed', '2026-10-22 scheduled']);
+    expect(weekly).toMatchObject({ weekday: 4, preview: ['2026-10-15', '2026-10-22', '2026-10-29'] });
+    expect(
+      await test.query(
+        `SELECT action, meta FROM activity_log WHERE entity_id = $1 AND action::text LIKE 'recurrence%'`,
+        [today],
+      ),
+    ).toEqual([
+      { action: 'recurrence_set', meta: { recurrenceId: weekly.id, freq: 'weekly', weekday: 4, monthDay: null } },
+    ]);
+    await expect(app((s) => s.recurrenceOfTransaction(fx.userId, today))).resolves.toMatchObject({ id: weekly.id });
+    // Already repeating, deleted, or unknown transactions are refused.
+    await rejects(
+      app((s) => s.createRecurrence(fx.userId, rent(), { transactionId: today })),
+      'NOT_FOUND',
+    );
+    await rejects(
+      app((s) => s.createRecurrence(fx.userId, rent(), { transactionId: randomUUID() })),
+      'NOT_FOUND',
+    );
+
+    // Recorded on a day that is not a rule date (Monday rule, Wednesday payment): linked only.
+    const past = await fx.entry('expense', '2026-10-14', 150_000n, fx.category('system:rent'));
+    const monday = await app((s) =>
+      s.createRecurrence(
+        fx.userId,
+        { ...rent(), freq: 'weekly', weekday: 1, startOn: d('2026-10-14') },
+        { transactionId: past },
+      ),
+    );
+    expect((await dues(monday.id))[0]).toBe('2026-10-19 scheduled');
+    await expect(app((s) => s.recurrenceOfTransaction(fx.userId, past))).resolves.toMatchObject({ id: monday.id });
+
+    // A transaction that confirmed an occurrence belongs to its recurrence too; others to none.
+    const { id } = await app((s) => s.createRecurrence(fx.userId, rent()));
+    const paid = await pastCharge('recurrence', id, '2026-10-14', 3_500_000n);
+    await expect(app((s) => s.recurrenceOfTransaction(fx.userId, paid))).resolves.toMatchObject({ id });
+    const plain = await fx.entry('expense', '2026-10-13', 1_000n, fx.category('system:rent'));
+    await expect(app((s) => s.recurrenceOfTransaction(fx.userId, plain))).resolves.toBeNull();
+    await expect(app((s) => s.recurrenceOfTransaction(fx.userId, randomUUID()))).resolves.toBeNull();
   });
 });
 

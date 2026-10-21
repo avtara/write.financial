@@ -9,6 +9,7 @@ import {
   fromDate,
   monthWeeks,
   toLocalDate,
+  weekdayName,
   weekdayNames,
 } from './dates.ts';
 
@@ -52,6 +53,9 @@ describe('names and formats', () => {
   it('names the weekdays in week order', () => {
     expect(weekdayNames('id', 1).map((day) => day.short)).toEqual(['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']);
     expect(weekdayNames('en', 0)[0]).toEqual({ short: 'Sun', long: 'Sunday' });
+    expect(weekdayName(4, 'id')).toBe('Kamis');
+    expect(weekdayName(1, 'en')).toBe('Monday');
+    expect(weekdayName(7, 'id')).toBe('Minggu');
   });
 
   it('names the month', () => {
