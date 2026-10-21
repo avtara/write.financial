@@ -62,12 +62,16 @@ export function goalMovements(
   const occurrenceTransactions = new Set(scheduled.flatMap((item) => item.transactionId ?? []));
   for (const item of scheduled) {
     if (item.sourceType !== 'recurrence') continue;
-    const confirmed = item.status === 'confirmed';
-    const plans = goals.flatMap((goal) =>
-      goal.plans
-        .filter((plan) => plan.recurrenceId === item.sourceId && (plan.active || confirmed))
-        .map((plan) => ({ goalId: goal.id, plan })),
+    const linked = goals.flatMap((goal) =>
+      goal.plans.filter((plan) => plan.recurrenceId === item.sourceId).map((plan) => ({ goalId: goal.id, plan })),
     );
+    const active = linked.filter(({ plan }) => plan.active);
+    // A recorded occurrence also sent the shares of plans paused since — unless the active plans alone make up what
+    // it sent (a plan stopped before it, as a goal reached or used on the 20th stops sending on the 25th).
+    const plans =
+      item.status === 'confirmed' && active.reduce((sum, { plan }) => sum + plan.amountMinor, 0n) !== item.expectedMinor
+        ? linked
+        : active;
     const [first] = plans;
     if (first === undefined) continue;
     const shares = plans.map(({ goalId, plan }) => ({ goalId, amountMinor: plan.amountMinor }));

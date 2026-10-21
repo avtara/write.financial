@@ -140,7 +140,9 @@ describe('goalMovements', () => {
     const statuses = ['scheduled', 'due_review', 'unconfirmed', 'confirmed', 'skipped'] as const;
     const movements = goalMovements(
       [paused],
-      statuses.map((status, index) => item({ sourceId: 'rec-p', dueDate: d(`2026-10-0${String(index + 1)}`), status })),
+      statuses.map((status, index) =>
+        item({ sourceId: 'rec-p', dueDate: d(`2026-10-0${String(index + 1)}`), status, expectedMinor: 1n }),
+      ),
       [],
     );
     expect(movements.map((movement) => movement.status)).toEqual(['recorded']);
@@ -154,6 +156,31 @@ describe('goalMovements', () => {
         [],
       ).map((movement) => movement.status),
     ).toEqual(['scheduled', 'review', 'review', 'recorded', 'skipped']);
+  });
+
+  it('leaves a plan stopped before a recorded occurrence out of it when the active plans make up its amount', () => {
+    const usedStnk = { ...PERPANJANG_STNK, plans: PERPANJANG_STNK.plans.map((entry) => ({ ...entry, active: false })) };
+    // STNK used on the 20th, so the 25th sent Rp1.107.000; STNK paused after the 25th, so it sent Rp1.150.000.
+    for (const [expectedMinor, goalIds] of [
+      [1_107_000n, [LIBURAN_BALI.id, SERVIS_MOTOR.id]],
+      [1_150_000n, [LIBURAN_BALI.id, SERVIS_MOTOR.id, PERPANJANG_STNK.id]],
+    ] as const) {
+      const [movement] = goalMovements(
+        [LIBURAN_BALI, SERVIS_MOTOR, usedStnk],
+        [
+          item({
+            sourceId: 'rec-sisihkan',
+            dueDate: d('2026-10-25'),
+            status: 'confirmed',
+            transactionId: 'tx-sisihkan',
+            expectedMinor,
+          }),
+        ],
+        [],
+      );
+      expect(movement?.amountMinor).toBe(expectedMinor);
+      expect(movement?.shares.map((share) => share.goalId)).toEqual(goalIds);
+    }
   });
 
   it('orders a day’s movements by key', () => {

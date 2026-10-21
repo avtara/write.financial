@@ -280,6 +280,7 @@ test('"Sisihkan tiap gajian" on the 25th waits in Perlu ditinjau and is recorded
 
   await openGoals(page);
   await expect(setAside).toContainText('Tercatat');
+  await expect(setAside).toContainText('+1.357.000');
   await expect(goalRow(page, 'Dana Darurat')).toContainText('Rp12.482.000');
 });
 
