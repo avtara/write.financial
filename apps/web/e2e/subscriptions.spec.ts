@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Langganan (FR-SUB1–SUB6) as the invited user with the design persona on 15 Okt 2026: the goldens (Rp904.900 per
+ * Langganan (FR-SUB1–SUB6) as its own invited user with the design persona on 15 Okt 2026: the goldens (Rp904.900 per
  * month, ≈ Rp11.520.000 per year, Rp660.900 left in October, Netflix on the 18th as a scheduled bill), the overdue
  * iCloud+ bill confirmed through the Review queue, detected candidates added from "Deteksi dari transaksi", a new
- * subscription, pausing Netflix, ⌘K, the keyboard, and the layout at 1440, 1024, and 768 px. Runs after the specs
- * that assert the seed's figures: it changes them.
+ * subscription, pausing Netflix, ⌘K, the keyboard, and the layout at 1440, 1024, and 768 px. It changes the persona's
+ * figures, which no other project sees.
  */
 import type { Page } from '@playwright/test';
 import postgres from 'postgres';
 import { e2eEnv } from './env.ts';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('subscriptions');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE, viewport: { width: 1440, height: 900 } });
+test.use({ storageState: user.state, viewport: { width: 1440, height: 900 } });
 
-test.beforeAll(async () => {
-  const { email } = loadAccount('user');
-  await seedDesignPersona(email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
+  const { email } = user;
   // What the worker's daily `detect-recurring` job would have found (FR-SUB4): Vidio and Google One, 3× each.
   const sql = postgres(e2eEnv()['DATABASE_URL_SUPERUSER'] ?? '', { max: 1, onnotice: () => undefined });
   try {

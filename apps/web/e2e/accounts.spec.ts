@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * "Rekening & dompet" (M1, FR-R1–R6) as the invited user with the design persona seeded: the available balance of
+ * "Rekening & dompet" (M1, FR-R1–R6) as its own invited user with the design persona seeded: the available balance of
  * the 128 seed transactions, adding an account, reconciling with a correction, archive and restore, and the layout
  * at 1440 (inline detail panel), 1024 (rail + Sheet), and 768.
  */
 import type { Page } from '@playwright/test';
-import { expect, loadAccount, screenshot, seedDesignPersona, test, USER_STATE } from './support.ts';
+import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
+const user = projectUser('accounts');
 test.describe.configure({ mode: 'serial' });
-test.use({ storageState: USER_STATE });
+test.use({ storageState: user.state });
 
-test.beforeAll(async () => {
-  await seedDesignPersona(loadAccount('user').email);
+test.beforeAll(async ({ browser }) => {
+  await setUpProjectUser(browser, user, { persona: true });
 });
 
 /** Opens the page and waits until it is interactive (hydrated). */
