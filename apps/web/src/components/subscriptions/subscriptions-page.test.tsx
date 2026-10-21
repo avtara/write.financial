@@ -152,7 +152,8 @@ describe('SubscriptionsPage', () => {
     expect(toasts.toast).toHaveBeenLastCalledWith({ tone: 'success', title: 'Netflix sekarang dibayar dari OVO' });
   });
 
-  it('pauses, cancels, reactivates, deletes, rates, and marks bills paid from the menus and cards', async () => {
+  // One flow per test: together they outgrow the browser test timeout on a loaded CI runner.
+  it('pauses a subscription from its menu, saying when it resumes', async () => {
     const { screen } = await renderPage();
     schedules.pauseSubscription
       .mockReturnValueOnce(ok({ ...S_NETFLIX, pausedUntil: '2026-11-18' }))
@@ -166,7 +167,10 @@ describe('SubscriptionsPage', () => {
     expect(schedules.pauseSubscription).toHaveBeenCalledWith({
       data: { id: 'netflix', length: { months: 1 }, remindDaysBefore: 3 },
     });
+  });
 
+  it('cancels a subscription after its next bill', async () => {
+    const { screen } = await renderPage();
     schedules.cancelSubscription.mockReturnValueOnce(ok(S_NETFLIX));
     await screen.getByRole('button', { name: 'Aksi untuk Netflix' }).click();
     await page.getByRole('menuitem', { name: 'Batalkan langganan' }).click();
@@ -175,13 +179,19 @@ describe('SubscriptionsPage', () => {
     await cancel.getByRole('checkbox').click();
     await cancel.getByRole('button', { name: 'Batalkan langganan' }).click();
     expect(schedules.cancelSubscription).toHaveBeenCalledWith({ data: { id: 'netflix', mode: 'after_next_bill' } });
+  });
 
+  it('reactivates a paused subscription', async () => {
+    const { screen } = await renderPage();
     schedules.reactivateSubscription.mockReturnValueOnce(ok(S_HEADSPACE));
     await screen.getByRole('tab', { name: 'Dijeda 1' }).click();
     await screen.getByRole('button', { name: 'Aksi untuk Headspace' }).click();
     await page.getByRole('menuitem', { name: 'Aktifkan lagi' }).click();
     expect(toasts.toast).toHaveBeenLastCalledWith({ tone: 'success', title: 'Headspace aktif lagi' });
+  });
 
+  it('deletes a cancelled subscription once confirmed', async () => {
+    const { screen } = await renderPage();
     schedules.deleteSubscription.mockReturnValueOnce(ok({ deletedOccurrences: 0 }));
     await screen.getByRole('tab', { name: 'Dibatalkan 1' }).click();
     await screen.getByRole('button', { name: 'Aksi untuk Canva Pro' }).click();
@@ -193,12 +203,18 @@ describe('SubscriptionsPage', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Hapus langganan' }).click();
     expect(schedules.deleteSubscription).toHaveBeenCalledWith({ data: { id: S_CANVA.id } });
     expect(toasts.toast).toHaveBeenLastCalledWith({ tone: 'success', title: 'Canva Pro dihapus' });
+  });
 
+  it('rates a subscription in the monthly review', async () => {
+    const { screen } = await renderPage();
     schedules.rateSubscriptionUsage.mockReturnValueOnce(ok({}));
     await screen.getByRole('region', { name: 'Review bulanan' }).getByRole('button', { name: 'Sering' }).click();
     expect(schedules.rateSubscriptionUsage).toHaveBeenCalledWith({ data: { id: 'youtube', rating: 'often' } });
     expect(toasts.toast).toHaveBeenLastCalledWith({ tone: 'success', title: 'Penilaian YouTube Premium disimpan' });
+  });
 
+  it('marks a bill paid from the menu', async () => {
+    const { screen } = await renderPage();
     review.confirmOccurrence.mockReturnValueOnce(ok({}));
     await screen.getByRole('tab', { name: 'Aktif 7' }).click();
     await screen.getByRole('button', { name: 'Aksi untuk ChatGPT' }).click();
