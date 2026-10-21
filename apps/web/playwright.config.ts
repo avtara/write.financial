@@ -24,6 +24,8 @@ const clockOffset = (process.env['WF_E2E_CLOCK_OFFSET_MS'] ??= String(Date.parse
  * - `cmdk`: the ⌘K palette, keyboard only, as the invited user with the design persona's ledger (`seedDesignPersona`),
  * - `transactions`: the Transactions page (FR-L1–L6: filters, views, bulk, detail edit, split, delete + Urungkan,
  *   keyboard, 1440/1024/768) as the invited user,
+ * - `calendar`: Kalender (FR-C1–C3): Netflix on the 18th scheduled, a day's panel and "Catat di tanggal ini" at
+ *   12.00, the legend, week and year, November's projection, keyboard, 1440/1024/768 (reads only),
  * - `subscriptions`: Langganan (FR-SUB1–SUB6): the seed's goldens, "Ya, catat" through the Review queue, detected
  *   candidates, a new subscription (keyboard only), pausing, ⌘K, 1440/1024/768 (it changes the persona's figures),
  * - `review`: the Review queue (FR-L7) as its own invited user with the design persona, after the scheduled jobs ran to
@@ -115,17 +117,26 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {
-      // Changes the persona's subscriptions and records a bill, so after every spec asserting the seed's figures.
-      name: 'subscriptions',
-      testMatch: 'subscriptions.spec.ts',
+      // Reads only; before `subscriptions`, which pauses Netflix (the calendar's scheduled bill on the 18th).
+      name: 'calendar',
+      testMatch: 'calendar.spec.ts',
       dependencies: ['transactions'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {
-      // Its own invited user with the persona, so it does not depend on what `subscriptions` changes.
+      // Changes the persona's subscriptions and records a bill, so after every spec asserting the seed's figures.
+      name: 'subscriptions',
+      testMatch: 'subscriptions.spec.ts',
+      dependencies: ['calendar'],
+      use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
+    },
+    {
+      // Its own invited user with the persona, so it does not depend on what `subscriptions` changes; after it all the
+      // same, since the scheduled jobs it runs to 18 Okt would also process the invited user's bills that `calendar`
+      // and `subscriptions` read. One chain keeps the order fixed.
       name: 'review',
       testMatch: 'review.spec.ts',
-      dependencies: ['transactions'],
+      dependencies: ['subscriptions'],
       use: { ...devices['Desktop Chrome'], locale: 'id-ID' },
     },
     {

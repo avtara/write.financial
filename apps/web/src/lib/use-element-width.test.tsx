@@ -7,6 +7,7 @@ import { useElementWidth } from './use-element-width.ts';
 
 function Probe() {
   const [wide, setWide] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [ref, width] = useElementWidth();
   return (
     <div>
@@ -18,8 +19,17 @@ function Probe() {
       >
         widen
       </button>
-      <div ref={ref} className={wide ? 'w-[300px]' : 'w-[120px]'}>
-        {width === null ? 'unmeasured' : `${String(width)}px`}
+      <button
+        type="button"
+        onClick={() => {
+          setHidden((current) => !current);
+        }}
+      >
+        hide
+      </button>
+      <p>{width === null ? 'unmeasured' : `${String(width)}px`}</p>
+      <div ref={ref} className={`${wide ? 'w-[300px]' : 'w-[120px]'} ${hidden ? 'hidden' : ''}`}>
+        measured
       </div>
     </div>
   );
@@ -30,6 +40,18 @@ describe('useElementWidth', () => {
     const screen = await render(<Probe />);
     await expect.element(screen.getByText('120px')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'widen' }));
+    await expect.element(screen.getByText('300px')).toBeVisible();
+    await screen.unmount();
+  });
+
+  it('keeps the last width while the element is out of the layout', async () => {
+    const screen = await render(<Probe />);
+    await expect.element(screen.getByText('120px')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'hide' }));
+    await expect.element(screen.getByText('measured')).not.toBeVisible();
+    await expect.element(screen.getByText('120px')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'widen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'hide' }));
     await expect.element(screen.getByText('300px')).toBeVisible();
     await screen.unmount();
   });

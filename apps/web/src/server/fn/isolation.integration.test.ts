@@ -70,6 +70,7 @@ import type { AccountDetail } from './accounts.ts';
 import * as accounts from './accounts.ts';
 import * as admin from './admin.ts';
 import * as budgetWrite from './budget-write.ts';
+import { getCalendarRange, getCalendarYear, type CalendarRange, type CalendarYear } from './calendar.ts';
 import * as budget from './budget.ts';
 import type { BudgetCategoryDetail } from './budget.ts';
 import * as categories from './categories.ts';
@@ -202,6 +203,8 @@ const FUNCTIONS = {
   ...search,
   ...setup,
   ...tags,
+  getCalendarRange,
+  getCalendarYear,
   recordTransaction,
   removeTransactions,
   restoreTransactions,
@@ -1980,6 +1983,39 @@ const MATRIX: Record<Name, Case> = {
         ok: false,
         code: 'INVALID_PERIOD',
       });
+    },
+  },
+  getCalendarRange: {
+    input: () => ({ from: '2026-10-01', to: '2026-10-31' }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const { today } = await services.schedules.listSubscriptions(bId);
+      const range = { from: addDays(today, -20), to: addDays(today, 20) };
+      const ofB = await as<Result<CalendarRange>>('B', 'getCalendarRange', range);
+      const transactionsOfB = await idsOf('transactions', bId);
+      const sourcesOfB = [...(await idsOf('subscriptions', bId)), ...(await idsOf('recurrences', bId))];
+      expect(ofB.ok && ofB.value.rows.length).toBeGreaterThan(0);
+      expect(ofB.ok && ofB.value.rows.filter((row) => !transactionsOfB.includes(row.id))).toEqual([]);
+      expect(ofB.ok && ofB.value.scheduled.filter((item) => !sourcesOfB.includes(item.sourceId))).toEqual([]);
+      expect(ofB.ok && ofB.value.days).toEqual(await services.transactionQuery.groupByDay(bId, range));
+    },
+  },
+  getCalendarYear: {
+    input: () => ({ year: 2026 }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async () => {
+      const { today } = await services.schedules.listSubscriptions(bId);
+      const year = Number(today.slice(0, 4));
+      const ofB = await as<Result<CalendarYear>>('B', 'getCalendarYear', { year });
+      expect(ofB).toEqual(
+        ok({
+          days: await services.transactionQuery.groupByDay(bId, {
+            from: `${String(year)}-01-01` as LocalDate,
+            to: `${String(year)}-12-31` as LocalDate,
+          }),
+          hasTransactions: true,
+        }),
+      );
     },
   },
   getBudgetHistory: {
