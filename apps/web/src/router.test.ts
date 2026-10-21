@@ -64,6 +64,7 @@ describe('getRouter', () => {
       '/admin/queues/$',
       '/api/account-logo/$id',
       '/api/auth/$',
+      '/api/subscription-logo/$id',
       '/api/transactions/$id/attachments/$attachmentId',
       '/budget',
       '/forgot',
@@ -74,6 +75,7 @@ describe('getRouter', () => {
       '/setup',
       '/sign-in',
       '/sign-up',
+      '/subscriptions',
       '/transactions',
       '/two-factor-setup',
     ]);
