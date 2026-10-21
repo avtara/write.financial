@@ -5,7 +5,16 @@
  */
 import { m } from '@wf/i18n/messages';
 import type { KbdKey } from '@wf/ui/kbd-hint';
-import { ArrowLeftRight, Inbox, LayoutDashboard, LayoutGrid, PiggyBank, Repeat, Wallet, type LucideIcon } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Inbox,
+  LayoutDashboard,
+  LayoutGrid,
+  PiggyBank,
+  Repeat,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
 import type { FileRouteTypes } from '../generated/routeTree.gen.ts';
 
 export interface NavItem {
