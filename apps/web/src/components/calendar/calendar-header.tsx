@@ -48,15 +48,7 @@ export function CalendarHeader({ view, date, today, locale, description }: Calen
   const week = weekOf(date);
   const title =
     view === 'week'
-      ? formatDateRange(
-          { start: week.first, end: week.last },
-          locale,
-          `${date.slice(0, 4)}-01-01` as LocalDate,
-        ).replace(
-          // The same text on the server and in the browser: ICU's thin spaces around the dash differ between them.
-          /[\u2009\u202f]/g,
-          ' ',
-        )
+      ? formatDateRange({ start: week.first, end: week.last }, locale, `${date.slice(0, 4)}-01-01` as LocalDate)
       : view === 'month'
         ? formatMonth(date, locale)
         : date.slice(0, 4);
