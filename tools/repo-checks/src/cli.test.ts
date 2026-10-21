@@ -18,7 +18,7 @@ it('runs the check named in argv against the working directory and sets the exit
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     // Dynamic import is intentional: cli.ts runs on load, so it must load after argv/cwd are stubbed.
     await import('./cli.ts');
-    expect(error).toHaveBeenCalledWith('Usage: repo-checks <test-files|spdx>');
+    expect(error).toHaveBeenCalledWith('Usage: repo-checks <test-files|spdx|migrations>');
     expect(process.exitCode).toBe(2);
   } finally {
     rmSync(root, { recursive: true, force: true });

@@ -48,9 +48,23 @@ describe('run', () => {
     expect(output.error).toHaveBeenCalledWith(expect.stringContaining('  - packages/a/src/y.ts'));
   });
 
+  it('passes and fails the migrations check', () => {
+    file('packages/db/migrations/0000_init.sql', '');
+    file('packages/db/migrations/meta/_journal.json', JSON.stringify({ entries: [{ idx: 0, tag: '0000_init' }] }));
+    expect(run(['migrations'], root, output)).toBe(0);
+    expect(output.log).toHaveBeenCalledWith('Migrations are numbered consecutively and match meta/_journal.json.');
+    file('packages/db/migrations/0002_late.sql', '');
+    expect(run(['migrations'], root, output)).toBe(1);
+    expect(output.error).toHaveBeenCalledWith(
+      'Migration order problems in packages/db/migrations:\n' +
+        '  - gap: no migration numbered 0001\n' +
+        '  - meta/_journal.json: no entry for 0002_late.sql',
+    );
+  });
+
   it('prints usage for unknown or missing checks', () => {
     expect(run([], root, output)).toBe(2);
     expect(run(['nope'], root, output)).toBe(2);
-    expect(output.error).toHaveBeenCalledWith('Usage: repo-checks <test-files|spdx>');
+    expect(output.error).toHaveBeenCalledWith('Usage: repo-checks <test-files|spdx|migrations>');
   });
 });
