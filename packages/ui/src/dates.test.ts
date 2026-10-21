@@ -81,12 +81,12 @@ describe('names and formats', () => {
 
   it('formats ranges compactly, with the year only outside the current one', () => {
     const today = d('2026-10-15');
-    // ICU puts thin spaces (U+2009) around the dash between dates in different months.
+    // Node's ICU puts thin spaces (U+2009) around the dash between months, browsers plain ones; both read plain.
     const range = (start: string, end: string) => formatDateRange({ start: d(start), end: d(end) }, 'id', today);
     expect(range('2026-10-12', '2026-10-15')).toBe('12–15 Okt');
-    expect(range('2026-09-28', '2026-10-03')).toBe('28 Sep\u2009–\u20093 Okt');
-    expect(range('2025-12-28', '2026-01-03')).toBe('28 Des 2025\u2009–\u20093 Jan 2026');
-    expect(range('2026-12-28', '2027-01-03')).toBe('28 Des 2026\u2009–\u20093 Jan 2027');
+    expect(range('2026-09-28', '2026-10-03')).toBe('28 Sep – 3 Okt');
+    expect(range('2025-12-28', '2026-01-03')).toBe('28 Des 2025 – 3 Jan 2026');
+    expect(range('2026-12-28', '2027-01-03')).toBe('28 Des 2026 – 3 Jan 2027');
     expect(formatDateRange({ start: today, end: today }, 'en', today)).toBe('Oct 15');
   });
 });

@@ -33,7 +33,9 @@ export const Route = createFileRoute('/_app/notifications')({
   }),
   loaderDeps: ({ search }) => search,
   loader: async ({ deps, context }) => {
-    const range = rangeOf(deps, toLocalDate(new Date(), context.viewer.timezone));
+    // The server's day, so hydration renders the same day headings.
+    const today = toLocalDate(new Date(), context.viewer.timezone);
+    const range = rangeOf(deps, today);
     const dates = { from: range.start, to: range.end };
     const [page, counts] = await Promise.all([
       listNotifications({
@@ -46,14 +48,14 @@ export const Route = createFileRoute('/_app/notifications')({
       }),
       getNotificationCounts({ data: dates }),
     ]);
-    return { page, counts };
+    return { page, counts, today };
   },
   head: () => ({ meta: [{ title: `${m.notifications_page_title()} · ${m.app_name()}` }] }),
   component: NotificationsRoute,
 });
 
 function NotificationsRoute() {
-  const { page, counts } = Route.useLoaderData();
+  const { page, counts, today } = Route.useLoaderData();
   const search = Route.useSearch();
   const { viewer } = Route.useRouteContext();
   if (!page.ok) return <LoadFailed code={page.code} />;
@@ -63,7 +65,7 @@ function NotificationsRoute() {
       search={search}
       page={page.value}
       counts={counts.value}
-      today={toLocalDate(new Date(), viewer.timezone)}
+      today={today}
       timeZone={viewer.timezone}
     />
   );

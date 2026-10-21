@@ -96,8 +96,9 @@ export function formatTime(instant: Date, timeZone: string, locale: Locale): str
 export function formatDateRange(range: DateRange, locale: Locale, today: LocalDate): string {
   const year = today.slice(0, 4);
   const withYear = !range.start.startsWith(year) || !range.end.startsWith(year);
-  return new Intl.DateTimeFormat(locale, withYear ? FORMATS.date : FORMATS.day).formatRange(
-    parseISO(range.start),
-    parseISO(range.end),
-  );
+  // Plain spaces: Node's ICU puts thin spaces around the dash where browsers put plain ones, and the server-rendered
+  // text must match what hydration renders.
+  return new Intl.DateTimeFormat(locale, withYear ? FORMATS.date : FORMATS.day)
+    .formatRange(parseISO(range.start), parseISO(range.end))
+    .replace(/[\u2009\u202f]/g, ' ');
 }

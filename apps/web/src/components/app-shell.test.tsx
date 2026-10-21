@@ -5,6 +5,13 @@ import { renderApp } from '../../test/render.tsx';
 import { AppShell } from './app-shell.tsx';
 import { CommandPaletteProvider } from './command-palette/command-palette.tsx';
 
+// The sidebar's bell loads notifications only when opened.
+vi.mock('../server/fn/notifications.ts', () => ({
+  listNotifications: vi.fn(),
+  getNextReminder: vi.fn(),
+  markNotificationsRead: vi.fn(),
+}));
+
 const shell = (
   <CommandPaletteProvider>
     <AppShell>

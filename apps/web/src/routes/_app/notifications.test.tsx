@@ -18,7 +18,7 @@ vi.mock('../../components/notifications/notifications-page.tsx', () => ({
 
 const ok = <T,>(value: T) => ({ ok: true, value }) as const;
 const failed = { ok: false, code: 'NOT_FOUND' } as const;
-const LOADED = { page: ok({ items: [], nextCursor: null }), counts: ok({ total: 0 }) };
+const LOADED = { page: ok({ items: [], nextCursor: null }), counts: ok({ total: 0 }), today: '2026-10-17' };
 const VIEWER = { viewer: { timezone: 'Asia/Jakarta' } };
 
 type Loader = (options: { deps: object; context: typeof VIEWER }) => Promise<unknown>;
@@ -68,7 +68,12 @@ describe('/notifications', () => {
     const { screen } = await renderApp(<Page />);
     await expect.element(screen.getByText('notifications page')).toBeVisible();
     expect(fake.page).toHaveBeenCalledWith(
-      expect.objectContaining({ search: { q: 'x' }, page: { items: [], nextCursor: null }, timeZone: 'Asia/Jakarta' }),
+      expect.objectContaining({
+        search: { q: 'x' },
+        page: { items: [], nextCursor: null },
+        today: '2026-10-17',
+        timeZone: 'Asia/Jakarta',
+      }),
     );
     await screen.unmount();
     for (const broken of [
