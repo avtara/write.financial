@@ -78,6 +78,51 @@ describe('Sheet', () => {
     await expect.element(opener).toHaveFocus();
   });
 
+  it('hands its opener to a sheet that replaces it, which keeps the focus', async () => {
+    function Replacing() {
+      const [step, setStep] = useState<'closed' | 'loading' | 'ready'>('closed');
+      const close = () => {
+        setStep('closed');
+      };
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setStep('loading');
+              setTimeout(() => {
+                setStep('ready');
+              }, 50);
+            }}
+          >
+            Catat
+          </button>
+          {step === 'loading' ? (
+            <Sheet open onOpenChange={close} title="Memuat" closeLabel="Tutup">
+              <p>Memuat…</p>
+            </Sheet>
+          ) : null}
+          {step === 'ready' ? (
+            <Sheet open onOpenChange={close} title="Catat Transaksi" closeLabel="Tutup">
+              <input aria-label="Jumlah" />
+            </Sheet>
+          ) : null}
+        </>
+      );
+    }
+    const screen = await render(<Replacing />);
+    const opener = screen.getByRole('button', { name: 'Catat' });
+    opener.element().focus();
+    await userEvent.keyboard('{Enter}');
+    await expect.element(page.getByRole('dialog', { name: 'Catat Transaksi' })).toBeVisible();
+    await expect.element(page.getByRole('textbox', { name: 'Jumlah' })).toHaveFocus();
+    // Radix restores focus a tick after the replaced sheet unmounts; it stays in the form.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await expect.element(page.getByRole('textbox', { name: 'Jumlah' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    await expect.element(opener).toHaveFocus();
+  });
+
   it('closes from the × button', async () => {
     const { dialog } = await openSheet({ size: 'lg' });
     expect(dialog.element().getBoundingClientRect().width).toBe(560);

@@ -11,7 +11,7 @@ import { expect, test as base } from '@playwright/test';
 import { Redis } from 'ioredis';
 import { Secret, TOTP } from 'otpauth';
 import postgres from 'postgres';
-import { e2eEnv, e2eNow, MAILPIT_URL, STATE_DIR } from './env.ts';
+import { BASE_URL, e2eEnv, e2eNow, MAILPIT_URL, STATE_DIR } from './env.ts';
 
 /**
  * Puts `context`'s pages on the run's clock (`e2eNow` in `env.ts`, the server's "now"). `setSystemTime` without
@@ -225,3 +225,46 @@ export async function skipOnboarding(page: Page): Promise<void> {
   }
   await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
 }
+
+/** The admin invites `email` (registration "Dengan undangan", m0) and the invitee signs up at `width` px. */
+export async function signUpInvited(browser: Browser, email: string, name: string, width: number): Promise<Page> {
+  const admin = loadAccount('admin');
+  // Signed out, whatever the calling spec's `storageState`.
+  const signedOut = { cookies: [], origins: [] };
+  const adminContext = await newContext(browser, { locale: 'id-ID', baseURL: BASE_URL, storageState: signedOut });
+  const adminPage = await adminContext.newPage();
+  await signInWithPassword(adminPage, admin);
+  await enterCode(adminPage, 'Kode verifikasi', totp(admin.totpSecret ?? ''));
+  await expect(adminPage.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
+  await adminPage.goto('/settings/instance');
+  const invite = adminPage
+    .getByRole('region')
+    .filter({ has: adminPage.getByRole('heading', { name: 'Undang pengguna' }) });
+  await invite.getByRole('textbox', { name: 'Email' }).fill(email);
+  await invite.getByRole('button', { name: 'Buat undangan' }).click();
+  const link = adminPage.getByRole('textbox', { name: 'Tautan undangan', exact: true });
+  await expect(link).toBeVisible();
+  const url = (await link.inputValue()).trim();
+  await adminContext.close();
+
+  const context = await newContext(browser, {
+    locale: 'id-ID',
+    baseURL: BASE_URL,
+    timezoneId: 'Asia/Jakarta',
+    storageState: signedOut,
+  });
+  const page = await context.newPage();
+  await page.setViewportSize({ width, height: 1024 });
+  await page.goto(url);
+  await page.getByLabel('Nama').fill(name);
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Kata sandi', { exact: true }).fill(freshPassword());
+  await page.getByRole('button', { name: 'Buat akun' }).click();
+  return page;
+}
+
+/**
+ * The Review queue's own invited user with the design persona (`review`, then `notifications`): what `subscriptions`
+ * does to the shared invited user's persona (paying iCloud+, pausing Netflix) does not reach it.
+ */
+export const REVIEW_USER = { email: 'tari@e2e.test', state: path.join(STATE_DIR, 'review-storage.json') } as const;

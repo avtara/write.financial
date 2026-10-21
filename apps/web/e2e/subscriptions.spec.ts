@@ -103,7 +103,12 @@ test('detected candidates: add Vidio, dismiss Google One', async ({ page }) => {
   await screenshot(page, 'subscriptions-detected');
   await panel.getByRole('listitem').filter({ hasText: 'Vidio' }).getByRole('button', { name: 'Tambahkan' }).click();
   await expect(page.getByText('1 langganan ditambahkan')).toBeVisible();
-  await panel.getByRole('button', { name: 'Bukan langganan' }).click();
+  // Vidio's row may still be listed until the page has reloaded its data.
+  await panel
+    .getByRole('listitem')
+    .filter({ hasText: 'Google One' })
+    .getByRole('button', { name: 'Bukan langganan' })
+    .click();
   await expect(page.getByText('Ditandai bukan langganan')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(

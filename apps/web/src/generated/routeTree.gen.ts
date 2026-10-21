@@ -17,6 +17,7 @@ import { Route as TwoFactorSetupRouteImport } from './../routes/two-factor-setup
 import { Route as AppIndexRouteImport } from './../routes/_app/index.tsx';
 import { Route as AppAccountsRouteImport } from './../routes/_app/accounts.tsx';
 import { Route as AppBudgetRouteImport } from './../routes/_app/budget.tsx';
+import { Route as AppReviewRouteImport } from './../routes/_app/review.tsx';
 import { Route as AppSubscriptionsRouteImport } from './../routes/_app/subscriptions.tsx';
 import { Route as AppTransactionsRouteImport } from './../routes/_app/transactions.tsx';
 import { Route as Auth2faRouteImport } from './../routes/_auth/2fa.tsx';
@@ -69,6 +70,11 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
 const AppBudgetRoute = AppBudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppReviewRoute = AppReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
   getParentRoute: () => AppRoute,
 } as any);
 const AppSubscriptionsRoute = AppSubscriptionsRouteImport.update({
@@ -155,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
   '/2fa': typeof Auth2faRoute;
@@ -178,6 +185,7 @@ export interface FileRoutesByTo {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/accounts': typeof AppAccountsRoute;
   '/budget': typeof AppBudgetRoute;
+  '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
   '/2fa': typeof Auth2faRoute;
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/two-factor-setup': typeof TwoFactorSetupRoute;
   '/_app/accounts': typeof AppAccountsRoute;
   '/_app/budget': typeof AppBudgetRoute;
+  '/_app/review': typeof AppReviewRoute;
   '/_app/subscriptions': typeof AppSubscriptionsRoute;
   '/_app/transactions': typeof AppTransactionsRoute;
   '/_auth/2fa': typeof Auth2faRoute;
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/review'
     | '/subscriptions'
     | '/transactions'
     | '/2fa'
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/accounts'
     | '/budget'
+    | '/review'
     | '/subscriptions'
     | '/transactions'
     | '/2fa'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/two-factor-setup'
     | '/_app/accounts'
     | '/_app/budget'
+    | '/_app/review'
     | '/_app/subscriptions'
     | '/_app/transactions'
     | '/_auth/2fa'
@@ -364,6 +376,13 @@ declare module '@tanstack/react-router' {
       path: '/budget';
       fullPath: '/budget';
       preLoaderRoute: typeof AppBudgetRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/review': {
+      id: '/_app/review';
+      path: '/review';
+      fullPath: '/review';
+      preLoaderRoute: typeof AppReviewRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_app/subscriptions': {
@@ -477,6 +496,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute;
   AppBudgetRoute: typeof AppBudgetRoute;
+  AppReviewRoute: typeof AppReviewRoute;
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute;
   AppTransactionsRoute: typeof AppTransactionsRoute;
   AppIndexRoute: typeof AppIndexRoute;
@@ -486,6 +506,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
   AppBudgetRoute: AppBudgetRoute,
+  AppReviewRoute: AppReviewRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppIndexRoute: AppIndexRoute,
