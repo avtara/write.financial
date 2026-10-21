@@ -178,7 +178,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     schedules: createSchedules(appDb, { now }),
     recentItems: createRecentItems(appDb, { now }),
     onboarding: createOnboarding(appDb, { now }),
-    goals: createGoals(appDb),
+    goals: createGoals(appDb, { getDek, now }),
     debts: createDebts(appDb, { getDek, now }),
     receivables: createReceivables(appDb, { getDek, now }),
     mailer,

@@ -37,6 +37,7 @@ import { getCalendarRange, getCalendarYear } from '../../src/server/fn/calendar.
 import * as categories from '../../src/server/fn/categories.ts';
 import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
+import * as goals from '../../src/server/fn/goals.ts';
 import * as ledger from '../../src/server/fn/ledger.ts';
 import * as notifications from '../../src/server/fn/notifications.ts';
 import {
@@ -145,6 +146,7 @@ export const FUNCTIONS = {
   ...categories,
   ...debts,
   ...gate,
+  ...goals,
   ...ledger,
   ...notifications,
   ...review,
@@ -252,6 +254,7 @@ export const ledgerIds = async (userId: string) =>
       UNION ALL SELECT id::text FROM debts WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM debt_installments WHERE user_id = ${userId}
       UNION ALL SELECT id::text FROM detected_recurring WHERE user_id = ${userId}
+      UNION ALL SELECT id::text FROM goals WHERE user_id = ${userId}
       ORDER BY 1`
   ).map((row) => row.id);
 /** A user's notifications as stored, oldest first. */
@@ -291,6 +294,7 @@ export const A_LEDGER = {
   subscription: 'Langganan Rahasia A',
   recurrence: 'Kos Rahasia A',
   detected: 'Toko Rahasia A',
+  goal: 'Tujuan Rahasia A',
 };
 /** Whether transaction `id` is soft-deleted. */
 export const isDeleted = async (id: string) =>
