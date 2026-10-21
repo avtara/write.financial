@@ -47,6 +47,7 @@ import {
 } from '@wf/domain/subscriptions';
 import { MAX_TAGS_PER_TRANSACTION, toBase } from '@wf/domain/transactions';
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { logActivity } from './activity.ts';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { viewsIn } from './accounts.ts';
 import { referenceRateIn } from './fx-rates.ts';
@@ -58,6 +59,7 @@ import {
   MATERIALIZE_DAYS,
   materializeIn,
   pruneFutureIn,
+  recordPastChargeIn,
   recurrenceDueDates,
   recurrenceRuleOf,
   subscriptionDueDates,
@@ -298,8 +300,21 @@ export interface ScheduledItem {
 
 export interface SchedulesRepository {
   listRecurrences: (userId: string, options?: { readonly status?: 'active' | 'stopped' }) => Promise<RecurrenceView[]>;
-  /** @throws {LedgerError} `INVALID_RECURRENCE` */
-  createRecurrence: (userId: string, input: RecurrenceInput) => Promise<RecurrenceView>;
+  /**
+   * FR-T6 "Ulangi": `options.transactionId` is the transaction just recorded as the first occurrence (Record sheet); it
+   * is linked to the recurrence and its history says so.
+   * @throws {LedgerError} `INVALID_RECURRENCE`, `NOT_FOUND` (no such live transaction, or already repeating)
+   */
+  createRecurrence: (
+    userId: string,
+    input: RecurrenceInput,
+    options?: { readonly transactionId?: string },
+  ) => Promise<RecurrenceView>;
+  /**
+   * FR-L8 transaction detail: the recurrence the transaction repeats (linked when it was created from it, or the
+   * transaction confirmed one of its occurrences); `null` when none.
+   */
+  recurrenceOfTransaction: (userId: string, transactionId: string) => Promise<RecurrenceView | null>;
   /** Replaces the rule and template; future `scheduled` occurrences are rebuilt. @throws {LedgerError} `NOT_FOUND`, `INVALID_RECURRENCE` */
   updateRecurrence: (userId: string, id: string, input: RecurrenceInput) => Promise<RecurrenceView>;
   /** FR-L8: deletes future scheduled occurrences (and their reminders); past transactions stay. @throws {LedgerError} `NOT_FOUND` */
@@ -801,6 +816,65 @@ async function lockedRecurrenceIn(tx: Transaction, id: string): Promise<Recurren
   return row;
 }
 
+/** Live transactions that belong to a recurrence: the one it was created from and those confirming its occurrences. */
+async function linkedTransactionsIn(tx: Transaction, recurrenceId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ id: transactions.id })
+    .from(transactions)
+    .where(
+      and(
+        isNull(transactions.deletedAt),
+        sql`(${transactions.recurrenceId} = ${recurrenceId} or ${transactions.id} in (select ${scheduledOccurrences.transactionId} from ${scheduledOccurrences} where ${scheduledOccurrences.sourceType} = 'recurrence' and ${scheduledOccurrences.sourceId} = ${recurrenceId}))`,
+      ),
+    );
+  return rows.map((row) => row.id);
+}
+
+/**
+ * FR-T6 "Ulangi" in the Record sheet: links the transaction just recorded to its new recurrence; when it falls on the
+ * rule's first date it is that occurrence, confirmed (so the daily job never proposes it again).
+ */
+async function linkTransactionIn(
+  tx: Transaction,
+  userId: string,
+  row: RecurrenceRow,
+  transactionId: string,
+  at: Date,
+): Promise<void> {
+  const [subject] = await tx
+    .select({ localDate: transactions.localDate, recurrenceId: transactions.recurrenceId })
+    .from(transactions)
+    .where(and(eq(transactions.id, transactionId), isNull(transactions.deletedAt)))
+    .for('update');
+  if (subject === undefined || subject.recurrenceId !== null) {
+    throw new LedgerError('NOT_FOUND', 'No such transaction to repeat');
+  }
+  await tx.update(transactions).set({ recurrenceId: row.id, updatedAt: at }).where(eq(transactions.id, transactionId));
+  const [first] = nextOccurrences(recurrenceRuleOf(row), { from: row.startOn, count: 1 });
+  if (first === subject.localDate) {
+    const amount = templateAmount(decodeTemplate(row.template));
+    const currencies = await accountCurrenciesIn(tx, [amount.accountId]);
+    const { id } = await recordPastChargeIn(tx, userId, {
+      sourceType: 'recurrence',
+      sourceId: row.id,
+      dueDate: first,
+      transactionId,
+      amountMinor: amount.amountMinor,
+      currency: currencies.get(amount.accountId) as string,
+    });
+    await tx
+      .update(scheduledOccurrences)
+      .set({ status: 'confirmed', transactionId, updatedAt: at })
+      .where(eq(scheduledOccurrences.id, id));
+  }
+  await logActivity(tx, userId, 'transaction', [transactionId], 'recurrence_set', {
+    recurrenceId: row.id,
+    freq: row.freq,
+    weekday: row.weekday,
+    monthDay: row.monthDay,
+  });
+}
+
 async function lockedSubscriptionIn(tx: Transaction, id: string): Promise<SubscriptionRow> {
   const [row] = await tx.select().from(subscriptions).where(eq(subscriptions.id, id)).for('update');
   if (row === undefined) throw new LedgerError('NOT_FOUND', 'No such subscription');
@@ -860,18 +934,46 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
         );
       }),
 
-    createRecurrence: (userId, input) =>
+    createRecurrence: (userId, input, createOptions = {}) =>
       withUser(db, userId, async (tx) => {
         const at = now();
         const { today } = await userClockIn(tx, userId, at);
         const values = await recurrenceValuesIn(tx, input);
-        const inserted = await tx
-          .insert(recurrences)
-          .values({ ...values, userId })
-          .returning({ id: recurrences.id });
-        const { id } = firstRow(inserted, 'recurrences');
-        await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id } });
-        return recurrenceViewIn(tx, today, id);
+        const row = firstRow(
+          await tx
+            .insert(recurrences)
+            .values({ ...values, userId })
+            .returning(),
+          'recurrences',
+        );
+        await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id: row.id } });
+        if (createOptions.transactionId !== undefined) {
+          await linkTransactionIn(tx, userId, row, createOptions.transactionId, at);
+        }
+        return recurrenceViewIn(tx, today, row.id);
+      }),
+
+    recurrenceOfTransaction: (userId, transactionId) =>
+      withUser(db, userId, async (tx) => {
+        const { today } = await userClockIn(tx, userId, now());
+        const [linked] = await tx
+          .select({ id: transactions.recurrenceId })
+          .from(transactions)
+          .where(eq(transactions.id, transactionId));
+        const [confirmed] =
+          linked?.id == null
+            ? await tx
+                .select({ id: scheduledOccurrences.sourceId })
+                .from(scheduledOccurrences)
+                .where(
+                  and(
+                    eq(scheduledOccurrences.transactionId, transactionId),
+                    eq(scheduledOccurrences.sourceType, 'recurrence'),
+                  ),
+                )
+            : [];
+        const id = linked?.id ?? confirmed?.id;
+        return id == null ? null : recurrenceViewIn(tx, today, id);
       }),
 
     updateRecurrence: (userId, id, input) =>
@@ -902,6 +1004,12 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
             .where(eq(recurrences.id, id));
         }
         const deletedOccurrences = await pruneFutureIn(tx, userId, { type: 'recurrence', id }, today);
+        if (row.status === 'active') {
+          await logActivity(tx, userId, 'transaction', await linkedTransactionsIn(tx, id), 'recurrence_stopped', {
+            recurrenceId: id,
+            deleted: deletedOccurrences,
+          });
+        }
         return { deletedOccurrences };
       }),
 
@@ -915,6 +1023,9 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
             .update(recurrences)
             .set({ status: 'active', stoppedAt: null, updatedAt: at })
             .where(eq(recurrences.id, id));
+          await logActivity(tx, userId, 'transaction', await linkedTransactionsIn(tx, id), 'recurrence_resumed', {
+            recurrenceId: id,
+          });
         }
         await materializeIn(tx, userId, { now: at, source: { type: 'recurrence', id } });
         return recurrenceViewIn(tx, today, id);

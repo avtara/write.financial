@@ -8,12 +8,13 @@
  */
 import type { Dek } from '@wf/crypto/envelope';
 import { addDays, type LocalDate, type YearMonth } from '@wf/domain/period';
+import type { TransactionType } from '@wf/domain/transactions';
 import { and, asc, count, eq, gt, inArray, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import { assertOpenTransactionsIn, checkCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
-import { subscriptionDueDates } from './occurrences.ts';
+import { decodeTemplate, subscriptionDueDates } from './occurrences.ts';
 import {
   insertReviewItemIn,
   occurrenceReviewItemIn,
@@ -28,6 +29,7 @@ import {
   budgetPeriodOverrides,
   goals,
   periods,
+  postings,
   recurrences,
   REVIEW_REASONS,
   reviewItems,
@@ -65,6 +67,25 @@ export interface ReviewOccurrenceView {
   readonly dueDate: LocalDate;
 }
 
+/** The recorded transaction a `category` item is about, as its card shows it. */
+export interface ReviewSubject {
+  readonly type: TransactionType;
+  readonly occurredAt: Date;
+  readonly merchant: string | null;
+  readonly description: string | null;
+  readonly accountId: string;
+  /** Signed principal on `accountId`, in `currency`. */
+  readonly amountMinor: bigint;
+  readonly currency: string;
+}
+
+/** The part of a recurring transfer planned for a goal ("DIBAGI KE"). */
+export interface ReviewAllocation {
+  readonly goalId: string;
+  readonly goalName: string;
+  readonly amountMinor: bigint;
+}
+
 export interface ReviewItemView {
   readonly id: string;
   readonly reason: ReviewReason;
@@ -80,6 +101,10 @@ export interface ReviewItemView {
   /** Label (`YYYY-MM`) of the period of a period-close proposal. */
   readonly periodLabel: YearMonth | null;
   readonly subjectTransactionId: string | null;
+  /** `category` items: the transaction itself; `null` otherwise (or once it is gone). */
+  readonly subject: ReviewSubject | null;
+  /** Occurrences of a recurring transfer: the goal allocations of its template (empty otherwise). */
+  readonly allocations: readonly ReviewAllocation[];
   readonly periodId: string | null;
   readonly dueDate: LocalDate | null;
   readonly aiConfidence: number | null;
@@ -406,6 +431,14 @@ export function createReview(
               string | null
             >`coalesce(${subscriptions.name}, ${recurrences.template}->>'merchant', ${recurrences.template}->>'description', ${transactions.merchant}, ${transactions.description})`,
             periodLabel: periods.label,
+            template: recurrences.template,
+            subject: {
+              type: transactions.type,
+              occurredAt: transactions.occurredAt,
+              merchant: transactions.merchant,
+              description: transactions.description,
+              deletedAt: transactions.deletedAt,
+            },
           })
           .from(reviewItems)
           .leftJoin(scheduledOccurrences, eq(scheduledOccurrences.id, reviewItems.occurrenceId))
@@ -435,7 +468,27 @@ export function createReview(
         const goalNames = new Map(
           (await tx.select({ id: goals.id, name: goals.name }).from(goals)).map((goal) => [goal.id, goal.name]),
         );
-        const items = rows.map(({ item, occurrence, label, periodLabel }): ReviewItemView => {
+        const subjectIds = rows.flatMap((row) =>
+          row.subject === null || row.subject.deletedAt !== null ? [] : [row.item.subjectTransactionId as string],
+        );
+        // The principal on the paying account (a transfer's outgoing leg sorts first).
+        const principals = new Map<string, { accountId: string; amountMinor: bigint; currency: string }>();
+        if (subjectIds.length > 0) {
+          const legs = await tx
+            .select({
+              transactionId: postings.transactionId,
+              accountId: postings.accountId,
+              amountMinor: postings.amountMinor,
+              currency: postings.currency,
+            })
+            .from(postings)
+            .where(and(inArray(postings.transactionId, subjectIds), eq(postings.role, 'principal')))
+            .orderBy(asc(postings.amountMinor));
+          for (const { transactionId, ...leg } of legs) {
+            if (!principals.has(transactionId)) principals.set(transactionId, leg);
+          }
+        }
+        const items = rows.map(({ item, occurrence, label, periodLabel, template, subject }): ReviewItemView => {
           const payload = readReviewPayload(dek, userId, item.payloadEnc);
           const proposed =
             payload.kind === 'transaction'
@@ -443,6 +496,8 @@ export function createReview(
               : payload.kind === 'leftover' && payload.goalId !== null
                 ? (goalNames.get(payload.goalId) ?? null)
                 : null;
+          const principal = principals.get(item.subjectTransactionId ?? '');
+          const decoded = template === null ? null : decodeTemplate(template);
           return {
             id: item.id,
             reason: item.reason,
@@ -453,6 +508,25 @@ export function createReview(
             label: label ?? proposed,
             periodLabel,
             subjectTransactionId: item.subjectTransactionId,
+            subject:
+              subject === null || principal === undefined
+                ? null
+                : {
+                    type: subject.type,
+                    occurredAt: subject.occurredAt,
+                    merchant: subject.merchant,
+                    description: subject.description,
+                    ...principal,
+                  },
+            allocations:
+              decoded?.type === 'transfer'
+                ? // `decodeTemplate` always lists them (maybe none).
+                  (decoded.allocations as NonNullable<typeof decoded.allocations>).map((part) => ({
+                    goalId: part.goalId,
+                    goalName: goalNames.get(part.goalId) ?? '',
+                    amountMinor: part.amountMinor,
+                  }))
+                : [],
             periodId: item.periodId,
             dueDate: item.dueDate,
             aiConfidence: item.aiConfidence,

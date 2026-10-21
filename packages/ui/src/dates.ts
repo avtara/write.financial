@@ -66,6 +66,12 @@ export function weekdayNames(locale: Locale, weekStartsOn: WeekStart): { short: 
   });
 }
 
+/** The full name of an ISO weekday (1 = Monday … 7 = Sunday): `Kamis` / `Thursday`. */
+export function weekdayName(isoWeekday: 1 | 2 | 3 | 4 | 5 | 6 | 7, locale: Locale): string {
+  // 4 Jan 2026 is a Sunday (ISO 7), so ISO weekday `n` falls on 4 + n January.
+  return new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(new Date(2026, 0, 4 + isoWeekday));
+}
+
 /** `Oktober 2026` / `October 2026`. */
 export function formatMonth(month: LocalDate, locale: Locale): string {
   return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(parseISO(month));

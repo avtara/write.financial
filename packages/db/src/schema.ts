@@ -729,6 +729,9 @@ export const ACTIVITY_ACTIONS = [
   'merged',
   'archived',
   'reconciled',
+  'recurrence_set',
+  'recurrence_stopped',
+  'recurrence_resumed',
 ] as const;
 export const activityAction = pgEnum('activity_action', ACTIVITY_ACTIONS);
 
@@ -798,7 +801,16 @@ export const drafts = pgTable(
   (table) => [index('drafts_user_id_kind_idx').on(table.userId, table.kind, table.updatedAt.desc())],
 );
 
-export const RECENT_ITEM_KINDS = ['transaction', 'account', 'category', 'tag', 'goal', 'page', 'subscription'] as const;
+export const RECENT_ITEM_KINDS = [
+  'transaction',
+  'account',
+  'category',
+  'tag',
+  'goal',
+  'page',
+  'subscription',
+  'review',
+] as const;
 export const recentItemKind = pgEnum('recent_item_kind', RECENT_ITEM_KINDS);
 
 /** "Baru dibuka" in ⌘K (FR-S4). `ref` is an entity id or a page path. */

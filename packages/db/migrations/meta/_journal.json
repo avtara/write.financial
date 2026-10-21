@@ -64,6 +64,13 @@
       "when": 1792536431812,
       "tag": "0008_recent_subscription",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792557434813,
+      "tag": "0009_recurrence_activity",
+      "breakpoints": true
     }
   ]
 }

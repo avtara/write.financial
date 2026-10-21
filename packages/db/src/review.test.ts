@@ -409,6 +409,16 @@ describe('list and counts', () => {
       resultingTransactionId: null,
     });
     expect(items.find((item) => item.id === leftover)).toMatchObject({ periodLabel: '2026-09', occurrence: null });
+    expect(late).toMatchObject({ subject: null, allocations: [] });
+    expect(items.find((item) => item.id === category)?.subject).toEqual({
+      type: 'expense',
+      occurredAt: expect.any(Date) as Date,
+      merchant: 'Kopi',
+      description: null,
+      accountId: ledger.bca,
+      amountMinor: -20_000n,
+      currency: 'IDR',
+    });
 
     expect((await asApp(() => review.list(userId, { reason: 'period_close_proposal' }))).total).toBe(4);
     expect((await asApp(() => review.list(userId, { source: 'gmail' }))).items.map((item) => item.id)).toEqual([blank]);
@@ -433,6 +443,61 @@ describe('list and counts', () => {
     const resolved = await asApp(() => review.list(userId, { status: 'resolved' }));
     expect(resolved.items.map((item) => [item.id, item.status])).toEqual([[high, 'ignored']]);
     expect((await asApp(() => review.counts(userId))).total).toBe(10);
+  });
+
+  it("shows a transfer's goal allocations and the outgoing leg of a transaction to categorize", async () => {
+    const goal = await one(
+      `INSERT INTO goals (user_id, name, icon, color, target_minor, currency) VALUES ($1, 'Liburan Bali', 'plane', 'green', 1, 'IDR') RETURNING id`,
+      [userId],
+    );
+    const lost = randomUUID();
+    const sisihkan = await one(
+      `INSERT INTO recurrences (user_id, template, freq, start_on, month_day)
+       VALUES ($1, $2, 'monthly', '2026-01-25', 25) RETURNING id`,
+      [
+        userId,
+        JSON.stringify({
+          type: 'transfer',
+          fromAccountId: ledger.bca,
+          toAccountId: ledger.jago,
+          sentMinor: '1150000',
+          receivedMinor: '1150000',
+          fee: null,
+          description: 'Sisihkan dana tidak rutin',
+          tags: [],
+          allocations: [
+            { goalId: goal, amountMinor: '867000' },
+            { goalId: lost, amountMinor: '283000' },
+          ],
+        }),
+      ],
+    );
+    const due = await occurrenceItem(await occurrence(sisihkan, '2026-10-25', 'due_review', 'recurrence'));
+    const transfer = await ledger.transfer('2026-10-14', 3_000_000n);
+    const gone = await ledger.entry('expense', '2026-10-13', 5_000n, null);
+    await test.query('UPDATE transactions SET deleted_at = now() WHERE id = $1', [gone]);
+    const categorize = (transactionId: string) =>
+      insertItem({
+        reason: 'category_deleted',
+        source: 'system',
+        dedupeKey: `catdel.${transactionId}`,
+        subjectTransactionId: transactionId,
+        payload: { kind: 'category', transactionId, previousCategoryId: randomUUID(), previousCategoryName: 'X' },
+      });
+    const moved = await categorize(transfer);
+    const deleted = await categorize(gone);
+
+    const { items } = await asApp(() => review.list(userId));
+    const byId = (id: string) => items.find((item) => item.id === id);
+    expect(byId(due)).toMatchObject({
+      label: 'Sisihkan dana tidak rutin',
+      allocations: [
+        { goalId: goal, goalName: 'Liburan Bali', amountMinor: 867_000n },
+        { goalId: lost, goalName: '', amountMinor: 283_000n },
+      ],
+    });
+    expect(byId(moved)?.subject).toMatchObject({ type: 'transfer', accountId: ledger.bca, amountMinor: -3_000_000n });
+    expect(byId(deleted)?.subject).toBeNull();
   });
 
   it('lists nothing for a new user and uses the real clock by default', async () => {
