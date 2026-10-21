@@ -27,6 +27,7 @@
     "check:i18n": "node packages/i18n/src/check-cli.ts",
     "check:tokens": "node tools/tokens-from-pen/src/cli.ts check",
     "tokens": "node tools/tokens-from-pen/src/cli.ts write",
+    "routes": "pnpm --filter @wf/web routes",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:spdx && pnpm check:test-files && pnpm check:tokens && pnpm test:unit && pnpm check:i18n"
   },
   "devDependencies": {

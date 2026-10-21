@@ -15,6 +15,8 @@ export default defineConfig({
     tanstackStart({
       router: {
         // Relative to `src/`. `src/generated/` is excluded from the coverage gate, the test-file check, and the SPDX check.
+        // The generator runs whenever Vite resolves this config: `pnpm routes` does only that (a few seconds, no build),
+        // so a rebase conflict in the file is resolved by taking either side and running it.
         generatedRouteTree: './generated/routeTree.gen.ts',
         quoteStyle: 'single',
         semicolons: true,
