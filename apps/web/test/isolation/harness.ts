@@ -39,6 +39,7 @@ import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
 import * as goals from '../../src/server/fn/goals.ts';
 import * as ledger from '../../src/server/fn/ledger.ts';
+import * as market from '../../src/server/fn/market.ts';
 import * as notifications from '../../src/server/fn/notifications.ts';
 import {
   finishOnboarding,
@@ -149,6 +150,7 @@ export const FUNCTIONS = {
   ...gate,
   ...goals,
   ...ledger,
+  ...market,
   ...notifications,
   ...receivables,
   ...review,

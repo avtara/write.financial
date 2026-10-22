@@ -104,7 +104,7 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `goal_funding_sources`, `goal_contribution_plans`, `debts`, `debt_installments`, `card_payment_allocations`, `receivables`, `receivable_payments` | S I U D | S (D14) | – | – | own rows |
 | `assets`, `asset_categories`, `allocation_targets`, `investment_trades` (+ view `holdings`, security_invoker) | S I U D | S (D14) | – | – | own rows |
 | `market_credentials` | S I U D | S, U(`status`, `quota_used`, `quota_limit`, `quota_reset_at`, `retry_after`, `last_tested_at`, `updated_at`) | – | – | own rows; INSERT only with `users.two_factor_enabled` |
-| `user_quotes` | S D | S I U D | – | – | own rows (BYOK results never shared) |
+| `user_quotes` | S I U D | S I U D | – | – | own rows (BYOK results never shared; the app stores "Tes koneksi" / "Sinkronkan harga" results) |
 | `market_quotes` (view `market_quotes_latest`: S for `wf_app`, `wf_worker`) | – | S I U | – | – | built-in sources only, global; `wf_migrate` reads it for the view |
 | `market_api_logs` | S I | S I | – | – | own rows + built-in fetches (`user_id` null) |
 | `market_provider_state` | S | S I U | – | – | global (built-in sources' pause and credits, no user data) |
