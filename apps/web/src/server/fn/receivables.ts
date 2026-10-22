@@ -50,7 +50,7 @@ export interface SplitBillContext {
 
 const id = z.uuid();
 const counterparty = z.string().trim().min(1).max(MAX_COUNTERPARTY_LENGTH);
-const [EXPENSE_INPUT] = RECORD_TRANSACTION_INPUT.options;
+const EXPENSE_INPUT = RECORD_TRANSACTION_INPUT.options[0];
 /** Most people a bill is split with. */
 const MAX_SHARES = 20;
 

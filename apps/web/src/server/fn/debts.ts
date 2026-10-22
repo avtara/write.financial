@@ -79,7 +79,8 @@ const id = z.uuid();
 const rateBps = z.int().min(0).max(10_000);
 const fee = z.bigint().nonnegative();
 const tenor = z.literal(INSTALLMENT_TENORS);
-const [EXPENSE_INPUT, TRANSFER_INPUT] = RECORD_TRANSACTION_INPUT.options;
+const EXPENSE_INPUT = RECORD_TRANSACTION_INPUT.options[0];
+const TRANSFER_INPUT = RECORD_TRANSACTION_INPUT.options[1];
 const priority = z
   .array(z.enum(CC_PAYMENT_BUCKETS))
   .length(CC_PAYMENT_BUCKETS.length)

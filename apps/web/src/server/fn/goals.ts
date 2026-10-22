@@ -99,10 +99,11 @@ export interface GoalsOverview {
   readonly setAside: SetAsideTransfer | null;
 }
 
-async function signedIn(session: Parameters<typeof requireSession>[0]): Promise<{ userId: string; all: Services }> {
-  const all = await services();
-  const { user } = await requireSession(session, {}, all.now());
-  return { userId: user.id, all };
+function signedIn(session: Parameters<typeof requireSession>[0]): Promise<{ userId: string; all: Services }> {
+  return services().then(async (all) => {
+    const { user } = await requireSession(session, {}, all.now());
+    return { userId: user.id, all };
+  });
 }
 
 /** The movements of `goals` from `from` to `to`. */
