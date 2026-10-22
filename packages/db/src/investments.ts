@@ -802,7 +802,8 @@ function assetView(valuation: AssetValuation, platformName: string, sources: rea
 const cashUnits = (minor: bigint, currency: string): string =>
   formatDecimal((minor * parseDecimal('1')) / 10n ** BigInt(currencyInfo(currency).minorDigits));
 
-async function portfolioIn(tx: Transaction, userId: string, now: Date): Promise<PortfolioView> {
+/** The user's portfolio as of `now`, inside the user's transaction (the page and the daily snapshot job). */
+export async function portfolioIn(tx: Transaction, userId: string, now: Date): Promise<PortfolioView> {
   const { timezone } = await userContextIn(tx, userId);
   const today = localDateOf(now, timezone);
   const values = await assetValuesIn(tx, userId, now);

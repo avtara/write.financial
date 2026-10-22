@@ -92,6 +92,13 @@
       "when": 1792636394380,
       "tag": "0012_investments_market_data",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792677054723,
+      "tag": "0013_market_provider_state",
+      "breakpoints": true
     }
   ]
 }

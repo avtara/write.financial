@@ -79,6 +79,8 @@ const GRANTS = {
     wf_worker: 'SELECT,UPDATE(last_tested_at,quota_limit,quota_reset_at,quota_used,retry_after,status,updated_at)',
   },
   market_quotes: { wf_worker: 'INSERT,SELECT,UPDATE' },
+  // The built-in sources' state (pause, CoinMarketCap credits): the worker keeps it, the app shows it.
+  market_provider_state: { wf_app: 'SELECT', wf_worker: 'INSERT,SELECT,UPDATE' },
   // Only the worker creates and delivers emails; notifications are created by it and read/marked by the app.
   notification_outbox: { wf_worker: 'INSERT,SELECT,UPDATE(attempts,last_error,sent_at)' },
   notifications: { wf_app: 'DELETE,SELECT,UPDATE(read_at)', wf_worker: 'INSERT,SELECT' },
@@ -193,6 +195,8 @@ describe('migrate', () => {
         'wf_due_reminders',
         'wf_maintenance_purge_auth',
         'wf_maintenance_purge_notifications',
+        'wf_market_byok_users',
+        'wf_market_server_targets',
         'wf_pending_outbox',
         'wf_worker_users',
       ].map((name) => ({
