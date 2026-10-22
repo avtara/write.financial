@@ -13,6 +13,7 @@ export const SETTINGS_SECTIONS = [
   'categories',
   'tags',
   'security',
+  'market',
   'instance',
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

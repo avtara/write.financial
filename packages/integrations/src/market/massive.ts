@@ -61,7 +61,9 @@ export function createMassive(options: MarketHttpOptions = {}): MarketAdapter {
         if (!Array.isArray(results) || results.length === 0) continue;
         const asOf = new Date(`${date}T21:00:00Z`);
         for (const request of usd) {
-          const row = results.find((candidate) => field(candidate, 'T') === request.symbol.toUpperCase());
+          const row = (results as unknown[]).find(
+            (candidate) => field(candidate, 'T') === request.symbol.toUpperCase(),
+          );
           const price = decimalOf(field(row, 'c'));
           if (price !== null) log.quotes.push({ ...request, price, prevClose: null, asOf });
         }

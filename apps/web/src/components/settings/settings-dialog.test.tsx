@@ -55,6 +55,11 @@ vi.mock('./tags-section.tsx', () => ({
 vi.mock('./instance-section.tsx', () => ({
   InstanceSection: () => <p>instance form</p>,
 }));
+const market = vi.hoisted(() => ({ getMarketSettings: vi.fn() }));
+vi.mock('../../server/fn/market.ts', () => market);
+vi.mock('./market-section.tsx', () => ({
+  MarketSection: ({ timeZone }: { timeZone: string }) => <p>{`pasar di ${timeZone}`}</p>,
+}));
 const notifications = vi.hoisted(() => ({ getNotificationSettings: vi.fn() }));
 vi.mock('../../server/fn/notifications.ts', () => notifications);
 vi.mock('./notifications-section.tsx', () => ({
@@ -154,6 +159,11 @@ describe('loadSettingsSection', () => {
       section: 'notifications',
       notifications: { ok: true, value: { email: true } },
     });
+    market.getMarketSettings.mockResolvedValue({ ok: true, value: { keys: [] } });
+    await expect(loadSettingsSection('market')).resolves.toEqual({
+      section: 'market',
+      market: { ok: true, value: { keys: [] } },
+    });
   });
 });
 
@@ -177,7 +187,7 @@ describe('SettingsDialog', () => {
       );
     const nav = dialog.getByRole('navigation', { name: 'Bagian pengaturan' });
     expect(nav.element().textContent).toBe(
-      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagDataKeamanan',
+      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagDataKeamananIntegrasiAPI kurs & pasar',
     );
     const profile = nav.getByRole('link', { name: 'Profil & akun' });
     await expect.element(profile).toHaveAttribute('href', '/?settings=profile');
@@ -278,6 +288,17 @@ describe('SettingsDialog', () => {
     await expect.element(page.getByText(`notifikasi ke ${VIEWER.email}`)).toBeVisible();
     notifications.getNotificationSettings.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' });
     await renderSettings('/?settings=notifications');
+    await expect
+      .element(page.getByRole('alert').last())
+      .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
+  });
+
+  it('renders API kurs & pasar in the viewer’s time zone, or why it could not be loaded', async () => {
+    market.getMarketSettings.mockResolvedValueOnce({ ok: true, value: { keys: [] } });
+    await renderSettings('/?settings=market');
+    await expect.element(page.getByText(`pasar di ${VIEWER.timezone}`)).toBeVisible();
+    market.getMarketSettings.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' });
+    await renderSettings('/?settings=market');
     await expect
       .element(page.getByRole('alert').last())
       .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
