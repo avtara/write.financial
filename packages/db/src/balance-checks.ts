@@ -11,7 +11,7 @@
  */
 import { addDays, type LocalDate } from '@wf/domain/period';
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
-import { viewsIn, type AccountView } from './accounts.ts';
+import { viewsIn, type AccountBalanceView } from './accounts.ts';
 import { withUser, type Database } from './db.ts';
 import { localDateOf } from './ledger-core.ts';
 import { insertNotificationIn } from './notifications.ts';
@@ -44,7 +44,7 @@ export function createBalanceChecks(db: Database): BalanceChecks {
         const { timeZone, today } = await userClockIn(tx, userId, now);
         const { views } = await viewsIn(tx, userId, eq(accounts.status, 'active'));
         const counts = { lowBalance: 0, unchecked: 0, insufficient: 0 };
-        const account = (view: AccountView) => ({ accountId: view.id, account: view.displayName });
+        const account = (view: AccountBalanceView) => ({ accountId: view.id, account: view.displayName });
 
         for (const view of views) {
           const threshold = view.lowBalanceThresholdMinor;

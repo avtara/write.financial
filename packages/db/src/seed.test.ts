@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { insertUser, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { createAccounts } from './accounts.ts';
 import { createGoals } from './goals.ts';
+import { createInvestments } from './investments.ts';
 import { createReceivables } from './receivables.ts';
 import { createReview } from './review.ts';
 import { createSchedules } from './schedules.ts';
@@ -33,6 +34,7 @@ const tiny = (overrides: Partial<DesignSeed>): DesignSeed => ({
   subscriptions: [],
   recurrences: [],
   receivables: [],
+  investments: { ...DESIGN_SEED.investments, categories: [], assets: [], targets: {}, snapshots: [] },
   ...overrides,
 });
 
@@ -76,6 +78,8 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
       { type: 'expense', n: 235 },
       { type: 'income', n: 8 },
       { type: 'transfer', n: 6 },
+      // M5: the cash legs of the DCA buys (1 Sep, 1 Okt: SPY + SCHD) and of the pending RDPU buy (14 Okt).
+      { type: 'investment', n: 5 },
     ]);
     // September is the first period row and closed; October follows, open.
     expect(
@@ -161,8 +165,8 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     );
     const leftover = items.find((item) => item.payload.kind === 'leftover');
     expect(leftover?.payload).toMatchObject({ kind: 'leftover', amountMinor: 1_150_000n });
-    // Nothing applied before a confirmation (D14).
-    expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 249 }]);
+    // Nothing applied before a confirmation (D14): the 249 transactions and the 5 trades' cash legs.
+    expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 254 }]);
     expect(await test.query('SELECT count(*)::int AS n FROM budget_period_overrides')).toEqual([{ n: 0 }]);
   });
 
@@ -170,8 +174,9 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     const result = await asApp(() => seedLedger(test.db, userId, options));
     expect(result.balances).toEqual(seedClosingBalances(DESIGN_SEED));
     expect(result.availableMinor).toBe(55_023_000n);
-    // Receivables are recorded without ledger transactions: the Section 00 counts and flows stay.
-    expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 249 }]);
+    // Receivables are recorded without ledger transactions: the Section 00 counts and flows stay (+ 5 trades' cash
+    // legs, not listed on the Transactions page).
+    expect(await test.query('SELECT count(*)::int AS n FROM transactions')).toEqual([{ n: 254 }]);
 
     const goals = createGoals(test.db, options);
     expect(
@@ -183,9 +188,10 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
         goal.monthlyPlanMinor,
       ]),
     ).toEqual([
-      ['Dana Darurat', 'savings', 'monthly_expenses', 8_125_000n, 3_500_000n],
-      ['DP Rumah', 'savings', 'fixed', 5_000_000n, 0n],
-      ['Dana Pensiun', 'savings', 'fixed', 0n, 0n],
+      // M5 asset sources (Section 00 "Jago 8,125 + RDPU 3", "SPY 60% 8,1 + IDX30 1 + BCA 5", "SPY 40% 5,4 + SCHD 4,9").
+      ['Dana Darurat', 'savings', 'monthly_expenses', 11_125_000n, 3_500_000n],
+      ['DP Rumah', 'savings', 'fixed', 14_100_000n, 0n],
+      ['Dana Pensiun', 'savings', 'fixed', 10_300_000n, 0n],
       ['Liburan Bali', 'sinking', 'fixed', 2_800_000n, 867_000n],
       ['Servis motor', 'sinking', 'fixed', 720_000n, 240_000n],
       ['Perpanjang STNK', 'sinking', 'fixed', 680_000n, 43_000n],
@@ -245,10 +251,12 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     expect((await accountOf('BCA Tahapan'))?.balanceMinor).toBe(42_310_000n);
     const overview = await asApp(() => accounts.list(userId));
     expect(overview.availableMinor).toBe(54_523_000n);
-    // Net worth is unchanged by lending (design investments Rp61.420.000; the dialog's "116.443.000 tetap" leaves the
+    // Net worth is unchanged by lending (investments Rp61.420.000 through the valuation; the dialog's "116.443.000 tetap" leaves the
     // receivables out, with them it is 116.985.500 before and after).
+    const invested = (await asApp(() => createInvestments(test.db, options).portfolio(userId))).summary.valueBaseMinor;
+    expect(invested).toBe(61_420_000n);
     const worth = (available: bigint, receivablesOutstanding: bigint) =>
-      netWorth({ available, investments: 61_420_000n, receivablesOutstanding, debtRemaining: 0n });
+      netWorth({ available, investments: invested, receivablesOutstanding, debtRemaining: 0n });
     expect(worth(overview.availableMinor, 1_042_500n)).toBe(worth(55_023_000n, 542_500n));
     expect(worth(55_023_000n, 542_500n)).toBe(116_985_500n);
     expect((await asApp(() => query.summary(userId, october))).outMinor).toBe(16_500_000n);
@@ -273,6 +281,110 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     expect((await asApp(() => query.summary(userId, october))).inMinor).toBe(26_000_000n);
   });
 
+  it('M5: Rp61.420.000 / +Rp7.489.000 through the valuation, drift 3,8%, RDPU diproses, total assets Rp116.443.000', async () => {
+    await asApp(() => seedLedger(test.db, userId, options));
+    const investments = createInvestments(test.db, options);
+    const portfolio = await asApp(() => investments.portfolio(userId));
+    expect(portfolio.summary).toMatchObject({
+      valueBaseMinor: 61_420_000n,
+      costBaseMinor: 53_931_000n,
+      gainBaseMinor: 7_489_000n,
+      gainBps: 1389,
+      unpricedCount: 0,
+    });
+    // Targets 50/12/12/7/8/5/6 (w1jn3J) against the holdings table: ½ Σ |share − target| = 3,8%. The design's
+    // "drift 3,1%" comes from the allocation panel's shares, which do not match its own holdings (reported).
+    expect(portfolio.allocation?.driftBps).toBe(381);
+    expect(portfolio.allocation?.rows.map((row) => [row.key, row.shareBps, row.targetBps])).toEqual([
+      ['us_stocks', 5083, 5000],
+      ['international', 1107, 1200],
+      ['indonesia', 1107, 1200],
+      ['crypto', 895, 700],
+      ['cash', 700, 800],
+      ['gold', 602, 500],
+      ['income', 505, 600],
+    ]);
+    expect(
+      portfolio.platforms.map((platform) => [
+        platform.name,
+        platform.cashMinor,
+        platform.valueBaseMinor,
+        platform.assetCount,
+      ]),
+    ).toEqual([
+      ['Gotrade', 5_199n, 45_420_000n, 15],
+      ['Indodax', 0n, 5_500_000n, 1],
+      ['Stockbit', 0n, 4_300_000n, 3],
+      ['Pluang', 0n, 3_700_000n, 1],
+      ['Bibit', 0n, 2_500_000n, 3],
+    ]);
+    expect(portfolio.categories.map((category) => [category.name, category.assetIds.length])).toEqual([
+      ['Indonesia', 5],
+      ['YieldMax', 4],
+      ['US individual', 5],
+    ]);
+    const spy = portfolio.assets.find((asset) => asset.symbol === 'SPY');
+    expect(spy?.value).toMatchObject({ valueBaseMinor: 13_500_000n, costBaseMinor: 11_400_000n, gainMinor: 12_844n });
+    expect(spy?.quote).toMatchObject({ source: 'manual', price: '690.1', stale: false });
+    expect(spy?.goals.map((goal) => [goal.goalName, goal.bps, goal.valueBaseMinor])).toEqual([
+      ['DP Rumah', 6000, 8_100_000n],
+      ['Dana Pensiun', 4000, 5_400_000n],
+    ]);
+    expect(spy?.freeBps).toBe(0);
+    const rdpu = portfolio.assets.find((asset) => asset.symbol === 'RDPU');
+    expect([rdpu?.pendingMinor, rdpu?.value?.valueBaseMinor, rdpu?.goals[0]?.valueBaseMinor]).toEqual([
+      3_000_000n,
+      0n,
+      3_000_000n,
+    ]);
+    expect(await asApp(() => investments.snapshots(userId))).toEqual([
+      {
+        date: '2026-09-30',
+        valueBaseMinor: 57_700_000n,
+        costBaseMinor: 50_900_000n,
+        contributionsBaseMinor: 3_000_000n,
+        breakdown: {},
+      },
+    ]);
+
+    // Accounts: platform cash + holdings = Rp61.420.000; with the available balance Rp116.443.000 total assets.
+    const overview = await asApp(() => createAccounts(test.db, options).list(userId));
+    const platforms = overview.accounts.filter((account) => account.type === 'investment');
+    const invested = platforms.reduce(
+      (sum, account) => sum + (account.balanceBaseMinor ?? 0n) + (account.holdingsValueBaseMinor ?? 0n),
+      0n,
+    );
+    expect(invested).toBe(61_420_000n);
+    expect(overview.availableMinor).toBe(55_023_000n);
+    expect(
+      netWorth({
+        available: overview.availableMinor,
+        investments: invested,
+        receivablesOutstanding: 0n,
+        debtRemaining: 0n,
+      }),
+    ).toBe(116_443_000n);
+
+    // The Transactions page keeps its 128 October rows; the platform's history shows its trades' cash legs.
+    const query = createTransactionQuery(test.db, { getDek: options.getDek });
+    const october = { from: '2026-10-01' as LocalDate, to: '2026-10-31' as LocalDate };
+    expect((await asApp(() => query.list(userId, october))).total).toBe(128);
+    const gotrade = platforms.find((account) => account.displayName === 'Gotrade');
+    const history = await asApp(() => query.list(userId, { ...october, accountIds: [gotrade?.id as string] }));
+    expect(history.rows.map((row) => [row.type, row.description])).toEqual([
+      ['investment', 'SCHD'],
+      ['investment', 'SPY'],
+      ['transfer', 'DCA SPY 4.000.000 + SCHD 2.000.000'],
+    ]);
+
+    // NAB 16 Okt: the RDPU units arrive and join the value (the goal keeps its Rp3.000.000, now as value).
+    const trade = (await asApp(() => investments.trades(userId, { assetId: rdpu?.id as string })))[0];
+    await asApp(() => investments.settleTrade(userId, trade?.id as string, { units: '1621.621622', price: '1850' }));
+    const settled = await asApp(() => investments.portfolio(userId));
+    expect(settled.summary.valueBaseMinor).toBe(64_420_000n);
+    expect(settled.summary.costBaseMinor).toBe(56_931_000n);
+  });
+
   it('M4: confirming the 25 Okt set-aside puts Rp1.150.000 in Bank Jago for the sinking funds, not Dana Darurat', async () => {
     await asApp(() => seedLedger(test.db, userId, options));
     const schedules = createSchedules(test.db, options);
@@ -290,9 +402,9 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
 
     const goals = createGoals(test.db, options);
     expect((await asApp(() => goals.list(userId))).map((goal) => [goal.name, goal.savedMinor])).toEqual([
-      ['Dana Darurat', 8_125_000n],
-      ['DP Rumah', 5_000_000n],
-      ['Dana Pensiun', 0n],
+      ['Dana Darurat', 11_125_000n],
+      ['DP Rumah', 14_100_000n],
+      ['Dana Pensiun', 10_300_000n],
       ['Liburan Bali', 3_667_000n],
       ['Servis motor', 960_000n],
       ['Perpanjang STNK', 723_000n],
@@ -341,6 +453,30 @@ describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
         }),
       ),
     ).rejects.toBeInstanceOf(SeedMismatchError);
+  });
+
+  it('M5: fails on an asset category or goal asset the fixture does not have', async () => {
+    const [spy] = DESIGN_SEED.investments.assets;
+    if (spy === undefined) throw new Error('fixture changed');
+    const investments = (overrides: Partial<DesignSeed['investments']>) => ({ ...tiny({}).investments, ...overrides });
+    const seed = tiny({
+      accounts: DESIGN_SEED.accounts,
+      fxRates: DESIGN_SEED.fxRates,
+      investments: investments({ assets: [{ ...spy, category: 'Nope', buys: [] }] }),
+    });
+    await expect(asApp(() => seedLedger(test.db, userId, { ...options, seed }))).rejects.toBeInstanceOf(
+      SeedMismatchError,
+    );
+    const other = await insertUser(test, 'other@example.test');
+    const [goal] = DESIGN_SEED.goals;
+    if (goal === undefined) throw new Error('fixture changed');
+    const withGoal = tiny({
+      accounts: DESIGN_SEED.accounts,
+      goals: [{ ...goal, sources: [], assetSources: [{ assetKey: 'nope', mode: 'whole', pctBps: null }] }],
+    });
+    await expect(asApp(() => seedLedger(test.db, other, { ...options, seed: withGoal }))).rejects.toBeInstanceOf(
+      SeedMismatchError,
+    );
   });
 
   it('only fills an empty ledger', async () => {

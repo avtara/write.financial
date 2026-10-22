@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
 import { BUILT_IN_CATEGORIES, type BuiltInCategory, type BuiltInCategoryKey } from './categories.ts';
+import { goalShares } from './goal-assets.ts';
+import { replayTrades, type TradeInput } from './investments.ts';
 import { availableBalance } from './ledger.ts';
 import { DESIGN_SEED, seedClosingBalances, type DesignSeed, type SeedTransaction } from './seed.ts';
 import type { LocalDate } from './period.ts';
 import { cancelledSavings, remainingInMonth, subscriptionTotals } from './subscriptions.ts';
 import { TAG_SLUG_PATTERN } from './tags.ts';
+import { allocation, classItems, portfolioSummary, type PositionInput } from './valuation.ts';
 
 type Flow = Extract<SeedTransaction, { kind: 'expense' | 'income' }>;
 
@@ -230,11 +233,12 @@ describe('DESIGN_SEED accounts (Section 05 `ycP7T`)', () => {
       gopay: 412_000n,
       ovo: 86_000n,
       cash: 350_000n,
-      gotrade: 277_800n,
-      indodax: 5_500_000n,
-      stockbit: 4_300_000n,
-      pluang: 3_700_000n,
-      bibit: 5_500_000n,
+      // Platform cash only (M5): Gotrade US$51,99; the rest is in holdings, Bibit's 3.000.000 paid the RDPU buy.
+      gotrade: 5_199n,
+      indodax: 0n,
+      stockbit: 0n,
+      pluang: 0n,
+      bibit: 0n,
     });
   });
 
@@ -276,11 +280,12 @@ describe('DESIGN_SEED accounts (Section 05 `ycP7T`)', () => {
       gopay: 2_382_000n,
       ovo: 1_541_000n,
       cash: 2_120_000n,
-      gotrade: 210_522n,
-      indodax: 5_500_000n,
-      stockbit: 4_300_000n,
-      pluang: 3_700_000n,
-      bibit: 2_500_000n,
+      // US$51,63 on 30 Sep − the US$305,81 top-up + the US$305,80 of 1 Sep buys.
+      gotrade: 5_162n,
+      indodax: 0n,
+      stockbit: 0n,
+      pluang: 0n,
+      bibit: 0n,
     });
     expect(accounts.filter((account) => account.currency !== 'IDR').map((account) => account.key)).toEqual(['gotrade']);
   });
@@ -518,8 +523,149 @@ describe('DESIGN_SEED receivables (Section 19 "Piutang" `KZZZy`, 15 Okt)', () =>
   });
 });
 
+describe('DESIGN_SEED investments (design 09, 15 Okt 16.42 WIB, USD Rp16.350)', () => {
+  const { investments } = DESIGN_SEED;
+  const currencies = (currency: string) => ({ quote: currency, base: 'IDR' });
+  const accountCurrency = new Map(accounts.map((account) => [account.key, account.currency]));
+  const holdingOf = (key: string) => {
+    const asset = investments.assets.find((candidate) => candidate.key === key);
+    if (asset === undefined) throw new Error(`no asset ${key}`);
+    const trades: TradeInput[] = [
+      ...(asset.opening === null
+        ? []
+        : [
+            {
+              kind: 'buy' as const,
+              status: 'settled' as const,
+              units: asset.opening.units,
+              amountMinor: asset.opening.amountMinor,
+              feeMinor: 0n,
+              taxMinor: 0n,
+              fxRate: asset.opening.fxRate,
+              dividendMode: null,
+            },
+          ]),
+      ...asset.buys.map((buy) => ({
+        kind: 'buy' as const,
+        status: buy.pending ? ('pending' as const) : ('settled' as const),
+        units: buy.units,
+        amountMinor: buy.amountMinor,
+        feeMinor: 0n,
+        taxMinor: 0n,
+        fxRate: accountCurrency.get(asset.accountKey) === 'IDR' ? '1' : '16350',
+        dividendMode: null,
+      })),
+    ];
+    return { asset, holding: replayTrades(trades, currencies(accountCurrency.get(asset.accountKey) as string)) };
+  };
+  const positions: PositionInput[] = [
+    ...investments.assets.map((asset): PositionInput => {
+      const { holding } = holdingOf(asset.key);
+      const currency = accountCurrency.get(asset.accountKey) as string;
+      return {
+        key: asset.key,
+        assetClass: asset.assetClass,
+        currency,
+        units: holding.units,
+        price: asset.price,
+        prevClose: null,
+        fxRate: currency === 'IDR' ? '1' : '16350',
+        prevFxRate: null,
+        costMinor: holding.costMinor,
+        costBaseMinor: holding.costBaseMinor,
+      };
+    }),
+    // Gotrade's cash, US$51,99 (Rp850.037), class "Kas & SGOV".
+    {
+      key: 'cash:gotrade',
+      assetClass: 'cash',
+      currency: 'USD',
+      units: '51.99',
+      price: '1',
+      prevClose: null,
+      fxRate: '16350',
+      prevFxRate: null,
+      costMinor: 5_199n,
+      costBaseMinor: 850_037n,
+    },
+  ];
+
+  it('golden: Rp61.420.000 value, Rp53.931.000 cost, +Rp7.489.000 (+13,9%) through the valuation', () => {
+    expect(seedClosingBalances(DESIGN_SEED).get('gotrade')).toBe(5_199n);
+    const summary = portfolioSummary(positions, { base: 'IDR', dividends12mBaseMinor: 0n });
+    expect([summary.valueBaseMinor, summary.costBaseMinor, summary.gainBaseMinor, summary.gainBps]).toEqual([
+      61_420_000n,
+      53_931_000n,
+      7_489_000n,
+      1389,
+    ]);
+    const value = (key: string) => summary.positions.find((position) => position.key === key)?.valueBaseMinor;
+    // Per platform: Gotrade 45.420.000 (US$2.778), Indodax 5.500.000, Stockbit 4.300.000, Pluang 3.700.000, Bibit
+    // 2.500.000; the RDPU being bought is not part of the value.
+    const byPlatform = (key: string) =>
+      investments.assets
+        .filter((asset) => asset.accountKey === key)
+        .reduce((sum, asset) => sum + (value(asset.key) ?? 0n), key === 'gotrade' ? 850_037n : 0n);
+    expect(['gotrade', 'indodax', 'stockbit', 'pluang', 'bibit'].map(byPlatform)).toEqual([
+      45_420_000n,
+      5_500_000n,
+      4_300_000n,
+      3_700_000n,
+      2_500_000n,
+    ]);
+    expect([value('spy'), value('rdpu')]).toEqual([13_500_000n, 0n]);
+    expect(holdingOf('spy').holding.costBaseMinor).toBe(11_400_000n);
+  });
+
+  it('drift 3,8% against targets 50/12/12/7/8/5/6 (the design panel says 3,1% from shares its holdings do not have)', () => {
+    const summary = portfolioSummary(positions, { base: 'IDR', dividends12mBaseMinor: 0n });
+    expect(Object.values(investments.targets).reduce((sum, bps) => sum + bps, 0)).toBe(10_000);
+    expect(allocation(classItems(summary.positions), investments.targets).driftBps).toBe(381);
+  });
+
+  it('golden: goals hold Rp22.400.000 of it (RDPU 3.000.000 diproses, SPY 60/40, IDX30, SCHD)', () => {
+    const goalsBy = new Map<string, { goalId: string; mode: 'whole' | 'percent'; bps: number }[]>();
+    for (const goal of DESIGN_SEED.goals) {
+      for (const source of goal.assetSources) {
+        const list = goalsBy.get(source.assetKey) ?? [];
+        list.push({ goalId: goal.name, mode: source.mode, bps: source.pctBps ?? 10_000 });
+        goalsBy.set(source.assetKey, list);
+      }
+    }
+    const summary = portfolioSummary(positions, { base: 'IDR', dividends12mBaseMinor: 0n });
+    const held = [...goalsBy].flatMap(([key, sources]) => {
+      const valued = summary.positions.find((position) => position.key === key)?.valueBaseMinor ?? 0n;
+      const pending = investments.assets.find((asset) => asset.key === key)?.buys.find((buy) => buy.pending);
+      return goalShares(valued + (pending?.amountMinor ?? 0n), sources).goals;
+    });
+    expect(held.reduce((sum, share) => sum + share.value, 0n)).toBe(22_400_000n);
+    expect(held.filter((share) => share.goalId === 'DP Rumah').map((share) => share.value)).toEqual([
+      8_100_000n,
+      1_000_000n,
+    ]);
+  });
+
+  it('puts every asset on an investment account in its currency, categories by name, one pending buy', () => {
+    const platforms = new Set(
+      accounts.filter((account) => account.type === 'investment').map((account) => account.key),
+    );
+    const categories = new Set(investments.categories.map((category) => category.name));
+    for (const asset of investments.assets) {
+      expect(platforms.has(asset.accountKey)).toBe(true);
+      expect(asset.category === null || categories.has(asset.category)).toBe(true);
+    }
+    expect(investments.assets).toHaveLength(23);
+    expect(investments.assets.flatMap((asset) => asset.buys.filter((buy) => buy.pending)).length).toBe(1);
+  });
+});
+
 describe('seedClosingBalances', () => {
-  const base: DesignSeed = { ...DESIGN_SEED, transactions: [], septemberTransactions: [] };
+  const base: DesignSeed = {
+    ...DESIGN_SEED,
+    transactions: [],
+    septemberTransactions: [],
+    investments: { ...DESIGN_SEED.investments, assets: [] },
+  };
 
   it('is the opening balance without transactions', () => {
     expect(seedClosingBalances(base).get('bca')).toBe(38_415_000n);
@@ -568,7 +714,32 @@ describe('seedClosingBalances', () => {
     const closing = seedClosingBalances(seed);
     expect(closing.get('ovo')).toBe(1_536_000n);
     expect(closing.get('cash')).toBe(2_103_650n);
-    expect(closing.get('gotrade')).toBe(210_622n);
+    expect(closing.get('gotrade')).toBe(5_262n);
+  });
+
+  it('subtracts the buys paid from platform cash, pending ones too', () => {
+    const [spy] = DESIGN_SEED.investments.assets;
+    if (spy === undefined) throw new Error('fixture changed');
+    const buy = { occurredAt: '2026-10-01T09:00:00+07:00', units: '1', price: '1', amountMinor: 100n };
+    const seed: DesignSeed = {
+      ...base,
+      investments: {
+        ...base.investments,
+        assets: [
+          {
+            ...spy,
+            buys: [
+              { ...buy, pending: false },
+              { ...buy, pending: true },
+            ],
+          },
+        ],
+      },
+    };
+    expect(seedClosingBalances(seed).get('gotrade')).toBe(5_162n - 200n);
+    expect(() =>
+      seedClosingBalances({ ...seed, investments: { ...seed.investments, assets: [{ ...spy, accountKey: 'nope' }] } }),
+    ).toThrow('unknown seed account: nope');
   });
 
   it('rejects transactions on unknown accounts', () => {

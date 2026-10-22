@@ -272,6 +272,9 @@ async function whereIn(tx: Transaction, userId: string, filter: TransactionFilte
     );
   }
   if (filter.accountIds?.length) conditions.push(anyPosting(inArray(postings.accountId, [...filter.accountIds])));
+  // Trades' cash legs (FR-I2) belong to Investments and to their platform's history: the page shows them only
+  // when filtered by account.
+  else conditions.push(ne(transactions.type, 'investment'));
   if (filter.currencies?.length) conditions.push(anyPosting(inArray(postings.currency, [...filter.currencies])));
   if (filter.sources?.length) conditions.push(inArray(transactions.source, [...filter.sources]));
   if (filter.minAmountMinor !== undefined) conditions.push(sql`${principalBase} >= ${filter.minAmountMinor}`);

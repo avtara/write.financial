@@ -36,6 +36,10 @@ const MESSAGES: Readonly<Record<LedgerErrorCode, () => string>> = {
   REVIEW_RESOLVED: m.ledger_error_review_resolved,
   INVALID_DEBT: m.ledger_error_invalid_debt,
   INVALID_RECEIVABLE: m.ledger_error_invalid_receivable,
+  INVALID_ASSET: m.ledger_error_invalid_asset,
+  INVALID_TRADE: m.ledger_error_invalid_trade,
+  INVALID_MARKET_CREDENTIAL: m.ledger_error_invalid_market_credential,
+  TWO_FACTOR_REQUIRED: m.auth_error_two_factor_required,
 };
 
 export function ledgerErrorMessage(code: string, locale: Locale): string {

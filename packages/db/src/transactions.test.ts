@@ -445,14 +445,17 @@ describe('duplicate', () => {
     const id = await create(expense());
     await asApp(() => repo.remove(alice, [id]));
     await expect(asApp(() => repo.duplicate(alice, id, { clientId: randomUUID() }))).rejects.toMatchObject(NOT_FOUND);
-    const [dividend] = await test.query<{ id: string }>(
-      `INSERT INTO transactions (user_id, type, occurred_at, local_date, client_id, confirmed_by_user_at)
-       VALUES ($1, 'dividend', now(), '2026-10-15', $2, now()) RETURNING id`,
-      [alice, randomUUID()],
-    );
-    await expect(
-      asApp(() => repo.duplicate(alice, dividend?.id ?? '', { clientId: randomUUID() })),
-    ).rejects.toMatchObject({ code: 'INVALID_TRANSACTION' });
+    // An adjustment cannot be copied; a dividend is an investment trade's cash leg (managed, FR-I2).
+    for (const type of ['adjustment', 'dividend']) {
+      const [row] = await test.query<{ id: string }>(
+        `INSERT INTO transactions (user_id, type, occurred_at, local_date, client_id, confirmed_by_user_at)
+         VALUES ($1, $2, now(), '2026-10-15', $3, now()) RETURNING id`,
+        [alice, type, randomUUID()],
+      );
+      await expect(asApp(() => repo.duplicate(alice, row?.id ?? '', { clientId: randomUUID() }))).rejects.toMatchObject(
+        { code: 'INVALID_TRANSACTION' },
+      );
+    }
   });
 });
 

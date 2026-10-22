@@ -4,8 +4,10 @@
  * ledger through the repositories, as the app would: manual rates, built-in categories, accounts, 121 September and
  * 128 October transactions, the period start day, the budget, the closed September period, goals with their account
  * sources, (M3) the subscriptions and recurring transfers with their earlier bills linked to the seed transactions
- * that paid them and (M4) their goal shares, and (M4) the receivables, recorded without ledger transactions so the
- * designed balances and flows stay. Used by `wf-db seed --email <user>` and the exit E2Es. The result has every
+ * that paid them and (M4) their goal shares, (M4) the receivables, recorded without ledger transactions so the
+ * designed balances and flows stay, and (M5) the investments: categories, assets with manual prices, what was held
+ * before the ledger starts (a purchase without a cash leg), the DCA buys paid from platform cash (September's before
+ * September closes), the pending RDPU buy, the allocation targets, a month-end snapshot, and the goals' asset sources. Used by `wf-db seed --email <user>` and the exit E2Es. The result has every
  * account's balance by seed key, to compare with `seedClosingBalances`. {@link seedAutomation} then runs, as the
  * worker, what the scheduled jobs would have produced by now (review items for due bills, the September close
  * proposals).
@@ -22,6 +24,7 @@ import { createCategories } from './categories.ts';
 import { firstRow, withUser, type Database } from './db.ts';
 import { createFxRates } from './fx-rates.ts';
 import { createGoals } from './goals.ts';
+import { createInvestments } from './investments.ts';
 import { recordPastChargeIn, type ScheduleSourceType } from './occurrences.ts';
 import { createOccurrenceJobs } from './occurrence-jobs.ts';
 import { createPeriodClose } from './period-close.ts';
@@ -154,6 +157,65 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     paidBy.set(`${entry.occurredAt}|${entry.kind === 'transfer' ? entry.toAccountKey : entry.merchant}`, id);
   }
 
+  // M5: the portfolio, before September closes (its DCA buys are September trades).
+  const investments = createInvestments(db, { now });
+  const priceAt = new Date(seed.investments.priceAt);
+  const categoryIdsByName = new Map<string, string>();
+  for (const category of seed.investments.categories) {
+    categoryIdsByName.set(category.name, (await investments.createCategory(userId, category)).id);
+  }
+  const assetIds = new Map<string, string>();
+  for (const { key, accountKey, category, price, opening, buys, ...asset } of seed.investments.assets) {
+    const categoryId = category === null ? null : categoryIdsByName.get(category);
+    if (categoryId === undefined) throw new SeedMismatchError(`Seed category ${String(category)} is missing`);
+    const { id } = await investments.createAsset(userId, {
+      ...asset,
+      accountId: accountOf(accountKey),
+      categoryId,
+      priceMode: 'manual',
+      manualPrice: price,
+      manualPriceAt: priceAt,
+    });
+    assetIds.set(key, id);
+    if (opening !== null) {
+      await investments.adjustHoldings(userId, {
+        clientId: randomUUID(),
+        assetId: id,
+        occurredAt: new Date(seed.investments.openedAt),
+        units: opening.units,
+        reason: 'unrecorded_buy',
+        amountMinor: opening.amountMinor,
+        fxRate: opening.fxRate,
+      });
+    }
+    for (const buy of buys) {
+      await investments.recordTrade(userId, {
+        kind: 'buy',
+        clientId: randomUUID(),
+        assetId: id,
+        occurredAt: new Date(buy.occurredAt),
+        units: buy.units,
+        price: buy.price,
+        amountMinor: buy.amountMinor,
+        pending: buy.pending,
+      });
+    }
+  }
+  if (Object.keys(seed.investments.targets).length > 0) await investments.setTargets(userId, seed.investments.targets);
+  for (const snapshot of seed.investments.snapshots) {
+    await investments.recordSnapshot(userId, {
+      date: parseLocalDate(snapshot.date),
+      valueBaseMinor: snapshot.valueMinor,
+      costBaseMinor: snapshot.costMinor,
+      contributionsBaseMinor: snapshot.contributionsMinor,
+    });
+  }
+  const assetOf = (key: string) => {
+    const id = assetIds.get(key);
+    if (id === undefined) throw new SeedMismatchError(`Seed asset ${key} is missing`);
+    return id;
+  };
+
   // M2: periods start on the 1st, the budget in force since September, and September closed (FR-P3: closing makes
   // it read-only, so it comes after its transactions and budget).
   await createPreferences(db).update(userId, { periodStartDay: periodStartDay(seed.periodStartDay) });
@@ -178,7 +240,7 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
 
   const goals = createGoals(db, { getDek, now });
   const goalIds = new Map<string, string>();
-  for (const { accountKey, sources, targetMonths, ...goal } of seed.goals) {
+  for (const { accountKey, sources, assetSources, targetMonths, ...goal } of seed.goals) {
     // Fixture months are `YYYY-MM`; goals.create validates them.
     const created = await goals.create(userId, {
       ...goal,
@@ -187,6 +249,7 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
       targetMonths,
       accountId: accountKey === null ? null : accountOf(accountKey),
       sources: sources.map(({ accountKey: key, ...source }) => ({ ...source, accountId: accountOf(key) })),
+      assetSources: assetSources.map(({ assetKey, ...source }) => ({ ...source, assetId: assetOf(assetKey) })),
     });
     goalIds.set(goal.name, created.id);
   }

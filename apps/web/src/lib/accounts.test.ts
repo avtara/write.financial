@@ -5,6 +5,7 @@ import { accountView, CATEGORIES } from '../../test/accounts.ts';
 import {
   accountMeta,
   accountTotals,
+  accountValueBaseMinor,
   axisStart,
   byCheckAge,
   cardSlots,
@@ -25,30 +26,51 @@ describe('groupByType', () => {
     const gopay = accountView({ type: 'ewallet', balanceBaseMinor: 412_000n });
     const jago = accountView({ balanceBaseMinor: 8_125_000n });
     const gotrade = accountView({ type: 'investment', currency: 'USD', balanceBaseMinor: null });
-    const groups = groupByType([gopay, gotrade, bca, jago]);
+    const bibit = accountView({ type: 'investment', balanceBaseMinor: 0n, holdingsValueBaseMinor: 2_500_000n });
+    const groups = groupByType([gopay, gotrade, bca, jago, bibit]);
     expect(groups.map((group) => [group.type, group.accounts.map((a) => a.id), group.totalBaseMinor])).toEqual([
       ['bank', [bca.id, jago.id], 50_935_000n],
       ['ewallet', [gopay.id], 412_000n],
-      ['investment', [gotrade.id], 0n],
+      ['investment', [gotrade.id, bibit.id], 2_500_000n],
     ]);
   });
 });
 
+describe('accountValueBaseMinor', () => {
+  it('is the balance, plus the holdings on an investment platform; an unknown rate counts 0', () => {
+    expect(accountValueBaseMinor(accountView({ balanceBaseMinor: 42_810_000n }))).toBe(42_810_000n);
+    // Gotrade: US$51,99 cash (Rp850.037) + holdings Rp44.569.963.
+    const gotrade = accountView({
+      type: 'investment',
+      balanceBaseMinor: 850_037n,
+      holdingsValueBaseMinor: 44_569_963n,
+    });
+    expect(accountValueBaseMinor(gotrade)).toBe(45_420_000n);
+    expect(accountValueBaseMinor(accountView({ balanceBaseMinor: null, holdingsValueBaseMinor: 5n }))).toBe(5n);
+  });
+});
+
 describe('accountTotals', () => {
-  it('sums investments and all accounts, lists foreign currencies, and counts spending accounts', () => {
+  it('sums investments (cash + holdings) and all accounts, lists foreign currencies, and counts spending accounts', () => {
     const totals = accountTotals(
       [
         accountView({ balanceBaseMinor: 1_000n }),
-        accountView({ type: 'investment', currency: 'USD', balanceBaseMinor: 45_420_300n, includeInAvailable: false }),
+        accountView({
+          type: 'investment',
+          currency: 'USD',
+          balanceBaseMinor: 850_037n,
+          holdingsValueBaseMinor: 44_569_963n,
+          includeInAvailable: false,
+        }),
         accountView({ type: 'investment', currency: 'EUR', balanceBaseMinor: null, includeInAvailable: false }),
         accountView({ type: 'credit_card', balanceBaseMinor: -500n }),
       ],
       'IDR',
     );
     expect(totals).toEqual({
-      investmentsMinor: 45_420_300n,
+      investmentsMinor: 45_420_000n,
       investmentCount: 2,
-      totalMinor: 45_420_800n,
+      totalMinor: 45_420_500n,
       foreignCurrencies: ['EUR', 'USD'],
       spendingCount: 2,
     });

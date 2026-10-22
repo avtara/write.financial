@@ -29,6 +29,7 @@ const GOAL: NonNullable<OnboardingView['goal']> = {
   status: 'active',
   completedAt: null,
   sources: [],
+  assetSources: [],
   savedMinor: 0n,
   plans: [],
   monthlyPlanMinor: 0n,

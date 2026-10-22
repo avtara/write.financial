@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Tabungan (FR-G1, G3, G4, FR-B6; design 13) as its own invited user with the design persona on 15 Okt 2026: the
- * goldens (Rp17.325.000 in 6 goals, October Rp3.500.000 of Rp4.650.000, Dana Darurat 0,5 → with Bibit RDPU as a
- * source 0,6 months), "Setor manual" Rp1.000.000 (21% → 22%, Nov 2027 → Okt 2027), "Tarik dana", a new sinking fund
+ * goldens (Rp39.725.000 in 6 goals = Rp17.325.000 of accounts + Rp22.400.000 of investments, October Rp3.500.000
+ * of Rp4.650.000, Dana Darurat with the Bibit RDPU being bought as an asset source: 0,6 months), "Setor manual" Rp1.000.000 (21% → 22%, Nov 2027 → Okt 2027), "Tarik dana", a new sinking fund
  * joining the payday set-aside from November (Rp1.150.000 → Rp1.400.000 a month, October's stays Rp1.150.000),
  * "Tujuan baru" with 8× Rp2.250.000, STNK reached and
  * completed with "Urungkan", paid from in the Record sheet (Terpakai) with its Rp38.000 moved to Servis motor, the
@@ -47,15 +47,16 @@ async function choose(page: Page, select: Locator, option: string): Promise<void
 const goalRow = (page: Page, name: string) =>
   page.getByRole('region', { name: 'Tujuan tabungan' }).getByRole('listitem').filter({ hasText: name });
 
-test('the persona’s goals: Rp17.325.000 in 6 goals, October Rp3.500.000 of Rp4.650.000, the sinking funds', async ({
+test('the persona’s goals: Rp39.725.000 in 6 goals, October Rp3.500.000 of Rp4.650.000, the sinking funds', async ({
   page,
 }) => {
   await openGoals(page);
   await expect(page.getByText('6 tujuan aktif · Oktober 2026')).toBeVisible();
   const kpis = page.getByRole('region', { name: 'Ringkasan tabungan' });
-  await expect(kpis).toContainText('Total terkumpulRp17.325.000di 6 tujuan');
+  // Design 13 "Total terkumpul Rp39.725.000 · di 6 tujuan · Rp22.400.000 di investasi".
+  await expect(kpis).toContainText('Total terkumpulRp39.725.000di 6 tujuan');
   await expect(kpis).toContainText('Setoran OktoberRp3.500.000dari rencana Rp4.650.000 · sisa tgl 25');
-  await expect(kpis).toContainText('Dana darurat0,5 bulantarget 3 bulan pengeluaran');
+  await expect(kpis).toContainText('Dana darurat0,6 bulantarget 3 bulan pengeluaran');
   const list = page.getByRole('region', { name: 'Tujuan tabungan' });
   await expect(list.getByRole('tab', { name: 'Aktif · 6' })).toHaveAttribute('aria-selected', 'true');
   await expect(goalRow(page, 'Servis motor')).toContainText('Rp240.000/bulan · tgl 25 · Des 2026');
@@ -77,17 +78,9 @@ test('the persona’s goals: Rp17.325.000 in 6 goals, October Rp3.500.000 of Rp4
   await screenshot(page, 'goals-1440');
 });
 
-test('Bibit RDPU as a source: Dana Darurat Rp11.125.000, 21%, 0,6 months, reached Nov 2027', async ({ page }) => {
+test('Bibit RDPU (diproses) funds Dana Darurat: Rp11.125.000, 21%, 0,6 months, reached Nov 2027', async ({ page }) => {
   await openGoals(page);
-  await menu(page, 'Dana Darurat', 'Ubah tujuan');
-  const form = page.getByRole('dialog', { name: 'Ubah Dana Darurat' });
-  await expect(form.getByRole('checkbox', { name: /Target dinamis/ })).toBeChecked();
-  await form.getByRole('button', { name: 'Tambah sumber' }).click();
-  await choose(page, form.getByRole('combobox', { name: 'Rekening sumber' }).nth(1), 'Bibit');
-  // Dana Darurat's Bank Jago row is a fixed amount too: the new row is the last.
-  await form.getByRole('textbox', { name: 'Nominal tetap' }).last().fill('3.000.000');
-  await form.getByRole('button', { name: 'Simpan' }).click();
-  await expect(form).toBeHidden();
+  // Design 13 q9T3oQ: Jago Rp8.125.000 + "Reksa dana pasar uang · Rp3.000.000 · Diproses" (a whole-asset source).
   await expect(goalRow(page, 'Dana Darurat')).toContainText('Rp11.125.000');
   await expect(goalRow(page, 'Dana Darurat')).toContainText('21%');
   await expect(goalRow(page, 'Dana Darurat')).toContainText('Sesuai rencana');

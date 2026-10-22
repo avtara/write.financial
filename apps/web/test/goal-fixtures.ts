@@ -49,6 +49,7 @@ export function plan(overrides: Partial<GoalPlanView> & Pick<GoalPlanView, 'id'>
 
 export function goalView(overrides: Partial<GoalView> & Pick<GoalView, 'id' | 'name'>): GoalView {
   const sources = overrides.sources ?? [];
+  const assetSources = overrides.assetSources ?? [];
   const plans = overrides.plans ?? [];
   return {
     icon: 'target',
@@ -65,10 +66,11 @@ export function goalView(overrides: Partial<GoalView> & Pick<GoalView, 'id' | 'n
     completedAt: null,
     sortOrder: 0,
     archivedAt: null,
-    savedMinor: sources.reduce((sum, part) => sum + part.valueMinor, 0n),
+    savedMinor: [...sources, ...assetSources].reduce((sum, part) => sum + part.valueMinor, 0n),
     monthlyPlanMinor: plans.reduce((sum, part) => sum + (part.active ? part.amountMinor : 0n), 0n),
     ...overrides,
     sources,
+    assetSources,
     plans,
   };
 }

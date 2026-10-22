@@ -67,7 +67,16 @@ describe('AccountsCard', () => {
   });
 
   it('shows outflows with an up arrow and IDR investments without "≈"', async () => {
-    const local = account({ id: 'acc-bibit', displayName: 'Bibit', type: 'investment', currency: 'IDR' });
+    // A platform's balance is its cash; the card adds the holdings on it (Bibit: no cash, IDX30 + ORI Rp2.500.000).
+    const local = account({
+      id: 'acc-bibit',
+      displayName: 'Bibit',
+      type: 'investment',
+      currency: 'IDR',
+      balanceMinor: 0n,
+      balanceBaseMinor: 0n,
+      holdingsValueBaseMinor: 2_500_000n,
+    });
     const overview = {
       ...OVERVIEW,
       accounts: [...OVERVIEW.accounts.filter((a) => a.type !== 'investment'), local],
@@ -77,7 +86,9 @@ describe('AccountsCard', () => {
     const others = screen.getByRole('button', { name: /lainnya/ });
     await expect.element(others).toMatchTextContent('−400.000bulan ini');
     expect(others.element().querySelector('.text-red-fg')).not.toBeNull();
-    await expect.element(screen.getByRole('button', { name: /Investasi/ })).not.toMatchTextContent('≈');
+    const investments = screen.getByRole('button', { name: /Investasi/ });
+    await expect.element(investments).not.toMatchTextContent('≈');
+    await expect.element(investments).toMatchTextContent('Rp2.500.000');
   });
 
   it('adds "≈ Rp…" under a card in another currency', async () => {

@@ -18,8 +18,16 @@ export const STALE_AFTER_DAYS = 14;
 export interface AccountGroup {
   readonly type: AccountType;
   readonly accounts: AccountView[];
-  /** Σ base-currency balances (accounts without a rate are left out). */
+  /** Σ base-currency values (accounts without a rate are left out). */
   readonly totalBaseMinor: bigint;
+}
+
+/**
+ * What an account is worth in the base currency: its balance, plus for an investment platform the holdings on it
+ * (the ledger balance of a platform is its cash). Without a rate the balance counts as 0.
+ */
+export function accountValueBaseMinor(account: AccountView): bigint {
+  return (account.balanceBaseMinor ?? 0n) + (account.holdingsValueBaseMinor ?? 0n);
 }
 
 /** Non-empty groups in the order of {@link ACCOUNT_TYPES}, each keeping the accounts' order. */
@@ -27,16 +35,16 @@ export function groupByType(accounts: readonly AccountView[]): AccountGroup[] {
   return ACCOUNT_TYPES.flatMap((type) => {
     const members = accounts.filter((account) => account.type === type);
     if (members.length === 0) return [];
-    const totalBaseMinor = members.reduce((sum, account) => sum + (account.balanceBaseMinor ?? 0n), 0n);
+    const totalBaseMinor = members.reduce((sum, account) => sum + accountValueBaseMinor(account), 0n);
     return [{ type, accounts: members, totalBaseMinor }];
   });
 }
 
 export interface AccountTotals {
-  /** Σ base-currency values of the investment accounts. */
+  /** Σ base-currency values of the investment accounts: cash + holdings. */
   readonly investmentsMinor: bigint;
   readonly investmentCount: number;
-  /** Total assets: Σ base-currency balances of every account (credit-card bills are negative). */
+  /** Total assets: Σ base-currency values of every account (credit-card bills are negative). */
   readonly totalMinor: bigint;
   /** Currencies other than the base one among the accounts, sorted ("≈" in front of converted totals). */
   readonly foreignCurrencies: string[];
@@ -47,7 +55,7 @@ export interface AccountTotals {
 /** The page's summary figures over the active `accounts`. */
 export function accountTotals(accounts: readonly AccountView[], baseCurrency: string): AccountTotals {
   const investments = accounts.filter((account) => account.type === 'investment');
-  const sum = (list: readonly AccountView[]) => list.reduce((total, a) => total + (a.balanceBaseMinor ?? 0n), 0n);
+  const sum = (list: readonly AccountView[]) => list.reduce((total, a) => total + accountValueBaseMinor(a), 0n);
   return {
     investmentsMinor: sum(investments),
     investmentCount: investments.length,
