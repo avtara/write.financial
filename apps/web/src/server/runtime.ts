@@ -21,6 +21,7 @@ import { createDrafts, type DraftsRepository } from '@wf/db/drafts';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createGoals, type GoalsRepository } from '@wf/db/goals';
 import { createInstanceSettings } from '@wf/db/instance-settings';
+import { createInvestments, type InvestmentsRepository } from '@wf/db/investments';
 import { createInvitations } from '@wf/db/invitations';
 import { createMarketCredentials, type MarketCredentialsRepository } from '@wf/db/market-credentials';
 import { createMarketData, type MarketDataRepository } from '@wf/db/market-data';
@@ -124,6 +125,8 @@ export interface Services extends BaseRuntime {
   readonly debts: DebtsRepository;
   /** Receivables (M4); the Debts page reads their total. */
   readonly receivables: ReceivablesRepository;
+  /** Investments (M5): assets, trades, the portfolio, and the quotes behind it, on `wf_app`. */
+  readonly investments: InvestmentsRepository;
   /** Market data (M5, FR-I5/I6): quotes, the user's own-key results, the request log. */
   readonly marketData: MarketDataRepository;
   /** Settings › "API kurs & pasar": the user's keys (FR-ST4). */
@@ -193,6 +196,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     goals: createGoals(appDb, { getDek, now }),
     debts: createDebts(appDb, { getDek, now }),
     receivables: createReceivables(appDb, { getDek, now }),
+    investments: createInvestments(appDb, { now }),
     marketData: createMarketData(appDb, { now }),
     marketCredentials: createMarketCredentials(appDb, { getDek, now }),
     marketJobs: createMarketJobs(appDb, { getDek }),

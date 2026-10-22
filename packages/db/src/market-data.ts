@@ -11,9 +11,12 @@
 import { formatDecimal, parseDecimal } from '@wf/domain/decimal';
 import type { PriceMode } from '@wf/domain/investments';
 import {
+  BENCHMARKS,
   BYOK_PROVIDERS,
   FALLBACK_ORDER,
   resolveQuote,
+  type Benchmark,
+  type BenchmarkKey,
   type ByokProvider,
   type Market,
   type MarketProvider,
@@ -21,8 +24,8 @@ import {
   type ResolvedQuote,
   type ServerProvider,
 } from '@wf/domain/market';
-import { antamEstimate } from '@wf/domain/valuation';
-import { asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { antamEstimate, benchmarkReturnBps } from '@wf/domain/valuation';
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm';
 import { withUser, type Database, type Transaction } from './db.ts';
 import { LedgerError } from './ledger-errors.ts';
 import {
@@ -213,6 +216,23 @@ export interface ApiLogView extends Required<ApiLogInput> {
   readonly own: boolean;
 }
 
+/** A close of a benchmark: its price (quote major units) and the time of the data. */
+export interface BenchmarkClose {
+  readonly price: string;
+  readonly asOf: Date;
+}
+
+/** FR-I3 "Return YTD" of a benchmark (SPY, IHSG) from the user's own quotes. */
+export interface BenchmarkView {
+  readonly key: BenchmarkKey;
+  /** The newest close before the year started ("last year's close"); `null` when none is known. */
+  readonly baseline: BenchmarkClose | null;
+  /** The newest quote of this year; `null` when none is known. */
+  readonly current: BenchmarkClose | null;
+  /** `current ÷ baseline − 1` in basis points; `null` without both (shown as "—"). */
+  readonly ytdBps: number | null;
+}
+
 export interface MarketDataRepository {
   /** The effective quote of each of the user's assets (all when `assetIds` is omitted). */
   quotes: (userId: string, assetIds?: readonly string[]) => Promise<Map<string, ResolvedQuote | null>>;
@@ -233,6 +253,11 @@ export interface MarketDataRepository {
   recordUserQuotes: (userId: string, quotes: readonly UserQuoteInput[], fetchedAt: Date) => Promise<void>;
   /** Worker or app: logs a request; `userId` null = a built-in fetch. */
   logRequest: (userId: string | null, entry: ApiLogInput) => Promise<void>;
+  /**
+   * YTD benchmarks from the user's own BYOK quotes (`user_quotes`, never another user's): per benchmark the first
+   * provider of its market's fallback order with a quote on both sides of 1 January (UTC) of `year`.
+   */
+  benchmarks: (userId: string, options: { readonly year: number }) => Promise<BenchmarkView[]>;
 }
 
 const checkPrice = (price: string): string => {
@@ -245,6 +270,43 @@ const checkPrice = (price: string): string => {
   if (scaled <= 0n) throw new LedgerError('INVALID_ASSET', 'The price must be positive');
   return formatDecimal(scaled);
 };
+
+/** The newest `user_quotes` row per provider of `benchmark` before (`side` `before`) or from `since`. */
+async function benchmarkClosesIn(
+  tx: Transaction,
+  benchmark: Benchmark,
+  since: Date,
+  side: 'before' | 'since',
+): Promise<Map<MarketProvider, BenchmarkClose>> {
+  const symbolAt = (provider: MarketProvider) => benchmark.symbols[provider] ?? benchmark.symbol;
+  const providers = FALLBACK_ORDER[benchmark.market].flatMap((step) =>
+    step.mode === 'byok' && step.provider !== null ? [step.provider] : [],
+  );
+  const rows = await tx
+    .selectDistinctOn([userQuotes.provider, userQuotes.symbol], {
+      provider: userQuotes.provider,
+      symbol: userQuotes.symbol,
+      price: userQuotes.price,
+      bucketTs: userQuotes.bucketTs,
+    })
+    .from(userQuotes)
+    .where(
+      and(
+        inArray(userQuotes.provider, providers),
+        inArray(userQuotes.symbol, [...new Set(providers.map(symbolAt))]),
+        eq(userQuotes.quoteCurrency, benchmark.currency),
+        side === 'before' ? lt(userQuotes.bucketTs, since) : gte(userQuotes.bucketTs, since),
+      ),
+    )
+    .orderBy(asc(userQuotes.provider), asc(userQuotes.symbol), desc(userQuotes.bucketTs));
+  const closes = new Map<MarketProvider, BenchmarkClose>();
+  for (const row of rows) {
+    if (row.symbol === symbolAt(row.provider)) {
+      closes.set(row.provider, { price: normalize(row.price), asOf: row.bucketTs });
+    }
+  }
+  return closes;
+}
 
 export function createMarketData(db: Database, options: { readonly now?: () => Date } = {}): MarketDataRepository {
   const now = options.now ?? (() => new Date());
@@ -356,6 +418,29 @@ export function createMarketData(db: Database, options: { readonly now?: () => D
         await tx.insert(marketApiLogs).values(values);
       });
     },
+
+    benchmarks: (userId, { year }) =>
+      withUser(db, userId, async (tx) => {
+        const since = new Date(Date.UTC(year, 0, 1));
+        const views: BenchmarkView[] = [];
+        for (const benchmark of BENCHMARKS) {
+          const before = await benchmarkClosesIn(tx, benchmark, since, 'before');
+          const after = await benchmarkClosesIn(tx, benchmark, since, 'since');
+          const step = FALLBACK_ORDER[benchmark.market].find(
+            (candidate) =>
+              candidate.provider !== null && before.has(candidate.provider) && after.has(candidate.provider),
+          );
+          if (step === undefined) {
+            views.push({ key: benchmark.key, baseline: null, current: null, ytdBps: null });
+            continue;
+          }
+          const provider = step.provider as MarketProvider;
+          const baseline = before.get(provider) as BenchmarkClose;
+          const current = after.get(provider) as BenchmarkClose;
+          views.push({ key: benchmark.key, baseline, current, ytdBps: benchmarkReturnBps(baseline.price, current.price) });
+        }
+        return views;
+      }),
   };
 }
 

@@ -369,3 +369,57 @@ describe('apiLog', () => {
     expect(await asApp(() => repo().apiLog(alice, { limit: 0 }))).toHaveLength(1);
   });
 });
+
+describe('benchmarks (FR-I3 Return YTD)', () => {
+  const close = (provider: string, symbol: string, currency: string, at: string, price: string) => ({
+    provider: provider as 'tiingo',
+    symbol,
+    quoteCurrency: currency,
+    bucketTs: new Date(at),
+    price,
+    prevClose: null,
+  });
+
+  it('compares the newest quote of the year with last year’s close, from the user’s own quotes only', async () => {
+    await asWorker(() =>
+      repo().recordUserQuotes(
+        alice,
+        [
+          // Tiingo has no close before the year: Finnhub (next in the order) is used.
+          close('tiingo', 'SPY', 'USD', '2026-10-15T09:00:00Z', '700'),
+          close('finnhub', 'SPY', 'USD', '2025-12-31T00:00:00Z', '601.13'),
+          close('finnhub', 'SPY', 'USD', '2025-12-30T00:00:00Z', '590'),
+          close('finnhub', 'SPY', 'USD', '2026-10-15T09:15:00Z', '690.10'),
+          close('finnhub', 'SPY', 'USD', '2026-10-14T20:00:00Z', '688'),
+          // IHSG is JKSE.INDX at EODHD; Marketstack's row under that name is not its symbol.
+          close('eodhd', 'JKSE.INDX', 'IDR', '2025-12-30T00:00:00Z', '7079.92'),
+          close('eodhd', 'JKSE.INDX', 'IDR', '2026-10-14T00:00:00Z', '7299.40'),
+          close('marketstack', 'JKSE.INDX', 'IDR', '2025-12-30T00:00:00Z', '1'),
+          close('marketstack', 'JKSE.INDX', 'IDR', '2026-10-14T00:00:00Z', '2'),
+        ],
+        NOW,
+      ),
+    );
+    expect(await asApp(() => repo().benchmarks(alice, { year: 2026 }))).toEqual([
+      {
+        key: 'spy',
+        baseline: { price: '601.13', asOf: new Date('2025-12-31T00:00:00Z') },
+        current: { price: '690.1', asOf: new Date('2026-10-15T09:15:00Z') },
+        ytdBps: 1480,
+      },
+      {
+        key: 'ihsg',
+        baseline: { price: '7079.92', asOf: new Date('2025-12-30T00:00:00Z') },
+        current: { price: '7299.4', asOf: new Date('2026-10-14T00:00:00Z') },
+        ytdBps: 310,
+      },
+    ]);
+    const none = { baseline: null, current: null, ytdBps: null };
+    expect(await asApp(() => repo().benchmarks(bob, { year: 2026 }))).toEqual([
+      { key: 'spy', ...none },
+      { key: 'ihsg', ...none },
+    ]);
+    // Before any of this year's quotes existed: nothing to compare.
+    expect((await asApp(() => repo().benchmarks(alice, { year: 2027 })))[0]).toEqual({ key: 'spy', ...none });
+  });
+});

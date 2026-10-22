@@ -25,6 +25,7 @@ import {
   superuser,
   UNAUTHENTICATED,
 } from '../harness.ts';
+import { investmentSetUpOf } from './investments.ts';
 
 interface Setup {
   readonly goal: GoalView;
@@ -159,6 +160,13 @@ export const cases = {
         { ok: false, code: 'INVALID_GOAL' },
       );
       await refusedForB('createGoal', { ...fields, accountId: a.home }, { ok: false, code: 'INVALID_GOAL' });
+      // Nor is A's investment asset.
+      const aAsset = (await investmentSetUpOf('A')).asset;
+      await refusedForB(
+        'createGoal',
+        { ...fields, assetSources: [{ assetId: aAsset, mode: 'whole' }] },
+        { ok: false, code: 'INVALID_GOAL' },
+      );
       const withPlan = {
         ...fields,
         accountId: b.home,
@@ -183,6 +191,11 @@ export const cases = {
       await refusedForB(
         'updateGoal',
         { id: b.goal.id, patch: {}, sources: [{ accountId: a.home, mode: 'whole' }] },
+        { ok: false, code: 'INVALID_GOAL' },
+      );
+      await refusedForB(
+        'updateGoal',
+        { id: b.goal.id, patch: {}, assetSources: [{ assetId: (await investmentSetUpOf('A')).asset, mode: 'whole' }] },
         { ok: false, code: 'INVALID_GOAL' },
       );
       expect(await as('B', 'updateGoal', { id: b.goal.id, patch: { name: 'Tujuan B' } })).toMatchObject(

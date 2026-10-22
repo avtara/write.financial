@@ -38,6 +38,7 @@ import * as categories from '../../src/server/fn/categories.ts';
 import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
 import * as goals from '../../src/server/fn/goals.ts';
+import * as investments from '../../src/server/fn/investments.ts';
 import * as ledger from '../../src/server/fn/ledger.ts';
 import * as market from '../../src/server/fn/market.ts';
 import * as notifications from '../../src/server/fn/notifications.ts';
@@ -149,6 +150,7 @@ export const FUNCTIONS = {
   ...debts,
   ...gate,
   ...goals,
+  ...investments,
   ...ledger,
   ...market,
   ...notifications,
