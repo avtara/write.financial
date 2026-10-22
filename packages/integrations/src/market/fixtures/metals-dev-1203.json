@@ -1,0 +1,5 @@
+{
+  "status": "failure",
+  "error_code": 1203,
+  "error_message": "Monthly quota exceeded (including grace)."
+}

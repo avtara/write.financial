@@ -1,0 +1,41 @@
+[
+  {
+    "code": "BBCA.JK",
+    "timestamp": 1792055700,
+    "gmtoffset": 0,
+    "open": 8700,
+    "high": 8800,
+    "low": 8675,
+    "close": 8750,
+    "volume": 51234500,
+    "previousClose": 8700,
+    "change": 50,
+    "change_p": 0.5747
+  },
+  {
+    "code": "BBRI.JK",
+    "timestamp": 1792055700,
+    "gmtoffset": 0,
+    "open": 4200,
+    "high": 4260,
+    "low": 4190,
+    "close": 4230,
+    "volume": 91234500,
+    "previousClose": 4210,
+    "change": 20,
+    "change_p": 0.4751
+  },
+  {
+    "code": "JKSE.INDX",
+    "timestamp": "NA",
+    "gmtoffset": 0,
+    "open": "NA",
+    "high": "NA",
+    "low": "NA",
+    "close": "NA",
+    "volume": "NA",
+    "previousClose": "NA",
+    "change": "NA",
+    "change_p": "NA"
+  }
+]

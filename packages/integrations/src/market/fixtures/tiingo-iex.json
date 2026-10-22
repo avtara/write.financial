@@ -1,0 +1,47 @@
+[
+  {
+    "ticker": "SPY",
+    "timestamp": "2026-10-14T20:00:00+00:00",
+    "lastSaleTimestamp": "2026-10-14T19:59:59.5+00:00",
+    "quoteTimestamp": "2026-10-14T20:00:00+00:00",
+    "open": 686.2,
+    "high": 691.4,
+    "low": 685.9,
+    "mid": null,
+    "tngoLast": 690.1,
+    "last": 690.12,
+    "lastSize": 100,
+    "bidSize": null,
+    "bidPrice": null,
+    "askPrice": null,
+    "askSize": null,
+    "volume": 51234567,
+    "prevClose": 685.2
+  },
+  {
+    "ticker": "QQQ",
+    "timestamp": "2026-10-14T20:00:00+00:00",
+    "lastSaleTimestamp": null,
+    "quoteTimestamp": "2026-10-14T20:00:00+00:00",
+    "open": 601.0,
+    "high": 604.4,
+    "low": 599.1,
+    "mid": null,
+    "tngoLast": null,
+    "last": 603.55,
+    "lastSize": 200,
+    "bidSize": null,
+    "bidPrice": null,
+    "askPrice": null,
+    "askSize": null,
+    "volume": 30123456,
+    "prevClose": null
+  },
+  {
+    "ticker": "ZZZZ",
+    "timestamp": "2026-10-14T20:00:00+00:00",
+    "tngoLast": null,
+    "last": null,
+    "prevClose": null
+  }
+]

@@ -26,7 +26,7 @@ export function createOpenErApi(options: FxProviderOptions = {}): FxProvider {
     name: 'open-er-api',
     hosts,
     async fetchRates({ quote, bases }) {
-      const answer = await getJson(OPEN_ER_API_URL, { ...options, provider: 'open-er-api', hosts, schema: latest });
+      const answer = await getJson(OPEN_ER_API_URL, { ...options, provider: 'open-er-api', schema: latest });
       // The table is published at 00:00 UTC for that UTC day.
       const asOf = parseLocalDate(new Date(answer.time_last_update_unix * 1000).toISOString().slice(0, 10));
       const { rates } = answer;
