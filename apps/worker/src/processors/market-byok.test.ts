@@ -84,8 +84,10 @@ function deps(keys: MarketCredentialView[], lastRequests: Partial<Record<ByokPro
               return Promise.resolve(TARGETS);
             },
             lastRequests: () => Promise.resolve(lastRequests),
-            credential: (_: string, provider: ByokProvider) =>
-              Promise.resolve(keys.some((key) => key.provider === provider) ? credential(provider) : null),
+            credential: (_: string, provider: ByokProvider) => {
+              const key = keys.find((candidate) => candidate.provider === provider);
+              return Promise.resolve(key === undefined ? null : { ...credential(provider), active: key.active });
+            },
           },
         },
         market: { adapters, cmcApiKey: null },
@@ -103,7 +105,7 @@ describe('market-byok processor', () => {
       deps: d,
       inputs,
       adapters,
-    } = deps([view('eodhd'), view('tiingo'), view('coingecko')], {
+    } = deps([view('eodhd'), view('tiingo'), view('coinmarketcap', { active: false }), view('coingecko')], {
       eodhd: new Date('2026-10-15T03:00:00Z'),
     });
     const result = await createMarketByokProcessor(d)(job);
@@ -127,7 +129,8 @@ describe('market-byok processor', () => {
           priced: 0,
           missing: 1,
           runs: [{ provider: 'coingecko', status: 'connected' }],
-          skipped: [],
+          // The switched-off CoinMarketCap key is passed over.
+          skipped: ['coinmarketcap'],
         },
       ],
     });
