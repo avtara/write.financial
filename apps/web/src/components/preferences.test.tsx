@@ -82,11 +82,15 @@ async function renderProbe(initial: Partial<Preferences> = {}) {
 
 const cookies = () => parseCookies(document.cookie);
 
-beforeEach(() => {
+// The preferences live in cookies that outlive this file (the locale one switches later browser test files to English).
+const clearCookies = () => {
   for (const name of cookies().keys()) document.cookie = `${name}=; Max-Age=0; Path=/`;
-});
+};
+
+beforeEach(clearCookies);
 
 afterEach(() => {
+  clearCookies();
   vi.useRealTimers();
   delete document.documentElement.dataset.theme;
 });

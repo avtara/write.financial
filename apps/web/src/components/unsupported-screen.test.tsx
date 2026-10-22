@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { setLocale } from '@wf/i18n/runtime';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-react';
 import '../styles.css';
 import { UnsupportedScreen } from './unsupported-screen.tsx';
+
+// The locale lives in a cookie that outlives this file; later browser test files expect Indonesian.
+afterEach(async () => {
+  await setLocale('id', { reload: false });
+});
 
 describe('UnsupportedScreen', () => {
   it('asks for a tablet or desktop below 768 px', async () => {
