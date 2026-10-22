@@ -65,12 +65,29 @@ export function GrowthCard({ points, benchmarks, currency, convert, locale }: Gr
     })),
   );
   const ytd = periodReturnBps(pointsInRange(points, 'ytd'));
-  const max = shown.reduce((top, point) => [point.valueMinor, point.costMinor, top].reduce((a, b) => (b > a ? b : a)), 1n);
+  const max = shown.reduce(
+    (top, point) => [point.valueMinor, point.costMinor, top].reduce((a, b) => (b > a ? b : a)),
+    1n,
+  );
   const y = (minor: bigint) => TOP + PLOT - (Number(minor < 0n ? 0n : minor) / Number(max)) * PLOT;
   const slot = width === null || shown.length === 0 ? 0 : width / shown.length;
   const bar = Math.min(Math.max(slot * 0.62, 8), 64);
   const millions = (minor: bigint) =>
     formatNumber(Number(minor) / 1_000_000, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  // Geometry and text of each column, computed before rendering (amounts reach the DOM only as these numbers).
+  const bars = shown.map((point, index) => {
+    const loss = point.valueMinor < point.costMinor;
+    return {
+      month: point.month,
+      x: slot * index + slot / 2,
+      lowY: y(loss ? point.valueMinor : point.costMinor),
+      topY: y(loss ? point.costMinor : point.valueMinor),
+      loss,
+      current: index === shown.length - 1,
+      text: millions(point.valueMinor),
+      label: `${periodLabel(point.month, locale)}: ${m.invest_growth_legend_value()} ${hidden ? '•••' : millions(point.valueMinor)}`,
+    };
+  });
 
   return (
     <section
@@ -110,79 +127,71 @@ export function GrowthCard({ points, benchmarks, currency, convert, locale }: Gr
           <div aria-hidden="true" className="h-[228px]" />
         ) : (
           <svg width={width} height={TOP + PLOT + BOTTOM} role="group" aria-label={m.invest_growth_chart()}>
-            {shown.map((point, index) => {
-              const x = slot * index + slot / 2;
-              const low = point.valueMinor < point.costMinor ? point.valueMinor : point.costMinor;
-              const current = index === shown.length - 1;
-              const label = `${periodLabel(point.month, locale)}: ${m.invest_growth_legend_value()} ${
-                hidden ? '•••' : millions(point.valueMinor)
-              }`;
-              return (
-                <g
-                  key={point.month}
-                  tabIndex={0}
-                  role="img"
-                  aria-label={label}
-                  onMouseEnter={() => {
-                    setActive(index);
-                  }}
-                  onMouseLeave={() => {
-                    setActive(null);
-                  }}
-                  onFocus={() => {
-                    setActive(index);
-                  }}
-                  onBlur={() => {
-                    setActive(null);
-                  }}
-                  className="outline-none focus-visible:[&>rect:first-child]:stroke-ring"
-                >
-                  <rect
-                    x={x - slot / 2 + 2}
-                    y={0}
-                    width={Math.max(slot - 4, 0)}
-                    height={TOP + PLOT}
-                    rx={6}
-                    className={active === index ? 'fill-tint-04' : 'fill-transparent'}
-                    strokeWidth={2}
-                  />
-                  <rect
-                    x={x - bar / 2}
-                    y={y(low)}
-                    width={bar}
-                    height={TOP + PLOT - y(low)}
-                    rx={2}
-                    className={current ? 'fill-neutral-strong' : 'fill-neutral-mid'}
-                  />
-                  <rect
-                    x={x - bar / 2}
-                    y={y(point.valueMinor > point.costMinor ? point.valueMinor : point.costMinor)}
-                    width={bar}
-                    height={Math.abs(y(point.valueMinor) - y(point.costMinor))}
-                    rx={2}
-                    className={point.gainMinor < 0n ? 'fill-red' : current ? 'fill-green' : 'fill-heat-green'}
-                  />
-                  {hidden ? null : (
-                    <text
-                      x={x}
-                      y={y(point.valueMinor > point.costMinor ? point.valueMinor : point.costMinor) - 6}
-                      textAnchor="middle"
-                      className={`font-mono text-[10.5px] ${current ? 'fill-fg' : 'fill-subtle'}`}
-                    >
-                      {millions(point.valueMinor)}
-                    </text>
-                  )}
+            {bars.map((column, index) => (
+              <g
+                key={column.month}
+                tabIndex={0}
+                role="img"
+                aria-label={column.label}
+                onMouseEnter={() => {
+                  setActive(index);
+                }}
+                onMouseLeave={() => {
+                  setActive(null);
+                }}
+                onFocus={() => {
+                  setActive(index);
+                }}
+                onBlur={() => {
+                  setActive(null);
+                }}
+                className="outline-none focus-visible:[&>rect:first-child]:stroke-ring"
+              >
+                <rect
+                  x={column.x - slot / 2 + 2}
+                  y={0}
+                  width={Math.max(slot - 4, 0)}
+                  height={TOP + PLOT}
+                  rx={6}
+                  className={active === index ? 'fill-tint-04' : 'fill-transparent'}
+                  strokeWidth={2}
+                />
+                <rect
+                  x={column.x - bar / 2}
+                  y={column.lowY}
+                  width={bar}
+                  height={TOP + PLOT - column.lowY}
+                  rx={2}
+                  className={column.current ? 'fill-neutral-strong' : 'fill-neutral-mid'}
+                />
+                <rect
+                  x={column.x - bar / 2}
+                  y={column.topY}
+                  width={bar}
+                  height={column.lowY - column.topY}
+                  rx={2}
+                  className={column.loss ? 'fill-red' : column.current ? 'fill-green' : 'fill-heat-green'}
+                />
+                {hidden ? null : (
                   <text
-                    x={x}
-                    y={TOP + PLOT + 18}
+                    x={column.x}
+                    y={column.topY - 6}
                     textAnchor="middle"
-                    className={`text-[11.5px] ${current ? 'fill-fg font-medium' : 'fill-subtle'}`}
+                    className={`font-mono text-[10.5px] ${column.current ? 'fill-fg' : 'fill-subtle'}`}
                   >
-                    {monthName(point.month, locale)}
+                    {column.text}
                   </text>
-                </g>
-              );
-            })}
+                )}
+                <text
+                  x={column.x}
+                  y={TOP + PLOT + 18}
+                  textAnchor="middle"
+                  className={`text-[11.5px] ${column.current ? 'fill-fg font-medium' : 'fill-subtle'}`}
+                >
+                  {monthName(column.month, locale)}
+                </text>
+              </g>
+            ))}
           </svg>
         )}
         {active === null || width === null ? null : (
@@ -223,7 +232,15 @@ export function GrowthCard({ points, benchmarks, currency, convert, locale }: Gr
   );
 }
 
-function ReturnChip({ label, bps, locale }: { readonly label: string; readonly bps: number | null; readonly locale: Locale }) {
+function ReturnChip({
+  label,
+  bps,
+  locale,
+}: {
+  readonly label: string;
+  readonly bps: number | null;
+  readonly locale: Locale;
+}) {
   return (
     <li className="flex items-center gap-1 rounded-[6px] border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted-fg">
       {label}
@@ -253,26 +270,33 @@ function GrowthTooltip({ point, previous, x, width, currency, locale }: GrowthTo
     element.style.left = `${String(x + 230 <= width ? x : Math.max(x - 230 - 40, 0))}px`;
     element.style.top = '0px';
   };
-  const money = (minor: bigint, context: 'amount' | 'delta' = 'amount') => (
-    <Money minor={minor} currency={currency} context={context} locale={locale} />
-  );
   return (
     <div
       ref={place}
       role="tooltip"
       className="pointer-events-none absolute z-10 flex w-[230px] flex-col gap-2 rounded-[10px] border border-border-strong bg-popover p-3 text-[12px] shadow-lg"
     >
-      <span className="text-[11px] text-subtle">{m.invest_growth_tip_end({ month: periodLabel(point.month, locale) })}</span>
-      <span className="text-[15px] font-medium text-fg">{money(point.valueMinor)}</span>
+      <span className="text-[11px] text-subtle">
+        {m.invest_growth_tip_end({ month: periodLabel(point.month, locale) })}
+      </span>
+      <Money
+        minor={point.valueMinor}
+        currency={currency}
+        context="amount"
+        locale={locale}
+        className="text-[15px] font-medium text-fg"
+      />
       <dl className="flex flex-col gap-1">
         <div className="flex justify-between gap-2">
           <dt className="text-muted-fg">{m.invest_growth_tip_cost()}</dt>
-          <dd className="text-fg">{money(point.costMinor)}</dd>
+          <dd className="text-fg">
+            <Money minor={point.costMinor} currency={currency} context="amount" locale={locale} />
+          </dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-muted-fg">{m.invest_growth_legend_gain()}</dt>
           <dd className="flex items-center gap-1">
-            {money(point.gainMinor, 'delta')}
+            <Money minor={point.gainMinor} currency={currency} context="delta" locale={locale} />
             {point.gainBps === null ? null : (
               <Percent value={point.gainBps / 10_000} signed locale={locale} className="text-subtle" />
             )}
@@ -280,12 +304,15 @@ function GrowthTooltip({ point, previous, x, width, currency, locale }: GrowthTo
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-muted-fg">{m.invest_growth_tip_contributions()}</dt>
-          <dd>{money(point.contributionsMinor, 'delta')}</dd>
+          <dd>
+            <Money minor={point.contributionsMinor} currency={currency} context="delta" locale={locale} />
+          </dd>
         </div>
       </dl>
       {previous === null || point.changeMinor === null ? null : (
         <p className="flex flex-wrap items-center gap-1 border-t border-border pt-2 text-[11px] text-subtle">
-          {m.invest_growth_tip_vs({ month: monthName(previous, locale, 'long') })} {money(point.changeMinor, 'delta')}
+          {m.invest_growth_tip_vs({ month: monthName(previous, locale, 'long') })}{' '}
+          <Money minor={point.changeMinor} currency={currency} context="delta" locale={locale} />
           {point.changeBps === null ? null : (
             <>
               (<Percent value={point.changeBps / 10_000} signed locale={locale} />)

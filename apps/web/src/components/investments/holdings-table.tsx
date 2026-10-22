@@ -7,6 +7,7 @@
  */
 import type { AssetView, PortfolioView } from '@wf/db/investments';
 import { ratioBps } from '@wf/domain/budget';
+import type { AssetClass } from '@wf/domain/investments';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import {
@@ -17,7 +18,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@wf/ui/dropdown-menu';
-import { Money } from '@wf/ui/money';
 import { Percent } from '@wf/ui/percent';
 import {
   ArrowDownToLine,
@@ -35,14 +35,15 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
+  type LucideIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Button } from '../form.tsx';
+import { ApproxBase, DisplayMoney, type AmountDisplay } from './display-money.tsx';
 import {
   CLASS_TONE,
   classLabel,
   holdingGroups,
-  toUsd,
   type DisplayCurrency,
   type HoldingGroup,
   type HoldingItem,
@@ -50,16 +51,7 @@ import {
 } from './investments-model.ts';
 
 export type AssetAction =
-  | 'detail'
-  | 'buy'
-  | 'sell'
-  | 'dividend'
-  | 'adjust'
-  | 'targets'
-  | 'move'
-  | 'goals'
-  | 'edit'
-  | 'remove';
+  'detail' | 'buy' | 'sell' | 'dividend' | 'adjust' | 'targets' | 'move' | 'goals' | 'edit' | 'remove';
 
 export interface HoldingsTableProps {
   readonly portfolio: PortfolioView;
@@ -79,255 +71,362 @@ const GROUPINGS: readonly { readonly value: HoldingsGrouping; readonly label: ()
 
 const CELL = 'px-3 py-2.5 align-middle';
 
-export function HoldingsTable({ portfolio, display, usdRate, locale, onAction, onTopUp, onAddAsset }: HoldingsTableProps) {
-  const [grouping, setGrouping] = useState<HoldingsGrouping>('list');
-  const [query, setQuery] = useState('');
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const groups = holdingGroups(portfolio, grouping, query);
-  const base = portfolio.baseCurrency;
-  const usd = display === 'usd' && usdRate !== null;
-  const searching = query.trim() !== '';
-  const matched = groups.flatMap((entry) => entry.items);
-  const total = portfolio.summary;
-
-  /** A value in the display currency: the quote currency when it is USD in USD mode, else converted. */
-  const value = (baseMinor: bigint, quote: { currency: string; minor: bigint } | null, className = '') => {
-    if (usd) {
-      const minor = quote?.currency === 'USD' ? quote.minor : toUsd(baseMinor, base, usdRate);
-      return <Money minor={minor} currency="USD" context="amount" locale={locale} className={className} />;
-    }
-    if (quote === null || quote.currency === base) {
-      return <Money minor={baseMinor} currency={base} context="amount" locale={locale} className={className} />;
-    }
-    return <Money minor={quote.minor} currency={quote.currency} context="amount" locale={locale} className={className} />;
-  };
-  const approx = (baseMinor: bigint, currency: string | null) =>
-    usd || currency === null || currency === base ? null : (
-      <span className="text-[11px] text-subtle">
-        ≈ <Money minor={baseMinor} currency={base} context="amount" locale={locale} />
-      </span>
-    );
-  const gain = (baseMinor: bigint, quote: { currency: string; minor: bigint } | null, bps: number | null) => (
+/** A gain in the display currency with its percentage below. */
+function Gain({
+  baseMinor,
+  quoteMinor,
+  quoteCurrency,
+  bps,
+  display,
+}: {
+  readonly baseMinor: bigint;
+  readonly quoteMinor?: bigint | undefined;
+  readonly quoteCurrency?: string | undefined;
+  readonly bps: number | null;
+  readonly display: AmountDisplay;
+}) {
+  return (
     <span className="flex flex-col items-end">
-      {usd ? (
-        <Money
-          minor={quote?.currency === 'USD' ? quote.minor : toUsd(baseMinor, base, usdRate)}
-          currency="USD"
-          context="delta"
-          locale={locale}
-        />
-      ) : quote === null || quote.currency === base ? (
-        <Money minor={baseMinor} currency={base} context="delta" locale={locale} />
-      ) : (
-        <Money minor={quote.minor} currency={quote.currency} context="delta" locale={locale} />
-      )}
+      <DisplayMoney
+        baseMinor={baseMinor}
+        quoteMinor={quoteMinor}
+        quoteCurrency={quoteCurrency}
+        display={display}
+        context="delta"
+      />
       {bps === null ? null : (
         <Percent
           value={bps / 10_000}
           signed
-          locale={locale}
+          locale={display.locale}
           className={`text-[11px] ${bps < 0 ? 'text-red-fg' : 'text-green-fg'}`}
         />
       )}
     </span>
   );
+}
 
-  const assetRow = (item: HoldingItem, nested: boolean) => {
-    if (item.kind === 'cash') {
-      return (
-        <tr key={item.key} className="border-t border-border">
-          <td className={`${CELL} ${nested ? 'pl-12' : ''}`}>
-            <span className="flex items-center gap-3">
-              <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-[8px] bg-surface-2">
-                <Coins className="size-4 text-muted-fg" />
-              </span>
-              <span className="flex min-w-0 flex-col">
-                <span className="font-mono text-[13px] font-medium text-fg">
-                  {m.invest_cash_name({ platform: item.platformName })}
-                </span>
-                <span className="text-[11.5px] text-subtle">{m.invest_cash_sub({ currency: item.currency })}</span>
-              </span>
+/** Value with "≈ base" below when the row is priced in another currency. */
+function ValueCell({
+  baseMinor,
+  quoteMinor,
+  quoteCurrency,
+  display,
+  strong = false,
+}: {
+  readonly baseMinor: bigint;
+  readonly quoteMinor?: bigint | undefined;
+  readonly quoteCurrency: string | null;
+  readonly display: AmountDisplay;
+  readonly strong?: boolean;
+}) {
+  return (
+    <span className="flex flex-col items-end">
+      <DisplayMoney
+        baseMinor={baseMinor}
+        quoteMinor={quoteMinor}
+        quoteCurrency={quoteCurrency ?? undefined}
+        display={display}
+        className={`text-[13px] text-fg ${strong ? 'font-semibold' : 'font-medium'}`}
+      />
+      <ApproxBase baseMinor={baseMinor} currency={quoteCurrency} display={display} />
+    </span>
+  );
+}
+
+function CashRow({
+  item,
+  nested,
+  shareBps,
+  display,
+  onTopUp,
+}: {
+  readonly item: Extract<HoldingItem, { kind: 'cash' }>;
+  readonly nested: boolean;
+  readonly shareBps: number | null;
+  readonly display: AmountDisplay;
+  readonly onTopUp: (accountId: string) => void;
+}) {
+  return (
+    <tr className="border-t border-border">
+      <td className={`${CELL} ${nested ? 'pl-12' : ''}`}>
+        <span className="flex items-center gap-3">
+          <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-[8px] bg-surface-2">
+            <Coins className="size-4 text-muted-fg" />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="font-mono text-[13px] font-medium text-fg">
+              {m.invest_cash_name({ platform: item.platformName })}
             </span>
-          </td>
-          <td className={`${CELL} max-xl:hidden`}>
-            <ClassTag assetClass="cash" />
-          </td>
-          <td className={`${CELL} text-[12.5px] text-muted-fg max-lg:hidden`}>{item.platformName}</td>
-          <td className={`${CELL} text-right`}>
-            <span className="flex flex-col items-end">
-              {value(item.position.valueBaseMinor, { currency: item.currency, minor: item.cashMinor }, 'text-[13px] font-medium text-fg')}
-              {approx(item.position.valueBaseMinor, item.currency)}
-            </span>
-          </td>
-          <td className={CELL}>
-            <ShareBar shareBps={ratioBps(item.position.valueBaseMinor, total.valueBaseMinor)} target={null} locale={locale} />
-          </td>
-          <td className={`${CELL} text-right`}>{gain(item.position.gainBaseMinor, null, null)}</td>
-          <td className={`${CELL} text-right text-subtle max-lg:hidden`}>—</td>
-          <td className={`${CELL} w-10`}>
+            <span className="text-[11.5px] text-subtle">{m.invest_cash_sub({ currency: item.currency })}</span>
+          </span>
+        </span>
+      </td>
+      <td className={`${CELL} max-xl:hidden`}>
+        <ClassTag assetClass="cash" />
+      </td>
+      <td className={`${CELL} text-[12.5px] text-muted-fg max-lg:hidden`}>{item.platformName}</td>
+      <td className={`${CELL} text-right`}>
+        <ValueCell
+          baseMinor={item.position.valueBaseMinor}
+          quoteMinor={item.cashMinor}
+          quoteCurrency={item.currency}
+          display={display}
+        />
+      </td>
+      <td className={CELL}>
+        <ShareBar shareBps={shareBps} target={null} locale={display.locale} />
+      </td>
+      <td className={`${CELL} text-right`}>
+        <Gain baseMinor={item.position.gainBaseMinor} bps={null} display={display} />
+      </td>
+      <td className={`${CELL} text-right text-subtle max-lg:hidden`}>—</td>
+      <td className={`${CELL} w-10`}>
+        <button
+          type="button"
+          aria-label={m.invest_cash_topup({ platform: item.platformName })}
+          onClick={() => {
+            onTopUp(item.accountId);
+          }}
+          className="flex size-[26px] items-center justify-center rounded-[6px] text-subtle hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Plus aria-hidden="true" className="size-4" />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function AssetRow({
+  asset,
+  nested,
+  shareBps,
+  targetBps,
+  display,
+  onAction,
+}: {
+  readonly asset: AssetView;
+  readonly nested: boolean;
+  readonly shareBps: number | null;
+  readonly targetBps: number | null;
+  readonly display: AmountDisplay;
+  readonly onAction: (action: AssetAction, asset: AssetView) => void;
+}) {
+  const { value, holding } = asset;
+  const goals = asset.goals.map((goal) =>
+    goal.mode === 'whole' ? goal.goalName : `${goal.goalName} ${formatShare(goal.bps, display.locale)}`,
+  );
+  return (
+    <tr className="border-t border-border">
+      <td className={`${CELL} ${nested ? 'pl-12' : ''}`}>
+        <span className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-surface-2 font-mono text-[9.5px] text-muted-fg"
+          >
+            {asset.symbol.slice(0, 4)}
+          </span>
+          <span className="flex min-w-0 flex-col">
             <button
               type="button"
-              aria-label={m.invest_cash_topup({ platform: item.platformName })}
               onClick={() => {
-                onTopUp(item.accountId);
+                onAction('detail', asset);
               }}
-              className="flex size-[26px] items-center justify-center rounded-[6px] text-subtle hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+              className="w-fit font-mono text-[13px] font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-ring"
             >
-              <Plus aria-hidden="true" className="size-4" />
+              {asset.symbol}
             </button>
-          </td>
-        </tr>
-      );
-    }
-    const { asset } = item;
-    const positionValue = asset.value;
-    const goals = asset.goals.map((goal) =>
-      goal.mode === 'whole' ? goal.goalName : `${goal.goalName} ${formatShare(goal.bps, locale)}`,
-    );
-    return (
-      <tr key={asset.id} className="border-t border-border">
-        <td className={`${CELL} ${nested ? 'pl-12' : ''}`}>
-          <span className="flex items-center gap-3">
-            <span
-              aria-hidden="true"
-              className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-surface-2 font-mono text-[9.5px] text-muted-fg"
-            >
-              {asset.symbol.slice(0, 4)}
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <button
-                type="button"
-                onClick={() => {
-                  onAction('detail', asset);
-                }}
-                className="w-fit font-mono text-[13px] font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-              >
-                {asset.symbol}
-              </button>
-              <span className="truncate text-[11.5px] text-subtle">{[asset.name, ...goals].join(' · ')}</span>
-            </span>
-            {asset.pendingMinor > 0n ? <Tag tone="blue">{m.invest_pending()}</Tag> : null}
-            {asset.quote === null && asset.holding.units !== '0' ? <Tag tone="amber">{m.invest_at_cost()}</Tag> : null}
+            <span className="truncate text-[11.5px] text-subtle">{[asset.name, ...goals].join(' · ')}</span>
           </span>
-        </td>
-        <td className={`${CELL} max-xl:hidden`}>
-          <ClassTag assetClass={asset.assetClass} />
-        </td>
-        <td className={`${CELL} text-[12.5px] text-muted-fg max-lg:hidden`}>{asset.platformName}</td>
-        <td className={`${CELL} text-right`}>
-          <span className="flex flex-col items-end">
-            {value(
-              positionValue?.valueBaseMinor ?? 0n,
-              positionValue === null ? null : { currency: asset.quoteCurrency, minor: positionValue.valueMinor },
-              'text-[13px] font-medium text-fg',
-            )}
-            {approx(positionValue?.valueBaseMinor ?? 0n, asset.quoteCurrency)}
-          </span>
-        </td>
-        <td className={CELL}>
-          <ShareBar
-            shareBps={ratioBps(positionValue?.valueBaseMinor ?? 0n, total.valueBaseMinor)}
-            target={null}
-            locale={locale}
+          {asset.pendingMinor > 0n ? <Tag tone="blue">{m.invest_pending()}</Tag> : null}
+          {asset.quote === null && holding.units !== '0' ? <Tag tone="amber">{m.invest_at_cost()}</Tag> : null}
+        </span>
+      </td>
+      <td className={`${CELL} max-xl:hidden`}>
+        <ClassTag assetClass={asset.assetClass} />
+      </td>
+      <td className={`${CELL} text-[12.5px] text-muted-fg max-lg:hidden`}>{asset.platformName}</td>
+      <td className={`${CELL} text-right`}>
+        {value === null ? (
+          <span className="text-subtle">—</span>
+        ) : (
+          <ValueCell
+            baseMinor={value.valueBaseMinor}
+            quoteMinor={value.valueMinor}
+            quoteCurrency={asset.quoteCurrency}
+            display={display}
           />
-        </td>
-        <td className={`${CELL} text-right`}>
-          {positionValue === null ? (
-            <span className="text-subtle">—</span>
-          ) : (
-            gain(positionValue.gainBaseMinor, { currency: asset.quoteCurrency, minor: positionValue.gainMinor }, positionValue.gainBps)
-          )}
-        </td>
-        <td className={`${CELL} text-right max-lg:hidden`}>
-          {asset.holding.realizedMinor === 0n ? (
-            <span className="text-subtle">—</span>
-          ) : (
-            gain(
-              asset.holding.realizedBaseMinor,
-              { currency: asset.quoteCurrency, minor: asset.holding.realizedMinor },
-              null,
-            )
-          )}
-        </td>
-        <td className={`${CELL} w-10`}>
-          <AssetMenu asset={asset} targetBps={portfolio.targets[asset.assetClass] ?? null} locale={locale} onAction={onAction} />
-        </td>
-      </tr>
-    );
-  };
+        )}
+      </td>
+      <td className={CELL}>
+        <ShareBar shareBps={shareBps} target={null} locale={display.locale} />
+      </td>
+      <td className={`${CELL} text-right`}>
+        {value === null ? (
+          <span className="text-subtle">—</span>
+        ) : (
+          <Gain
+            baseMinor={value.gainBaseMinor}
+            quoteMinor={value.gainMinor}
+            quoteCurrency={asset.quoteCurrency}
+            bps={value.gainBps}
+            display={display}
+          />
+        )}
+      </td>
+      <td className={`${CELL} text-right max-lg:hidden`}>
+        {holding.realizedMinor === 0n ? (
+          <span className="text-subtle">—</span>
+        ) : (
+          <Gain
+            baseMinor={holding.realizedBaseMinor}
+            quoteMinor={holding.realizedMinor}
+            quoteCurrency={asset.quoteCurrency}
+            bps={null}
+            display={display}
+          />
+        )}
+      </td>
+      <td className={`${CELL} w-10`}>
+        <AssetMenu asset={asset} targetBps={targetBps} locale={display.locale} onAction={onAction} />
+      </td>
+    </tr>
+  );
+}
 
-  const groupRow = (entry: HoldingGroup) => {
-    const open = !collapsed.has(entry.key);
-    const symbols = entry.items.map((item) => (item.kind === 'cash' ? item.currency : item.asset.symbol));
-    return (
-      <tr key={`group-${entry.key}`} className="border-t border-border bg-surface-2">
-        <td className={CELL}>
-          <span className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-expanded={open}
-              aria-label={open ? m.invest_holdings_collapse({ name: entry.title }) : m.invest_holdings_expand({ name: entry.title })}
-              onClick={() => {
-                setCollapsed((previous) => {
-                  const next = new Set(previous);
-                  if (open) next.add(entry.key);
-                  else next.delete(entry.key);
-                  return next;
-                });
-              }}
-              className="flex size-6 items-center justify-center rounded-[6px] text-subtle hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
-            >
-              {open ? <ChevronDown aria-hidden="true" className="size-4" /> : <ChevronRight aria-hidden="true" className="size-4" />}
-            </button>
-            <span className="flex min-w-0 flex-col">
-              <span className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold text-fg">{entry.title}</span>
-                <Tag tone="neutral">
-                  {entry.kind === 'category'
-                    ? m.invest_holdings_category_count({ count: entry.items.length })
-                    : m.invest_holdings_position_count({ count: entry.items.length })}
-                </Tag>
-              </span>
-              <span className="truncate text-[11.5px] text-subtle">
-                {symbols.length <= 5 ? symbols.join(', ') : `${symbols.slice(0, 3).join(', ')} +${String(symbols.length - 3)}`}
-              </span>
+function GroupRow({
+  entry,
+  open,
+  display,
+  onToggle,
+}: {
+  readonly entry: HoldingGroup;
+  readonly open: boolean;
+  readonly display: AmountDisplay;
+  readonly onToggle: () => void;
+}) {
+  const symbols = entry.items.map((item) => (item.kind === 'cash' ? item.currency : item.asset.symbol));
+  const gainBps = ratioBps(entry.gainBaseMinor, entry.costBaseMinor);
+  const platforms = [
+    ...new Set(entry.items.map((item) => (item.kind === 'cash' ? item.platformName : item.asset.platformName))),
+  ];
+  return (
+    <tr className="border-t border-border bg-surface-2">
+      <td className={CELL}>
+        <span className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={
+              open ? m.invest_holdings_collapse({ name: entry.title }) : m.invest_holdings_expand({ name: entry.title })
+            }
+            onClick={onToggle}
+            className="flex size-6 items-center justify-center rounded-[6px] text-subtle hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            {open ? (
+              <ChevronDown aria-hidden="true" className="size-4" />
+            ) : (
+              <ChevronRight aria-hidden="true" className="size-4" />
+            )}
+          </button>
+          <span className="flex min-w-0 flex-col">
+            <span className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-fg">{entry.title}</span>
+              <Tag tone="neutral">
+                {entry.kind === 'category'
+                  ? m.invest_holdings_category_count({ count: entry.items.length })
+                  : m.invest_holdings_position_count({ count: entry.items.length })}
+              </Tag>
+            </span>
+            <span className="truncate text-[11.5px] text-subtle">
+              {symbols.length <= 5
+                ? symbols.join(', ')
+                : `${symbols.slice(0, 3).join(', ')} +${String(symbols.length - 3)}`}
             </span>
           </span>
-        </td>
-        <td className={`${CELL} max-xl:hidden`}>{entry.assetClass === null ? null : <ClassTag assetClass={entry.assetClass} />}</td>
-        <td className={`${CELL} text-[12.5px] text-muted-fg max-lg:hidden`}>
-          {entry.kind === 'platform'
-            ? null
-            : [...new Set(entry.items.map((item) => (item.kind === 'cash' ? item.platformName : item.asset.platformName)))].join(' · ')}
-        </td>
-        <td className={`${CELL} text-right`}>
-          <span className="flex flex-col items-end">
-            {value(
-              entry.valueBaseMinor,
-              entry.currency === null || entry.valueMinor === null ? null : { currency: entry.currency, minor: entry.valueMinor },
-              'text-[13px] font-semibold text-fg',
-            )}
-            {approx(entry.valueBaseMinor, entry.currency)}
-          </span>
-        </td>
-        <td className={CELL}>
-          <ShareBar shareBps={entry.shareBps} target={entry.targetBps} locale={locale} />
-        </td>
-        <td className={`${CELL} text-right`}>
-          {gain(entry.gainBaseMinor, null, ratioBps(entry.gainBaseMinor, entry.costBaseMinor))}
-        </td>
-        <td className={`${CELL} text-right max-lg:hidden`}>
-          {entry.realizedBaseMinor === 0n ? <span className="text-subtle">—</span> : gain(entry.realizedBaseMinor, null, null)}
-        </td>
-        <td className={CELL} />
-      </tr>
+        </span>
+      </td>
+      <td className={`${CELL} max-xl:hidden`}>
+        {entry.assetClass === null ? null : <ClassTag assetClass={entry.assetClass} />}
+      </td>
+      <td className={`${CELL} text-[12.5px] text-muted-fg max-lg:hidden`}>
+        {entry.kind === 'platform' ? null : platforms.join(' · ')}
+      </td>
+      <td className={`${CELL} text-right`}>
+        <ValueCell
+          baseMinor={entry.valueBaseMinor}
+          quoteMinor={entry.valueMinor ?? undefined}
+          quoteCurrency={entry.currency}
+          display={display}
+          strong
+        />
+      </td>
+      <td className={CELL}>
+        <ShareBar shareBps={entry.shareBps} target={entry.targetBps} locale={display.locale} />
+      </td>
+      <td className={`${CELL} text-right`}>
+        <Gain baseMinor={entry.gainBaseMinor} bps={gainBps} display={display} />
+      </td>
+      <td className={`${CELL} text-right max-lg:hidden`}>
+        {entry.realizedBaseMinor === 0n ? (
+          <span className="text-subtle">—</span>
+        ) : (
+          <Gain baseMinor={entry.realizedBaseMinor} bps={null} display={display} />
+        )}
+      </td>
+      <td className={CELL} />
+    </tr>
+  );
+}
+
+export function HoldingsTable({
+  portfolio,
+  display: mode,
+  usdRate,
+  locale,
+  onAction,
+  onTopUp,
+  onAddAsset,
+}: HoldingsTableProps) {
+  const [grouping, setGrouping] = useState<HoldingsGrouping>('list');
+  const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const groups = holdingGroups(portfolio, grouping, query);
+  const display: AmountDisplay = { base: portfolio.baseCurrency, usdRate: mode === 'usd' ? usdRate : null, locale };
+  const searching = query.trim() !== '';
+  const matched = groups.flatMap((entry) => entry.items);
+  const total = portfolio.summary;
+  const shownValue = groups.reduce((sum, entry) => sum + entry.valueBaseMinor, 0n);
+  const shownGain = groups.reduce((sum, entry) => sum + entry.gainBaseMinor, 0n);
+  const shownShare = ratioBps(shownValue, total.valueBaseMinor);
+
+  const row = (item: HoldingItem, nested: boolean) => {
+    const share = ratioBps(
+      item.kind === 'cash' ? item.position.valueBaseMinor : (item.asset.value?.valueBaseMinor ?? 0n),
+      total.valueBaseMinor,
+    );
+    return item.kind === 'cash' ? (
+      <CashRow key={item.key} item={item} nested={nested} shareBps={share} display={display} onTopUp={onTopUp} />
+    ) : (
+      <AssetRow
+        key={item.asset.id}
+        asset={item.asset}
+        nested={nested}
+        shareBps={share}
+        targetBps={portfolio.targets[item.asset.assetClass] ?? null}
+        display={display}
+        onAction={onAction}
+      />
     );
   };
 
   const singles = groups.filter((entry) => entry.kind === 'single').length;
   const grouped = groups.filter((entry) => entry.kind === 'category');
   return (
-    <section aria-labelledby="invest-holdings" className="flex min-w-0 flex-col rounded-[12px] border border-border bg-card">
+    <section
+      aria-labelledby="invest-holdings"
+      className="flex min-w-0 flex-col rounded-[12px] border border-border bg-card"
+    >
       <div className="flex flex-wrap items-center gap-3 px-5 py-4">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h2 id="invest-holdings" className="text-[15px] font-semibold text-fg">
@@ -358,7 +457,11 @@ export function HoldingsTable({ portfolio, display, usdRate, locale, onAction, o
             className="min-w-0 flex-1 bg-transparent text-[12.5px] text-fg outline-none placeholder:text-subtle"
           />
         </label>
-        <div role="group" aria-label={m.invest_holdings_group()} className="flex items-center gap-0.5 rounded-[8px] border border-border p-0.5">
+        <div
+          role="group"
+          aria-label={m.invest_holdings_group()}
+          className="flex items-center gap-0.5 rounded-[8px] border border-border p-0.5"
+        >
           {GROUPINGS.map((option) => (
             <button
               key={option.value}
@@ -367,7 +470,7 @@ export function HoldingsTable({ portfolio, display, usdRate, locale, onAction, o
               onClick={() => {
                 setGrouping(option.value);
               }}
-              className="h-7 rounded-[6px] px-2.5 text-[12px] text-muted-fg hover:text-fg aria-pressed:bg-muted aria-pressed:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+              className="h-7 rounded-[6px] px-2.5 text-[12px] text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-muted aria-pressed:text-fg"
             >
               {option.label()}
             </button>
@@ -384,7 +487,7 @@ export function HoldingsTable({ portfolio, display, usdRate, locale, onAction, o
           <col className="w-[130px] max-xl:hidden" />
           <col className="w-[120px] max-lg:hidden" />
           <col className="w-[150px]" />
-          <col className="w-[150px]" />
+          <col className="w-[130px]" />
           <col className="w-[130px]" />
           <col className="w-[110px] max-lg:hidden" />
           <col className="w-10" />
@@ -427,8 +530,24 @@ export function HoldingsTable({ portfolio, display, usdRate, locale, onAction, o
           ) : (
             groups.flatMap((entry) =>
               entry.kind === 'single'
-                ? [assetRow(entry.items[0] as HoldingItem, false)]
-                : [groupRow(entry), ...(collapsed.has(entry.key) ? [] : entry.items.map((item) => assetRow(item, true)))],
+                ? [row(entry.items[0] as HoldingItem, false)]
+                : [
+                    <GroupRow
+                      key={`group-${entry.key}`}
+                      entry={entry}
+                      open={!collapsed.has(entry.key)}
+                      display={display}
+                      onToggle={() => {
+                        setCollapsed((previous) => {
+                          const next = new Set(previous);
+                          if (next.has(entry.key)) next.delete(entry.key);
+                          else next.add(entry.key);
+                          return next;
+                        });
+                      }}
+                    />,
+                    ...(collapsed.has(entry.key) ? [] : entry.items.map((item) => row(item, true))),
+                  ],
             )
           )}
         </tbody>
@@ -440,26 +559,22 @@ export function HoldingsTable({ portfolio, display, usdRate, locale, onAction, o
             <td className={`${CELL} max-xl:hidden`} />
             <td className={`${CELL} max-lg:hidden`} />
             <td className={`${CELL} text-right`}>
-              {value(
-                searching ? groups.reduce((sum, entry) => sum + entry.valueBaseMinor, 0n) : total.valueBaseMinor,
-                null,
-                'text-[13px] font-semibold text-fg',
-              )}
+              <ValueCell
+                baseMinor={searching ? shownValue : total.valueBaseMinor}
+                quoteCurrency={null}
+                display={display}
+                strong
+              />
             </td>
             <td className={`${CELL} text-[11.5px] text-subtle`}>
-              {searching ? (
-                <Percent
-                  value={(ratioBps(groups.reduce((sum, entry) => sum + entry.valueBaseMinor, 0n), total.valueBaseMinor) ?? 0) / 10_000}
-                  locale={locale}
-                />
-              ) : (
-                <Percent value={1} locale={locale} />
-              )}
+              <Percent value={searching ? (shownShare ?? 0) / 10_000 : 1} locale={locale} />
             </td>
             <td className={`${CELL} text-right`}>
-              {searching
-                ? gain(groups.reduce((sum, entry) => sum + entry.gainBaseMinor, 0n), null, null)
-                : gain(total.gainBaseMinor, null, total.gainBps)}
+              <Gain
+                baseMinor={searching ? shownGain : total.gainBaseMinor}
+                bps={searching ? null : total.gainBps}
+                display={display}
+              />
             </td>
             <td className={`${CELL} max-lg:hidden`} />
             <td className={CELL} />
@@ -475,12 +590,19 @@ function formatShare(bps: number, locale: Locale): string {
   return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 }).format(bps / 10_000);
 }
 
-function Tag({ tone, children }: { readonly tone: 'neutral' | 'blue' | 'amber'; readonly children: ReactNode }) {
-  const tones = { neutral: 'border-border text-subtle', blue: 'border-blue-tint-3 text-blue-fg', amber: 'border-amber-tint-3 text-amber-fg' };
-  return <span className={`shrink-0 rounded-[5px] border px-1.5 py-px text-[10.5px] ${tones[tone]}`}>{children}</span>;
+const TAG_TONES = {
+  neutral: 'border-border text-subtle',
+  blue: 'border-blue-tint-3 text-blue-fg',
+  amber: 'border-amber-tint-3 text-amber-fg',
+} as const;
+
+function Tag({ tone, children }: { readonly tone: keyof typeof TAG_TONES; readonly children: ReactNode }) {
+  return (
+    <span className={`shrink-0 rounded-[5px] border px-1.5 py-px text-[10.5px] ${TAG_TONES[tone]}`}>{children}</span>
+  );
 }
 
-function ClassTag({ assetClass }: { readonly assetClass: HoldingGroup['assetClass'] & string }) {
+function ClassTag({ assetClass }: { readonly assetClass: AssetClass }) {
   return (
     <span className="flex items-center gap-1.5 text-[12.5px] text-muted-fg">
       <span aria-hidden="true" className={`size-1.5 rounded-full ${CLASS_TONE[assetClass].dot}`} />
@@ -489,17 +611,28 @@ function ClassTag({ assetClass }: { readonly assetClass: HoldingGroup['assetClas
   );
 }
 
+/** The bar spans 0–40% of the portfolio (design "0–40% skala"); larger shares fill it. */
+const SHARE_SCALE = 4000;
+
 /** Share of the portfolio as a bar with the target as a tick. */
-function ShareBar({ shareBps, target, locale }: { readonly shareBps: number | null; readonly target: number | null; readonly locale: Locale }) {
-  // The bar spans 0–40% of the portfolio (design "0–40% skala"); larger shares fill it.
-  const scale = 4000;
-  const width = Math.min(shareBps ?? 0, scale) / scale;
+function ShareBar({
+  shareBps,
+  target,
+  locale,
+}: {
+  readonly shareBps: number | null;
+  readonly target: number | null;
+  readonly locale: Locale;
+}) {
+  const width = (Math.min(shareBps ?? 0, SHARE_SCALE) / SHARE_SCALE) * 100;
   return (
     <span className="flex items-center gap-2">
-      <svg aria-hidden="true" viewBox="0 0 100 6" preserveAspectRatio="none" className="h-1.5 w-full max-w-[80px]">
+      <svg aria-hidden="true" viewBox="0 0 100 6" preserveAspectRatio="none" className="h-1.5 w-full max-w-[64px]">
         <rect width="100" height="6" rx="3" className="fill-surface-3" />
-        <rect width={width * 100} height="6" rx="3" className="fill-blue" />
-        {target === null ? null : <rect x={(Math.min(target, scale) / scale) * 100 - 1} width="2" height="6" className="fill-fg" />}
+        <rect width={width} height="6" rx="3" className="fill-blue" />
+        {target === null ? null : (
+          <rect x={(Math.min(target, SHARE_SCALE) / SHARE_SCALE) * 100 - 1} width="2" height="6" className="fill-fg" />
+        )}
       </svg>
       <span className="flex flex-col font-mono text-[11.5px] text-muted-fg">
         {shareBps === null ? '—' : <Percent value={shareBps / 10_000} locale={locale} />}
@@ -524,7 +657,8 @@ function AssetMenu({
   readonly locale: Locale;
   readonly onAction: (action: AssetAction, asset: AssetView) => void;
 }) {
-  const item = (action: AssetAction, icon: typeof Plus, label: ReactNode, disabled = false) => (
+  const held = asset.holding.units !== '0';
+  const item = (action: AssetAction, icon: LucideIcon, label: ReactNode, disabled = false) => (
     <DropdownMenuItem
       icon={icon}
       disabled={disabled}
@@ -535,7 +669,6 @@ function AssetMenu({
       {label}
     </DropdownMenuItem>
   );
-  const held = asset.holding.units !== '0';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -558,7 +691,9 @@ function AssetMenu({
             SlidersHorizontal,
             <span className="flex flex-1 items-center justify-between gap-2">
               {m.invest_menu_targets()}
-              {targetBps === null ? null : <Percent value={targetBps / 10_000} locale={locale} className="text-subtle" />}
+              {targetBps === null ? null : (
+                <Percent value={targetBps / 10_000} locale={locale} className="text-subtle" />
+              )}
             </span>,
           )}
           {item('move', FolderInput, m.invest_menu_move())}

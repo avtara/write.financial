@@ -59,7 +59,11 @@ export function AllocationCard({ portfolio, locale, onEditTargets }: AllocationC
   const rows = allocationRows(portfolio);
   const { allocation } = portfolio;
   const largest = allocation?.largest ?? null;
-  let offset = 0;
+  const segments = rows.map((row, index) => ({
+    key: row.key,
+    length: Math.max(row.shareBps / 100 - 0.6, 0),
+    start: rows.slice(0, index).reduce((sum, previous) => sum + previous.shareBps / 100, 0),
+  }));
   return (
     <section
       aria-labelledby="invest-allocation"
@@ -93,24 +97,19 @@ export function AllocationCard({ portfolio, locale, onEditTargets }: AllocationC
           <div className="relative size-[132px] shrink-0">
             <svg aria-hidden="true" viewBox="0 0 42 42" className="size-full -rotate-90">
               <circle cx="21" cy="21" r={RADIUS} fill="none" strokeWidth="6" className="stroke-tint-06" />
-              {rows.map((row) => {
-                const length = row.shareBps / 100;
-                const start = offset;
-                offset += length;
-                return (
-                  <circle
-                    key={row.key}
-                    cx="21"
-                    cy="21"
-                    r={RADIUS}
-                    fill="none"
-                    strokeWidth="6"
-                    strokeDasharray={`${String(Math.max(length - 0.6, 0))} ${String(100 - Math.max(length - 0.6, 0))}`}
-                    strokeDashoffset={-start}
-                    className={CLASS_TONE[row.key].stroke}
-                  />
-                );
-              })}
+              {segments.map((segment) => (
+                <circle
+                  key={segment.key}
+                  cx="21"
+                  cy="21"
+                  r={RADIUS}
+                  fill="none"
+                  strokeWidth="6"
+                  strokeDasharray={`${String(segment.length)} ${String(100 - segment.length)}`}
+                  strokeDashoffset={-segment.start}
+                  className={CLASS_TONE[segment.key].stroke}
+                />
+              ))}
             </svg>
             <span className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="font-mono text-[20px] font-medium text-fg">{rows.length}</span>

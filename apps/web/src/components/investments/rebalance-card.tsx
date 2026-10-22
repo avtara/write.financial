@@ -26,7 +26,8 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
   const [extra, setExtra] = useState<bigint | null>(null);
   const base = portfolio.baseCurrency;
   const items = rebalanceItems(portfolio, rates);
-  const result = items.length === 0 ? null : rebalance(items, portfolio.targets, base, extra !== null && extra > 0n ? extra : 0n);
+  const result =
+    items.length === 0 ? null : rebalance(items, portfolio.targets, base, extra !== null && extra > 0n ? extra : 0n);
   const usd = rates.USD;
   const row = (trade: RebalanceTrade) => {
     const item = items.find((candidate) => candidate.key === trade.key);
@@ -39,7 +40,13 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
         ) : (
           <>
             <span className="text-[11.5px] text-subtle">
-              ≈ <Money minor={trade.amountMinor < 0n ? -trade.amountMinor : trade.amountMinor} currency={base} context="amount" locale={locale} />
+              {m.invest_approx()}{' '}
+              <Money
+                minor={trade.amountMinor < 0n ? -trade.amountMinor : trade.amountMinor}
+                currency={base}
+                context="amount"
+                locale={locale}
+              />
             </span>
             <Money minor={trade.quoteMinor} currency={item.quote.currency} context="delta" locale={locale} />
           </>
@@ -63,7 +70,8 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
           {usd === undefined ? null : (
             <>
               {' · '}
-              {m.invest_rate_usd()} <Money minor={priceMinor(usd, base)} currency={base} context="amount" locale={locale} />
+              {m.invest_rate_usd()}{' '}
+              <Money minor={priceMinor(usd, base)} currency={base} context="amount" locale={locale} />
             </>
           )}
         </p>
@@ -80,7 +88,14 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
           <Field label={m.invest_rebalance_extra()} aside={m.invest_optional()}>
             {({ id }) => (
               <div className={INPUT_FRAME.sm}>
-                <AmountInput id={id} value={extra} onValueChange={setExtra} currency={base} locale={locale} size="inline" />
+                <AmountInput
+                  id={id}
+                  value={extra}
+                  onValueChange={setExtra}
+                  currency={base}
+                  locale={locale}
+                  size="inline"
+                />
               </div>
             )}
           </Field>
@@ -90,13 +105,17 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
             <>
               {buys.length === 0 ? null : (
                 <div>
-                  <h3 className="text-[11px] font-medium tracking-[0.04em] text-subtle uppercase">{m.invest_rebalance_buy()}</h3>
+                  <h3 className="text-[11px] font-medium tracking-[0.04em] text-subtle uppercase">
+                    {m.invest_rebalance_buy()}
+                  </h3>
                   <ul>{buys.map(row)}</ul>
                 </div>
               )}
               {sells.length === 0 ? null : (
                 <div>
-                  <h3 className="text-[11px] font-medium tracking-[0.04em] text-subtle uppercase">{m.invest_rebalance_sell()}</h3>
+                  <h3 className="text-[11px] font-medium tracking-[0.04em] text-subtle uppercase">
+                    {m.invest_rebalance_sell()}
+                  </h3>
                   <ul>{sells.map(row)}</ul>
                 </div>
               )}

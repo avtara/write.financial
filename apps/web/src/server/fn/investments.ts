@@ -7,7 +7,7 @@
  * market data cache as the worker left it (the user's own BYOK results only). The user always comes from the session.
  */
 import { createServerFn } from '@tanstack/react-start';
-import type { AssetView, PortfolioSnapshotInput, PortfolioView, TradeRecord, TradeView } from '@wf/db/investments';
+import type { AssetView, PortfolioSnapshotInput, PortfolioView, TradeView } from '@wf/db/investments';
 import type { BenchmarkView } from '@wf/db/market-data';
 import { GOAL_ASSET_SOURCE_MODES } from '@wf/domain/goal-assets';
 import { ASSET_CLASSES, DIVIDEND_MODES, PRICE_MODES, type AssetClass } from '@wf/domain/investments';
@@ -128,9 +128,9 @@ export const getInvestments = createServerFn({ method: 'GET' })
     attempt(async () => {
       const { userId, all } = await signedIn(context.session);
       const portfolio = await all.investments.portfolio(userId);
-      const currencies = [
-        ...new Set(portfolio.platforms.map((platform) => platform.currency).concat('USD')),
-      ].filter((currency) => currency !== portfolio.baseCurrency);
+      const currencies = [...new Set(portfolio.platforms.map((platform) => platform.currency).concat('USD'))].filter(
+        (currency) => currency !== portfolio.baseCurrency,
+      );
       const [snapshots, benchmarks, rates, goals] = await Promise.all([
         all.investments.snapshots(userId),
         all.marketData.benchmarks(userId, { year: Number(portfolio.today.slice(0, 4)) }),
@@ -248,7 +248,7 @@ export const recordInvestmentTrade = createServerFn({ method: 'POST' })
   .handler(({ context, data }): Promise<Result<TradeView>> =>
     attempt(async () => {
       const { userId, all } = await signedIn(context.session);
-      return all.investments.recordTrade(userId, defined(data) as TradeRecord);
+      return all.investments.recordTrade(userId, defined(data));
     }),
   );
 

@@ -174,7 +174,10 @@ describe('assets, categories, and targets', () => {
       manualPriceAt: AT,
       categoryId: undefined,
     };
-    expect(await call(fns.createInvestmentAsset, { context: context(), data: input })).toEqual({ ok: true, value: spy });
+    expect(await call(fns.createInvestmentAsset, { context: context(), data: input })).toEqual({
+      ok: true,
+      value: spy,
+    });
     const { categoryId: _skipped, ...sent } = input;
     expect(fake.investments.createAsset).toHaveBeenCalledWith(USER_ID, sent);
     fake.investments.updateAsset.mockResolvedValueOnce(spy);

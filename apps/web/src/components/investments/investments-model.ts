@@ -249,10 +249,7 @@ export function holdingItems(portfolio: PortfolioView): HoldingItem[] {
           },
         ];
   });
-  return [
-    ...portfolio.assets.filter(isHeld).map((asset): HoldingItem => ({ kind: 'asset', asset })),
-    ...cash,
-  ];
+  return [...portfolio.assets.filter(isHeld).map((asset): HoldingItem => ({ kind: 'asset', asset })), ...cash];
 }
 
 /** Whether `item` matches the search ("yield": ticker, name, or its category's name). */
@@ -271,8 +268,7 @@ function matches(item: HoldingItem, query: string, categoryName: (id: string | n
  * group per class (design order); "Platform": one group per platform with its cash. Cash rows belong to class "Kas".
  */
 export function holdingGroups(portfolio: PortfolioView, grouping: HoldingsGrouping, query = ''): HoldingGroup[] {
-  const categoryName = (id: string | null) =>
-    portfolio.categories.find((category) => category.id === id)?.name ?? '';
+  const categoryName = (id: string | null) => portfolio.categories.find((category) => category.id === id)?.name ?? '';
   const items = holdingItems(portfolio).filter((item) => matches(item, query, categoryName));
   const classOf = (item: HoldingItem): AssetClass => (item.kind === 'cash' ? 'cash' : item.asset.assetClass);
   const platformOf = (item: HoldingItem) => (item.kind === 'cash' ? item.accountId : item.asset.accountId);
@@ -293,7 +289,13 @@ export function holdingGroups(portfolio: PortfolioView, grouping: HoldingsGroupi
       const own = items.filter((item) => platformOf(item) === platform.accountId);
       return own.length === 0
         ? []
-        : [group(portfolio, { key: platform.accountId, kind: 'platform', title: platform.name, assetClass: null }, own)];
+        : [
+            group(
+              portfolio,
+              { key: platform.accountId, kind: 'platform', title: platform.name, assetClass: null },
+              own,
+            ),
+          ];
     });
   }
   const singles = items

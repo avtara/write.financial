@@ -985,7 +985,8 @@ export function createGoals(
           .where(inArray(goals.id, goalIds));
         if (found.length !== new Set(goalIds).size) throw invalid('No such goal');
         const { baseCurrency } = await userContextIn(tx, userId);
-        if (found.some((goal) => goal.currency !== baseCurrency)) throw invalid('Assets fund goals in the base currency');
+        if (found.some((goal) => goal.currency !== baseCurrency))
+          throw invalid('Assets fund goals in the base currency');
         if (sources.some((source) => source.mode === 'whole' && (source.pctBps ?? null) !== null)) {
           throw invalid('A whole asset has no percentage');
         }
