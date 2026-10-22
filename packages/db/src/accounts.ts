@@ -17,6 +17,7 @@ import { logActivity } from './activity.ts';
 import { referenceRateIn } from './fx-rates.ts';
 import { localDateOf, recordTransactionIn, userContextIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
+import { assetValuesIn, holdingsValueByAccount } from './portfolio.ts';
 import { accounts, attachments, balanceAdjustments, goals, postings, transactions } from './schema.ts';
 
 const ACCOUNT_COLUMNS = {
@@ -50,7 +51,8 @@ const ACCOUNT_COLUMNS = {
 /** Every column but `user_id`. */
 export type AccountRow = Omit<typeof accounts.$inferSelect, 'userId'>;
 
-export interface AccountView extends AccountRow {
+/** An account with its ledger balance (an investment account's balance is its cash). */
+export interface AccountBalanceView extends AccountRow {
   /** In the account currency. */
   readonly balanceMinor: bigint;
   /** The balance in the user's base currency; `null` when no rate is known for the account currency. */
@@ -59,6 +61,14 @@ export interface AccountView extends AccountRow {
   readonly locked: boolean;
   /** Non-deleted transactions with a posting on the account. */
   readonly transactionCount: number;
+}
+
+export interface AccountView extends AccountBalanceView {
+  /**
+   * Investment accounts: Σ value of the holdings on the platform now, base currency (the platform is worth cash +
+   * holdings); `null` for other accounts and when a holding has no rate to the base currency.
+   */
+  readonly holdingsValueBaseMinor: bigint | null;
 }
 
 export interface AccountsOverview {
@@ -265,7 +275,7 @@ const LIVE_POSTINGS = and(eq(transactions.id, postings.transactionId), isNull(tr
 
 export interface Views {
   readonly baseCurrency: string;
-  readonly views: AccountView[];
+  readonly views: AccountBalanceView[];
   readonly missing: ReadonlySet<string>;
 }
 
@@ -325,10 +335,27 @@ export async function viewsIn(tx: Transaction, userId: string, where?: SQL): Pro
   return { baseCurrency, views, missing };
 }
 
-async function viewIn(tx: Transaction, userId: string, id: string): Promise<AccountView> {
+/** `views` with the value of the holdings on each investment account (`portfolio.assetValuesIn`) as of `now`. */
+async function withHoldingsIn(
+  tx: Transaction,
+  userId: string,
+  views: readonly AccountBalanceView[],
+  now: Date,
+): Promise<AccountView[]> {
+  if (!views.some((view) => view.type === 'investment')) {
+    return views.map((view) => ({ ...view, holdingsValueBaseMinor: null }));
+  }
+  const byAccount = holdingsValueByAccount(await assetValuesIn(tx, userId, now));
+  return views.map((view) => ({
+    ...view,
+    holdingsValueBaseMinor: view.type === 'investment' ? (byAccount.get(view.id) ?? 0n) : null,
+  }));
+}
+
+async function viewIn(tx: Transaction, userId: string, id: string, now: Date): Promise<AccountView> {
   const [view] = (await viewsIn(tx, userId, eq(accounts.id, id))).views;
   if (view === undefined) throw new LedgerError('NOT_FOUND', 'No such account');
-  return view;
+  return firstRow(await withHoldingsIn(tx, userId, [view], now), 'accounts');
 }
 
 interface LockedAccount {
@@ -397,10 +424,15 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         const missingRates = [...new Set([...listed, ...counted].map((view) => view.currency))]
           .filter((currency) => missing.has(currency))
           .sort();
-        return { baseCurrency, accounts: listed, availableMinor, missingRates };
+        return {
+          baseCurrency,
+          accounts: await withHoldingsIn(tx, userId, listed, now()),
+          availableMinor,
+          missingRates,
+        };
       }),
 
-    get: (userId, id) => withUser(db, userId, (tx) => viewIn(tx, userId, id)),
+    get: (userId, id) => withUser(db, userId, (tx) => viewIn(tx, userId, id, now())),
 
     create: (userId, input) =>
       withUser(db, userId, async (tx) => {
@@ -423,7 +455,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
           'accounts',
         );
         await logActivity(tx, userId, 'account', [id], 'created');
-        return viewIn(tx, userId, id);
+        return viewIn(tx, userId, id, now());
       }),
 
     update: (userId, id, patch) =>
@@ -431,7 +463,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         const values = normalize(patch);
         const rows = await lockAllIn(tx);
         const current = findLocked(rows, id);
-        const before = await viewIn(tx, userId, id);
+        const before = await viewIn(tx, userId, id, now());
         if (before.locked && LOCKED_KEYS.some((key) => values[key] !== undefined && values[key] !== before[key])) {
           throw new LedgerError('ACCOUNT_LOCKED');
         }
@@ -448,14 +480,14 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         const fields = Object.keys(values);
         if (fields.length > 0) await tx.update(accounts).set(values).where(eq(accounts.id, id));
         await logActivity(tx, userId, 'account', [id], 'updated', { fields });
-        return viewIn(tx, userId, id);
+        return viewIn(tx, userId, id, now());
       }),
 
     archive: (userId, id, { newDefaultId } = {}) =>
       withUser(db, userId, async (tx) => {
         const rows = await lockAllIn(tx);
         const current = findLocked(rows, id);
-        if (current.status === 'archived') return viewIn(tx, userId, id);
+        if (current.status === 'archived') return viewIn(tx, userId, id, now());
         let nextDefault: string | undefined;
         if (current.isDefaultQuickEntry) {
           if (newDefaultId == null) {
@@ -474,21 +506,21 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
           await tx.update(accounts).set({ isDefaultQuickEntry: true }).where(eq(accounts.id, nextDefault));
         }
         await logActivity(tx, userId, 'account', [id], 'archived', nextDefault ? { newDefaultId: nextDefault } : {});
-        return viewIn(tx, userId, id);
+        return viewIn(tx, userId, id, now());
       }),
 
     restore: (userId, id) =>
       withUser(db, userId, async (tx) => {
         const rows = await lockAllIn(tx);
         const current = findLocked(rows, id);
-        if (current.status === 'active') return viewIn(tx, userId, id);
+        if (current.status === 'active') return viewIn(tx, userId, id, now());
         const hasDefault = rows.some((row) => row.isDefaultQuickEntry);
         await tx
           .update(accounts)
           .set({ status: 'active', archivedAt: null, isDefaultQuickEntry: !hasDefault })
           .where(eq(accounts.id, id));
         await logActivity(tx, userId, 'account', [id], 'restored');
-        return viewIn(tx, userId, id);
+        return viewIn(tx, userId, id, now());
       }),
 
     deletePermanently: (userId, id) =>
@@ -537,7 +569,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
 
     reconcile: (userId, id, input) =>
       withUser(db, userId, async (tx) => {
-        const account = await viewIn(tx, userId, id);
+        const account = await viewIn(tx, userId, id, now());
         if (account.status === 'archived') throw new LedgerError('ACCOUNT_ARCHIVED');
         const at = now();
         const differenceMinor = input.actualBalanceMinor - account.balanceMinor;

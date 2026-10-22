@@ -45,6 +45,7 @@ import {
   cardPaymentAllocations,
   debtInstallments,
   debts,
+  investmentTrades,
   postings,
   tags,
   transactions,
@@ -285,13 +286,14 @@ async function liveHeaderIn(tx: Transaction, id: string) {
   return row;
 }
 
-/** Transaction types only their receivable writes (FR-U7). */
-const RECEIVABLE_TYPES: TransactionType[] = ['receivable_out', 'receivable_in', 'writeoff'];
+/** Transaction types only their receivable (FR-U7) or investment trade (FR-I2) writes. */
+const MANAGED_TYPES: TransactionType[] = ['receivable_out', 'receivable_in', 'writeoff', 'investment', 'dividend'];
 
 /**
  * Refuses transactions another repository manages, which change only through it: a receivable's lending,
  * repayments, and write-off (FR-U7), a debt installment's payment, a card expense turned into an installment plan
- * (FR-U2), and a card payment allocated to its buckets (FR-U4). Soft-deleted rows among `ids` count too.
+ * (FR-U2), a card payment allocated to its buckets (FR-U4), and an investment trade's cash leg, sale withdrawal, or
+ * cash top-up (FR-I2). Soft-deleted rows among `ids` count too.
  * @throws {LedgerError} `INVALID_TRANSACTION`
  */
 export async function assertUnmanagedTransactionsIn(tx: Transaction, ids: readonly string[]): Promise<void> {
@@ -302,7 +304,18 @@ export async function assertUnmanagedTransactionsIn(tx: Transaction, ids: readon
       and(
         inArray(transactions.id, [...ids]),
         or(
-          inArray(transactions.type, RECEIVABLE_TYPES),
+          inArray(transactions.type, MANAGED_TYPES),
+          exists(
+            tx
+              .select({ id: investmentTrades.id })
+              .from(investmentTrades)
+              .where(
+                or(
+                  eq(investmentTrades.transactionId, transactions.id),
+                  eq(investmentTrades.transferTransactionId, transactions.id),
+                ),
+              ),
+          ),
           exists(
             tx
               .select({ id: debtInstallments.id })
@@ -321,7 +334,7 @@ export async function assertUnmanagedTransactionsIn(tx: Transaction, ids: readon
     )
     .limit(1);
   if (managed !== undefined) {
-    throw new LedgerError('INVALID_TRANSACTION', 'The transaction is managed by its receivable or debt');
+    throw new LedgerError('INVALID_TRANSACTION', 'The transaction is managed by its receivable, debt, or trade');
   }
 }
 

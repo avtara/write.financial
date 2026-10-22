@@ -7,6 +7,7 @@ import { fixtureGetDek, ledgerFixture, type LedgerFixture } from '../test/ledger
 import { insertUser, pgError, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { creditGoalIn, createGoals, type GoalInput, type GoalSourceInput, type GoalsRepository } from './goals.ts';
 import { withUser } from './db.ts';
+import { createInvestments } from './investments.ts';
 import { createSchedules } from './schedules.ts';
 import { createTransactions } from './transactions.ts';
 
@@ -886,5 +887,132 @@ describe('goals: recurring contributions (plans on recurring transfers)', () => 
     expect(await sentOf(sharedRecurrence)).toEqual(['active', 200_000n]);
     expect((await asApp(() => repo.list(alice.userId))).map((row) => row.name)).toEqual(['Other']);
     await expect(asApp(() => repo.remove(alice.userId, goal.id))).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('goals: investment assets as sources (FR-G2)', () => {
+  /** An asset on a fresh investment platform in `currency`, holding `units` bought for `amountMinor`. */
+  async function asset(currency: string, symbol: string, price: string, units: string, amountMinor: bigint) {
+    const [platform] = await test.query<{ id: string }>(
+      `INSERT INTO accounts (user_id, type, provider_name, display_name, currency, opening_date, color, include_in_available)
+       VALUES ($1, 'investment', $2, $3, $4, '2026-01-01', 'cyan', false) RETURNING id`,
+      [alice.userId, symbol, symbol, currency],
+    );
+    const investments = createInvestments(test.db, options);
+    const created = await asApp(() =>
+      investments.createAsset(alice.userId, {
+        accountId: platform?.id as string,
+        symbol,
+        name: symbol,
+        assetClass: 'us_stocks',
+        market: 'us_equity',
+        manualPrice: price,
+        manualPriceAt: NOW,
+      }),
+    );
+    await asApp(() =>
+      investments.adjustHoldings(alice.userId, {
+        clientId: randomUUID(),
+        assetId: created.id,
+        occurredAt: at('2026-08-31'),
+        units,
+        reason: 'unrecorded_buy',
+        amountMinor,
+        fxRate: '1',
+      }),
+    );
+    return created.id;
+  }
+
+  it('counts each goal’s share of the asset value (SPY 60/40 → 8.100.000 / 5.400.000) and refuses over 100%', async () => {
+    await test.query(
+      `INSERT INTO fx_rates (user_id, base, quote, rate, provider, rate_type, as_of) VALUES ($1, 'USD', 'IDR', 16350, 'manual', 'manual', '2026-10-15')`,
+      [alice.userId],
+    );
+    const spy = await asset('USD', 'SPY', '690.10', '1.196475979415', 69_725n);
+    const dp = await asApp(() =>
+      repo.create(
+        alice.userId,
+        input({
+          name: 'DP Rumah',
+          targetMode: 'fixed',
+          targetMonths: null,
+          assetSources: [{ assetId: spy, mode: 'percent', pctBps: 6000 }],
+        }),
+      ),
+    );
+    const pensiun = await asApp(() =>
+      repo.create(alice.userId, input({ name: 'Dana Pensiun', targetMode: 'fixed', targetMonths: null })),
+    );
+    const view = await asApp(() =>
+      repo.setAssetSources(alice.userId, pensiun.id, [{ assetId: spy, mode: 'percent', pctBps: 4000 }]),
+    );
+    expect(view.assetSources).toEqual([
+      expect.objectContaining({ assetId: spy, symbol: 'SPY', mode: 'percent', bps: 4000, valueMinor: 5_400_000n }),
+    ]);
+    expect(view.savedMinor).toBe(5_400_000n);
+    expect((await asApp(() => repo.get(alice.userId, dp.id))).assetSources[0]?.valueMinor).toBe(8_100_000n);
+    const refuse = (sources: Parameters<GoalsRepository['setAssetSources']>[2], goalId = pensiun.id) =>
+      expect(asApp(() => repo.setAssetSources(alice.userId, goalId, sources))).rejects.toMatchObject({
+        code: 'INVALID_GOAL',
+      });
+    await refuse([{ assetId: spy, mode: 'percent', pctBps: 4001 }]);
+    await refuse([{ assetId: spy, mode: 'whole' }]);
+    await refuse([{ assetId: spy, mode: 'whole', pctBps: 10 }]);
+    await refuse([{ assetId: spy, mode: 'percent', pctBps: 0 }]);
+    await refuse([
+      { assetId: spy, mode: 'percent', pctBps: 1 },
+      { assetId: spy, mode: 'percent', pctBps: 1 },
+    ]);
+    await refuse([{ assetId: randomUUID(), mode: 'whole' }]);
+    const usd = await asApp(() =>
+      repo.create(alice.userId, input({ name: 'USD', currency: 'USD', targetMode: 'fixed', targetMonths: null })),
+    );
+    await refuse([{ assetId: spy, mode: 'percent', pctBps: 1 }], usd.id);
+    // Editing the account sources leaves the asset sources alone.
+    await asApp(() =>
+      repo.setSources(alice.userId, pensiun.id, [{ accountId: alice.bca, mode: 'fixed', amountMinor: 1_000n }]),
+    );
+    expect((await asApp(() => repo.get(alice.userId, pensiun.id))).savedMinor).toBe(5_401_000n);
+  });
+
+  it('hands asset sources on with the remainder: moved, merged as a percentage, or merged into the whole asset', async () => {
+    const idx = await asset('IDR', 'IDX30', '1250', '800', 978_000n);
+    const ori = await asset('IDR', 'ORI', '1', '1500000', 1_482_000n);
+    const bbca = await asset('IDR', 'BBCA', '8000', '300', 2_305_000n);
+    // No rate to IDR: the asset counts nothing yet.
+    const vwce = await asset('EUR', 'VWCE', '130', '1', 13_000n);
+    const make = async (name: string, sources: Parameters<GoalsRepository['setAssetSources']>[2]) =>
+      asApp(() =>
+        repo.create(alice.userId, input({ name, targetMode: 'fixed', targetMonths: null, assetSources: sources })),
+      );
+    const done = await make('Selesai', [
+      { assetId: idx, mode: 'percent', pctBps: 3000 },
+      { assetId: ori, mode: 'percent', pctBps: 5000 },
+      { assetId: bbca, mode: 'whole' },
+    ]);
+    const target = await make('Tujuan', [
+      { assetId: idx, mode: 'percent', pctBps: 2000 },
+      { assetId: ori, mode: 'percent', pctBps: 5000 },
+      { assetId: vwce, mode: 'whole' },
+    ]);
+    expect((await asApp(() => repo.get(alice.userId, target.id))).assetSources.map((row) => row.valueMinor)).toEqual([
+      200_000n,
+      750_000n,
+      0n,
+    ]);
+    await expect(
+      asApp(() => repo.setAssetSources(alice.userId, target.id, [{ assetId: bbca, mode: 'percent', pctBps: 1 }])),
+    ).rejects.toMatchObject({ code: 'INVALID_GOAL' });
+    await asApp(() => repo.complete(alice.userId, done.id, { stopPlans: false }));
+    await asApp(() => repo.moveRemainder(alice.userId, done.id, { toGoalId: target.id }));
+    const moved = await asApp(() => repo.get(alice.userId, target.id));
+    expect(moved.assetSources.map((row) => [row.symbol, row.mode, row.bps]).sort()).toEqual([
+      ['BBCA', 'whole', 10_000],
+      ['IDX30', 'percent', 5000],
+      ['ORI', 'whole', 10_000],
+      ['VWCE', 'whole', 10_000],
+    ]);
+    expect((await asApp(() => repo.get(alice.userId, done.id))).assetSources).toEqual([]);
   });
 });

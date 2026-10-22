@@ -40,6 +40,10 @@ const GRANTS = {
   accounts: LEDGER,
   accounts_auth: { wf_auth: ALL },
   activity_log: { wf_app: 'INSERT,SELECT' },
+  // M5: the user's portfolio (the worker only reads it, D14).
+  allocation_targets: LEDGER,
+  asset_categories: LEDGER,
+  assets: LEDGER,
   attachments: LEDGER,
   balance_adjustments: LEDGER,
   budget_alert_dismissals: LEDGER,
@@ -59,6 +63,7 @@ const GRANTS = {
   goal_contribution_plans: LEDGER,
   goal_funding_sources: LEDGER,
   goals: LEDGER,
+  investment_trades: LEDGER,
   instance_settings: {
     wf_app: `SELECT,UPDATE(${SETUP_COLUMNS})`,
     wf_auth: 'SELECT',
@@ -66,6 +71,14 @@ const GRANTS = {
     wf_worker: 'SELECT',
   },
   invitations: { wf_app: ALL, wf_auth: 'SELECT,UPDATE(used_at)' },
+  // M5 market data: request log (both write it), the user's keys (the worker records test/quota outcomes), the
+  // global built-in quote cache (worker only; the app reads market_quotes_latest), BYOK results per user.
+  market_api_logs: { wf_app: 'INSERT,SELECT', wf_worker: 'INSERT,SELECT' },
+  market_credentials: {
+    wf_app: ALL,
+    wf_worker: 'SELECT,UPDATE(last_tested_at,quota_limit,quota_reset_at,quota_used,retry_after,status,updated_at)',
+  },
+  market_quotes: { wf_worker: 'INSERT,SELECT,UPDATE' },
   // Only the worker creates and delivers emails; notifications are created by it and read/marked by the app.
   notification_outbox: { wf_worker: 'INSERT,SELECT,UPDATE(attempts,last_error,sent_at)' },
   notifications: { wf_app: 'DELETE,SELECT,UPDATE(read_at)', wf_worker: 'INSERT,SELECT' },
@@ -73,6 +86,8 @@ const GRANTS = {
   // D14: the worker's only write is the period lock (close an ended period, create the next one).
   periods: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE(closed_at,status,updated_at)' },
   plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
+  // The daily snapshot job (worker) and the seed (app).
+  portfolio_snapshots: { wf_app: 'INSERT,SELECT,UPDATE', wf_worker: 'INSERT,SELECT,UPDATE' },
   postings: LEDGER,
   receivable_payments: LEDGER,
   receivables: LEDGER,
@@ -101,6 +116,8 @@ const GRANTS = {
   user_keys: { wf_app: 'INSERT,SELECT', wf_worker: 'INSERT,SELECT' },
   user_plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   user_preferences: { wf_app: 'INSERT,SELECT,UPDATE', wf_worker: 'SELECT' },
+  // Deleted with the provider's key (app); written by the BYOK polling (worker).
+  user_quotes: { wf_app: 'DELETE,SELECT', wf_worker: ALL },
   users: { wf_app: `SELECT,UPDATE(${PROFILE_COLUMNS})`, wf_auth: ALL, wf_worker: 'SELECT' },
   verifications: { wf_auth: ALL },
 };

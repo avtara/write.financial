@@ -60,6 +60,7 @@ export function account(overrides: Partial<AccountView> & Pick<AccountView, 'id'
     balanceBaseMinor: 0n,
     locked: false,
     transactionCount: 0,
+    holdingsValueBaseMinor: null,
     ...overrides,
   };
 }

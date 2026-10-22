@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Savings goals and sinking funds (FR-G1–G4, FR-B6: one entity, `kind`). A goal's progress is the value of its
- * funding sources (FR-G2): an account wholly (its balance) or a fixed amount of it; investment assets join in M5.
+ * funding sources (FR-G2): an account wholly (its balance) or a fixed amount of it (`sources`), and investment assets
+ * wholly or a percentage of their units (`assetSources`: their share of the asset's value now plus pending buys;
+ * Σ per asset across goals ≤ 100%, also a trigger). Asset sources need the goal in the base currency.
  * Recurring contributions ("Setoran rutin") are goal plans on recurring transfers (`goal_contribution_plans`), so
  * they reach the Review queue like every recurrence (D14); a plan runs in its months only, and confirming an
  * occurrence credits each running plan's goal in the transfer's destination (`creditGoalIn`). Deposit and withdraw
@@ -10,14 +12,23 @@
  * `@wf/domain/goals`' job.
  */
 import type { Dek } from '@wf/crypto/envelope';
+import type { InvalidGoalAssetError } from '@wf/domain/goal-assets';
+import {
+  checkAssetAllocations,
+  goalShares,
+  splitUnits,
+  type GoalAssetSource,
+  type GoalAssetSourceMode,
+} from '@wf/domain/goal-assets';
 import type { GoalKind, GoalStatus, GoalTargetMode } from '@wf/domain/goals';
 import type { LocalDate, YearMonth } from '@wf/domain/period';
-import { and, asc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
 import { viewsIn as accountViewsIn } from './accounts.ts';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
-import { recordTransactionIn, resolveTagsIn, type EntryDraft } from './ledger-core.ts';
+import { recordTransactionIn, resolveTagsIn, userContextIn, type EntryDraft } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
 import { decodeTemplate, encodeTemplate, userClockIn, type RecurrenceTemplate } from './occurrences.ts';
+import { assetValuesIn } from './portfolio.ts';
 import {
   activePlannedIn,
   createRecurrenceIn,
@@ -31,6 +42,7 @@ import {
 } from './schedules.ts';
 import {
   accounts,
+  assets,
   goalContributionPlans,
   goalFundingSources,
   goals,
@@ -40,7 +52,8 @@ import {
   type GOAL_SOURCE_MODES,
 } from './schema.ts';
 
-export type GoalSourceMode = (typeof GOAL_SOURCE_MODES)[number];
+/** Modes of an account source (asset sources: `GoalAssetSourceMode`). */
+export type GoalSourceMode = Exclude<(typeof GOAL_SOURCE_MODES)[number], 'percent'>;
 
 /** A funding source as entered ("Atur sumber dana"). */
 export interface GoalSourceInput {
@@ -60,6 +73,30 @@ export interface GoalSourceView {
   /** `fixed` only. */
   readonly amountMinor: bigint | null;
   /** What it adds to the goal now: the fixed amount, or the account's balance. */
+  readonly valueMinor: bigint;
+  readonly sortOrder: number;
+}
+
+/** An investment asset as a funding source ("Atur sumber dana" › aset). */
+export interface GoalAssetSourceInput {
+  readonly assetId: string;
+  /** `whole`: the whole asset (counts 100%); `percent`: `pctBps` of its units. */
+  readonly mode: GoalAssetSourceMode;
+  /** `percent` only: 1–10 000; Σ per asset across goals ≤ 10 000. */
+  readonly pctBps?: number | null;
+}
+
+export interface GoalAssetSourceView {
+  readonly id: string;
+  readonly assetId: string;
+  readonly symbol: string;
+  readonly assetName: string;
+  readonly mode: GoalAssetSourceMode;
+  /** 10 000 for a whole asset. */
+  readonly bps: number;
+  /** The goal's units of the asset ("0,718 unit"). */
+  readonly units: string;
+  /** Its part of the asset's value now plus pending buys ("diproses"), base currency (= the goal's). */
   readonly valueMinor: bigint;
   readonly sortOrder: number;
 }
@@ -103,9 +140,11 @@ export interface GoalView {
   readonly completedAt: Date | null;
   readonly sortOrder: number;
   readonly archivedAt: Date | null;
-  /** In source order. */
+  /** Account sources, in source order. */
   readonly sources: GoalSourceView[];
-  /** Σ source values, in `currency`. */
+  /** Asset sources, in source order. */
+  readonly assetSources: GoalAssetSourceView[];
+  /** Σ source values (accounts and assets), in `currency`. */
   readonly savedMinor: bigint;
   /** Oldest first. */
   readonly plans: GoalPlanView[];
@@ -135,10 +174,12 @@ export interface GoalInput {
   readonly accountId?: string | null;
   /** Default none. */
   readonly sources?: readonly GoalSourceInput[];
+  /** Default none. */
+  readonly assetSources?: readonly GoalAssetSourceInput[];
 }
 
 /** Editable fields; omitted ones are kept. */
-export type GoalPatch = Partial<Omit<GoalInput, 'currency' | 'sources'>>;
+export type GoalPatch = Partial<Omit<GoalInput, 'currency' | 'sources' | 'assetSources'>>;
 
 /** "Setor manual". */
 export interface GoalDeposit {
@@ -208,8 +249,13 @@ export interface GoalsRepository {
   create: (userId: string, input: GoalInput) => Promise<GoalView>;
   /** @throws {LedgerError} `NOT_FOUND`, `INVALID_GOAL`, `INVALID_TAG` */
   update: (userId: string, id: string, patch: GoalPatch) => Promise<GoalView>;
-  /** Replaces the funding sources. @throws {LedgerError} `NOT_FOUND`, `INVALID_GOAL` */
+  /** Replaces the account funding sources. @throws {LedgerError} `NOT_FOUND`, `INVALID_GOAL` */
   setSources: (userId: string, id: string, sources: readonly GoalSourceInput[]) => Promise<GoalView>;
+  /**
+   * Replaces the asset funding sources (FR-G2).
+   * @throws {LedgerError} `NOT_FOUND`, `INVALID_GOAL` (another currency than the base, Σ per asset > 100%)
+   */
+  setAssetSources: (userId: string, id: string, sources: readonly GoalAssetSourceInput[]) => Promise<GoalView>;
   /** Accounts with an allocation, in account order. */
   allocations: (userId: string) => Promise<AccountAllocation[]>;
   /**
@@ -286,7 +332,7 @@ async function balancesIn(tx: Transaction, userId: string, ids: readonly string[
   return new Map(views.map((view) => [view.id, view.balanceMinor]));
 }
 
-async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<GoalView[]> {
+async function viewsIn(tx: Transaction, userId: string, now: Date, where?: SQL): Promise<GoalView[]> {
   const rows = await tx
     .select({
       id: goals.id,
@@ -329,8 +375,9 @@ async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<Go
   const balances = await balancesIn(
     tx,
     userId,
-    sources.filter((source) => source.mode === 'whole').map((source) => source.accountId),
+    sources.filter((source) => source.mode === 'whole').map((source) => source.accountId as string),
   );
+  const assetSources = await assetSourcesIn(tx, userId, now, ids);
   const plans = await tx
     .select({
       id: goalContributionPlans.id,
@@ -353,11 +400,11 @@ async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<Go
       .filter((source) => source.goalId === row.id)
       .map((source): GoalSourceView => ({
         id: source.id,
-        accountId: source.accountId,
+        accountId: source.accountId as string,
         accountName: source.accountName,
-        mode: source.mode,
+        mode: source.mode as GoalSourceMode,
         amountMinor: source.amountMinor,
-        valueMinor: source.amountMinor ?? (balances.get(source.accountId) as bigint),
+        valueMinor: source.amountMinor ?? (balances.get(source.accountId as string) as bigint),
         sortOrder: source.sortOrder,
       }));
     const ownPlans = plans
@@ -378,18 +425,20 @@ async function viewsIn(tx: Transaction, userId: string, where?: SQL): Promise<Go
           recurrenceStatus: plan.recurrenceStatus,
         };
       });
+    const ownAssets = assetSources.filter((source) => source.goalId === row.id).map((source) => source.view);
     return {
       ...row,
       sources: own,
-      savedMinor: own.reduce((sum, source) => sum + source.valueMinor, 0n),
+      assetSources: ownAssets,
+      savedMinor: [...own, ...ownAssets].reduce((sum, source) => sum + source.valueMinor, 0n),
       plans: ownPlans,
       monthlyPlanMinor: ownPlans.reduce((sum, plan) => sum + (plan.active ? plan.amountMinor : 0n), 0n),
     };
   });
 }
 
-async function viewIn(tx: Transaction, userId: string, id: string): Promise<GoalView> {
-  const [view] = await viewsIn(tx, userId, eq(goals.id, id));
+async function viewIn(tx: Transaction, userId: string, now: Date, id: string): Promise<GoalView> {
+  const [view] = await viewsIn(tx, userId, now, eq(goals.id, id));
   if (view === undefined) throw new LedgerError('NOT_FOUND', 'No such goal');
   return view;
 }
@@ -463,7 +512,9 @@ async function writeSourcesIn(
   goalId: string,
   sources: readonly GoalSourceInput[],
 ): Promise<void> {
-  await tx.delete(goalFundingSources).where(eq(goalFundingSources.goalId, goalId));
+  await tx
+    .delete(goalFundingSources)
+    .where(and(eq(goalFundingSources.goalId, goalId), isNotNull(goalFundingSources.accountId)));
   if (sources.length === 0) return;
   await tx.insert(goalFundingSources).values(
     sources.map((source, index) => ({
@@ -532,16 +583,145 @@ async function inputOfIn(tx: Transaction, row: GoalRow): Promise<Omit<GoalInput,
   };
 }
 
-/** The account a deposit or new plan goes to by default: the goal's, else its first source's. */
+/** The account a deposit or new plan goes to by default: the goal's, else its first account source's. */
 async function homeAccountIn(tx: Transaction, row: GoalRow): Promise<string> {
   if (row.accountId !== null) return row.accountId;
   const [source] = await tx
     .select({ accountId: goalFundingSources.accountId })
     .from(goalFundingSources)
-    .where(eq(goalFundingSources.goalId, row.id))
+    .where(and(eq(goalFundingSources.goalId, row.id), isNotNull(goalFundingSources.accountId)))
     .orderBy(asc(goalFundingSources.sortOrder), asc(goalFundingSources.createdAt));
   if (source === undefined) throw invalid('The goal has no account to deposit to');
-  return source.accountId;
+  return source.accountId as string;
+}
+
+/** The asset sources of `goalIds` with their units and value now (their share of value + pending buys). */
+async function assetSourcesIn(
+  tx: Transaction,
+  userId: string,
+  now: Date,
+  goalIds: readonly string[],
+): Promise<{ readonly goalId: string; readonly view: GoalAssetSourceView }[]> {
+  const rows = await tx
+    .select({
+      id: goalFundingSources.id,
+      goalId: goalFundingSources.goalId,
+      assetId: goalFundingSources.assetId,
+      mode: goalFundingSources.mode,
+      pctBps: goalFundingSources.pctBps,
+      sortOrder: goalFundingSources.sortOrder,
+    })
+    .from(goalFundingSources)
+    .where(isNotNull(goalFundingSources.assetId))
+    .orderBy(asc(goalFundingSources.sortOrder), asc(goalFundingSources.createdAt), asc(goalFundingSources.id));
+  if (!rows.some((row) => goalIds.includes(row.goalId))) return [];
+  const values = await assetValuesIn(tx, userId, now);
+  return values.assets.flatMap((valuation) => {
+    // Every source of the asset (all goals), so each goal gets its exact part of the whole.
+    const onAsset = rows.filter((row) => row.assetId === valuation.asset.id);
+    if (onAsset.length === 0) return [];
+    const domain = onAsset.map((row): GoalAssetSource => ({
+      goalId: row.goalId,
+      mode: row.mode === 'whole' ? 'whole' : 'percent',
+      bps: row.pctBps ?? 10_000,
+    }));
+    const shares = goalShares((valuation.value?.valueBaseMinor ?? 0n) + valuation.pendingBaseMinor, domain);
+    const units = splitUnits(valuation.holding.units, domain);
+    return onAsset.flatMap((row, index) =>
+      goalIds.includes(row.goalId)
+        ? [
+            {
+              goalId: row.goalId,
+              view: {
+                id: row.id,
+                assetId: valuation.asset.id,
+                symbol: valuation.asset.symbol,
+                assetName: valuation.asset.name,
+                mode: (domain[index] as GoalAssetSource).mode,
+                bps: (domain[index] as GoalAssetSource).bps,
+                units: (units.goals[index] as { value: string }).value,
+                valueMinor: (shares.goals[index] as { value: bigint }).value,
+                sortOrder: row.sortOrder,
+              },
+            },
+          ]
+        : [],
+    );
+  });
+}
+
+/**
+ * FR-G2 rules for `goalId`'s new asset sources: the goal in the base currency, distinct assets of the user, and per
+ * asset Σ with the other goals' sources ≤ 100% (a whole asset 100%).
+ */
+async function checkAssetSourcesIn(
+  tx: Transaction,
+  userId: string,
+  goalId: string | null,
+  currency: string,
+  sources: readonly GoalAssetSourceInput[],
+): Promise<void> {
+  if (sources.length === 0) return;
+  const { baseCurrency } = await userContextIn(tx, userId);
+  if (currency !== baseCurrency) throw invalid('Assets fund goals in the base currency');
+  const ids = sources.map((source) => source.assetId);
+  if (new Set(ids).size !== ids.length) throw invalid('One source per asset');
+  const found = await tx.select({ id: assets.id }).from(assets).where(inArray(assets.id, ids));
+  if (found.length !== ids.length) throw invalid('No such asset');
+  const others = await tx
+    .select({
+      goalId: goalFundingSources.goalId,
+      assetId: goalFundingSources.assetId,
+      mode: goalFundingSources.mode,
+      pctBps: goalFundingSources.pctBps,
+    })
+    .from(goalFundingSources)
+    .where(
+      and(
+        inArray(goalFundingSources.assetId, ids),
+        goalId === null ? undefined : ne(goalFundingSources.goalId, goalId),
+      ),
+    );
+  for (const source of sources) {
+    if (source.mode === 'whole' && (source.pctBps ?? null) !== null) throw invalid('A whole asset has no percentage');
+    try {
+      checkAssetAllocations([
+        ...others
+          .filter((other) => other.assetId === source.assetId)
+          .map((other): GoalAssetSource => ({
+            goalId: other.goalId,
+            mode: other.mode === 'whole' ? 'whole' : 'percent',
+            bps: other.pctBps ?? 10_000,
+          })),
+        { goalId: goalId ?? '', mode: source.mode, bps: source.pctBps ?? 0 },
+      ]);
+    } catch (error) {
+      // `checkAssetAllocations` refuses only with InvalidGoalAssetError.
+      throw invalid(`Invalid asset allocation: ${(error as InvalidGoalAssetError).reason}`);
+    }
+  }
+}
+
+async function writeAssetSourcesIn(
+  tx: Transaction,
+  userId: string,
+  goalId: string,
+  sources: readonly GoalAssetSourceInput[],
+): Promise<void> {
+  await tx
+    .delete(goalFundingSources)
+    .where(and(eq(goalFundingSources.goalId, goalId), isNotNull(goalFundingSources.assetId)));
+  if (sources.length === 0) return;
+  await tx.insert(goalFundingSources).values(
+    sources.map((source, index) => ({
+      userId,
+      goalId,
+      assetId: source.assetId,
+      mode: source.mode,
+      pctBps: source.mode === 'percent' ? (source.pctBps as number) : null,
+      sortOrder: index,
+    })),
+  );
 }
 
 async function sourceOnIn(tx: Transaction, goalId: string, accountId: string) {
@@ -718,15 +898,17 @@ export function createGoals(
 
   return {
     list: (userId, { status = 'all' } = {}) =>
-      withUser(db, userId, (tx) => viewsIn(tx, userId, status === 'all' ? undefined : eq(goals.status, status))),
+      withUser(db, userId, (tx) => viewsIn(tx, userId, now(), status === 'all' ? undefined : eq(goals.status, status))),
 
-    get: (userId, id) => withUser(db, userId, (tx) => viewIn(tx, userId, id)),
+    get: (userId, id) => withUser(db, userId, (tx) => viewIn(tx, userId, now(), id)),
 
     create: (userId, input) =>
       withUser(db, userId, async (tx) => {
         const values = await goalValuesIn(tx, userId, input);
         const sources = input.sources ?? [];
+        const assetSources = input.assetSources ?? [];
         await checkSourcesIn(tx, userId, null, input.currency, sources);
+        await checkAssetSourcesIn(tx, userId, null, input.currency, assetSources);
         const sortOrder = firstRow(
           await tx
             .select({ next: sql<number>`coalesce(max(${goals.sortOrder}) + 1, 0)::int`.mapWith(Number) })
@@ -741,7 +923,8 @@ export function createGoals(
           'goals',
         );
         await writeSourcesIn(tx, userId, id, sources);
-        return viewIn(tx, userId, id);
+        await writeAssetSourcesIn(tx, userId, id, assetSources);
+        return viewIn(tx, userId, now(), id);
       }),
 
     update: (userId, id, patch) =>
@@ -752,7 +935,7 @@ export function createGoals(
           .update(goals)
           .set({ ...values, updatedAt: now() })
           .where(eq(goals.id, id));
-        return viewIn(tx, userId, id);
+        return viewIn(tx, userId, now(), id);
       }),
 
     setSources: (userId, id, sources) =>
@@ -760,13 +943,23 @@ export function createGoals(
         const row = await lockedGoalIn(tx, id);
         await checkSourcesIn(tx, userId, id, row.currency, sources);
         await writeSourcesIn(tx, userId, id, sources);
-        return viewIn(tx, userId, id);
+        return viewIn(tx, userId, now(), id);
+      }),
+
+    setAssetSources: (userId, id, sources) =>
+      withUser(db, userId, async (tx) => {
+        const row = await lockedGoalIn(tx, id);
+        await checkAssetSourcesIn(tx, userId, id, row.currency, sources);
+        await writeAssetSourcesIn(tx, userId, id, sources);
+        return viewIn(tx, userId, now(), id);
       }),
 
     allocations: (userId) =>
       withUser(db, userId, async (tx) => {
-        const sources = await tx.select().from(goalFundingSources);
-        const balances = await balancesIn(tx, userId, [...new Set(sources.map((source) => source.accountId))]);
+        const sources = await tx.select().from(goalFundingSources).where(isNotNull(goalFundingSources.accountId));
+        const balances = await balancesIn(tx, userId, [
+          ...new Set(sources.map((source) => source.accountId as string)),
+        ]);
         const order = await tx
           .select({ id: accounts.id })
           .from(accounts)
@@ -815,7 +1008,7 @@ export function createGoals(
         const at = now();
         const transactionId = await transferIn(tx, userId, row, { ...input, toAccountId }, dek, at);
         await creditGoalIn(tx, userId, id, toAccountId, input.amountMinor, at);
-        return { transactionId, goal: await viewIn(tx, userId, id) };
+        return { transactionId, goal: await viewIn(tx, userId, now(), id) };
       });
     },
 
@@ -834,7 +1027,7 @@ export function createGoals(
         if (source.mode === 'fixed') {
           await setFixedIn(tx, source.id, (source.amountMinor as bigint) - input.amountMinor, at);
         }
-        return { transactionId, goal: await viewIn(tx, userId, id) };
+        return { transactionId, goal: await viewIn(tx, userId, now(), id) };
       });
     },
 
@@ -858,7 +1051,7 @@ export function createGoals(
         if (markUsed) {
           await tx.update(goals).set({ status: 'used', completedAt: at, updatedAt: at }).where(eq(goals.id, id));
         }
-        return { transactionId, goal: await viewIn(tx, userId, id) };
+        return { transactionId, goal: await viewIn(tx, userId, now(), id) };
       });
     },
 
@@ -874,7 +1067,29 @@ export function createGoals(
             throw invalid('Move the remainder to another active goal in the same currency');
           }
           for (const source of sources) {
-            const there = await sourceOnIn(tx, toGoalId, source.accountId);
+            if (source.assetId !== null) {
+              const [there] = await tx
+                .select()
+                .from(goalFundingSources)
+                .where(and(eq(goalFundingSources.goalId, toGoalId), eq(goalFundingSources.assetId, source.assetId)));
+              if (there === undefined) {
+                await tx
+                  .update(goalFundingSources)
+                  .set({ goalId: toGoalId, updatedAt: at })
+                  .where(eq(goalFundingSources.id, source.id));
+                continue;
+              }
+              // Both are percentages (a whole asset is held by one goal only) counted toward the asset's 100%, so their
+              // sum fits; the moved one goes first for the trigger.
+              const pctBps = (there.pctBps as number) + (source.pctBps as number);
+              await tx.delete(goalFundingSources).where(eq(goalFundingSources.id, source.id));
+              await tx
+                .update(goalFundingSources)
+                .set(pctBps >= 10_000 ? { mode: 'whole', pctBps: null, updatedAt: at } : { pctBps, updatedAt: at })
+                .where(eq(goalFundingSources.id, there.id));
+              continue;
+            }
+            const there = await sourceOnIn(tx, toGoalId, source.accountId as string);
             if (there === undefined) {
               await tx
                 .update(goalFundingSources)
@@ -888,7 +1103,7 @@ export function createGoals(
           }
         }
         await tx.delete(goalFundingSources).where(eq(goalFundingSources.goalId, id));
-        return viewsIn(tx, userId, inArray(goals.id, toGoalId === null ? [id] : [id, toGoalId]));
+        return viewsIn(tx, userId, now(), inArray(goals.id, toGoalId === null ? [id] : [id, toGoalId]));
       }),
 
     complete: (userId, id, { stopPlans }) =>
@@ -909,7 +1124,7 @@ export function createGoals(
             stoppedPlanIds.push(plan.id);
           }
         }
-        return { goal: await viewIn(tx, userId, id), stoppedPlanIds };
+        return { goal: await viewIn(tx, userId, now(), id), stoppedPlanIds };
       }),
 
     reopen: (userId, id, { resumePlanIds = [] } = {}) =>
@@ -922,7 +1137,7 @@ export function createGoals(
           if (plan.goalId !== id) throw new LedgerError('NOT_FOUND', 'No such goal plan');
           await setPlanActiveIn(tx, userId, planId, true, at);
         }
-        return viewIn(tx, userId, id);
+        return viewIn(tx, userId, now(), id);
       }),
 
     addPlan: (userId, goalId, input) =>
@@ -951,7 +1166,7 @@ export function createGoals(
             .values({ userId, goalId, recurrenceId: recurrence.id, amountMinor: input.amountMinor, ...months });
           // A share that makes the transfer fully planned changes what its coming occurrences send.
           if (recurrence.status === 'active') await rebuildRecurrenceIn(tx, userId, recurrence.id, at, today);
-          return viewIn(tx, userId, goalId);
+          return viewIn(tx, userId, now(), goalId);
         }
         const toAccountId = input.toAccountId ?? (await homeAccountIn(tx, row));
         await checkAccountIn(tx, toAccountId, row.currency);
@@ -981,13 +1196,13 @@ export function createGoals(
           },
           at,
         );
-        return viewIn(tx, userId, goalId);
+        return viewIn(tx, userId, now(), goalId);
       }),
 
     setPlanActive: (userId, planId, active) =>
       withUser(db, userId, async (tx) => {
         const plan = await setPlanActiveIn(tx, userId, planId, active, now());
-        return viewIn(tx, userId, plan.goalId);
+        return viewIn(tx, userId, now(), plan.goalId);
       }),
 
     updatePlan: (userId, planId, { amountMinor }) =>
@@ -1010,7 +1225,7 @@ export function createGoals(
           }
           await syncRecurrenceIn(tx, userId, plan.recurrenceId, before, at);
         }
-        return viewIn(tx, userId, plan.goalId);
+        return viewIn(tx, userId, now(), plan.goalId);
       }),
   };
 }

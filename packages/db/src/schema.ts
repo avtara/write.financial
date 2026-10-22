@@ -17,6 +17,8 @@ import { CANCEL_MODES, SUBSCRIPTION_CYCLES, SUBSCRIPTION_STATUSES, USAGE_RATINGS
 import { GOAL_KINDS, GOAL_STATUSES, GOAL_TARGET_MODES } from '@wf/domain/goals';
 import { DEBT_KINDS, INTEREST_METHODS, RECALC_MODES } from '@wf/domain/debt';
 import { RECEIVABLE_SOURCES, RECEIVABLE_STATUSES } from '@wf/domain/receivables';
+import { ASSET_CLASSES, DIVIDEND_MODES, PRICE_MODES, TRADE_KINDS, TRADE_STATUSES } from '@wf/domain/investments';
+import { CREDENTIAL_STATUSES, MARKET_PROVIDERS, MARKETS } from '@wf/domain/market';
 import { LOCALES } from '@wf/i18n/locale';
 import type { AlertPct } from '@wf/domain/budget';
 import type { LocalDate, PeriodStartDay, YearMonth } from '@wf/domain/period';
@@ -35,6 +37,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  pgView,
   primaryKey,
   smallint,
   text,
@@ -907,13 +910,17 @@ export const goals = pgTable(
   ],
 );
 
-/** `whole`: the account's whole balance counts (one goal per account); `fixed`: an amount of it ("Nominal tetap"). */
-export const GOAL_SOURCE_MODES = ['whole', 'fixed'] as const;
+/**
+ * Accounts: `whole` (the balance counts; one goal per account) or `fixed` (an amount of it, "Nominal tetap").
+ * Investment assets (FR-G2, `@wf/domain/goal-assets`): `whole` (the whole asset) or `percent` (`pct_bps` of its units).
+ */
+export const GOAL_SOURCE_MODES = ['whole', 'fixed', 'percent'] as const;
 export const goalSourceMode = pgEnum('goal_source_mode', GOAL_SOURCE_MODES);
 
 /**
- * FR-G2 funding sources of a goal: accounts, wholly or a fixed amount (≤ the free balance, checked by the repository).
- * Investment assets (percentage of units or the whole asset) join in M5 together with the `assets` table.
+ * FR-G2 funding sources of a goal: an account (wholly or a fixed amount ≤ the free balance, checked by the repository)
+ * or an investment asset (wholly or a percentage of its units; Σ per asset across goals ≤ 100%, a whole asset counting
+ * 100%: trigger `goal_funding_sources_asset_within_100`). Units a DCA buy adds are split by the same percentages.
  */
 export const goalFundingSources = pgTable(
   'goal_funding_sources',
@@ -921,21 +928,27 @@ export const goalFundingSources = pgTable(
     id: id(),
     userId: ownerId(),
     goalId: uuid('goal_id').notNull(),
-    accountId: uuid('account_id').notNull(),
+    /** Exactly one of `account_id` and `asset_id`. */
+    accountId: uuid('account_id'),
+    assetId: uuid('asset_id'),
     mode: goalSourceMode('mode').notNull(),
     /** `fixed` only, in the account currency. */
     amountMinor: money('amount_minor'),
+    /** `percent` (asset) only: basis points of the asset's units, 1–10 000. */
+    pctBps: integer('pct_bps'),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     unique('goal_funding_sources_user_id_id_key').on(table.userId, table.id),
     unique('goal_funding_sources_goal_account_key').on(table.goalId, table.accountId),
+    unique('goal_funding_sources_goal_asset_key').on(table.goalId, table.assetId),
     uniqueIndex('goal_funding_sources_whole_key')
       .on(table.userId, table.accountId)
       .where(sql`${table.mode} = 'whole'`),
     index('goal_funding_sources_account_idx').on(table.userId, table.accountId),
+    index('goal_funding_sources_asset_idx').on(table.userId, table.assetId),
     foreignKey({
       name: 'goal_funding_sources_goal_fk',
       columns: [table.userId, table.goalId],
@@ -946,9 +959,25 @@ export const goalFundingSources = pgTable(
       columns: [table.userId, table.accountId],
       foreignColumns: [accounts.userId, accounts.id],
     }).onDelete('cascade'),
+    foreignKey({
+      name: 'goal_funding_sources_asset_fk',
+      columns: [table.userId, table.assetId],
+      foreignColumns: [assets.userId, assets.id],
+    }).onDelete('cascade'),
+    check('goal_funding_sources_target_check', sql`num_nonnulls(${table.accountId}, ${table.assetId}) = 1`),
     check(
       'goal_funding_sources_amount_check',
       sql`(${table.mode} = 'fixed') = (${table.amountMinor} is not null) and (${table.amountMinor} is null or ${table.amountMinor} > 0)`,
+    ),
+    // Written without the 'percent' literal: the migration that adds the enum value cannot use it in the same
+    // transaction. An account source is whole or fixed; an asset source is whole or (with `pct_bps`) percent.
+    check(
+      'goal_funding_sources_mode_check',
+      sql`(${table.accountId} is null or ${table.mode} in ('whole', 'fixed')) and (${table.assetId} is null or ${table.mode} <> 'fixed')`,
+    ),
+    check(
+      'goal_funding_sources_pct_check',
+      sql`(${table.pctBps} is not null) = (${table.assetId} is not null and ${table.mode} <> 'whole') and (${table.pctBps} is null or ${table.pctBps} between 1 and 10000)`,
     ),
   ],
 );
@@ -1933,4 +1962,379 @@ export const receivablePayments = pgTable(
     }).onDelete('cascade'),
     check('receivable_payments_amount_check', sql`${table.amountMinor} > 0`),
   ],
+);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Investments and market data (M5, plan §4.5). Assets, trades, categories, targets, and snapshots are the user's
+// (wf_app writes them; the worker only reads them or, for snapshots, writes the daily value). `market_quotes` is the
+// global cache of built-in sources only (the worker writes it, the app reads it through `market_quotes_latest`);
+// BYOK results live per user in `user_quotes` under Row-Level Security, so one user's key never serves another.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Units and prices: `numeric(38,18)` decimal strings (`@wf/domain/decimal`), prices in major units of the quote. */
+const decimal = (name: string) => numeric(name, { precision: 38, scale: 18 });
+
+export const assetClass = pgEnum('asset_class', ASSET_CLASSES);
+export const priceMode = pgEnum('price_mode', PRICE_MODES);
+export const tradeKind = pgEnum('trade_kind', TRADE_KINDS);
+export const tradeStatus = pgEnum('trade_status', TRADE_STATUSES);
+export const dividendMode = pgEnum('dividend_mode', DIVIDEND_MODES);
+export const marketProvider = pgEnum('market_provider', MARKET_PROVIDERS);
+export const credentialStatus = pgEnum('market_credential_status', CREDENTIAL_STATUSES);
+/** Which market an asset trades in: its staleness threshold and price label (`@wf/domain/market`). */
+export const market = pgEnum('market', MARKETS);
+
+/** "Daftar saya" (FR-I1): a grouping of assets; an asset is in at most one. Its class is used for new members. */
+export const assetCategories = pgTable(
+  'asset_categories',
+  {
+    id: id(),
+    userId: ownerId(),
+    name: varchar('name', { length: 40 }).notNull(),
+    assetClass: assetClass('asset_class').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('asset_categories_user_id_id_key').on(table.userId, table.id),
+    check('asset_categories_name_check', sql`length(btrim(${table.name})) > 0`),
+  ],
+);
+
+/**
+ * An asset held on a platform (FR-I1): `account_id` is the investment account whose cash pays for it, in the asset's
+ * quote currency. Its holding (units, cost basis, realized gain) is the view `holdings` over `investment_trades`.
+ * `price_mode` picks the price source (FR-I6); `manual_price` is the user's last price, `premium_bps` the Antam
+ * premium over spot (the plan's `premium_pct`, in basis points like every ratio here), `meta` the provider symbols
+ * (`meta.symbols[provider]`), ORI coupon, or dividend schedule.
+ */
+export const assets = pgTable(
+  'assets',
+  {
+    id: id(),
+    userId: ownerId(),
+    accountId: uuid('account_id').notNull(),
+    symbol: varchar('symbol', { length: 20 }).notNull(),
+    name: varchar('name', { length: 80 }).notNull(),
+    quoteCurrency: currency('quote_currency').notNull(),
+    assetClass: assetClass('asset_class').notNull(),
+    market: market('market').notNull(),
+    categoryId: uuid('category_id'),
+    priceMode: priceMode('price_mode').notNull().default('manual'),
+    manualPrice: decimal('manual_price'),
+    manualPriceAt: timestamptz('manual_price_at'),
+    /** Antam over spot, e.g. 650 = 6,5% (`price_mode` computed, market `gold_antam`). */
+    premiumBps: integer('premium_bps'),
+    meta: jsonb('meta').$type<JsonObject>().notNull().default({}),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('assets_user_id_id_key').on(table.userId, table.id),
+    unique('assets_account_symbol_key').on(table.userId, table.accountId, table.symbol),
+    index('assets_symbol_trgm_idx').using('gin', table.symbol.op('gin_trgm_ops')),
+    index('assets_name_trgm_idx').using('gin', table.name.op('gin_trgm_ops')),
+    foreignKey({
+      name: 'assets_account_fk',
+      columns: [table.userId, table.accountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'assets_category_fk',
+      columns: [table.userId, table.categoryId],
+      foreignColumns: [assetCategories.userId, assetCategories.id],
+    }),
+    currencyCheck('assets_quote_currency_check', table.quoteCurrency),
+    check('assets_symbol_check', sql`length(btrim(${table.symbol})) > 0`),
+    check('assets_name_check', sql`length(btrim(${table.name})) > 0`),
+    check(
+      'assets_manual_price_check',
+      sql`(${table.manualPrice} is null) = (${table.manualPriceAt} is null) and (${table.manualPrice} is null or ${table.manualPrice} > 0)`,
+    ),
+    check('assets_manual_mode_check', sql`${table.priceMode} <> 'manual' or ${table.manualPrice} is not null`),
+    check('assets_premium_check', sql`${table.premiumBps} is null or ${table.premiumBps} > -10000`),
+  ],
+);
+
+/** FR-I3 target share per asset class; the set of a user sums to exactly 100% (deferred trigger). */
+export const allocationTargets = pgTable(
+  'allocation_targets',
+  {
+    userId: ownerId(),
+    assetClass: assetClass('asset_class').notNull(),
+    targetBps: integer('target_bps').notNull(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ name: 'allocation_targets_pkey', columns: [table.userId, table.assetClass] }),
+    check('allocation_targets_bps_check', sql`${table.targetBps} between 0 and 10000`),
+  ],
+);
+
+/**
+ * FR-I2 investment transactions. The cash leg goes through the ledger: a buy, sell, or cash dividend is an
+ * `investment` / `dividend` transaction on the platform account (`transaction_id`; fee and tax as their own
+ * postings), a sale withdrawn to a bank adds a transfer (`transfer_transaction_id`), a cash top-up is a transfer. A
+ * `pending` buy ("diproses") has paid but not received its units. The effect columns are what the trade did to the
+ * holding (`@wf/domain/investments` `tradeEffect`, replayed in trade order on every change), so `holdings` sums them.
+ */
+export const investmentTrades = pgTable(
+  'investment_trades',
+  {
+    id: id(),
+    userId: ownerId(),
+    /** Null only for a cash top-up. */
+    assetId: uuid('asset_id'),
+    /** The platform (investment account). */
+    accountId: uuid('account_id').notNull(),
+    kind: tradeKind('kind').notNull(),
+    status: tradeStatus('status').notNull().default('settled'),
+    occurredAt: timestamptz('occurred_at').notNull(),
+    localDate: localDate('local_date').notNull(),
+    /** Buy/sell: > 0; dividend: reinvested units or 0; adjust: the signed change; top-up: 0. */
+    units: decimal('units').notNull(),
+    price: decimal('price'),
+    /** Quote-currency minor units: buy = paid excluding fee and tax, sell = gross proceeds, dividend = gross. */
+    amountMinor: money('amount_minor').notNull(),
+    feeMinor: money('fee_minor')
+      .notNull()
+      .default(sql`0`),
+    taxMinor: money('tax_minor')
+      .notNull()
+      .default(sql`0`),
+    /** 1 quote = `fx_rate` base on the trade date (`1` in the base currency). */
+    fxRate: rate('fx_rate').notNull(),
+    dividendMode: dividendMode('dividend_mode'),
+    /** Sale withdrawn to / dividend paid into this account. */
+    proceedsAccountId: uuid('proceeds_account_id'),
+    transactionId: uuid('transaction_id'),
+    transferTransactionId: uuid('transfer_transaction_id'),
+    /** FR-G5: the goal a sale or a lower adjustment reduced. */
+    reducedGoalId: uuid('reduced_goal_id'),
+    description: text('description'),
+    unitsDelta: decimal('units_delta').notNull(),
+    costDeltaMinor: money('cost_delta_minor').notNull(),
+    costBaseDeltaMinor: money('cost_base_delta_minor').notNull(),
+    realizedMinor: money('realized_minor').notNull(),
+    realizedBaseMinor: money('realized_base_minor').notNull(),
+    dividendMinor: money('dividend_minor').notNull(),
+    dividendBaseMinor: money('dividend_base_minor').notNull(),
+    clientId: uuid('client_id').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('investment_trades_user_id_id_key').on(table.userId, table.id),
+    unique('investment_trades_client_key').on(table.userId, table.clientId),
+    index('investment_trades_asset_idx').on(table.userId, table.assetId, table.localDate),
+    index('investment_trades_transaction_idx').on(table.transactionId),
+    index('investment_trades_transfer_idx').on(table.transferTransactionId),
+    foreignKey({
+      name: 'investment_trades_asset_fk',
+      columns: [table.userId, table.assetId],
+      foreignColumns: [assets.userId, assets.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'investment_trades_account_fk',
+      columns: [table.userId, table.accountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'investment_trades_proceeds_account_fk',
+      columns: [table.userId, table.proceedsAccountId],
+      foreignColumns: [accounts.userId, accounts.id],
+    }),
+    foreignKey({
+      name: 'investment_trades_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }),
+    foreignKey({
+      name: 'investment_trades_transfer_fk',
+      columns: [table.userId, table.transferTransactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }),
+    foreignKey({
+      name: 'investment_trades_goal_fk',
+      columns: [table.userId, table.reducedGoalId],
+      foreignColumns: [goals.userId, goals.id],
+    }).onDelete('set null'),
+    check('investment_trades_asset_check', sql`(${table.assetId} is null) = (${table.kind} = 'cash_topup')`),
+    check(
+      'investment_trades_units_check',
+      sql`case ${table.kind} when 'adjust' then ${table.units} <> 0 when 'dividend' then ${table.units} >= 0 when 'cash_topup' then ${table.units} = 0 else ${table.units} > 0 end`,
+    ),
+    check(
+      'investment_trades_amounts_check',
+      sql`${table.feeMinor} >= 0 and ${table.taxMinor} >= 0 and case ${table.kind} when 'adjust' then ${table.amountMinor} = 0 when 'sell' then ${table.amountMinor} >= 0 else ${table.amountMinor} > 0 end`,
+    ),
+    check('investment_trades_fx_check', sql`${table.fxRate} > 0`),
+    check('investment_trades_price_check', sql`${table.price} is null or ${table.price} > 0`),
+    check('investment_trades_dividend_check', sql`(${table.kind} = 'dividend') = (${table.dividendMode} is not null)`),
+    check('investment_trades_pending_check', sql`${table.status} = 'settled' or ${table.kind} = 'buy'`),
+  ],
+);
+
+/**
+ * The holding of each asset with trades, derived from `investment_trades` (a view, not a maintained table: one source
+ * of truth, nothing to drift). Pending buys are reported apart. `security_invoker`: RLS of the trades applies.
+ */
+export const holdings = pgView('holdings', {
+  userId: uuid('user_id').notNull(),
+  assetId: uuid('asset_id').notNull(),
+  units: decimal('units').notNull(),
+  costMinor: money('cost_minor').notNull(),
+  costBaseMinor: money('cost_base_minor').notNull(),
+  realizedMinor: money('realized_minor').notNull(),
+  realizedBaseMinor: money('realized_base_minor').notNull(),
+  dividendMinor: money('dividend_minor').notNull(),
+  dividendBaseMinor: money('dividend_base_minor').notNull(),
+  pendingMinor: money('pending_minor').notNull(),
+  pendingBaseMinor: money('pending_base_minor').notNull(),
+}).existing();
+
+/**
+ * Global cache of the built-in sources only (Frankfurter, fawazahmed0, open.er-api, CoinMarketCap Basic). The worker
+ * writes it; the app reads the latest row per symbol through the view `market_quotes_latest`.
+ */
+export const marketQuotes = pgTable(
+  'market_quotes',
+  {
+    provider: marketProvider('provider').notNull(),
+    symbol: varchar('symbol', { length: 32 }).notNull(),
+    quoteCurrency: currency('quote_currency').notNull(),
+    /** The fetch slot (5 minutes for crypto, a day for FX and gold). */
+    bucketTs: timestamptz('bucket_ts').notNull(),
+    price: decimal('price').notNull(),
+    prevClose: decimal('prev_close'),
+    fetchedAt: timestamptz('fetched_at').notNull().defaultNow(),
+    sourceAttr: text('source_attr'),
+  },
+  (table) => [
+    primaryKey({
+      name: 'market_quotes_pkey',
+      columns: [table.provider, table.symbol, table.quoteCurrency, table.bucketTs],
+    }),
+    currencyCheck('market_quotes_quote_currency_check', table.quoteCurrency),
+    check(
+      'market_quotes_price_check',
+      sql`${table.price} > 0 and (${table.prevClose} is null or ${table.prevClose} > 0)`,
+    ),
+  ],
+);
+
+/** The latest built-in quote per provider, symbol, and currency (the app's only read path into `market_quotes`). */
+export const marketQuotesLatest = pgView('market_quotes_latest', {
+  provider: marketProvider('provider').notNull(),
+  symbol: varchar('symbol', { length: 32 }).notNull(),
+  quoteCurrency: currency('quote_currency').notNull(),
+  bucketTs: timestamptz('bucket_ts').notNull(),
+  price: decimal('price').notNull(),
+  prevClose: decimal('prev_close'),
+  fetchedAt: timestamptz('fetched_at').notNull(),
+  sourceAttr: text('source_attr'),
+}).existing();
+
+/** BYOK results, per user (FR-I6: never shown to anyone else); deleted with the provider's key. */
+export const userQuotes = pgTable(
+  'user_quotes',
+  {
+    userId: ownerId(),
+    provider: marketProvider('provider').notNull(),
+    symbol: varchar('symbol', { length: 32 }).notNull(),
+    quoteCurrency: currency('quote_currency').notNull(),
+    bucketTs: timestamptz('bucket_ts').notNull(),
+    price: decimal('price').notNull(),
+    prevClose: decimal('prev_close'),
+    fetchedAt: timestamptz('fetched_at').notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'user_quotes_pkey',
+      columns: [table.userId, table.provider, table.symbol, table.quoteCurrency, table.bucketTs],
+    }),
+    currencyCheck('user_quotes_quote_currency_check', table.quoteCurrency),
+    check(
+      'user_quotes_price_check',
+      sql`${table.price} > 0 and (${table.prevClose} is null or ${table.prevClose} > 0)`,
+    ),
+  ],
+);
+
+/**
+ * A user's own market data key (FR-ST4): encrypted with the user's DEK, only the last 4 characters readable. Saving
+ * one requires active 2FA (insert policy). Quota counters and `retry_after` pause it after a 429 / quota error.
+ */
+export const marketCredentials = pgTable(
+  'market_credentials',
+  {
+    id: id(),
+    userId: ownerId(),
+    provider: marketProvider('provider').notNull(),
+    apiKeyEnc: bytea('api_key_enc').notNull(),
+    last4: varchar('last4', { length: 4 }).notNull(),
+    active: boolean('active').notNull().default(true),
+    status: credentialStatus('status').notNull().default('untested'),
+    quotaUsed: integer('quota_used').notNull().default(0),
+    quotaLimit: integer('quota_limit'),
+    quotaResetAt: timestamptz('quota_reset_at'),
+    retryAfter: timestamptz('retry_after'),
+    lastTestedAt: timestamptz('last_tested_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('market_credentials_user_id_id_key').on(table.userId, table.id),
+    unique('market_credentials_provider_key').on(table.userId, table.provider),
+    check(
+      'market_credentials_quota_check',
+      sql`${table.quotaUsed} >= 0 and (${table.quotaLimit} is null or ${table.quotaLimit} > 0)`,
+    ),
+  ],
+);
+
+/**
+ * Market data requests (FR-I5 "Buka log API", FR-ST4; 30-day retention). `user_id` null = a built-in fetch for
+ * everyone. `endpoint` never contains a key (masked by the caller).
+ */
+export const marketApiLogs = pgTable(
+  'market_api_logs',
+  {
+    id: id(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    provider: marketProvider('provider').notNull(),
+    endpoint: text('endpoint').notNull(),
+    /** HTTP status; null when no response arrived (timeout, network). */
+    httpStatus: smallint('http_status'),
+    ok: boolean('ok').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    retry: smallint('retry').notNull().default(0),
+    errorCode: text('error_code'),
+    at: timestamptz('at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('market_api_logs_user_at_idx').on(table.userId, table.at.desc()),
+    check('market_api_logs_duration_check', sql`${table.durationMs} >= 0 and ${table.retry} >= 0`),
+  ],
+);
+
+/** Portfolio value per day (the growth chart, FR-I3): daily by the worker, kept at month ends. */
+export const portfolioSnapshots = pgTable(
+  'portfolio_snapshots',
+  {
+    userId: ownerId(),
+    snapshotDate: localDate('snapshot_date').notNull(),
+    valueBaseMinor: money('value_base_minor').notNull(),
+    costBaseMinor: money('cost_base_minor').notNull(),
+    /** Money put in during the month so far ("Setoran bulan ini"). */
+    contributionsBaseMinor: money('contributions_base_minor')
+      .notNull()
+      .default(sql`0`),
+    /** Value per asset class. */
+    breakdown: jsonb('breakdown').$type<JsonObject>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ name: 'portfolio_snapshots_pkey', columns: [table.userId, table.snapshotDate] })],
 );

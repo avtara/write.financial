@@ -59,6 +59,16 @@ export const LEDGER_ERROR_CODES = [
   /** FR-U7: invalid receivable input, a payment beyond the remaining amount, or an action on a settled or
    * written-off receivable. */
   'INVALID_RECEIVABLE',
+  /** FR-I1: invalid asset input (symbol, platform that is not an investment account in the asset's currency, a
+   * category or price that does not fit). */
+  'INVALID_ASSET',
+  /** FR-I2: invalid investment trade (units, amounts, more units sold than held, a goal choice missing for an asset
+   * held by two or more goals, a trade that is not pending when settling). */
+  'INVALID_TRADE',
+  /** FR-ST4: invalid market data key input (a provider without BYOK, an empty key). */
+  'INVALID_MARKET_CREDENTIAL',
+  /** FR-ST4: saving a market data key requires active two-factor authentication. */
+  'TWO_FACTOR_REQUIRED',
 ] as const;
 
 export type LedgerErrorCode = (typeof LEDGER_ERROR_CODES)[number];

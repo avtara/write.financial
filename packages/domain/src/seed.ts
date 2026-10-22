@@ -8,7 +8,10 @@
  */
 import type { AlertPct } from './budget.ts';
 import type { BuiltInCategoryKey } from './categories.ts';
+import type { GoalAssetSourceMode } from './goal-assets.ts';
+import type { AssetClass } from './investments.ts';
 import type { AccountType } from './ledger.ts';
+import type { Market } from './market.ts';
 import type { CancelMode, SubscriptionCycle, UsageRating } from './subscriptions.ts';
 
 export interface SeedAccount {
@@ -63,7 +66,7 @@ export interface SeedFxRate {
   readonly asOf: string;
 }
 
-/** A funding source of a goal (FR-G2): an account wholly, or a fixed amount of it. Investment assets come in M5. */
+/** An account funding a goal (FR-G2): wholly, or a fixed amount of it. */
 export interface SeedGoalSource {
   readonly accountKey: string;
   readonly mode: 'whole' | 'fixed';
@@ -87,6 +90,59 @@ export interface SeedGoal {
   /** "Simpan di": where deposits go by default. */
   readonly accountKey: string | null;
   readonly sources: readonly SeedGoalSource[];
+  /** Investment assets funding it (FR-G2): wholly, or `pctBps` of the units. */
+  readonly assetSources: readonly {
+    readonly assetKey: string;
+    readonly mode: GoalAssetSourceMode;
+    readonly pctBps: number | null;
+  }[];
+}
+
+/**
+ * An asset of the persona (design 09 "Kepemilikan") on its platform. `opening` is what was held before the ledger
+ * starts (31 Agu, recorded as a purchase without a cash leg: "Pembelian yang belum dicatat"); `buys` are paid from
+ * the platform's cash through the ledger (the 1st-of-month DCA, the RDPU buy still "diproses").
+ */
+export interface SeedAsset {
+  readonly key: string;
+  readonly accountKey: string;
+  readonly symbol: string;
+  readonly name: string;
+  readonly assetClass: AssetClass;
+  readonly market: Market;
+  /** "Daftar saya" category name. */
+  readonly category: string | null;
+  /** The manual price at {@link SeedInvestments.priceAt}, quote major units. */
+  readonly price: string;
+  readonly opening: { readonly units: string; readonly amountMinor: bigint; readonly fxRate: string } | null;
+  readonly buys: readonly {
+    /** ISO 8601 with the +07:00 offset. */
+    readonly occurredAt: string;
+    readonly units: string;
+    readonly price: string;
+    /** Paid without fee or tax, platform currency minor units. */
+    readonly amountMinor: bigint;
+    readonly pending: boolean;
+  }[];
+}
+
+/** Design 09 "Investasi" on 15 Okt 2026, 16.42 WIB (rate USD Rp16.350). */
+export interface SeedInvestments {
+  /** When the manual prices were taken ("harga 16.42 WIB"). */
+  readonly priceAt: string;
+  /** When the `opening` holdings are recorded: the day the accounts open (31 Agu). */
+  readonly openedAt: string;
+  readonly categories: readonly { readonly name: string; readonly assetClass: AssetClass }[];
+  readonly assets: readonly SeedAsset[];
+  /** Allocation targets per class (bps, Σ 10 000). */
+  readonly targets: Readonly<Partial<Record<AssetClass, number>>>;
+  /** Month-end portfolio values (growth chart). */
+  readonly snapshots: readonly {
+    readonly date: string;
+    readonly valueMinor: bigint;
+    readonly costMinor: bigint;
+    readonly contributionsMinor: bigint;
+  }[];
 }
 
 /**
@@ -202,6 +258,8 @@ export interface DesignSeed {
   readonly recurrences: readonly SeedRecurrence[];
   /** Outstanding Rp542.500 (Nadia 242.500 + Raka 300.000), Dimas and Sari settled within 90 days. */
   readonly receivables: readonly SeedReceivable[];
+  /** 5 platforms, 22 assets + the pending RDPU: Rp61.420.000, cost Rp53.931.000 (+Rp7.489.000). */
+  readonly investments: SeedInvestments;
 }
 
 /** The balances of {@link ACCOUNTS} are as of this day; the seed opens the accounts a month earlier. */
@@ -305,7 +363,8 @@ const ACCOUNTS: readonly SeedAccount[] = [
     showAsCard: false,
     isDefaultQuickEntry: false,
   },
-  // US$2.778,00 = US$2.411,03 + US$366,97 top-up (Rp6.000.000 at Rp16.350)
+  // Platform cash only (holdings are investment trades): US$51,99 on 15 Okt = US$51,63 + US$366,97 top-up − US$366,61
+  // DCA (SPY US$244,29 + SCHD US$122,32); with the holdings Gotrade is worth Rp45.420.000 (US$2.778).
   {
     key: 'gotrade',
     type: 'investment',
@@ -314,13 +373,14 @@ const ACCOUNTS: readonly SeedAccount[] = [
     last4: null,
     phoneMasked: null,
     currency: 'USD',
-    openingBalanceMinor: 241_103n,
+    openingBalanceMinor: 5_163n,
     openingDate: OPENING_DATE,
     color: 'cyan',
     includeInAvailable: false,
     showAsCard: false,
     isDefaultQuickEntry: false,
   },
+  // No cash; holds BTC Rp5.500.000.
   {
     key: 'indodax',
     type: 'investment',
@@ -329,13 +389,14 @@ const ACCOUNTS: readonly SeedAccount[] = [
     last4: null,
     phoneMasked: null,
     currency: 'IDR',
-    openingBalanceMinor: 5_500_000n,
+    openingBalanceMinor: 0n,
     openingDate: OPENING_DATE,
     color: 'blue',
     includeInAvailable: false,
     showAsCard: false,
     isDefaultQuickEntry: false,
   },
+  // No cash; holds BBCA, BBRI, TLKM Rp4.300.000.
   {
     key: 'stockbit',
     type: 'investment',
@@ -344,13 +405,14 @@ const ACCOUNTS: readonly SeedAccount[] = [
     last4: null,
     phoneMasked: null,
     currency: 'IDR',
-    openingBalanceMinor: 4_300_000n,
+    openingBalanceMinor: 0n,
     openingDate: OPENING_DATE,
     color: 'red',
     includeInAvailable: false,
     showAsCard: false,
     isDefaultQuickEntry: false,
   },
+  // No cash; holds XAU Rp3.700.000.
   {
     key: 'pluang',
     type: 'investment',
@@ -359,14 +421,15 @@ const ACCOUNTS: readonly SeedAccount[] = [
     last4: null,
     phoneMasked: null,
     currency: 'IDR',
-    openingBalanceMinor: 3_700_000n,
+    openingBalanceMinor: 0n,
     openingDate: OPENING_DATE,
     color: 'violet',
     includeInAvailable: false,
     showAsCard: false,
     isDefaultQuickEntry: false,
   },
-  // 5.500.000 = 2.500.000 (IDX30 1.000.000 + ORI 1.500.000) + 3.000.000 RDPU (still "diproses" in the design)
+  // No cash: the 14 Okt Rp3.000.000 paid the RDPU buy, still "diproses" (NAB 16 Okt); holds IDX30 1.000.000 + ORI
+  // 1.500.000 (Section 01 "Bibit RDPU · Reksa dana & SBN · Rp2.500.000").
   {
     key: 'bibit',
     type: 'investment',
@@ -375,7 +438,7 @@ const ACCOUNTS: readonly SeedAccount[] = [
     last4: null,
     phoneMasked: null,
     currency: 'IDR',
-    openingBalanceMinor: 2_500_000n,
+    openingBalanceMinor: 0n,
     openingDate: OPENING_DATE,
     color: 'green',
     includeInAvailable: false,
@@ -788,6 +851,349 @@ function post(balances: Map<string, bigint>, transactions: readonly SeedTransact
   }
 }
 
+/**
+ * Design 09 holdings (15 Okt, 16.42 WIB). Values are the design's per asset (USD at Rp16.350, units exact to 12
+ * digits); US$ gains are the table's (cost = value − gain), IDR gains the table's. The design does not show every
+ * price: QQQ, VEA, SCHD, VWO, SGOV, YieldMax, the US individual stocks, BTC, XAU, the IDX stocks, and the NAVs are
+ * illustrative, and the US individual split (NVDA 1.650.000 from OgLFo) is ours. SGOV is Rp3.449.963 so that with
+ * the US$51,99 cash (Rp850.037) Gotrade is Rp45.420.000. The rows' gains add up to Rp7.493.903 while the KPI is
+ * Rp7.489.000 (value 61.420.000 − cost 53.931.000): QQQ's opening buy carries the Rp4.638 difference in its rate.
+ */
+const ASSETS: readonly SeedAsset[] = [
+  {
+    key: 'spy',
+    accountKey: 'gotrade',
+    symbol: 'SPY',
+    name: 'SPDR S&P 500 ETF',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: null,
+    price: '690.10',
+    // Rp13.500.000 now.
+    opening: { units: '0.564475979415', amountMinor: 26_948n, fxRate: '16349.85898768' },
+    buys: [
+      {
+        occurredAt: '2026-09-01T09:00:00+07:00',
+        units: '0.276',
+        price: '664.80',
+        amountMinor: 18_348n,
+        pending: false,
+      },
+      {
+        occurredAt: '2026-10-01T09:00:00+07:00',
+        units: '0.356',
+        price: '686.20',
+        amountMinor: 24_429n,
+        pending: false,
+      },
+    ],
+  },
+  {
+    key: 'qqq',
+    accountKey: 'gotrade',
+    symbol: 'QQQ',
+    name: 'Invesco QQQ Trust',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: null,
+    price: '605.30',
+    // Rp7.400.000 now.
+    opening: { units: '0.747727388699', amountMinor: 36_453n, fxRate: '16362.72460428' },
+    buys: [],
+  },
+  {
+    key: 'vea',
+    accountKey: 'gotrade',
+    symbol: 'VEA',
+    name: 'Vanguard FTSE Developed Markets',
+    assetClass: 'international',
+    market: 'us_equity',
+    category: null,
+    price: '61.40',
+    // Rp4.300.000 now.
+    opening: { units: '4.283337815896', amountMinor: 24_086n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'schd',
+    accountKey: 'gotrade',
+    symbol: 'SCHD',
+    name: 'Schwab US Dividend Equity',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: null,
+    price: '28.10',
+    // Rp4.900.000 now.
+    opening: { units: '1.848702651333', amountMinor: 3_597n, fxRate: '16350' },
+    buys: [
+      { occurredAt: '2026-09-01T09:05:00+07:00', units: '4.448', price: '27.50', amountMinor: 12_232n, pending: false },
+      {
+        occurredAt: '2026-10-01T09:05:00+07:00',
+        units: '4.368571',
+        price: '28.00',
+        amountMinor: 12_232n,
+        pending: false,
+      },
+    ],
+  },
+  {
+    key: 'vwo',
+    accountKey: 'gotrade',
+    symbol: 'VWO',
+    name: 'Vanguard FTSE Emerging Markets',
+    assetClass: 'international',
+    market: 'us_equity',
+    category: null,
+    price: '53.20',
+    // Rp2.500.000 now.
+    opening: { units: '2.874157871744', amountMinor: 14_692n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'sgov',
+    accountKey: 'gotrade',
+    symbol: 'SGOV',
+    name: 'iShares 0–3 Month Treasury Bond ETF',
+    assetClass: 'cash',
+    market: 'us_equity',
+    category: null,
+    price: '100.48',
+    // Rp3.449.963 now.
+    opening: { units: '2.099989165157', amountMinor: 20_434n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'msty',
+    accountKey: 'gotrade',
+    symbol: 'MSTY',
+    name: 'MSTR Option Income',
+    assetClass: 'income',
+    market: 'us_equity',
+    category: 'YieldMax',
+    price: '13.35',
+    // Rp1.200.000 now.
+    opening: { units: '5.497715012198', amountMinor: 8_630n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'nvdy',
+    accountKey: 'gotrade',
+    symbol: 'NVDY',
+    name: 'NVDA Option Income',
+    assetClass: 'income',
+    market: 'us_equity',
+    category: 'YieldMax',
+    price: '15.80',
+    // Rp900.000 now.
+    opening: { units: '3.483915921496', amountMinor: 5_676n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'tsly',
+    accountKey: 'gotrade',
+    symbol: 'TSLY',
+    name: 'TSLA Option Income',
+    assetClass: 'income',
+    market: 'us_equity',
+    category: 'YieldMax',
+    price: '8.95',
+    // Rp600.000 now.
+    opening: { units: '4.100251140382', amountMinor: 4_055n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'cony',
+    accountKey: 'gotrade',
+    symbol: 'CONY',
+    name: 'COIN Option Income',
+    assetClass: 'income',
+    market: 'us_equity',
+    category: 'YieldMax',
+    price: '6.40',
+    // Rp400.000 now.
+    opening: { units: '3.822629969419', amountMinor: 2_550n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'nvda',
+    accountKey: 'gotrade',
+    symbol: 'NVDA',
+    name: 'NVIDIA',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: 'US individual',
+    price: '182.50',
+    // Rp1.650.000 now.
+    opening: { units: '0.552972225713', amountMinor: 7_690n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'msft',
+    accountKey: 'gotrade',
+    symbol: 'MSFT',
+    name: 'Microsoft',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: 'US individual',
+    price: '512.30',
+    // Rp1.150.000 now.
+    opening: { units: '0.137295318051', amountMinor: 5_360n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'aapl',
+    accountKey: 'gotrade',
+    symbol: 'AAPL',
+    name: 'Apple',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: 'US individual',
+    price: '247.80',
+    // Rp1.000.000 now.
+    opening: { units: '0.246820337008', amountMinor: 4_660n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'googl',
+    accountKey: 'gotrade',
+    symbol: 'GOOGL',
+    name: 'Alphabet',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: 'US individual',
+    price: '241.60',
+    // Rp900.000 now.
+    opening: { units: '0.227838872349', amountMinor: 4_195n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'amzn',
+    accountKey: 'gotrade',
+    symbol: 'AMZN',
+    name: 'Amazon',
+    assetClass: 'us_stocks',
+    market: 'us_equity',
+    category: 'US individual',
+    price: '226.90',
+    // Rp720.000 now.
+    opening: { units: '0.194079758694', amountMinor: 3_356n, fxRate: '16350' },
+    buys: [],
+  },
+  {
+    key: 'btc',
+    accountKey: 'indodax',
+    symbol: 'BTC',
+    name: 'Bitcoin',
+    assetClass: 'crypto',
+    market: 'crypto',
+    category: null,
+    price: '1460000000',
+    // Rp5.500.000 now.
+    opening: { units: '0.003767123288', amountMinor: 3_890_000n, fxRate: '1' },
+    buys: [],
+  },
+  {
+    key: 'xau',
+    accountKey: 'pluang',
+    symbol: 'XAU',
+    name: 'Emas',
+    assetClass: 'gold',
+    market: 'gold_spot',
+    category: null,
+    price: '2425000',
+    // Rp3.700.000 now.
+    opening: { units: '1.525773195876', amountMinor: 3_025_000n, fxRate: '1' },
+    buys: [],
+  },
+  {
+    key: 'bbca',
+    accountKey: 'stockbit',
+    symbol: 'BBCA',
+    name: 'Bank Central Asia',
+    assetClass: 'indonesia',
+    market: 'idx_equity',
+    category: 'Indonesia',
+    price: '8000',
+    // Rp2.400.000 now.
+    opening: { units: '300', amountMinor: 2_305_000n, fxRate: '1' },
+    buys: [],
+  },
+  {
+    key: 'bbri',
+    accountKey: 'stockbit',
+    symbol: 'BBRI',
+    name: 'Bank Rakyat Indonesia',
+    assetClass: 'indonesia',
+    market: 'idx_equity',
+    category: 'Indonesia',
+    price: '4000',
+    // Rp1.300.000 now.
+    opening: { units: '325', amountMinor: 1_486_000n, fxRate: '1' },
+    buys: [],
+  },
+  {
+    key: 'tlkm',
+    accountKey: 'stockbit',
+    symbol: 'TLKM',
+    name: 'Telkom Indonesia',
+    assetClass: 'indonesia',
+    market: 'idx_equity',
+    category: 'Indonesia',
+    price: '3000',
+    // Rp600.000 now.
+    opening: { units: '200', amountMinor: 732_000n, fxRate: '1' },
+    buys: [],
+  },
+  {
+    key: 'idx30',
+    accountKey: 'bibit',
+    symbol: 'IDX30',
+    name: 'Reksa Dana Indeks IDX30',
+    assetClass: 'indonesia',
+    market: 'mutual_fund',
+    category: 'Indonesia',
+    price: '1250',
+    // Rp1.000.000 now.
+    opening: { units: '800', amountMinor: 978_000n, fxRate: '1' },
+    buys: [],
+  },
+  {
+    key: 'ori',
+    accountKey: 'bibit',
+    symbol: 'ORI',
+    name: 'ORI026',
+    assetClass: 'indonesia',
+    market: 'sbn',
+    category: 'Indonesia',
+    price: '1',
+    // Rp1.500.000 now.
+    opening: { units: '1500000', amountMinor: 1_482_000n, fxRate: '1' },
+    buys: [],
+  },
+  // Section 00/13: "Bibit RDPU · 14 Okt 19.30 · diproses, NAB 16 Okt · 3.000.000" (units an estimate until allotted).
+  {
+    key: 'rdpu',
+    accountKey: 'bibit',
+    symbol: 'RDPU',
+    name: 'Reksa Dana Pasar Uang',
+    assetClass: 'cash',
+    market: 'mutual_fund',
+    category: null,
+    // The last NAB before the order; the units come with the 16 Okt NAB.
+    price: '1850',
+    opening: null,
+    buys: [
+      {
+        occurredAt: '2026-10-14T19:31:00+07:00',
+        units: '1621.621621',
+        price: '1850',
+        amountMinor: 3_000_000n,
+        pending: true,
+      },
+    ],
+  },
+];
+
 // Same offset everywhere, so the ISO strings sort chronologically.
 const byTime = (a: SeedTransaction, b: SeedTransaction): number => a.occurredAt.localeCompare(b.occurredAt);
 
@@ -797,10 +1203,30 @@ const SEPTEMBER_TRANSACTIONS: readonly SeedTransaction[] = [
   ...SEPTEMBER_TRANSFERS,
 ].sort(byTime);
 
-/** {@link ACCOUNTS} opened on 31 Agu: the 30 Sep balances minus the September flows. */
+/** Moves `balances` by the cash the buys of `assets` paid from their platforms between `from` and `to` (inclusive). */
+function postBuys(
+  balances: Map<string, bigint>,
+  assets: readonly SeedAsset[],
+  sign: 1n | -1n,
+  from = '',
+  to = '\uffff',
+): void {
+  for (const asset of assets) {
+    for (const buy of asset.buys) {
+      const day = buy.occurredAt.slice(0, 10);
+      if (day < from || day > to) continue;
+      const balance = balances.get(asset.accountKey);
+      if (balance === undefined) throw new RangeError(`unknown seed account: ${asset.accountKey}`);
+      balances.set(asset.accountKey, balance - sign * buy.amountMinor);
+    }
+  }
+}
+
+/** {@link ACCOUNTS} opened on 31 Agu: the 30 Sep balances minus the September flows and buys. */
 function openedOn31August(): SeedAccount[] {
   const balances = new Map(ACCOUNTS.map((account) => [account.key, account.openingBalanceMinor]));
   post(balances, SEPTEMBER_TRANSACTIONS, -1n);
+  postBuys(balances, ASSETS, -1n, '2026-09-01', '2026-09-30');
   return ACCOUNTS.map((account) => ({
     ...account,
     openingBalanceMinor: balances.get(account.key) as bigint,
@@ -1168,8 +1594,9 @@ export const DESIGN_SEED: DesignSeed = {
   // Account sources (Section 05 "Rp17.300.000 dialokasikan ke tabungan", Section 13): Dana Darurat's "Kantong darurat"
   // is all of Bank Jago today (Rp8.125.000) as a fixed amount, so the sinking funds' set-asides can land in Bank Jago
   // next to it (a whole source would take them for Dana Darurat); fixed amounts of BCA Tahapan for DP Rumah
-  // (5.000.000) and the three sinking funds ("Rp4.200.000 dipakai dana tidak rutin"); the investment parts (Bibit RDPU,
-  // SPY, IDX30, SCHD) come with M5.
+  // (5.000.000) and the three sinking funds ("Rp4.200.000 dipakai dana tidak rutin"). Asset sources (Section 00 card,
+  // 13 "Rp22.400.000 di investasi"): Dana Darurat the RDPU being bought (Rp3.000.000), DP Rumah SPY 60% + IDX30, Dana
+  // Pensiun SPY 40% + SCHD → Rp11.125.000 / Rp14.100.000 / Rp10.300.000.
   goals: [
     {
       name: 'Dana Darurat',
@@ -1183,6 +1610,7 @@ export const DESIGN_SEED: DesignSeed = {
       tag: 'dana-darurat',
       accountKey: 'jago',
       sources: [{ accountKey: 'jago', mode: 'fixed', amountMinor: 8_125_000n }],
+      assetSources: [{ assetKey: 'rdpu', mode: 'whole', pctBps: null }],
     },
     {
       name: 'DP Rumah',
@@ -1196,6 +1624,10 @@ export const DESIGN_SEED: DesignSeed = {
       tag: 'dp-rumah',
       accountKey: null,
       sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 5_000_000n }],
+      assetSources: [
+        { assetKey: 'spy', mode: 'percent', pctBps: 6000 },
+        { assetKey: 'idx30', mode: 'whole', pctBps: null },
+      ],
     },
     {
       name: 'Dana Pensiun',
@@ -1209,6 +1641,10 @@ export const DESIGN_SEED: DesignSeed = {
       tag: 'dana-pensiun',
       accountKey: null,
       sources: [],
+      assetSources: [
+        { assetKey: 'spy', mode: 'percent', pctBps: 4000 },
+        { assetKey: 'schd', mode: 'whole', pctBps: null },
+      ],
     },
     {
       name: 'Liburan Bali',
@@ -1222,6 +1658,7 @@ export const DESIGN_SEED: DesignSeed = {
       tag: 'liburan-bali',
       accountKey: null,
       sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 2_800_000n }],
+      assetSources: [],
     },
     {
       name: 'Servis motor',
@@ -1235,6 +1672,7 @@ export const DESIGN_SEED: DesignSeed = {
       tag: 'servis-motor',
       accountKey: null,
       sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 720_000n }],
+      assetSources: [],
     },
     {
       name: 'Perpanjang STNK',
@@ -1248,20 +1686,41 @@ export const DESIGN_SEED: DesignSeed = {
       tag: 'perpanjang-stnk',
       accountKey: null,
       sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 680_000n }],
+      assetSources: [],
     },
   ],
   subscriptions: SUBSCRIPTIONS,
   recurrences: RECURRENCES,
   receivables: RECEIVABLES,
+  investments: {
+    priceAt: '2026-10-15T16:42:00+07:00',
+    openedAt: '2026-08-31T12:00:00+07:00',
+    // "Kelola kategori": 5 aset · kelas Indonesia, 4 aset · kelas Income (YieldMax), 5 aset · kelas Saham AS.
+    categories: [
+      { name: 'Indonesia', assetClass: 'indonesia' },
+      { name: 'YieldMax', assetClass: 'income' },
+      { name: 'US individual', assetClass: 'us_stocks' },
+    ],
+    assets: ASSETS,
+    // w1jn3J "Target alokasi": Saham AS 50, Internasional 12, Indonesia 12, Kripto 7, Kas & SGOV 8, Emas 5, Income 6.
+    targets: { us_stocks: 5000, international: 1200, indonesia: 1200, crypto: 700, cash: 800, gold: 500, income: 600 },
+    // XZruO "Akhir September 2026 · Rp57.700.000 · Modal disetor Rp50.900.000 · Setoran bulan ini +Rp3.000.000"; the
+    // other month ends have no cost basis in the design.
+    snapshots: [
+      { date: '2026-09-30', valueMinor: 57_700_000n, costMinor: 50_900_000n, contributionsMinor: 3_000_000n },
+    ],
+  },
 };
 
 /**
  * Balance of every seed account in its own currency after all seed transactions (September and October): opening
- * − expenses + income − sent (transfer source) + received (transfer destination). Used by the DB seed CLI as a
+ * − expenses + income − sent (transfer source) + received (transfer destination) − buys paid from platform cash.
+ * Used by the DB seed CLI as a
  * self-check.
  */
 export function seedClosingBalances(seed: DesignSeed): ReadonlyMap<string, bigint> {
   const balances = new Map(seed.accounts.map((account) => [account.key, account.openingBalanceMinor]));
   post(balances, [...seed.septemberTransactions, ...seed.transactions], 1n);
+  postBuys(balances, seed.investments.assets, 1n);
   return balances;
 }

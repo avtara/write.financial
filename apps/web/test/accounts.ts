@@ -39,6 +39,7 @@ export function accountView(overrides: Partial<AccountView> = {}): AccountView {
     balanceBaseMinor: 1_000_000n,
     locked: false,
     transactionCount: 0,
+    holdingsValueBaseMinor: null,
     ...overrides,
   };
 }

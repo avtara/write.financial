@@ -19,8 +19,11 @@ import { createBudgets } from './budgets.ts';
 import { createDb, firstRow, withUser, type Database } from './db.ts';
 import { createFxRates } from './fx-rates.ts';
 import { createInstanceSettings } from './instance-settings.ts';
+import { createInvestments } from './investments.ts';
 import { builtInCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { migrate } from './migrate.ts';
+import { createMarketCredentials } from './market-credentials.ts';
+import { createMarketData } from './market-data.ts';
 import { insertNotificationIn } from './notifications.ts';
 import { materializeIn } from './occurrences.ts';
 import { createPeriods } from './periods.ts';
@@ -50,7 +53,11 @@ import { createUserKeys, KeyRotationRoleError } from './user-keys.ts';
 /** Tables without Row-Level Security: global catalog, read-only grants. */
 const GLOBAL_TABLES = ['entitlements', 'plans'];
 /** Tables with global rows (`user_id` null) every role may read; only their user rows are tenant data. */
-const SHARED_ROWS: Record<string, string> = { fx_rates: 'user_id IS NOT NULL' };
+const SHARED_ROWS: Record<string, string> = {
+  fx_rates: 'user_id IS NOT NULL',
+  // Built-in fetches (no user) are logged without a user; only the user's own requests are tenant data.
+  market_api_logs: 'user_id IS NOT NULL',
+};
 const TODAY = '2026-10-15' as LocalDate;
 
 const INSUFFICIENT_PRIVILEGE = '42501';
@@ -368,6 +375,88 @@ beforeAll(async () => {
     });
   }
 
+  // Investments and market data (M5): every new table gets rows of both users. Saving a market key needs 2FA, which
+  // only the auth module turns on.
+  await dbs.auth.update(users).set({ twoFactorEnabled: true });
+  const dek = generateDek();
+  const credentials = createMarketCredentials(dbs.app, { getDek: () => Promise.resolve(dek) });
+  const at15 = { now: () => new Date('2026-10-15T09:00:00Z') };
+  const investments = createInvestments(dbs.app, at15);
+  for (const userId of [alice, bob]) {
+    const [platform] = await withUser(dbs.app, userId, (tx) =>
+      tx.execute<{ id: string }>(sql`INSERT INTO accounts
+          (user_id, type, provider_name, display_name, currency, opening_balance_minor, opening_date, color, include_in_available)
+        VALUES (${userId}, 'investment', 'Gotrade', 'Gotrade USD', 'USD', 100000, ${TODAY}, 'cyan', false) RETURNING id`),
+    );
+    const category = await investments.createCategory(userId, { name: 'Inti', assetClass: 'us_stocks' });
+    const spy = await investments.createAsset(userId, {
+      accountId: platform?.id as string,
+      symbol: 'SPY',
+      name: 'SPDR S&P 500 ETF',
+      assetClass: 'us_stocks',
+      market: 'us_equity',
+      categoryId: category.id,
+      priceMode: 'byok',
+    });
+    await investments.recordTrade(userId, {
+      kind: 'buy',
+      clientId: randomUUID(),
+      assetId: spy.id,
+      occurredAt: new Date('2026-10-14T12:30:00Z'),
+      units: '0.1',
+      amountMinor: 6_900n,
+    });
+    await investments.setTargets(userId, { us_stocks: 10_000 });
+    await investments.recordSnapshot(userId, {
+      date: TODAY,
+      valueBaseMinor: 1_128_000n,
+      costBaseMinor: 1_128_000n,
+      contributionsBaseMinor: 0n,
+    });
+    await withUser(dbs.app, userId, (tx) =>
+      tx.execute(sql`INSERT INTO goal_funding_sources (user_id, goal_id, asset_id, mode, pct_bps)
+                     SELECT ${userId}, id, ${spy.id}, 'percent', 6000 FROM goals`),
+    );
+    await credentials.save(userId, { provider: 'tiingo', apiKey: `tiingo-key-of-${userId.slice(-6)}` });
+    await createMarketData(dbs.worker).logRequest(userId, {
+      provider: 'tiingo',
+      endpoint: 'https://api.tiingo.com/iex/?tickers=spy&token=***',
+      httpStatus: 200,
+      ok: true,
+      durationMs: 120,
+      at: new Date('2026-10-15T09:00:00Z'),
+    });
+  }
+  // Only Alice's key has fetched yet: her result, for her alone.
+  await createMarketData(dbs.worker).recordUserQuotes(
+    alice,
+    [
+      {
+        provider: 'tiingo',
+        symbol: 'SPY',
+        quoteCurrency: 'USD',
+        bucketTs: new Date('2026-10-15T08:45:00Z'),
+        price: '690.10',
+        prevClose: '686.20',
+      },
+    ],
+    new Date('2026-10-15T08:46:00Z'),
+  );
+  await createMarketData(dbs.worker).recordUserQuotes(
+    bob,
+    [
+      {
+        provider: 'tiingo',
+        symbol: 'QQQ',
+        quoteCurrency: 'USD',
+        bucketTs: new Date('2026-10-15T08:45:00Z'),
+        price: '605.30',
+        prevClose: null,
+      },
+    ],
+    new Date('2026-10-15T08:46:00Z'),
+  );
+
   owned = [
     { table: 'users', column: 'id' },
     ...(await superuser<{ table: string; column: string }[]>`
@@ -590,8 +679,8 @@ describe('userKeys', () => {
 describe('ledger roles', () => {
   it('lets the worker read but never write transactions or postings (D14)', async () => {
     const [row] = await withUser(dbs.worker, alice, (tx) => tx.execute(sql`SELECT count(*)::int AS n FROM postings`));
-    // An expense (1) and a cross-currency transfer with a fee (2 + fee + fx_diff).
-    expect(row).toEqual({ n: 5 });
+    // An expense (1), a cross-currency transfer with a fee (2 + fee + fx_diff), and a buy's cash leg (1, M5).
+    expect(row).toEqual({ n: 6 });
     for (const statement of [
       sql`INSERT INTO transactions (user_id, type, occurred_at, local_date, client_id, confirmed_by_user_at)
           VALUES (${alice}, 'expense', now(), current_date, ${randomUUID()}, now())`,
@@ -686,7 +775,8 @@ describe('ledger roles', () => {
                             (SELECT count(*) FROM card_payment_allocations)::int AS allocations,
                             (SELECT count(*) FROM receivable_payments)::int AS payments`),
     );
-    expect(row).toEqual({ sources: 1, plans: 1, installments: 1, allocations: 1, payments: 1 });
+    // An account source (M4) and an asset source (M5).
+    expect(row).toEqual({ sources: 2, plans: 1, installments: 1, allocations: 1, payments: 1 });
     for (const statement of [
       sql`UPDATE goals SET status = 'completed', completed_at = now()`,
       sql`UPDATE goal_funding_sources SET amount_minor = 1`,
@@ -788,5 +878,159 @@ describe('ledger roles', () => {
       );
     });
     expect(await pgErrorCode(raw)).toBe('23503');
+  });
+});
+
+describe('investments and market data (M5)', () => {
+  const now = () => new Date('2026-10-15T09:00:00Z');
+
+  it('never prices user B’s assets with user A’s BYOK results, nor shows them to B in any way', async () => {
+    const quotes = createMarketData(dbs.app, { now });
+    const spyOf = async (userId: string) =>
+      firstRow(
+        await withUser(dbs.app, userId, (tx) =>
+          tx.execute<{ id: string }>(sql`SELECT id FROM assets WHERE symbol = 'SPY'`),
+        ),
+        'assets',
+      ).id;
+    // Both have a Tiingo key and SPY; only Alice's key fetched SPY.
+    expect((await quotes.quotes(alice)).get(await spyOf(alice))).toMatchObject({
+      source: 'byok',
+      provider: 'tiingo',
+      price: '690.1',
+    });
+    expect((await quotes.quotes(bob)).get(await spyOf(bob))).toBeNull();
+    const bobsView = await withUser(dbs.app, bob, (tx) =>
+      tx.execute<{ symbol: string }>(sql`SELECT symbol FROM user_quotes ORDER BY symbol`),
+    );
+    expect(bobsView.map((row) => row.symbol)).toEqual(['QQQ']);
+    // The worker, in Bob's job, cannot see Alice's results either; without a user context nobody sees any.
+    const workerView = await withUser(dbs.worker, bob, (tx) =>
+      tx.execute(sql`SELECT 1 FROM user_quotes WHERE symbol = 'SPY'`),
+    );
+    expect(workerView).toHaveLength(0);
+    // The shared cache holds built-in sources only and is readable only through its view.
+    expect(await pgErrorCode(withUser(dbs.app, bob, (tx) => tx.execute(sql`SELECT * FROM market_quotes`)))).toBe(
+      INSUFFICIENT_PRIVILEGE,
+    );
+    expect(await withUser(dbs.app, bob, (tx) => tx.execute(sql`SELECT * FROM market_quotes_latest`))).toEqual([]);
+    // Bob cannot write a quote for Alice, nor read her key's ciphertext or last 4.
+    expect(
+      await pgErrorCode(
+        withUser(dbs.worker, bob, (tx) =>
+          tx.execute(sql`INSERT INTO user_quotes (user_id, provider, symbol, quote_currency, bucket_ts, price)
+                         VALUES (${alice}, 'tiingo', 'SPY', 'USD', now(), 1)`),
+        ),
+      ),
+    ).toBe('42501');
+    expect(
+      await withUser(dbs.app, bob, (tx) => tx.execute(sql`SELECT 1 FROM market_credentials WHERE user_id = ${alice}`)),
+    ).toHaveLength(0);
+  });
+
+  it('deleting a key deletes that provider’s results of that user only (FR-ST4)', async () => {
+    const dek = generateDek();
+    const credentials = createMarketCredentials(dbs.app, { getDek: () => Promise.resolve(dek), now });
+    await createMarketData(dbs.worker).recordUserQuotes(
+      alice,
+      [
+        {
+          provider: 'tiingo',
+          symbol: 'QQQ',
+          quoteCurrency: 'USD',
+          bucketTs: new Date('2026-10-15T08:45:00Z'),
+          price: '605',
+          prevClose: null,
+        },
+      ],
+      now(),
+    );
+    expect(await credentials.remove(alice, 'tiingo')).toEqual({ quotesDeleted: 2 });
+    const left = await superuser<
+      { user_id: string; symbol: string }[]
+    >`SELECT user_id, symbol FROM user_quotes ORDER BY symbol`;
+    expect(left).toEqual([{ user_id: bob, symbol: 'QQQ' }]);
+    expect(await credentials.list(alice)).toEqual([]);
+    expect((await credentials.list(bob)).map((key) => key.provider)).toEqual(['tiingo']);
+  });
+
+  it('refuses to store a market key without active 2FA, even with raw SQL', async () => {
+    await dbs.auth
+      .update(users)
+      .set({ twoFactorEnabled: false })
+      .where(sql`${users.id} = ${bob}`);
+    try {
+      const raw = withUser(dbs.app, bob, (tx) =>
+        tx.execute(sql`INSERT INTO market_credentials (user_id, provider, api_key_enc, last4)
+                       VALUES (${bob}, 'finnhub', decode('010203', 'hex'), 'abcd')`),
+      );
+      expect(await pgErrorCode(raw)).toBe(INSUFFICIENT_PRIVILEGE);
+      const credentials = createMarketCredentials(dbs.app, { getDek: () => Promise.resolve(generateDek()) });
+      await expect(credentials.save(bob, { provider: 'finnhub', apiKey: 'finnhub-key-123' })).rejects.toMatchObject({
+        code: 'TWO_FACTOR_REQUIRED',
+      });
+    } finally {
+      await dbs.auth
+        .update(users)
+        .set({ twoFactorEnabled: true })
+        .where(sql`${users.id} = ${bob}`);
+    }
+  });
+
+  it('keeps Σ goal percentages per asset ≤ 100% and targets at exactly 100%, even with raw SQL (FR-G2, FR-I3)', async () => {
+    const over = withUser(dbs.app, alice, (tx) =>
+      tx.execute(sql`UPDATE goal_funding_sources SET pct_bps = 10001 WHERE asset_id IS NOT NULL`),
+    );
+    expect(await pgErrorCode(over)).toBe('23514');
+    const second = withUser(dbs.app, alice, async (tx) => {
+      const [goal] = await tx.execute<{
+        id: string;
+      }>(sql`INSERT INTO goals (user_id, name, icon, color, target_minor, currency)
+          VALUES (${alice}, 'Pensiun', 'sunset', 'violet', 1000, 'IDR') RETURNING id`);
+      await tx.execute(sql`INSERT INTO goal_funding_sources (user_id, goal_id, asset_id, mode, pct_bps)
+                           SELECT ${alice}, ${goal?.id as string}, asset_id, 'percent', 4001 FROM goal_funding_sources
+                           WHERE asset_id IS NOT NULL`);
+    });
+    expect(await pgErrorCode(second)).toBe('23514');
+    const targets = withUser(dbs.app, alice, (tx) => tx.execute(sql`UPDATE allocation_targets SET target_bps = 9000`));
+    expect(await pgErrorCode(targets)).toBe('23514');
+  });
+
+  it('lets the worker read the portfolio and write market data and snapshots, never assets or trades (D14)', async () => {
+    const [row] = await withUser(dbs.worker, alice, (tx) =>
+      tx.execute(sql`SELECT (SELECT count(*) FROM assets)::int AS assets,
+                            (SELECT count(*) FROM investment_trades)::int AS trades,
+                            (SELECT units FROM holdings) AS units`),
+    );
+    expect(row).toEqual({ assets: 1, trades: 1, units: '0.100000000000000000' });
+    for (const statement of [
+      sql`UPDATE assets SET name = 'x'`,
+      sql`DELETE FROM investment_trades`,
+      sql`INSERT INTO asset_categories (user_id, name, asset_class) VALUES (${alice}, 'x', 'cash')`,
+      sql`UPDATE allocation_targets SET target_bps = 10000`,
+      sql`UPDATE market_credentials SET api_key_enc = decode('00', 'hex')`,
+      sql`DELETE FROM market_credentials`,
+    ]) {
+      expect(await pgErrorCode(withUser(dbs.worker, alice, (tx) => tx.execute(statement)))).toBe(
+        INSUFFICIENT_PRIVILEGE,
+      );
+    }
+    await createMarketData(dbs.worker).recordServerQuotes(
+      [
+        {
+          provider: 'coinmarketcap',
+          symbol: 'BTC',
+          quoteCurrency: 'IDR',
+          bucketTs: now(),
+          price: '1460000000',
+          prevClose: null,
+        },
+      ],
+      now(),
+    );
+    // Everyone reads built-in quotes through the view.
+    expect(await withUser(dbs.app, bob, (tx) => tx.execute(sql`SELECT symbol FROM market_quotes_latest`))).toEqual([
+      { symbol: 'BTC' },
+    ]);
   });
 });

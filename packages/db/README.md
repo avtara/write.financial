@@ -35,14 +35,14 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./testing` | Test-only: PGlite helpers (`startMigrated`, `insertUser`, …) for other packages' unit tests |
 | `./ledger-errors` | `LedgerError` with a stable `code` (`LEDGER_ERROR_CODES`) for every expected ledger refusal |
 | `./ledger-core` | In-transaction building blocks: `recordTransactionIn`, `planTransactionIn`, `writeLinesIn`, `valuationIn`, `builtInCategoryIn`, `resolveTagsIn` |
-| `./accounts` | `createAccounts(db)` → balances + available balance, CRUD with FR-R2/R3 rules, archive/restore/delete, reorder, `reconcile`, `flows`, `series` |
+| `./accounts` | `createAccounts(db)` → balances + available balance, CRUD with FR-R2/R3 rules, archive/restore/delete, reorder, `reconcile`, `flows`, `series`; an investment account's balance is its cash, `holdingsValueBaseMinor` the value of its holdings |
 | `./categories` | `createCategories(db, { getDek })` → built-ins on first use, CRUD, move, merge, archive, delete (→ uncategorized + one `category_deleted` Review item per transaction) |
 | `./tags` | `createTags(db)` → usage counts, create/rename, merge (old slug becomes an alias), `similar` |
 | `./transactions` | `createTransactions(db, { getDek })` → create (idempotent per `client_id`), get, update, soft delete + restore, duplicate, split/unsplit, bulk edits, attachments |
 | `./transaction-query` | `createTransactionQuery(db, { getDek })` → Transactions page list, by-day/by-category groups, summary |
 | `./fx-rates` | `createFxRates(db)` → manual rates, `referenceRate`; worker: `upsertGlobal`, `latestGlobal`, `currenciesInUse` |
 | `./drafts`, `./recent-items`, `./activity` | Encrypted form drafts, ⌘K recently opened, per-entity timeline |
-| `./goals` | `createGoals(db)` → savings goals and sinking funds (FR-G1–G4, FR-B6): account funding sources (whole or fixed amount), recurring contributions as plans on recurrences, deposit/withdraw (labeled transfers), pay from goal, complete/reopen, allocations per account |
+| `./goals` | `createGoals(db)` → savings goals and sinking funds (FR-G1–G4, FR-B6): account funding sources (whole or fixed amount) and asset sources (whole or a percentage of the units, `setAssetSources`), recurring contributions as plans on recurrences, deposit/withdraw (labeled transfers), pay from goal, complete/reopen, allocations per account |
 | `./debts` | `createDebts(db)` → debts and installment plans (FR-U1–U6): schedules computed by `@wf/domain/debt`, card installments from card expenses, card payment allocation + recalculation (FR-U4), installment payments; non-card installments reach the Review queue as occurrences |
 | `./receivables` | `createReceivables(db, { getDek })` → receivables (FR-U7): record (`receivable_out`), receive payment (`receivable_in`), write off (`writeoff` expense), H-1 reminder; the person and note are encrypted |
 | `./onboarding` | `createOnboarding(db, { now? })` → FR-A4 progress: `progress`, `completeStep` (resume step moves forward only), `finish` ("Ke Ringkasan"), `setBaseCurrency` (refused once an account exists) |
@@ -54,7 +54,11 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./review-items` | Shared Review queue producer (app + worker): `ReviewPayload` (transaction draft, category, rollover, leftover; encrypted with the user's DEK), `insertReviewItemIn` (idempotent per `dedupe_key`), `readReviewPayload`, `occurrenceReviewItemIn` |
 | `./review` | `createReview(db, { getDek })` → Review queue (FR-L7): `list`, `counts` (badge), `confirm` (the only place a proposal is applied; item id = transaction `client_id`), `confirmBulk`, `ignore`, `markUnpaid`, `confirmOccurrence` |
 | `./notifications` | `createNotifications(db)` → `list` (filters, search, cursor), `counts`, `markRead`, `nextReminder`; shared `insertNotificationIn` (idempotent per `ref`) |
-| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget, goals with their account sources, 11 subscriptions, 4 recurring transfers with their paid bills and goal shares, 5 receivables recorded without ledger transactions) through the repositories; `seedAutomation(workerDb, userId, { getDek })` (as `wf_worker`): what the jobs would have created by now (overdue bills, September close proposal) |
+| `./investments` | `createInvestments(db)` → assets on platforms, "Daftar saya" categories, allocation targets, trades (FR-I2: buy/pending buy, sell to cash or a bank, dividends, cash top-up, adjust holdings, settle, remove) with their cash legs in the ledger (managed `investment`/`dividend` transactions), `portfolio` (holdings derived from the trades, valuation, allocation), snapshots |
+| `./market-data` | `createMarketData(db)` → the effective quote per asset with source, time, and stale flag (`@wf/domain/market` `resolveQuote`), manual prices, the API log; worker writes of built-in quotes (global) and BYOK results (per user) |
+| `./market-credentials` | `createMarketCredentials(db, { getDek })` → BYOK market keys encrypted with the user's DEK (last 4 only; 2FA required), status/quota/retry-after, `apiKey` for the worker, `remove` (also the provider's BYOK results) |
+| `./portfolio` | In-transaction valuation of every asset now (`assetValuesIn`, `holdingsValueByAccount`) for accounts, goals, and investments |
+| `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget, goals with their account and asset sources, the investments (assets, opening holdings, DCA buys, the pending RDPU buy, targets, a snapshot), 11 subscriptions, 4 recurring transfers with their paid bills and goal shares, 5 receivables recorded without ledger transactions) through the repositories; `seedAutomation(workerDb, userId, { getDek })` (as `wf_worker`): what the jobs would have created by now (overdue bills, September close proposal) |
 | `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)`, `purgeNotifications(now)` (90 days) (worker only, via `wf_maintenance_purge_auth` / `wf_maintenance_purge_notifications`) |
 | `./dispatch` | Worker: `createDispatch(db)` → `users()`, `dueReminders(now, limit)`, `pendingOutbox(now, limit)` (SECURITY DEFINER `wf_worker_users`, `wf_due_reminders`, `wf_pending_outbox`: ids and time zones only) |
 | `./occurrence-jobs` | Worker: `createOccurrenceJobs(db, { getDek })` → `advance(userId, now)` (materialize, due → Review queue, overdue → unconfirmed, trial/pause reminders), `remind(userId, occurrenceId, now)` (notification + email outbox, once) |
@@ -98,6 +102,12 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `budget_versions`, `budget_lines`, `budget_period_overrides`, `budget_alert_dismissals` | S I U D | S (D14)  | –                 | –                        | own rows                                                 |
 | `recurrences`, `subscriptions`                             | S I U D                        | S (D14)      | –                 | –                        | own rows                                                 |
 | `goal_funding_sources`, `goal_contribution_plans`, `debts`, `debt_installments`, `card_payment_allocations`, `receivables`, `receivable_payments` | S I U D | S (D14) | – | – | own rows |
+| `assets`, `asset_categories`, `allocation_targets`, `investment_trades` (+ view `holdings`, security_invoker) | S I U D | S (D14) | – | – | own rows |
+| `market_credentials` | S I U D | S, U(`status`, `quota_used`, `quota_limit`, `quota_reset_at`, `retry_after`, `last_tested_at`, `updated_at`) | – | – | own rows; INSERT only with `users.two_factor_enabled` |
+| `user_quotes` | S D | S I U D | – | – | own rows (BYOK results never shared) |
+| `market_quotes` (view `market_quotes_latest`: S for `wf_app`, `wf_worker`) | – | S I U | – | – | built-in sources only, global; `wf_migrate` reads it for the view |
+| `market_api_logs` | S I | S I | – | – | own rows + built-in fetches (`user_id` null) |
+| `portfolio_snapshots` | S I U | S I U | – | – | own rows |
 | `scheduled_occurrences`                                    | S I U D                        | S I, U(`status`, `remind_at`, `reminded_at`, `expected_minor`, `updated_at`) | – | – | own rows; `wf_migrate`: dispatch scan (S)        |
 | `detected_recurring`                                       | S I U D                        | S I U        | –                 | –                        | own rows                                                 |
 | `review_items`                                             | S I U D                        | S I (D14: no UPDATE) | –         | –                        | own rows                                                 |
@@ -113,6 +123,10 @@ Database level: CONNECT for every role; CREATE on the database and on schema `pu
 `wf_readonly_ops` has `default_transaction_read_only = on` and `log_statement = 'all'`, and cannot log in unless
 `DATABASE_URL_READONLY_OPS` gives it a password. `bootstrapRoles` sends SCRAM-SHA-256 verifiers, never plaintext
 passwords. Any change to this matrix must update `src/migrate.test.ts` (it asserts the exact grants).
+
+Triggers (as the invoker, so RLS applies): `receivable_payments_within_principal` (Σ payments ≤ principal),
+`goal_funding_sources_asset_within_100` (Σ goal percentages per asset ≤ 100%, a whole asset 100%), and the deferred
+constraint trigger `allocation_targets_sum_100` (a user's targets total exactly 100%, or there are none).
 
 Functions: the SECURITY DEFINER functions are `wf_maintenance_purge_auth(timestamptz) → jsonb` and
 `fx_currencies_in_use() → SETOF char(3)` (owner `wf_migrate`, `search_path = pg_catalog, public`, EXECUTE for
