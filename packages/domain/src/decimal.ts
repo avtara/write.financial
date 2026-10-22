@@ -29,10 +29,10 @@ export function parseDecimal(value: string): bigint {
 
 /** Canonical string of a value scaled by 10^18, without trailing fraction zeros (`'0.0725'`, `'-1'`). */
 export function formatDecimal(scaled: bigint): string {
-  const abs = scaled < 0n ? -scaled : scaled;
+  const sign = scaled < 0n ? '-' : '';
+  const abs = sign === '' ? scaled : -scaled;
   const whole = abs / DECIMAL_SCALE;
   const fraction = (abs % DECIMAL_SCALE).toString().padStart(DECIMAL_DIGITS, '0').replace(/0+$/, '');
-  const sign = scaled < 0n ? '-' : '';
   return fraction === '' ? `${sign}${whole}` : `${sign}${whole}.${fraction}`;
 }
 
