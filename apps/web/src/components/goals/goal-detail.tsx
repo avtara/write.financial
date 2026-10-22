@@ -37,6 +37,7 @@ import { CategoryIcon } from '../category-icon.tsx';
 import { periodLabel } from '../dashboard/dashboard-format.ts';
 import { Button } from '../form.tsx';
 import { RichMessage } from '../rich-message.tsx';
+import { formatUnits } from '../investments/investments-model.ts';
 import { GoalBar, type GoalActions } from './goal-list.tsx';
 import { formatMonths, goalState } from './goals-model.ts';
 
@@ -273,9 +274,37 @@ function DetailBody({
       {goal.kind === 'sinking' ? null : (
         <section className="flex flex-col gap-2">
           <SectionTitle>{m.goals_detail_sources()}</SectionTitle>
-          {goal.sources.length === 0 ? (
+          {goal.sources.length === 0 && goal.assetSources.length === 0 ? (
             <p className="text-[12.5px] text-muted-fg">{m.goals_detail_sources_empty()}</p>
-          ) : (
+          ) : null}
+          {goal.assetSources.length === 0 ? null : (
+            <ul className="flex flex-col rounded-[10px] border border-border">
+              {goal.assetSources.map((source) => (
+                <li key={source.id} className="flex items-center gap-3 border-b border-border p-3 last:border-b-0">
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-medium text-fg">{source.symbol}</span>
+                    <span className="text-[11.5px] text-subtle">
+                      {source.mode === 'whole'
+                        ? m.goals_asset_whole()
+                        : m.goals_asset_share({
+                            percent: String(source.bps / 100).replace('.', locale === 'id' ? ',' : '.'),
+                          })}{' '}
+                      · {m.goals_asset_units({ units: formatUnits(source.units, locale, 3) })} ·{' '}
+                      {m.goals_asset_market()}
+                    </span>
+                  </span>
+                  <Money
+                    minor={source.valueMinor}
+                    currency={goal.currency}
+                    context="amount"
+                    locale={locale}
+                    className="text-[13px] text-fg"
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+          {goal.sources.length === 0 ? null : (
             <ul className="flex flex-col rounded-[10px] border border-border">
               {goal.sources.map((source) => {
                 const last4 = accountOf(source.accountId)?.last4 ?? null;
