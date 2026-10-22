@@ -305,18 +305,11 @@ export function checkTargets(targets: AllocationTargets): TargetsCheck {
     (best, entry) => (best === null || entry[1] > best[1] ? entry : best),
     null,
   );
-  const fixed = largest === null ? -1 : largest[1] - excessBps;
-  return {
-    totalBps,
-    excessBps,
-    valid: false,
-    fix: largest === null || fixed < 0 || fixed > 10_000 ? null : { key: largest[0], targetBps: fixed },
-  };
+  if (largest === null) return { totalBps, excessBps, valid: false, fix: null };
+  // Lowering the largest target by the excess (or raising it by the shortfall) never passes 100%.
+  const fixed = largest[1] - excessBps;
+  return { totalBps, excessBps, valid: false, fix: fixed < 0 ? null : { key: largest[0], targetBps: fixed } };
 }
-
-const assertTargets = (targets: AllocationTargets): void => {
-  if (!checkTargets(targets).valid) throw new InvalidTargetsError('total');
-};
 
 /** Items and targets merged: every target key (in order), then held keys without a target. */
 function mergeItems(items: readonly AllocationItem[], targets: AllocationTargets): AllocationItem[] {
@@ -328,7 +321,7 @@ function mergeItems(items: readonly AllocationItem[], targets: AllocationTargets
 
 /** FR-I3 allocation vs target and drift (targets must total 10 000; a key without a target has target 0). */
 export function allocation(items: readonly AllocationItem[], targets: AllocationTargets): Allocation {
-  assertTargets(targets);
+  if (!checkTargets(targets).valid) throw new InvalidTargetsError('total');
   const merged = mergeItems(items, targets);
   const totalMinor = merged.reduce((sum, item) => sum + item.valueMinor, 0n);
   if (totalMinor <= 0n) throw new InvalidValuationError('Allocation needs a positive portfolio value');
@@ -399,7 +392,7 @@ export function rebalance(
   base: string,
   extraMinor = 0n,
 ): Rebalance {
-  assertTargets(targets);
+  if (!checkTargets(targets).valid) throw new InvalidTargetsError('total');
   if (extraMinor < 0n) throw new InvalidValuationError('Extra money must not be negative');
   const quotes = new Map(items.map((item) => [item.key, item.quote]));
   const merged = mergeItems(items, targets);
@@ -408,32 +401,30 @@ export function rebalance(
     totalMinor,
     merged.map((item) => targets[item.key] ?? 0),
   );
-  const trades = merged
-    .map((item, index) => {
-      const amountMinor = (ideals[index] as bigint) - item.valueMinor;
-      const quote = quotes.get(item.key) ?? null;
-      return {
-        key: item.key,
-        amountMinor,
-        quoteMinor:
-          quote === null
-            ? null
-            : convert({ minor: amountMinor, currency: base }, quote.currency, {
-                base: quote.currency,
-                quote: base,
-                rate: quote.fxRate,
-              }),
-      };
-    })
-    .filter((trade) => trade.amountMinor !== 0n)
-    .sort((a, b) => {
-      if (a.amountMinor > 0n !== b.amountMinor > 0n) return a.amountMinor > 0n ? -1 : 1;
-      const absA = a.amountMinor < 0n ? -a.amountMinor : a.amountMinor;
-      const absB = b.amountMinor < 0n ? -b.amountMinor : b.amountMinor;
-      return absA === absB ? 0 : absA > absB ? -1 : 1;
-    });
-  const buyMinor = trades.reduce((sum, trade) => sum + (trade.amountMinor > 0n ? trade.amountMinor : 0n), 0n);
-  return { trades, buyMinor, sellMinor: buyMinor - extraMinor };
+  const trades = merged.map((item, index) => {
+    const amountMinor = (ideals[index] as bigint) - item.valueMinor;
+    const quote = quotes.get(item.key) ?? null;
+    return {
+      key: item.key,
+      amountMinor,
+      quoteMinor:
+        quote === null
+          ? null
+          : convert({ minor: amountMinor, currency: base }, quote.currency, {
+              base: quote.currency,
+              quote: base,
+              rate: quote.fxRate,
+            }),
+    };
+  });
+  // Largest first on each side; the sorts are stable, so equal amounts keep the item order.
+  const buys = trades.filter((trade) => trade.amountMinor > 0n).sort((a, b) => Number(b.amountMinor - a.amountMinor));
+  const sells = trades.filter((trade) => trade.amountMinor < 0n).sort((a, b) => Number(a.amountMinor - b.amountMinor));
+  return {
+    trades: [...buys, ...sells],
+    buyMinor: buys.reduce((sum, trade) => sum + trade.amountMinor, 0n),
+    sellMinor: -sells.reduce((sum, trade) => sum + trade.amountMinor, 0n),
+  };
 }
 
 /** FR-I6 computed prices, always labelled "estimasi". */

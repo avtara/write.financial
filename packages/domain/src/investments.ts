@@ -144,17 +144,32 @@ const positive = (value: bigint, reason: InvalidTradeReason): bigint => {
   return value;
 };
 
-/** The share `part / whole` of `amount` (0 < part ≤ whole), all of it when `part` is everything. */
-const shareOf = (amount: bigint, part: bigint, whole: bigint): bigint =>
-  part === whole ? amount : divideRound(amount * part, whole);
-
+/** Removes `units` (≤ held) with their share of the cost, rounded half up (all units → all cost). */
 function removeUnits(holding: Holding, units: bigint): Pick<TradeEffect, 'unitsDelta' | 'costMinor' | 'costBaseMinor'> {
   const held = parseDecimal(holding.units);
   if (units > held) throw new InvalidTradeError('oversell');
   return {
     unitsDelta: formatDecimal(-units),
-    costMinor: -shareOf(holding.costMinor, units, held),
-    costBaseMinor: -shareOf(holding.costBaseMinor, units, held),
+    costMinor: -divideRound(holding.costMinor * units, held),
+    costBaseMinor: -divideRound(holding.costBaseMinor * units, held),
+  };
+}
+
+/** A sale of `units` for `grossMinor`: realized = gross − the average cost removed, in both currencies. */
+function sellEffect(
+  holding: Holding,
+  units: bigint,
+  grossMinor: bigint,
+  fxRate: string,
+  currencies: Currencies,
+): TradeEffect {
+  if (grossMinor < 0n) throw new InvalidTradeError('amount');
+  const removed = removeUnits(holding, positive(units, 'units'));
+  return {
+    ...NO_EFFECT,
+    ...removed,
+    realizedMinor: grossMinor + removed.costMinor,
+    realizedBaseMinor: toBase(grossMinor, fxRate, currencies) + removed.costBaseMinor,
   };
 }
 
@@ -179,16 +194,8 @@ export function tradeEffect(holding: Holding, trade: TradeInput, currencies: Cur
         costMinor: positive(trade.amountMinor, 'amount'),
         costBaseMinor: toBase(trade.amountMinor, trade.fxRate, currencies),
       };
-    case 'sell': {
-      if (trade.amountMinor < 0n) throw new InvalidTradeError('amount');
-      const removed = removeUnits(holding, positive(units, 'units'));
-      return {
-        ...NO_EFFECT,
-        ...removed,
-        realizedMinor: trade.amountMinor + removed.costMinor,
-        realizedBaseMinor: toBase(trade.amountMinor, trade.fxRate, currencies) + removed.costBaseMinor,
-      };
-    }
+    case 'sell':
+      return sellEffect(holding, units, trade.amountMinor, trade.fxRate, currencies);
     case 'dividend': {
       const net = positive(trade.amountMinor, 'amount') - trade.feeMinor - trade.taxMinor;
       const reinvest = trade.dividendMode === 'reinvest';
@@ -204,10 +211,9 @@ export function tradeEffect(holding: Holding, trade: TradeInput, currencies: Cur
     }
     case 'adjust':
       if (trade.amountMinor !== 0n) throw new InvalidTradeError('amount');
-      if (units === 0n) throw new InvalidTradeError('units');
-      return units > 0n
-        ? { ...NO_EFFECT, unitsDelta: formatDecimal(units) }
-        : { ...NO_EFFECT, ...removeUnits(holding, -units) };
+      if (units > 0n) return { ...NO_EFFECT, unitsDelta: formatDecimal(units) };
+      if (units < 0n) return { ...NO_EFFECT, ...removeUnits(holding, -units) };
+      throw new InvalidTradeError('units');
   }
 }
 
@@ -324,7 +330,7 @@ export function sellPreview(
   let grossMinor: bigint;
   if (order.by === 'value') {
     grossMinor = positive(order.amountMinor, 'amount');
-    if (grossMinor > positionMinor) throw new InvalidTradeError('oversell');
+    // More than the position's value asks for more units than held: `sellEffect` refuses it ('oversell').
     const factor = minorFactor(currencies.quote);
     units =
       grossMinor === positionMinor ? held : divideFloor(grossMinor * DECIMAL_SCALE * DECIMAL_SCALE, factor * price);
@@ -333,20 +339,7 @@ export function sellPreview(
     units = divideFloor(held * BigInt(order.bps), 10_000n);
     grossMinor = marketValueMinor(formatDecimal(units), quote.price, currencies.quote);
   }
-  const effect = tradeEffect(
-    holding,
-    {
-      kind: 'sell',
-      status: 'settled',
-      units: formatDecimal(units),
-      amountMinor: grossMinor,
-      feeMinor: quote.feeMinor,
-      taxMinor: quote.taxMinor,
-      fxRate: quote.fxRate,
-      dividendMode: null,
-    },
-    currencies,
-  );
+  const effect = sellEffect(holding, units, grossMinor, quote.fxRate, currencies);
   return {
     units: formatDecimal(units),
     grossMinor,

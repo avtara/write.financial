@@ -223,64 +223,43 @@ export interface ProviderQuota {
   readonly perHour: number | null;
   readonly perDay: number | null;
   readonly perMonth: number | null;
-  /** Shortest refresh the feed supports or we offer; `null` = end-of-day only (1×/day). */
+  /** Shortest interval offered during the session; `null` = only a few fixed refreshes per day. */
   readonly minIntervalMinutes: number | null;
+  /** End-of-day data only: one refresh a day after the close. */
+  readonly eodOnly: boolean;
 }
 
-/** Free-tier quotas of the BYOK providers (research §1.2–§1.5, §2.9). */
+const quota = (
+  symbolsPerCall: number,
+  limits: Partial<
+    Pick<ProviderQuota, 'perMinute' | 'perHour' | 'perDay' | 'perMonth' | 'minIntervalMinutes' | 'eodOnly'>
+  >,
+): ProviderQuota => ({
+  symbolsPerCall,
+  perMinute: null,
+  perHour: null,
+  perDay: null,
+  perMonth: null,
+  minIntervalMinutes: null,
+  eodOnly: false,
+  ...limits,
+});
+
+/**
+ * Free-tier quotas of the BYOK providers (research §1.2–§1.5, §2.9, §4.2.9: CoinGecko defaults to 10 minutes so the
+ * user's key keeps room).
+ */
 export const PROVIDER_QUOTAS: Readonly<Record<ByokProvider, ProviderQuota>> = {
-  tiingo: { symbolsPerCall: 100, perMinute: null, perHour: 50, perDay: 1000, perMonth: null, minIntervalMinutes: 15 },
-  finnhub: { symbolsPerCall: 1, perMinute: 60, perHour: null, perDay: null, perMonth: null, minIntervalMinutes: 15 },
-  massive: {
-    symbolsPerCall: 10_000,
-    perMinute: 5,
-    perHour: null,
-    perDay: null,
-    perMonth: null,
-    minIntervalMinutes: null,
-  },
-  alpha_vantage: {
-    symbolsPerCall: 1,
-    perMinute: null,
-    perHour: null,
-    perDay: 25,
-    perMonth: null,
-    minIntervalMinutes: null,
-  },
-  eodhd: { symbolsPerCall: 1, perMinute: 20, perHour: null, perDay: 20, perMonth: null, minIntervalMinutes: 15 },
-  marketstack: {
-    symbolsPerCall: 100,
-    perMinute: null,
-    perHour: null,
-    perDay: null,
-    perMonth: 100,
-    minIntervalMinutes: null,
-  },
-  coinmarketcap: {
-    symbolsPerCall: 100,
-    perMinute: 50,
-    perHour: null,
-    perDay: null,
-    perMonth: 15_000,
-    minIntervalMinutes: 5,
-  },
-  coingecko: {
-    symbolsPerCall: 100,
-    perMinute: 100,
-    perHour: null,
-    perDay: null,
-    perMonth: 10_000,
-    minIntervalMinutes: 5,
-  },
-  goldapi: { symbolsPerCall: 1, perMinute: null, perHour: null, perDay: null, perMonth: 100, minIntervalMinutes: null },
-  metals_dev: {
-    symbolsPerCall: 100,
-    perMinute: null,
-    perHour: null,
-    perDay: null,
-    perMonth: 100,
-    minIntervalMinutes: null,
-  },
+  tiingo: quota(100, { perHour: 50, perDay: 1000, minIntervalMinutes: 15 }),
+  finnhub: quota(1, { perMinute: 60, minIntervalMinutes: 15 }),
+  massive: quota(10_000, { perMinute: 5, eodOnly: true }),
+  alpha_vantage: quota(1, { perDay: 25, eodOnly: true }),
+  eodhd: quota(1, { perMinute: 20, perDay: 20, minIntervalMinutes: 15 }),
+  marketstack: quota(100, { perMonth: 100, eodOnly: true }),
+  coinmarketcap: quota(100, { perMinute: 50, perMonth: 15_000, minIntervalMinutes: 5 }),
+  coingecko: quota(100, { perMinute: 100, perMonth: 10_000, minIntervalMinutes: 10 }),
+  goldapi: quota(1, { perMonth: 100 }),
+  metals_dev: quota(100, { perMonth: 100 }),
 };
 
 /** Trading session minutes per day and polled days per month (research §4.2.10). */
@@ -300,7 +279,7 @@ export const MARKET_SESSIONS: Readonly<
 /** Share of every quota kept free for "Tes koneksi" and retries (EODHD: 16 of 20 calls/day used). */
 export const QUOTA_RESERVE_BPS = 1000;
 
-/** Intervals offered, shortest first, then fixed refreshes per day (EODHD: close + 3). */
+/** Intervals offered during a session, and fixed refreshes per day (EODHD: close + 10.00/12.00/14.30). */
 const INTERVALS_MINUTES = [5, 10, 15, 30, 60, 120] as const;
 const DAILY_REFRESHES = [4, 3, 2, 1] as const;
 
@@ -314,41 +293,40 @@ export interface RefreshPlan {
 }
 
 /**
- * FR-ST4 "frekuensi dibatasi agar muat kuota gratis": the most frequent refresh that keeps `symbolCount` symbols of
+ * FR-ST4 "frekuensi dibatasi agar muat kuota gratis": the most refreshes per day that keep `symbolCount` symbols of
  * `market` within every limit of the provider's free tier minus {@link QUOTA_RESERVE_BPS}. `null` when not even one
  * refresh a day fits (too many symbols for the key). Tiingo 15 US → every 15 min (26/day); Alpha Vantage → 1×/day;
  * EODHD 4 IDX → 4×/day (16); CoinMarketCap 3 crypto → 5 min (8.928/month); GoldAPI → 2×/day.
  */
 export function refreshPlan(provider: ByokProvider, market: Market, symbolCount: number): RefreshPlan | null {
-  if (!Number.isInteger(symbolCount) || symbolCount < 1)
+  if (!Number.isInteger(symbolCount) || symbolCount < 1) {
     throw new RangeError(`Symbol count must be ≥ 1: ${symbolCount}`);
-  const quota = PROVIDER_QUOTAS[provider];
+  }
+  const limits = PROVIDER_QUOTAS[provider];
   const session = MARKET_SESSIONS[market];
-  const callsPerRefresh = Math.ceil(symbolCount / quota.symbolsPerCall);
-  const usable = (limit: number | null): number =>
-    limit === null ? Infinity : Math.floor((limit * (10_000 - QUOTA_RESERVE_BPS)) / 10_000);
-  const candidates: { intervalMinutes: number | null; refreshesPerDay: number }[] = [
-    ...INTERVALS_MINUTES.filter(
-      (minutes) => quota.minIntervalMinutes !== null && minutes >= quota.minIntervalMinutes,
-    ).map((minutes) => ({ intervalMinutes: minutes, refreshesPerDay: Math.floor(session.minutesPerDay / minutes) })),
-    ...DAILY_REFRESHES.filter((count) => quota.minIntervalMinutes !== null || count === 1).map((count) => ({
-      intervalMinutes: null,
-      refreshesPerDay: count,
-    })),
-  ];
+  const callsPerRefresh = Math.ceil(symbolCount / limits.symbolsPerCall);
+  const fits = (calls: number, limit: number | null): boolean =>
+    limit === null || calls <= Math.floor((limit * (10_000 - QUOTA_RESERVE_BPS)) / 10_000);
+  const { minIntervalMinutes } = limits;
+  const intervals = INTERVALS_MINUTES.filter(
+    (minutes) => minIntervalMinutes !== null && minutes >= minIntervalMinutes,
+  ).map((minutes) => ({ intervalMinutes: minutes, refreshesPerDay: Math.floor(session.minutesPerDay / minutes) }));
+  const daily = (limits.eodOnly ? [1] : DAILY_REFRESHES).map((count) => ({
+    intervalMinutes: null,
+    refreshesPerDay: count,
+  }));
+  // Most refreshes first; for the same count an interval comes before fixed times (stable sort).
+  const candidates = [...intervals, ...daily].sort((a, b) => b.refreshesPerDay - a.refreshesPerDay);
   for (const candidate of candidates) {
     const callsPerDay = callsPerRefresh * candidate.refreshesPerDay;
     const callsPerMonth = callsPerDay * session.daysPerMonth;
-    // Fixed daily refreshes are hours apart; an interval puts 60 ÷ interval refreshes in one hour.
-    const perHour =
-      candidate.intervalMinutes === null
-        ? callsPerRefresh
-        : callsPerRefresh * Math.ceil(60 / candidate.intervalMinutes);
+    // An interval puts 60 ÷ interval refreshes in one hour; fixed daily refreshes are hours apart (one per hour).
+    const perHour = callsPerRefresh * Math.ceil(60 / (candidate.intervalMinutes ?? 60));
     if (
-      callsPerRefresh <= usable(quota.perMinute) &&
-      perHour <= usable(quota.perHour) &&
-      callsPerDay <= usable(quota.perDay) &&
-      callsPerMonth <= usable(quota.perMonth)
+      fits(callsPerRefresh, limits.perMinute) &&
+      fits(perHour, limits.perHour) &&
+      fits(callsPerDay, limits.perDay) &&
+      fits(callsPerMonth, limits.perMonth)
     ) {
       return { ...candidate, callsPerRefresh, callsPerDay, callsPerMonth };
     }
@@ -379,30 +357,35 @@ export interface RateLimitDecision {
 const BACKOFF_BASE_MS = MINUTE;
 const BACKOFF_MAX_MS = 60 * MINUTE;
 
+/** `Retry-After` as a time: delta seconds, or an HTTP date never earlier than `now`; `null` when absent or unreadable. */
+function retryAfterAt(header: string | null, now: number): number | null {
+  if (header === null) return null;
+  const value = header.trim();
+  if (/^\d+$/.test(value)) return now + Number(value) * 1000;
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? null : Math.max(date, now);
+}
+
 /**
  * FR-ST4 / M5 exit "429 pauses until retry-after": pause until `Retry-After` (seconds or HTTP date, never in the
  * past), else until the quota reset ("Kuota habis s.d. …"), else exponential backoff; then fall back.
  */
 export function rateLimitDecision(input: RateLimitInput): RateLimitDecision {
-  const header = input.retryAfter?.trim() ?? '';
-  let retryAt: number | null = null;
-  if (/^\d+$/.test(header)) retryAt = input.now + Number(header) * 1000;
-  else if (header !== '' && !Number.isNaN(Date.parse(header))) retryAt = Math.max(Date.parse(header), input.now);
+  const retryAt = retryAfterAt(input.retryAfter, input.now);
   if (retryAt !== null) return { pauseUntil: retryAt, status: 'rate_limited', fallBack: true };
-  if (input.quotaResetAt !== null && input.quotaResetAt > input.now) {
-    return { pauseUntil: input.quotaResetAt, status: 'quota_exhausted', fallBack: true };
-  }
+  const resetAt = input.quotaResetAt ?? input.now;
+  if (resetAt > input.now) return { pauseUntil: resetAt, status: 'quota_exhausted', fallBack: true };
   const backoff = Math.min(BACKOFF_BASE_MS * 2 ** Math.max(input.attempt, 0), BACKOFF_MAX_MS);
   return { pauseUntil: input.now + backoff, status: 'rate_limited', fallBack: true };
 }
 
 /**
  * Hosts each adapter may call (M5 exit "no requests to disallowed domains"). `*.` allows exactly one extra label
- * (fawazahmed0's dated `2026-10-16.currency-api.pages.dev` fallback).
+ * (fawazahmed0's `latest.` and dated `2026-10-16.currency-api.pages.dev` fallbacks).
  */
 export const EGRESS_ALLOWLIST: Readonly<Record<MarketProvider, readonly string[]>> = {
   frankfurter: ['api.frankfurter.dev'],
-  fawazahmed0: ['cdn.jsdelivr.net', 'latest.currency-api.pages.dev', '*.currency-api.pages.dev'],
+  fawazahmed0: ['cdn.jsdelivr.net', '*.currency-api.pages.dev'],
   open_er_api: ['open.er-api.com'],
   coinmarketcap: ['pro-api.coinmarketcap.com'],
   tiingo: ['api.tiingo.com'],

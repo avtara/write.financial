@@ -8,6 +8,7 @@ import {
   divideHalfUp,
   formatMoney,
   parseMoneyInput,
+  splitByBps,
   splitEvenly,
   type Locale,
   type MoneyContext,
@@ -185,6 +186,42 @@ describe('bigint division helpers', () => {
         for (const part of rest) expect(part).toBe(total / BigInt(count));
         expect(first - total / BigInt(count)).toBeLessThan(BigInt(count));
       }),
+    );
+  });
+
+  it('splitByBps gives the largest remainders the leftover units, ties to the earlier weight', () => {
+    expect(splitByBps(13_500_000n, [6000, 4000, 0])).toEqual([8_100_000n, 5_400_000n, 0n]);
+    expect(splitByBps(203_000n, [6000, 4000])).toEqual([121_800n, 81_200n]);
+    expect(splitByBps(-530_000n, [6000, 4000])).toEqual([-318_000n, -212_000n]);
+    // 10 × 3333/3333/3334 = 3,333 / 3,333 / 3,334: the third has the largest remainder.
+    expect(splitByBps(10n, [3333, 3333, 3334])).toEqual([3n, 3n, 4n]);
+    expect(splitByBps(1n, [5000, 5000])).toEqual([1n, 0n]);
+    expect(splitByBps(-1n, [5000, 5000])).toEqual([-1n, 0n]);
+    expect(splitByBps(2n, [2500, 2500, 5000])).toEqual([1n, 0n, 1n]);
+    expect(splitByBps(3n, [3000, 3500, 3500])).toEqual([1n, 1n, 1n]);
+    expect(splitByBps(0n, [10_000])).toEqual([0n]);
+  });
+
+  it('splitByBps parts add up and stay within one unit of the exact share', () => {
+    fc.assert(
+      fc.property(
+        fc.bigInt({ min: -(10n ** 15n), max: 10n ** 15n }),
+        fc.array(fc.integer({ min: 0, max: 10_000 }), { minLength: 1, maxLength: 12 }),
+        (total, raw) => {
+          const sum = raw.reduce((a, b) => a + b, 0);
+          fc.pre(sum > 0);
+          // Scale the weights to Σ 10 000 with the remainder on the first one.
+          const weights = raw.map((weight) => Math.floor((weight * 10_000) / sum));
+          weights[0] = (weights[0] as number) + 10_000 - weights.reduce((a, b) => a + b, 0);
+          const parts = splitByBps(total, weights);
+          expect(parts.reduce((a, b) => a + b, 0n)).toBe(total);
+          parts.forEach((part, index) => {
+            const exact = total * BigInt(weights[index] as number);
+            const difference = part * 10_000n - exact;
+            expect(difference < 0n ? -difference : difference).toBeLessThan(10_000n);
+          });
+        },
+      ),
     );
   });
 });

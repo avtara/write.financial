@@ -112,11 +112,12 @@ export function goalImpact(beforeMinor: bigint, afterMinor: bigint, sources: rea
 
 /**
  * FR-G5: selling `soldUnits` needs a choice of goal when the free units do not cover it and two or more goals hold the
- * asset ("SPY dipakai 2 tujuan, jadi pilih juga tujuan mana yang berkurang").
+ * asset ("SPY dipakai 2 tujuan, jadi pilih juga tujuan mana yang berkurang"); selling everything empties them all.
  */
 export function needsGoalChoice(units: string, sources: readonly GoalAssetSource[], soldUnits: string): boolean {
-  const { free } = goalShares(parseDecimal(units), sources);
-  return sources.length >= 2 && parseDecimal(soldUnits) > free;
+  const held = parseDecimal(units);
+  const sold = parseDecimal(soldUnits);
+  return sources.length >= 2 && sold > goalShares(held, sources).free && sold < held;
 }
 
 export interface SaleAllocation {
@@ -129,8 +130,8 @@ export interface SaleAllocation {
 /**
  * Re-allocation after selling `soldUnits`: the free units go first, then the chosen goal's (`reduceGoalId`; may be
  * omitted only when one goal holds the asset). Percentages are recomputed on the remaining units, rounded down so
- * the total stays ≤ 100%; a goal left without units is dropped, a whole source stays whole. Selling everything
- * keeps the sources as they were (they apply to future units).
+ * the total stays ≤ 100%; a goal left without units (or below one basis point) is dropped, a whole source stays
+ * whole. Selling everything empties every goal without a choice and keeps the sources (they apply to future units).
  */
 export function sellAllocation(input: {
   readonly units: string;
@@ -142,6 +143,13 @@ export function sellAllocation(input: {
   const sold = parseDecimal(input.soldUnits);
   if (sold <= 0n || sold > held) throw new InvalidGoalAssetError('units');
   const parts = goalShares(held, input.sources);
+  if (sold === held) {
+    return {
+      sources: input.sources,
+      unitsByGoal: parts.goals.map((part) => ({ goalId: part.goalId, value: '0' })),
+      freeUnits: '0',
+    };
+  }
   const fromFree = sold < parts.free ? sold : parts.free;
   const fromGoal = sold - fromFree;
   const reduceGoalId =
@@ -154,17 +162,15 @@ export function sellAllocation(input: {
     reduced.value -= fromGoal;
   }
   const remaining = held - sold;
-  const sources =
-    remaining === 0n
-      ? input.sources
-      : input.sources
-          .map((source, index): GoalAssetSource => {
-            const goalUnits = (goals[index] as GoalShare<bigint>).value;
-            return source.mode === 'whole'
-              ? source
-              : { ...source, bps: Number(divideFloor(goalUnits * BigInt(FULL), remaining)) };
-          })
-          .filter((source, index) => (goals[index] as GoalShare<bigint>).value > 0n && source.bps > 0);
+  const sources = input.sources
+    .map((source, index): GoalAssetSource => {
+      const goalUnits = (goals[index] as GoalShare<bigint>).value;
+      return source.mode === 'whole'
+        ? source
+        : { ...source, bps: Number(divideFloor(goalUnits * BigInt(FULL), remaining)) };
+    })
+    // A percent goal without units has 0 bp; a whole source keeps every remaining unit.
+    .filter((source) => source.mode === 'whole' || source.bps > 0);
   return {
     sources,
     unitsByGoal: goals.map((part) => ({ goalId: part.goalId, value: formatDecimal(part.value) })),

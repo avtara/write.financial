@@ -168,14 +168,13 @@ export function splitEvenly(totalMinor: bigint, count: number): bigint[] {
  */
 export function splitByBps(total: bigint, weightsBps: readonly number[]): bigint[] {
   const magnitude = total < 0n ? -total : total;
-  const parts = weightsBps.map((weight, index) => {
+  const parts = weightsBps.map((weight) => {
     const exact = magnitude * BigInt(weight);
-    return { index, part: exact / 10_000n, remainder: exact % 10_000n };
+    return { part: exact / 10_000n, remainder: exact % 10_000n };
   });
   let left = magnitude - parts.reduce((sum, { part }) => sum + part, 0n);
-  const byRemainder = [...parts].sort((a, b) =>
-    a.remainder === b.remainder ? a.index - b.index : a.remainder > b.remainder ? -1 : 1,
-  );
+  // Largest remainder first; the sort is stable, so ties keep the weights' order.
+  const byRemainder = [...parts].sort((a, b) => Number(b.remainder - a.remainder));
   for (const entry of byRemainder) {
     if (left === 0n) break;
     entry.part += 1n;
