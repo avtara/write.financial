@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { isRedirect } from '@tanstack/react-router';
+import { setLocale } from '@wf/i18n/runtime';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
@@ -108,6 +109,8 @@ describe('/onboarding/$step', () => {
     const loader = Route.options.loader as () => Promise<unknown>;
     expect(await loader()).toEqual({ ok: true, value: onboardingView() });
     expect(Route.options.gcTime).toBe(0);
+    // The title is read in the runtime's locale, which another test file in this worker may have left on English.
+    await setLocale('id', { reload: false });
     const head = Route.options.head as () => { meta: { title: string }[] };
     expect(head().meta[0]?.title).toBe('Mulai · write.financial');
   });
@@ -140,7 +143,7 @@ describe('/onboarding/$step', () => {
     await userEvent.click(screen.getByRole('button', { name: 'to overview' }));
     expect(navigate).toHaveBeenLastCalledWith({ to: '/' });
     await userEvent.click(screen.getByRole('button', { name: 'to password' }));
-    expect(navigate).toHaveBeenLastCalledWith({ to: '/settings/$section', params: { section: 'profile' } });
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/', search: { settings: 'profile' } });
   });
 
   it('explains a failed load and retries', async () => {

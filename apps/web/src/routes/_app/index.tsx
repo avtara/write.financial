@@ -62,7 +62,8 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
 /** `/` (FR-D1/D2/D4): the Overview of `?scope=`, `?period=`, `?year=`, or `?range=` (`lib/dashboard-search.ts`). */
 export const Route = createFileRoute('/_app/')({
   validateSearch: DASHBOARD_SEARCH,
-  loaderDeps: ({ search }) => search,
+  // Its own keys only: opening Settings (the layout's `?settings=`) leaves the page loaded.
+  loaderDeps: ({ search: { scope, period, year, range } }) => ({ scope, period, year, range }),
   loader: ({ deps }) => loadOverview(deps),
   pendingComponent: OverviewPending,
   component: OverviewRoute,

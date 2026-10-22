@@ -116,7 +116,7 @@ describe('/calendar', () => {
     expect(validate.parse({ view: 'week', date: '2026-10-11' })).toEqual({ view: 'week', date: '2026-10-11' });
     expect(validate.parse({ view: 'month', date: '2026-02-30' })).toEqual({});
     const deps = Route.options.loaderDeps as unknown as (input: { search: object }) => object;
-    expect(deps({ search: { view: 'week' } })).toEqual({ view: 'week' });
+    expect(deps({ search: { view: 'week', settings: 'tags' } })).toEqual({ view: 'week' });
   });
 
   it('renders the page with the safe daily limit, and none without a budget version', async () => {

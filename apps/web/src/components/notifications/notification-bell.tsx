@@ -82,17 +82,20 @@ export function NotificationBell({ variant, unread, timeZone }: NotificationBell
     >
       <PopoverTrigger
         aria-label={label}
-        className={`relative flex shrink-0 items-center justify-center text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring ${variant === 'rail' ? 'size-10 rounded-[8px]' : 'size-8 rounded-[7px]'}`}
+        className={`flex shrink-0 items-center justify-center text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring ${variant === 'rail' ? 'size-10 rounded-[8px]' : 'size-8 rounded-[7px]'}`}
       >
-        <Bell aria-hidden="true" className={variant === 'rail' ? 'size-[17px]' : 'size-4'} />
-        {unread === null || unread === 0 ? null : (
-          <span
-            aria-hidden="true"
-            className="absolute top-1 right-1 min-w-3.5 rounded-full bg-red px-1 text-center font-mono text-[9.5px] leading-[14px] text-on-accent"
-          >
-            {unread > 9 ? '9+' : unread}
-          </span>
-        )}
+        {/* The count sits on the icon's top-right corner, in the space beside the bell's dome, so the bell stays whole. */}
+        <span className="relative flex">
+          <Bell aria-hidden="true" className={variant === 'rail' ? 'size-[17px]' : 'size-4'} />
+          {unread === null || unread === 0 ? null : (
+            <span
+              aria-hidden="true"
+              className="absolute bottom-[68%] left-[70%] min-w-3.5 rounded-full bg-red px-1 text-center font-mono text-[9.5px] leading-[14px] text-on-accent"
+            >
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </span>
       </PopoverTrigger>
       <PopoverContent
         side={variant === 'rail' ? 'right' : 'bottom'}

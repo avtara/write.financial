@@ -3050,6 +3050,7 @@
   "security_totp_title": "Authenticator app",
   "settings_cancel": "Cancel",
   "settings_categories_description": "Drag to change the order in the Record Transaction form.",
+  "settings_close": "Close settings",
   "settings_description": "Account, currencies & rates, appearance, notifications, and data — synced across all devices.",
   "settings_group_account": "Account",
   "settings_group_data": "Data",

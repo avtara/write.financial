@@ -38,9 +38,13 @@ test('the admin signs in with TOTP and reviews Settings › Security in the rail
   await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
 
   await page.goto('/settings/security');
-  await expect(page.getByRole('heading', { name: 'Keamanan', exact: true })).toBeVisible();
+  const settings = page.getByRole('dialog', { name: 'Pengaturan' });
+  await expect(settings.getByRole('heading', { name: 'Keamanan', exact: true })).toBeVisible();
   await expect(page.getByText('Perangkat ini', { exact: true })).toBeVisible();
   await screenshot(page, 'settings-security-1024');
+  // Settings is a dialog over the overview: Escape closes it, and the rail is usable again.
+  await page.keyboard.press('Escape');
+  await expect(settings).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Menu pengguna' }).click();
   await page.getByRole('menuitem', { name: 'Keluar' }).click();

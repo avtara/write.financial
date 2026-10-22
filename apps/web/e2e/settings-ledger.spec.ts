@@ -146,3 +146,37 @@ test('the categories layout fits the tablet width (768)', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await screenshot(page, 'categories-768');
 });
+
+for (const width of [1440, 1024, 768]) {
+  test(`Settings is a dialog over the current page and returns to it (${String(width)})`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/transactions?period=2026-10');
+    // Hydrated: the controls below answer the keyboard.
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Menu pengguna' }).click();
+    await page.getByRole('menuitem', { name: /^Pengaturan/ }).click();
+    const settings = page.getByRole('dialog', { name: 'Pengaturan' });
+    await expect(page).toHaveURL(/\/transactions\?period=2026-10&settings=profile$/);
+    // Over the page, inside the viewport, starting on the open section.
+    await expect(settings.getByRole('region', { name: 'Profil & akun' })).toBeVisible();
+    await expect(settings.getByRole('link', { name: 'Profil & akun' })).toBeFocused();
+    const box = await settings.boundingBox();
+    expect(box !== null && box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= 900).toBe(
+      true,
+    );
+    // The focus stays in the dialog.
+    await page.keyboard.press('Shift+Tab');
+    await expect(settings.getByRole('button', { name: 'Tutup pengaturan' })).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(settings.locator(':focus')).toHaveCount(1);
+    await screenshot(page, `settings-dialog-${String(width)}`);
+    // The URL follows the section; Escape closes it, back on the page, with the focus where it was.
+    await settings.getByRole('link', { name: 'Tag' }).click();
+    await expect(page).toHaveURL(/\/transactions\?period=2026-10&settings=tags$/);
+    await expect(settings.getByRole('heading', { name: 'Tag', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(settings).toHaveCount(0);
+    await expect(page).toHaveURL(/\/transactions\?period=2026-10$/);
+    await expect(page.getByRole('button', { name: 'Menu pengguna' })).toBeFocused();
+  });
+}

@@ -20,6 +20,7 @@ import { lazy, Suspense, useCallback, useMemo, useState, type ReactNode } from '
 import { THEMES, type Theme } from '../lib/preferences.ts';
 import type { Viewer } from '../server/gate.ts';
 import { usePreferences } from './preferences.tsx';
+import { openSettings } from './settings/settings-sections.ts';
 import { useShortcuts } from './shortcuts.tsx';
 
 const THEME_LABEL: Readonly<Record<Theme, () => string>> = {
@@ -87,8 +88,8 @@ export function UserMenu({ variant, viewer }: { variant: 'sidebar' | 'rail'; vie
   const { preferences, setTheme, setLocale, setBalancesHidden } = usePreferences();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
-  const openSettings = useCallback(() => {
-    void navigate({ to: '/settings/$section', params: { section: 'profile' } });
+  const showSettings = useCallback(() => {
+    void navigate(openSettings('profile'));
   }, [navigate]);
 
   let trigger: ReactNode;
@@ -182,7 +183,7 @@ export function UserMenu({ variant, viewer }: { variant: 'sidebar' | 'rail'; vie
               <DropdownMenuItem
                 icon={Settings}
                 shortcut={{ keys: SETTINGS_KEYS, platform: preferences.platform }}
-                onSelect={openSettings}
+                onSelect={showSettings}
               >
                 {m.user_menu_settings()}
               </DropdownMenuItem>
@@ -201,7 +202,7 @@ export function UserMenu({ variant, viewer }: { variant: 'sidebar' | 'rail'; vie
       </DropdownMenuContent>
       {viewer === undefined ? null : (
         <>
-          <SettingsShortcut open={openSettings} />
+          <SettingsShortcut open={showSettings} />
           {signingOut ? (
             <Suspense fallback={null}>
               <SignOutDialog open onOpenChange={setSigningOut} />

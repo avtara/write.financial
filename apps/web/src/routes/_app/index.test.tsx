@@ -86,9 +86,9 @@ describe('/ (Overview) loader', () => {
     expect(fns.listScheduled).toHaveBeenCalledWith({ data: { from: '2026-10-01', to: '2026-10-31' } });
     expect(fns.getBudgetStatus).toHaveBeenCalledOnce();
   });
-  it('reloads when the search changes', () => {
+  it('reloads when its search changes, not when Settings opens over it', () => {
     const loaderDeps = Route.options.loaderDeps as unknown as (args: { search: object }) => object;
-    expect(loaderDeps({ search: { scope: 'week' } })).toEqual({ scope: 'week' });
+    expect(loaderDeps({ search: { scope: 'week', settings: 'tags' } })).toEqual({ scope: 'week' });
   });
 
   it('loads another period with its own budget, and a range without the period rows', async () => {

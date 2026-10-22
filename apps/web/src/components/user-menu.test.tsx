@@ -90,16 +90,16 @@ describe('UserMenu', () => {
     await expect.element(menu.getByRole('menuitem', { name: /^Pengaturan/ })).toHaveTextContent('Pengaturan⌘,');
   });
 
-  it('opens Settings › Profile from the menu and with ⌘ ,', async () => {
+  it('opens Settings › Profile over the current page from the menu and with ⌘ ,', async () => {
     const { menu, router } = await openMenu('rail', {}, VIEWER);
     await userEvent.click(menu.getByRole('menuitem', { name: /^Pengaturan/ }));
     await vi.waitFor(() => {
-      expect(router.state.location.pathname).toBe('/settings/profile');
+      expect(router.state.location.href).toBe('/?settings=profile');
     });
-    await router.navigate({ to: '/' });
+    await router.navigate({ href: '/other' });
     await userEvent.keyboard('{Meta>},{/Meta}');
     await vi.waitFor(() => {
-      expect(router.state.location.pathname).toBe('/settings/profile');
+      expect(router.state.location.href).toBe('/other?settings=profile');
     });
   });
 
