@@ -25,6 +25,7 @@ import type { SecurityOverview } from '../../server/account.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
 import { getPeriodSettings } from '../../server/fn/budget.ts';
 import { listCategories, listTags } from '../../server/fn/ledger.ts';
+import { getMarketSettings, type MarketSettings } from '../../server/fn/market.ts';
 import { getNotificationSettings } from '../../server/fn/notifications.ts';
 import { listSimilarTags } from '../../server/fn/tags.ts';
 import type { Viewer } from '../../server/gate.ts';
@@ -32,6 +33,7 @@ import { FormError } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { CategoriesSection } from './categories-section.tsx';
 import { InstanceSection } from './instance-section.tsx';
+import { MarketSection } from './market-section.tsx';
 import { NotificationsSection } from './notifications-section.tsx';
 import { PeriodSection } from './period-section.tsx';
 import { ProfileSection } from './profile-section.tsx';
@@ -51,6 +53,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
   categories: { label: m.settings_nav_categories, description: m.settings_categories_description },
   tags: { label: m.settings_nav_tags, description: m.settings_tags_description },
   security: { label: m.settings_nav_security, description: m.settings_security_description },
+  market: { label: m.settings_nav_market, description: m.settings_market_description },
   instance: { label: m.settings_nav_instance, description: m.settings_instance_description },
 };
 
@@ -58,6 +61,7 @@ const GROUPS: readonly { readonly label: () => string; readonly sections: readon
   { label: m.settings_group_account, sections: ['profile'] },
   { label: m.settings_group_preferences, sections: ['period', 'notifications', 'categories', 'tags'] },
   { label: m.settings_group_data, sections: ['security'] },
+  { label: m.settings_group_integrations, sections: ['market'] },
   { label: m.settings_group_instance, sections: ['instance'] },
 ];
 
@@ -69,6 +73,7 @@ export type SettingsData =
   | { section: 'notifications'; notifications: Result<NotificationSettings> }
   | { section: 'categories'; categories: Result<CategoryView[]> }
   | { section: 'tags'; tags: Result<TagView[]>; similar: Result<TagPair[]> }
+  | { section: 'market'; market: Result<MarketSettings> }
   | { section: 'instance' };
 
 /**
@@ -84,6 +89,7 @@ export async function loadSettingsSection(section: SettingsSection): Promise<Set
   if (section === 'security') return { section, security: await getSecurity() };
   if (section === 'period') return { section, period: await getPeriodSettings() };
   if (section === 'notifications') return { section, notifications: await getNotificationSettings() };
+  if (section === 'market') return { section, market: await getMarketSettings() };
   if (section === 'categories')
     return { section, categories: await listCategories({ data: { includeArchived: true } }) };
   if (section === 'tags') {
@@ -109,6 +115,13 @@ function SectionContent({ data, viewer }: { data: SettingsData; viewer: Viewer }
       <NotificationsSection settings={data.notifications.value} email={viewer.email} />
     ) : (
       <FormError>{ledgerErrorMessage(data.notifications.code, locale)}</FormError>
+    );
+  }
+  if (data.section === 'market') {
+    return data.market.ok ? (
+      <MarketSection settings={data.market.value} timeZone={viewer.timezone} />
+    ) : (
+      <FormError>{ledgerErrorMessage(data.market.code, locale)}</FormError>
     );
   }
   if (data.section === 'categories') {

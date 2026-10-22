@@ -10,7 +10,7 @@
 import type { AssetClass } from '@wf/domain/investments';
 import type { LocalDate } from '@wf/domain/period';
 import { classItems } from '@wf/domain/valuation';
-import { and, eq, gte, inArray, lte, sum } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { firstRow, withUser, type Database } from './db.ts';
 import { portfolioIn } from './investments.ts';
 import { investmentTrades, portfolioSnapshots } from './schema.ts';
@@ -36,7 +36,7 @@ export function createPortfolioSnapshots(db: Database): PortfolioSnapshots {
         if (portfolio.assets.length === 0 && portfolio.platforms.length === 0) return null;
         const { today, summary } = portfolio;
         const flows = await tx
-          .select({ total: sum(investmentTrades.costBaseDeltaMinor).mapWith(BigInt) })
+          .select({ total: sql<bigint>`coalesce(sum(${investmentTrades.costBaseDeltaMinor}), 0)`.mapWith(BigInt) })
           .from(investmentTrades)
           .where(
             and(
@@ -50,10 +50,10 @@ export function createPortfolioSnapshots(db: Database): PortfolioSnapshots {
           date: today,
           valueBaseMinor: summary.valueBaseMinor,
           costBaseMinor: summary.costBaseMinor,
-          contributionsBaseMinor: firstRow(flows, 'sum').total ?? 0n,
+          contributionsBaseMinor: firstRow(flows, 'sum').total,
           breakdown: Object.fromEntries(
             classItems(summary.positions).map((item) => [item.key, item.valueMinor.toString()]),
-          ) as Partial<Record<AssetClass, string>>,
+          ),
         };
         const { date, ...values } = snapshot;
         await tx
