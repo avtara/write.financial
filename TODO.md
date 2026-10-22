@@ -68,10 +68,10 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M4 — Savings goals, debts, credit cards, receivables
 
-- [ ] Savings goals + sinking funds
-- [ ] Credit cards, installments, payment priority
-- [ ] Receivables: record, receive payments, write off
-- [ ] M4 unit tests: 100% per-file coverage gate green
+- [x] Savings goals + sinking funds
+- [x] Credit cards, installments, payment priority
+- [x] Receivables: record, receive payments, write off
+- [x] M4 unit tests: 100% per-file coverage gate green
 
 ## M5 — Investments & market data
 
