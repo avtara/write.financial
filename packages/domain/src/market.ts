@@ -101,6 +101,27 @@ export const FALLBACK_ORDER: Readonly<Record<Market, readonly SourceStep[]>> = {
   sbn: [COMPUTED, MANUAL],
 };
 
+export const BENCHMARK_KEYS = ['spy', 'ihsg'] as const;
+export type BenchmarkKey = (typeof BENCHMARK_KEYS)[number];
+
+export interface Benchmark {
+  readonly key: BenchmarkKey;
+  readonly market: Market;
+  readonly symbol: string;
+  readonly currency: string;
+  /** The symbol at a provider when it differs from {@link Benchmark.symbol}. */
+  readonly symbols: Readonly<Partial<Record<MarketProvider, string>>>;
+}
+
+/**
+ * FR-I3 "Return YTD" benchmarks next to the portfolio: SPY and IHSG (Jakarta Composite), priced through the user's own
+ * us_equity / idx_equity keys like any asset of that market (never another user's results).
+ */
+export const BENCHMARKS: readonly Benchmark[] = [
+  { key: 'spy', market: 'us_equity', symbol: 'SPY', currency: 'USD', symbols: {} },
+  { key: 'ihsg', market: 'idx_equity', symbol: 'IHSG', currency: 'IDR', symbols: { eodhd: 'JKSE.INDX' } },
+];
+
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 

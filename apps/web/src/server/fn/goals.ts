@@ -10,6 +10,7 @@ import { createServerFn } from '@tanstack/react-start';
 import type { GoalView } from '@wf/db/goals';
 import { LedgerError } from '@wf/db/ledger-errors';
 import type { RecurrenceView } from '@wf/db/schedules';
+import { GOAL_ASSET_SOURCE_MODES } from '@wf/domain/goal-assets';
 import { GOAL_KINDS, GOAL_STATUSES, GOAL_TARGET_MODES } from '@wf/domain/goals';
 import { dateInMonth, shiftMonth, type LocalDate, type YearMonth } from '@wf/domain/period';
 import * as z from 'zod';
@@ -35,6 +36,13 @@ const source = z.object({
   accountId: id,
   mode: z.enum(['whole', 'fixed']),
   amountMinor: positiveMinor.nullable().optional(),
+});
+
+/** FR-G2: an investment asset wholly or a percentage of its units (Σ per asset across goals ≤ 100%). */
+const assetSource = z.object({
+  assetId: id,
+  mode: z.enum(GOAL_ASSET_SOURCE_MODES),
+  pctBps: z.number().int().min(1).max(10_000).nullable().optional(),
 });
 
 const goalFields = {
@@ -252,16 +260,18 @@ export const createGoal = createServerFn({ method: 'POST' })
       kind: z.enum(GOAL_KINDS).optional(),
       currency: z.string().regex(/^[A-Z]{3}$/),
       sources: z.array(source).max(10).optional(),
+      assetSources: z.array(assetSource).max(10).optional(),
       plans: z.array(plan).max(5).optional(),
     }),
   )
   .handler(({ context, data }): Promise<Result<GoalView>> =>
     attempt(async () => {
       const { userId, all } = await signedIn(context.session);
-      const { plans = [], sources = [], ...input } = data;
+      const { plans = [], sources = [], assetSources = [], ...input } = data;
       const created = await all.goals.create(userId, {
         ...defined(input),
         sources: sources.map((part) => defined(part)),
+        assetSources: assetSources.map((part) => defined(part)),
       });
       try {
         let goal = created;
@@ -275,26 +285,35 @@ export const createGoal = createServerFn({ method: 'POST' })
     }),
   );
 
-/** "Ubah tujuan": the given fields, and the account sources when sent. */
+/** "Ubah tujuan": the given fields, and the account and asset sources when sent. */
 export const updateGoal = createServerFn({ method: 'POST' })
   .validator(
     z.object({
       id,
       patch: z.object(goalFields).partial(),
       sources: z.array(source).max(10).optional(),
+      assetSources: z.array(assetSource).max(10).optional(),
     }),
   )
   .handler(({ context, data }): Promise<Result<GoalView>> =>
     attempt(async () => {
       const { userId, all } = await signedIn(context.session);
-      const updated = await all.goals.update(userId, data.id, defined(data.patch));
-      return data.sources === undefined
-        ? updated
-        : all.goals.setSources(
-            userId,
-            data.id,
-            data.sources.map((part) => defined(part)),
-          );
+      let updated = await all.goals.update(userId, data.id, defined(data.patch));
+      if (data.sources !== undefined) {
+        updated = await all.goals.setSources(
+          userId,
+          data.id,
+          data.sources.map((part) => defined(part)),
+        );
+      }
+      if (data.assetSources !== undefined) {
+        updated = await all.goals.setAssetSources(
+          userId,
+          data.id,
+          data.assetSources.map((part) => defined(part)),
+        );
+      }
+      return updated;
     }),
   );
 

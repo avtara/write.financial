@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
 import {
+  BENCHMARK_KEYS,
+  BENCHMARKS,
   BYOK_PROVIDERS,
   CREDENTIAL_STATUSES,
   EGRESS_ALLOWLIST,
@@ -111,6 +113,19 @@ describe('FALLBACK_ORDER (FR-I6 table, research §2.8)', () => {
       'bi.go.id',
     ]) {
       expect(hosts).not.toContain(banned);
+    }
+  });
+});
+
+describe('BENCHMARKS (FR-I3 Return YTD)', () => {
+  it('prices SPY and IHSG through the user’s own US and IDX keys', () => {
+    expect(BENCHMARK_KEYS).toEqual(['spy', 'ihsg']);
+    expect(BENCHMARKS).toEqual([
+      { key: 'spy', market: 'us_equity', symbol: 'SPY', currency: 'USD', symbols: {} },
+      { key: 'ihsg', market: 'idx_equity', symbol: 'IHSG', currency: 'IDR', symbols: { eodhd: 'JKSE.INDX' } },
+    ]);
+    for (const benchmark of BENCHMARKS) {
+      expect(FALLBACK_ORDER[benchmark.market].some((step) => step.mode === 'byok')).toBe(true);
     }
   });
 });

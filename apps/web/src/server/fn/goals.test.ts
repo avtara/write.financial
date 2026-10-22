@@ -13,6 +13,7 @@ const fake = vi.hoisted(() => ({
     create: vi.fn(),
     update: vi.fn(),
     setSources: vi.fn(),
+    setAssetSources: vi.fn(),
     remove: vi.fn(),
     deposit: vi.fn(),
     withdraw: vi.fn(),
@@ -239,12 +240,18 @@ describe('making and changing goals', () => {
     expect(
       await call(fns.createGoal, {
         context: context(),
-        data: { ...input, sources: [{ accountId: ACCOUNT, mode: 'whole', amountMinor: undefined }], plans: [plan] },
+        data: {
+          ...input,
+          sources: [{ accountId: ACCOUNT, mode: 'whole', amountMinor: undefined }],
+          assetSources: [{ assetId: OTHER, mode: 'percent', pctBps: 6000 }],
+          plans: [plan],
+        },
       }),
     ).toEqual({ ok: true, value: { id: GOAL_ID, plans: ['a'] } });
     expect(fake.goals.create).toHaveBeenCalledWith(USER_ID, {
       ...input,
       sources: [{ accountId: ACCOUNT, mode: 'whole' }],
+      assetSources: [{ assetId: OTHER, mode: 'percent', pctBps: 6000 }],
     });
     expect(fake.goals.addPlan).toHaveBeenCalledWith(USER_ID, GOAL_ID, plan);
     fake.goals.create.mockResolvedValueOnce({ id: GOAL_ID });
@@ -252,7 +259,7 @@ describe('making and changing goals', () => {
       ok: true,
       value: { id: GOAL_ID },
     });
-    expect(fake.goals.create).toHaveBeenLastCalledWith(USER_ID, { ...input, sources: [] });
+    expect(fake.goals.create).toHaveBeenLastCalledWith(USER_ID, { ...input, sources: [], assetSources: [] });
   });
 
   it('removes the new goal again when a contribution is refused', async () => {
@@ -363,6 +370,14 @@ describe('making and changing goals', () => {
     expect(fake.goals.setSources).toHaveBeenCalledWith(USER_ID, GOAL_ID, [
       { accountId: ACCOUNT, mode: 'fixed', amountMinor: 5n },
     ]);
+    fake.goals.setAssetSources.mockResolvedValueOnce({ id: GOAL_ID, assetSources: true });
+    expect(
+      await call(fns.updateGoal, {
+        context: context(),
+        data: { id: GOAL_ID, patch: {}, assetSources: [{ assetId: OTHER, mode: 'whole', pctBps: undefined }] },
+      }),
+    ).toEqual({ ok: true, value: { id: GOAL_ID, assetSources: true } });
+    expect(fake.goals.setAssetSources).toHaveBeenCalledWith(USER_ID, GOAL_ID, [{ assetId: OTHER, mode: 'whole' }]);
     expect(await call(fns.removeGoal, { context: context(), data: { id: GOAL_ID } })).toEqual({
       ok: true,
       value: null,

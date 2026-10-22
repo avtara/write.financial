@@ -86,6 +86,14 @@ export interface GoalAssetSourceInput {
   readonly pctBps?: number | null;
 }
 
+/** A goal's share of one asset ("Atur alokasi ke tujuan" in the asset detail). */
+export interface AssetAllocationInput {
+  readonly goalId: string;
+  readonly mode: GoalAssetSourceMode;
+  /** `percent` only: 1–10 000. */
+  readonly pctBps?: number | null;
+}
+
 export interface GoalAssetSourceView {
   readonly id: string;
   readonly assetId: string;
@@ -256,6 +264,13 @@ export interface GoalsRepository {
    * @throws {LedgerError} `NOT_FOUND`, `INVALID_GOAL` (another currency than the base, Σ per asset > 100%)
    */
   setAssetSources: (userId: string, id: string, sources: readonly GoalAssetSourceInput[]) => Promise<GoalView>;
+  /**
+   * Replaces every goal's source on one asset at once (FR-G2 from the asset's side): the goals listed hold exactly
+   * these shares (Σ ≤ 100%, each goal once, in the base currency), the asset's other sources go. A goal keeps the
+   * place of a source it already had.
+   * @throws {LedgerError} `NOT_FOUND` (asset), `INVALID_GOAL`
+   */
+  setAssetAllocations: (userId: string, assetId: string, sources: readonly AssetAllocationInput[]) => Promise<void>;
   /** Accounts with an allocation, in account order. */
   allocations: (userId: string) => Promise<AccountAllocation[]>;
   /**
@@ -952,6 +967,59 @@ export function createGoals(
         await checkAssetSourcesIn(tx, userId, id, row.currency, sources);
         await writeAssetSourcesIn(tx, userId, id, sources);
         return viewIn(tx, userId, now(), id);
+      }),
+
+    setAssetAllocations: (userId, assetId, sources) =>
+      withUser(db, userId, async (tx) => {
+        const [asset] = await tx.select({ id: assets.id }).from(assets).where(eq(assets.id, assetId)).for('update');
+        if (asset === undefined) throw new LedgerError('NOT_FOUND', 'No such asset');
+        const removeAll = () => tx.delete(goalFundingSources).where(eq(goalFundingSources.assetId, assetId));
+        if (sources.length === 0) {
+          await removeAll();
+          return;
+        }
+        const goalIds = sources.map((source) => source.goalId);
+        const found = await tx
+          .select({ id: goals.id, currency: goals.currency })
+          .from(goals)
+          .where(inArray(goals.id, goalIds));
+        if (found.length !== new Set(goalIds).size) throw invalid('No such goal');
+        const { baseCurrency } = await userContextIn(tx, userId);
+        if (found.some((goal) => goal.currency !== baseCurrency)) throw invalid('Assets fund goals in the base currency');
+        if (sources.some((source) => source.mode === 'whole' && (source.pctBps ?? null) !== null)) {
+          throw invalid('A whole asset has no percentage');
+        }
+        try {
+          checkAssetAllocations(
+            sources.map((source) => ({ goalId: source.goalId, mode: source.mode, bps: source.pctBps ?? 0 })),
+          );
+        } catch (error) {
+          // `checkAssetAllocations` refuses only with InvalidGoalAssetError.
+          throw invalid(`Invalid asset allocation: ${(error as InvalidGoalAssetError).reason}`);
+        }
+        const current = await tx
+          .select({
+            goalId: goalFundingSources.goalId,
+            assetId: goalFundingSources.assetId,
+            sortOrder: goalFundingSources.sortOrder,
+          })
+          .from(goalFundingSources)
+          .where(inArray(goalFundingSources.goalId, goalIds));
+        await removeAll();
+        await tx.insert(goalFundingSources).values(
+          sources.map((source) => {
+            const own = current.filter((row) => row.goalId === source.goalId && row.assetId !== null);
+            const kept = own.find((row) => row.assetId === assetId);
+            return {
+              userId,
+              goalId: source.goalId,
+              assetId,
+              mode: source.mode,
+              pctBps: source.mode === 'percent' ? (source.pctBps as number) : null,
+              sortOrder: kept?.sortOrder ?? Math.max(-1, ...own.map((row) => row.sortOrder)) + 1,
+            };
+          }),
+        );
       }),
 
     allocations: (userId) =>
