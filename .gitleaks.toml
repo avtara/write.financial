@@ -6,3 +6,8 @@ useDefault = true
 description = "Deliberately invalid key used to test Alpha Vantage validation (docs/research/market-data.md)"
 paths = ['''^docs/research/market-data\.md$''']
 regexes = ['''^invalidkey123$''']
+
+[[allowlists]]
+description = "Made-up BYOK keys the market credentials repo test encrypts, masks, and replaces (M5)"
+paths = ['''^packages/db/src/market-credentials\.test\.ts$''']
+regexes = ['''^tiingo-0123456789abcdef$''', '''^other-key-9876$''']
