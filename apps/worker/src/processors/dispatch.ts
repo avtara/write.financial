@@ -16,6 +16,8 @@ export const DAILY_AT = {
   'period-close': '00:05',
   'detect-recurring': '03:00',
   'balance-checks': '07:00',
+  // The day's portfolio value, once the day's prices are in (plan §6 `snapshots`, 23.55).
+  snapshots: '23:55',
 } as const;
 
 /** Budget alerts run hourly from 09.00 (`bud.{userId}.{date}.{HH}`). */
@@ -87,6 +89,11 @@ export function createDispatchProcessor({
     for (const { userId, outboxId } of await db.dispatch.pendingOutbox(at, DISPATCH_LIMIT)) {
       await enqueue('notify', { userId, outboxId }, { jobId: jobIds.notify(outboxId) });
       count('notify');
+    }
+    // Own-key prices: one check per user with a key and 5-minute slot; the job decides which markets are due.
+    for (const { userId } of await db.marketJobs.byokUsers()) {
+      await enqueue('market-byok', { userId }, { jobId: jobIds['market-byok'](userId, at) });
+      count('market-byok');
     }
     return { users: users.length, enqueued };
   };

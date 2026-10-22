@@ -29,7 +29,7 @@ import { DESIGN_SEED } from '@wf/domain/seed';
 import type { JobQueue } from '@wf/jobs/queues';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fakeMailer, type FakeMailer } from '../test/fakes.ts';
+import { fakeAdapters, fakeMailer, type FakeMailer } from '../test/fakes.ts';
 import { PROCESSORS, type ProcessorDeps } from './processors.ts';
 import { openWorkerDb, type WorkerDbConnection } from './worker-db.ts';
 
@@ -108,6 +108,7 @@ function startWorker(): WorkerProcess {
     now: () => clock,
     mailer,
     publicUrl: 'https://uang.example/',
+    market: { adapters: fakeAdapters(), cmcApiKey: null },
     enqueue: async (queue, payload, { jobId }) => {
       if (CHAIN.includes(queue)) broker.add({ queue, id: jobId, data: payload });
       return Promise.resolve();
@@ -314,6 +315,7 @@ describe('restart safety (reminder → email → review)', () => {
       now: () => closeAt,
       mailer: fakeMailer(),
       publicUrl: 'https://uang.example/',
+      market: { adapters: fakeAdapters(), cmcApiKey: null },
       enqueue: () => Promise.resolve(),
     };
     const close = PROCESSORS['period-close'].create(deps);

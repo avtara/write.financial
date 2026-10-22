@@ -2,7 +2,10 @@
 /** In-memory stand-ins for the worker's ports (Redis, BullMQ, the database, the log). */
 import type { BuiltInRateInput } from '@wf/db/fx-rates';
 import type { AuthPurgeCounts } from '@wf/db/maintenance';
+import type { MarketCredentialView } from '@wf/db/market-credentials';
 import type { MailMessage, Mailer } from '@wf/integrations/mailer';
+import type { MarketAdapters, QuoteProvider } from '@wf/integrations/market/adapters';
+import type { FetchQuotesInput } from '@wf/integrations/market/http';
 import type { JobQueue } from '@wf/jobs/queues';
 import type { DestinationStream } from 'pino';
 import type { HeartbeatStore } from '../src/heartbeat.ts';
@@ -199,6 +202,63 @@ export function fakeDb(
       markSent: method('outbox.markSent', true),
       markFailed: method('outbox.markFailed', undefined),
     },
+    marketData: {
+      recordServerQuotes: method('marketData.recordServerQuotes', undefined),
+      recordUserQuotes: method('marketData.recordUserQuotes', undefined),
+      logRequest: method('marketData.logRequest', undefined),
+    },
+    marketCredentials: {
+      list: method('marketCredentials.list', []),
+      setStatus: method('marketCredentials.setStatus', {} as MarketCredentialView),
+    },
+    marketJobs: {
+      serverTargets: method('marketJobs.serverTargets', []),
+      byokUsers: method('marketJobs.byokUsers', []),
+      userTargets: method('marketJobs.userTargets', []),
+      credential: method('marketJobs.credential', null),
+      lastRequests: method('marketJobs.lastRequests', {}),
+      providerState: method('marketJobs.providerState', null),
+      setProviderState: method('marketJobs.setProviderState', undefined),
+    },
+    portfolioSnapshots: { record: method('portfolioSnapshots.record', null) },
+  };
+}
+
+export interface FakeAdapters extends MarketAdapters {
+  /** Every `fetchQuotes` call, `provider` with its input, in order. */
+  readonly inputs: { readonly provider: QuoteProvider; readonly input: FetchQuotesInput }[];
+}
+
+/** Market adapters that answer nothing and record what they were asked (no network). */
+export function fakeAdapters(): FakeAdapters {
+  const inputs: FakeAdapters['inputs'][number][] = [];
+  const providers: QuoteProvider[] = [
+    'fawazahmed0',
+    'coinmarketcap',
+    'tiingo',
+    'finnhub',
+    'massive',
+    'alpha_vantage',
+    'eodhd',
+    'marketstack',
+    'coingecko',
+    'goldapi',
+    'metals_dev',
+  ];
+  return {
+    inputs,
+    ...(Object.fromEntries(
+      providers.map((provider) => [
+        provider,
+        {
+          provider,
+          fetchQuotes: (input: FetchQuotesInput) => {
+            inputs.push({ provider, input });
+            return Promise.resolve({ quotes: [], calls: [], failure: null, unverified: false, credits: null });
+          },
+        },
+      ]),
+    ) as unknown as MarketAdapters),
   };
 }
 
@@ -236,6 +296,7 @@ export function fakeDeps(overrides: Partial<ProcessorDeps> = {}, now = new Date(
     now: () => now,
     mailer: fakeMailer(),
     publicUrl: 'https://uang.example/',
+    market: { adapters: fakeAdapters(), cmcApiKey: 'fake-cmc-operator-key' },
     enqueue: async (queue, payload, { jobId }) => {
       enqueued.push({ queue, payload, jobId });
       return Promise.resolve();

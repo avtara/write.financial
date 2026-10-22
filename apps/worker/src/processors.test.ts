@@ -27,6 +27,9 @@ describe('PROCESSORS', () => {
       'period-close': 2,
       notify: 2,
       'detect-recurring': 1,
+      'market-server': 1,
+      'market-byok': 2,
+      snapshots: 2,
     });
   });
 
@@ -46,6 +49,9 @@ describe('PROCESSORS', () => {
     ['period-close', { userId: USER }],
     ['notify', { userId: USER, outboxId: ROW }],
     ['detect-recurring', { userId: USER }],
+    ['market-server', { source: 'crypto' }],
+    ['market-byok', { userId: USER }],
+    ['snapshots', { userId: USER }],
   ] as const)('creates the %s processor with the shared deps', async (queue, data) => {
     const run = PROCESSORS[queue].create(fakeDeps());
     expect(await run({ id: 'x', data, attemptsMade: 0 })).toEqual(expect.any(Object));

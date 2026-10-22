@@ -12,6 +12,20 @@ describe('SCHEDULES', () => {
       { id: 'fx-daily', queue: 'fx', pattern: '0 17 * * *', tz: 'Asia/Jakarta', data: {} },
       { id: 'fx-retry', queue: 'fx', pattern: '0 8 * * *', tz: 'Asia/Jakarta', data: {} },
       { id: 'dispatch-minute', queue: 'dispatch', pattern: '* * * * *', tz: 'Asia/Jakarta', data: {} },
+      {
+        id: 'market-crypto',
+        queue: 'market-server',
+        pattern: '*/5 * * * *',
+        tz: 'Asia/Jakarta',
+        data: { source: 'crypto' },
+      },
+      {
+        id: 'market-gold',
+        queue: 'market-server',
+        pattern: '0 9,17 * * *',
+        tz: 'Asia/Jakarta',
+        data: { source: 'gold' },
+      },
     ]);
   });
 });
@@ -23,6 +37,7 @@ describe('registerSchedules', () => {
       maintenance: broker.createQueue('maintenance', () => undefined),
       fx: broker.createQueue('fx', () => undefined),
       dispatch: broker.createQueue('dispatch', () => undefined),
+      'market-server': broker.createQueue('market-server', () => undefined),
     };
     const log = captureLog();
     await registerSchedules((name) => queues[name as keyof typeof queues], createLogger('info', log));
@@ -81,6 +96,12 @@ describe('registerSchedules', () => {
       'fx-daily',
       'fx-retry',
       'dispatch-minute',
+      'market-crypto',
+      'market-gold',
+    ]);
+    expect([...(broker.queues.get('market-server')?.schedulers.keys() ?? [])]).toEqual([
+      'market-crypto',
+      'market-gold',
     ]);
   });
 

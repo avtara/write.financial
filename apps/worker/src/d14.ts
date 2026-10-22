@@ -12,7 +12,8 @@
  * Repositories processors may use. Plan §6 allows `review_items`, `scheduled_occurrences`, `notifications`,
  * `notification_outbox`, `market_quotes`, `user_quotes`, `fx_rates`, `snapshots`, `reports`, `periods.lock`,
  * `job_status`, and logs; each is added here when its processor lands. M1 adds the built-in rows of `fx_rates`; M3 the
- * schedules automation (occurrences, review items, notifications, outbox, subscription candidates, period close).
+ * schedules automation (occurrences, review items, notifications, outbox, subscription candidates, period close); M5
+ * the market data (quotes, request log, key status, built-in source state) and the daily portfolio snapshot.
  */
 export const WORKER_REPOSITORIES = [
   'maintenance',
@@ -25,6 +26,10 @@ export const WORKER_REPOSITORIES = [
   'balanceChecks',
   'detectRecurring',
   'outbox',
+  'marketData',
+  'marketCredentials',
+  'marketJobs',
+  'portfolioSnapshots',
 ] as const;
 
 export type WorkerRepository = (typeof WORKER_REPOSITORIES)[number];
@@ -43,6 +48,7 @@ export const FORBIDDEN_IMPORTS: readonly { readonly module: string; readonly rea
   { module: '@wf/db/goals', reason: 'D14: the worker proposes goal contributions as review items' },
   { module: '@wf/db/debts', reason: 'D14: installment payments and card allocations are user actions' },
   { module: '@wf/db/receivables', reason: 'D14: lending, repayments, and write-offs are user actions' },
+  { module: '@wf/db/investments', reason: 'D14: trades create cash-leg transactions; only the user records them' },
   { module: '@wf/db/review', reason: 'D14: confirming a review item creates transactions; only the user confirms' },
   { module: '@wf/db/accounts', reason: 'D14: account changes (reconcile adjustments) are user actions' },
   { module: '@wf/db/schedules', reason: 'D14: schedules and subscriptions change only by a user' },

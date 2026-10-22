@@ -30,6 +30,10 @@ function deps(now: Date) {
             return Promise.resolve([{ userId: JAKARTA, outboxId: OUTBOX }]);
           },
         },
+        marketJobs: {
+          ...db.marketJobs,
+          byokUsers: () => Promise.resolve([{ userId: LONDON, timeZone: 'Europe/London' }]),
+        },
       },
     },
     now,
@@ -51,6 +55,7 @@ describe('dispatch processor', () => {
       'period-close': '00:05',
       'detect-recurring': '03:00',
       'balance-checks': '07:00',
+      snapshots: '23:55',
     });
     expect(BUDGET_ALERTS_FROM).toBe('09:00');
   });
@@ -74,6 +79,8 @@ describe('dispatch processor', () => {
         jobId: `rem.${OCCURRENCE}`,
       },
       { queue: 'notify', payload: { userId: JAKARTA, outboxId: OUTBOX }, jobId: `ntf.${OUTBOX}` },
+      // Own-key prices of users with a key, one per 5-minute slot.
+      { queue: 'market-byok', payload: { userId: LONDON }, jobId: `mkb.${LONDON}.2026-10-18T0230` },
     ]);
     expect(result).toEqual({
       users: 2,
@@ -85,6 +92,7 @@ describe('dispatch processor', () => {
         'budget-alerts': 1,
         reminders: 1,
         notify: 1,
+        'market-byok': 1,
       },
     });
     expect(d.db.calls).toEqual([
@@ -102,6 +110,18 @@ describe('dispatch processor', () => {
       { queue: 'notify', payload: { userId: JAKARTA, outboxId: OUTBOX }, jobId: `ntf.${OUTBOX}` },
     ]);
     expect(d.enqueued.map(({ jobId }) => jobId)).toContain(`bud.${LONDON}.2026-10-18.18`);
+  });
+
+  it('takes the day’s portfolio snapshot from 23.55 local', async () => {
+    // 23.55 WIB on 18 Oct.
+    const d = deps(new Date('2026-10-18T16:55:00Z'));
+    await createDispatchProcessor(d)(job);
+    expect(d.enqueued).toContainEqual({
+      queue: 'snapshots',
+      payload: { userId: JAKARTA },
+      jobId: `snap.${JAKARTA}.2026-10-18`,
+    });
+    expect(d.enqueued.map(({ jobId }) => jobId)).not.toContain(`snap.${LONDON}.2026-10-18`);
   });
 
   it('rejects a non-empty payload and needs no user to succeed', async () => {

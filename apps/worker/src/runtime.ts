@@ -4,7 +4,7 @@ import { createEnqueue, type QueuePort } from '@wf/jobs/enqueue';
 import type { JobQueue } from '@wf/jobs/queues';
 import type { Logger } from 'pino';
 import { startHeartbeat, type HeartbeatSettings, type HeartbeatStore } from './heartbeat.ts';
-import { PROCESSORS, type Processor } from './processors.ts';
+import { PROCESSORS, type Processor, type ProcessorDeps } from './processors.ts';
 import { registerSchedules, type SchedulerQueue } from './schedules.ts';
 import type { WorkerDb } from './worker-db.ts';
 
@@ -30,6 +30,8 @@ export interface RuntimeDeps {
   readonly mailer: Mailer;
   /** `PUBLIC_URL`, for links in emails. */
   readonly publicUrl: string;
+  /** Market quote adapters and the operator's CoinMarketCap key. */
+  readonly market: ProcessorDeps['market'];
   readonly logger: Logger;
   readonly now: () => number;
   readonly heartbeat: HeartbeatSettings & { readonly key: string };
@@ -48,6 +50,7 @@ export async function startWorker({
   db,
   mailer,
   publicUrl,
+  market,
   logger,
   now,
   heartbeat,
@@ -64,7 +67,7 @@ export async function startWorker({
 
   const workers = QUEUES.map((name) => {
     const { concurrency, create } = PROCESSORS[name];
-    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl });
+    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl, market });
     const run: Processor = async (job) => {
       const log = logger.child({ queue: name, jobId: job.id, attempt: job.attemptsMade + 1 });
       log.info('job started');

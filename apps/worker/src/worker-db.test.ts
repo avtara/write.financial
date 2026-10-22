@@ -39,6 +39,19 @@ describe('WorkerDb (D14)', () => {
       balanceChecks: ['check'],
       detectRecurring: ['detect'],
       outbox: ['get', 'markSent', 'markFailed'],
+      // Market data: writes of quotes and logs, key outcomes, the job scans; no key saving or quote deletion.
+      marketData: ['recordServerQuotes', 'recordUserQuotes', 'logRequest'],
+      marketCredentials: ['list', 'setStatus'],
+      marketJobs: [
+        'serverTargets',
+        'byokUsers',
+        'userTargets',
+        'credential',
+        'lastRequests',
+        'providerState',
+        'setProviderState',
+      ],
+      portfolioSnapshots: ['record'],
     });
     for (const repository of Object.values(db)) expect(Object.isFrozen(repository)).toBe(true);
     expect(connection.smtp).toEqual(expect.any(Function));
