@@ -45,11 +45,11 @@ export function AssetDetail({ asset, portfolio, timeZone, locale, onOpenChange, 
       open={asset !== null}
       onOpenChange={onOpenChange}
       title={asset === null ? '' : `${asset.symbol} · ${asset.name}`}
-      description={asset === null ? undefined : `${asset.platformName} · ${asset.quoteCurrency}`}
+      description={asset === null ? '' : `${asset.platformName} · ${asset.quoteCurrency}`}
       closeLabel={m.invest_close()}
       size="lg"
       footer={
-        asset === null ? undefined : (
+        asset === null ? null : (
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -92,7 +92,15 @@ export function AssetDetail({ asset, portfolio, timeZone, locale, onOpenChange, 
   );
 }
 
-function Section({ title, aside, children }: { readonly title: string; readonly aside?: ReactNode; readonly children: ReactNode }) {
+function Section({
+  title,
+  aside,
+  children,
+}: {
+  readonly title: string;
+  readonly aside?: ReactNode;
+  readonly children: ReactNode;
+}) {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
@@ -125,9 +133,7 @@ function DetailBody({
   const trades: Trades = loaded?.key === key ? loaded.trades : { status: 'loading' };
   const base = portfolio.baseCurrency;
   const { value, quote } = asset;
-  const money = (minor: bigint, currency = base, context: 'amount' | 'delta' = 'amount', className = '') => (
-    <Money minor={minor} currency={currency} context={context} locale={locale} className={className} />
-  );
+  const share = value === null ? null : ratioBps(value.valueBaseMinor, portfolio.summary.valueBaseMinor);
   const classRow = portfolio.allocation?.rows.find((row) => row.key === asset.assetClass);
   const before = value === null || value.todayBaseMinor === null ? null : value.valueBaseMinor - value.todayBaseMinor;
   const dayBps = before === null || value === null ? null : ratioBps(value.todayBaseMinor ?? 0n, before);
@@ -158,7 +164,8 @@ function DetailBody({
   }, [key, asset.id, locale]);
 
   const buys = trades.status === 'ready' ? trades.trades.filter((trade) => trade.kind === 'buy').reverse() : [];
-  const dividends = trades.status === 'ready' ? trades.trades.filter((trade) => trade.kind === 'dividend').reverse() : [];
+  const dividends =
+    trades.status === 'ready' ? trades.trades.filter((trade) => trade.kind === 'dividend').reverse() : [];
   const others =
     trades.status === 'ready'
       ? trades.trades.filter((trade) => trade.kind === 'sell' || trade.kind === 'adjust').reverse()
@@ -172,25 +179,36 @@ function DetailBody({
           {classLabel(asset.assetClass)}
         </span>
         {value === null ? (
-          <span className="text-[13px] text-amber-fg">{m.invest_detail_no_rate({ currency: asset.quoteCurrency })}</span>
+          <span className="text-[13px] text-amber-fg">
+            {m.invest_detail_no_rate({ currency: asset.quoteCurrency })}
+          </span>
         ) : (
           <div className="flex flex-wrap items-baseline gap-2">
-            {money(value.valueBaseMinor, base, 'amount', 'text-[26px] font-medium tracking-[-0.5px] text-fg')}
+            <Money
+              minor={value.valueBaseMinor}
+              currency={base}
+              context="amount"
+              locale={locale}
+              className="text-[26px] font-medium tracking-[-0.5px] text-fg"
+            />
             {asset.quoteCurrency === base ? null : (
-              <span className="text-[13px] text-subtle">{money(value.valueMinor, asset.quoteCurrency)}</span>
-            )}
-            {ratioBps(value.valueBaseMinor, portfolio.summary.valueBaseMinor) === null ? null : (
-              <Percent
-                value={(ratioBps(value.valueBaseMinor, portfolio.summary.valueBaseMinor) as number) / 10_000}
+              <Money
+                minor={value.valueMinor}
+                currency={asset.quoteCurrency}
+                context="amount"
                 locale={locale}
                 className="text-[13px] text-subtle"
               />
+            )}
+            {share === null ? null : (
+              <Percent value={share / 10_000} locale={locale} className="text-[13px] text-subtle" />
             )}
           </div>
         )}
         {asset.pendingMinor > 0n ? (
           <span className="text-[12px] text-blue-fg">
-            {m.invest_detail_pending()} {money(asset.pendingMinor, asset.quoteCurrency)}
+            {m.invest_detail_pending()}{' '}
+            <Money minor={asset.pendingMinor} currency={asset.quoteCurrency} context="amount" locale={locale} />
           </span>
         ) : null}
       </div>
@@ -204,7 +222,12 @@ function DetailBody({
             <span className="text-amber-fg">{m.invest_at_cost()}</span>
           ) : (
             <>
-              {money(priceMinor(quote.price, asset.quoteCurrency), asset.quoteCurrency)}
+              <Money
+                minor={priceMinor(quote.price, asset.quoteCurrency)}
+                currency={asset.quoteCurrency}
+                context="amount"
+                locale={locale}
+              />
               <span className="text-[11px] font-normal text-subtle">
                 {quoteLabel(quote.label)} · {quoteTime(quote, portfolio.today, timeZone, locale)}
               </span>
@@ -212,17 +235,33 @@ function DetailBody({
           )}
         </Stat>
         <Stat label={m.invest_detail_average()}>
-          {asset.averagePrice === null ? '—' : money(priceMinor(asset.averagePrice, asset.quoteCurrency), asset.quoteCurrency)}
+          {asset.averagePrice === null ? (
+            '—'
+          ) : (
+            <Money
+              minor={priceMinor(asset.averagePrice, asset.quoteCurrency)}
+              currency={asset.quoteCurrency}
+              context="amount"
+              locale={locale}
+            />
+          )}
         </Stat>
-        <Stat label={m.invest_detail_cost()}>{money(asset.holding.costBaseMinor)}</Stat>
+        <Stat label={m.invest_detail_cost()}>
+          <Money minor={asset.holding.costBaseMinor} currency={base} context="amount" locale={locale} />
+        </Stat>
         <Stat label={m.invest_detail_gain()}>
           {value === null ? (
             '—'
           ) : (
             <>
-              {money(value.gainBaseMinor, base, 'delta')}
+              <Money minor={value.gainBaseMinor} currency={base} context="delta" locale={locale} />
               {value.gainBps === null ? null : (
-                <Percent value={value.gainBps / 10_000} signed locale={locale} className="text-[11px] font-normal text-subtle" />
+                <Percent
+                  value={value.gainBps / 10_000}
+                  signed
+                  locale={locale}
+                  className="text-[11px] font-normal text-subtle"
+                />
               )}
             </>
           )}
@@ -245,7 +284,8 @@ function DetailBody({
         <Section title={m.invest_detail_class_vs_target()}>
           <p className="flex items-center justify-between text-[12.5px] text-muted-fg">
             <span>
-              {classLabel(asset.assetClass)} <Percent value={classRow.shareBps / 10_000} locale={locale} className="text-fg" />
+              {classLabel(asset.assetClass)}{' '}
+              <Percent value={classRow.shareBps / 10_000} locale={locale} className="text-fg" />
             </span>
             <span>
               {m.invest_holdings_target()} <Percent value={classRow.targetBps / 10_000} locale={locale} />
@@ -253,7 +293,12 @@ function DetailBody({
           </p>
           <svg aria-hidden="true" viewBox="0 0 100 6" preserveAspectRatio="none" className="block h-1.5 w-full">
             <rect width="100" height="6" rx="3" className="fill-surface-3" />
-            <rect width={Math.min(classRow.shareBps / 100, 100)} height="6" rx="3" className={CLASS_TONE[asset.assetClass].fill} />
+            <rect
+              width={Math.min(classRow.shareBps / 100, 100)}
+              height="6"
+              rx="3"
+              className={CLASS_TONE[asset.assetClass].fill}
+            />
             <rect x={Math.min(classRow.targetBps / 100, 99)} width="1" height="6" className="fill-fg" />
           </svg>
         </Section>
@@ -283,23 +328,39 @@ function DetailBody({
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-[13px] font-medium text-fg">{goal.goalName}</span>
                   <span className="text-[11.5px] text-subtle">
-                    {goal.mode === 'whole' ? m.invest_detail_goal_whole() : <Percent value={goal.bps / 10_000} locale={locale} />} ·{' '}
-                    {m.invest_detail_goal_units({ units: formatUnits(goal.units, locale, 3) })} · {m.invest_detail_goal_dca()}
+                    {goal.mode === 'whole' ? (
+                      m.invest_detail_goal_whole()
+                    ) : (
+                      <Percent value={goal.bps / 10_000} locale={locale} />
+                    )}{' '}
+                    · {m.invest_detail_goal_units({ units: formatUnits(goal.units, locale, 3) })} ·{' '}
+                    {m.invest_detail_goal_dca()}
                   </span>
                 </span>
-                {money(goal.valueBaseMinor, base, 'amount', 'text-[13px] text-fg')}
+                <Money
+                  minor={goal.valueBaseMinor}
+                  currency={base}
+                  context="amount"
+                  locale={locale}
+                  className="text-[13px] text-fg"
+                />
               </li>
             ))}
             <li className="flex items-center gap-3 p-3">
               <span className="flex-1 text-[12.5px] text-muted-fg">
                 {m.invest_detail_goal_free()} <Percent value={asset.freeBps / 10_000} locale={locale} />
               </span>
-              {money(
-                (value?.valueBaseMinor ?? 0n) + asset.pendingBaseMinor - asset.goals.reduce((sum, goal) => sum + goal.valueBaseMinor, 0n),
-                base,
-                'amount',
-                'text-[13px] text-subtle',
-              )}
+              <Money
+                minor={
+                  (value?.valueBaseMinor ?? 0n) +
+                  asset.pendingBaseMinor -
+                  asset.goals.reduce((sum, goal) => sum + goal.valueBaseMinor, 0n)
+                }
+                currency={base}
+                context="amount"
+                locale={locale}
+                className="text-[13px] text-subtle"
+              />
             </li>
           </ul>
         )}
@@ -307,12 +368,13 @@ function DetailBody({
           <p className="flex items-start gap-2 rounded-[10px] bg-surface-2 px-3 py-2.5 text-[12px] text-muted-fg">
             <TrendingDown aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-red-fg" />
             <span>
-              {m.invest_detail_drop({ symbol: asset.symbol })} <Percent value={dayBps / 10_000} signed locale={locale} />{' '}
-              ·{' '}
+              {m.invest_detail_drop({ symbol: asset.symbol })}{' '}
+              <Percent value={dayBps / 10_000} signed locale={locale} /> ·{' '}
               {impact.map((entry, index) => (
                 <span key={entry.goalId}>
                   {index === 0 ? null : ', '}
-                  {asset.goals.find((goal) => goal.goalId === entry.goalId)?.goalName} {money(entry.deltaMinor, base, 'delta')}
+                  {asset.goals.find((goal) => goal.goalId === entry.goalId)?.goalName}{' '}
+                  <Money minor={entry.deltaMinor} currency={base} context="delta" locale={locale} />
                 </span>
               ))}
             </span>
@@ -346,7 +408,14 @@ function DetailBody({
         ) : (
           <>
             <p className="text-[12.5px] text-muted-fg">
-              {m.invest_detail_dividends_total()} {money(asset.holding.dividendBaseMinor, base, 'amount', 'text-fg')}
+              {m.invest_detail_dividends_total()}{' '}
+              <Money
+                minor={asset.holding.dividendBaseMinor}
+                currency={base}
+                context="amount"
+                locale={locale}
+                className="text-fg"
+              />
             </p>
             <TradeList trades={dividends} asset={asset} base={base} locale={locale} />
           </>
@@ -393,7 +462,8 @@ function TradeList({
             <span className="text-[11.5px] text-subtle">
               {trade.kind === 'dividend' ? (
                 <>
-                  {m.invest_trade_tax()} <Money minor={trade.taxMinor} currency={asset.quoteCurrency} context="amount" locale={locale} />
+                  {m.invest_trade_tax()}{' '}
+                  <Money minor={trade.taxMinor} currency={asset.quoteCurrency} context="amount" locale={locale} />
                 </>
               ) : (
                 <>
@@ -401,7 +471,12 @@ function TradeList({
                   {trade.price === null ? null : (
                     <>
                       {' @ '}
-                      <Money minor={priceMinor(trade.price, asset.quoteCurrency)} currency={asset.quoteCurrency} context="amount" locale={locale} />
+                      <Money
+                        minor={priceMinor(trade.price, asset.quoteCurrency)}
+                        currency={asset.quoteCurrency}
+                        context="amount"
+                        locale={locale}
+                      />
                     </>
                   )}
                 </>
@@ -417,7 +492,13 @@ function TradeList({
               className="text-[13px] text-fg"
             />
             {trade.kind === 'sell' && trade.realizedBaseMinor !== 0n ? (
-              <Money minor={trade.realizedBaseMinor} currency={base} context="delta" locale={locale} className="text-[11px]" />
+              <Money
+                minor={trade.realizedBaseMinor}
+                currency={base}
+                context="delta"
+                locale={locale}
+                className="text-[11px]"
+              />
             ) : null}
           </span>
         </li>

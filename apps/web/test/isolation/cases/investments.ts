@@ -193,9 +193,9 @@ export const cases = {
       const { a, b } = await both();
       await refusedForB('updateInvestmentAsset', { id: a.asset, patch: { name: 'Pwned' } }, NOT_FOUND);
       await refusedForB('updateInvestmentAsset', { id: b.asset, patch: { categoryId: a.category } });
-      expect(
-        await as('B', 'updateInvestmentAsset', { id: b.asset, patch: { name: 'Milik B saham' } }),
-      ).toMatchObject(ok({ name: 'Milik B saham' }));
+      expect(await as('B', 'updateInvestmentAsset', { id: b.asset, patch: { name: 'Milik B saham' } })).toMatchObject(
+        ok({ name: 'Milik B saham' }),
+      );
     },
   },
   removeInvestmentAsset: {
@@ -256,9 +256,7 @@ export const cases = {
         fromAccountId: a.bank,
         sentMinor: 1_000n,
       });
-      expect(await as('B', 'recordInvestmentTrade', buy(b.asset))).toMatchObject(
-        ok({ kind: 'buy', assetId: b.asset }),
-      );
+      expect(await as('B', 'recordInvestmentTrade', buy(b.asset))).toMatchObject(ok({ kind: 'buy', assetId: b.asset }));
     },
   },
   adjustInvestmentHoldings: {
@@ -275,7 +273,12 @@ export const cases = {
       const fields = input as Record<string, unknown>;
       await refusedForB('adjustInvestmentHoldings', { ...fields, assetId: a.asset, units: '200' }, NOT_FOUND);
       expect(
-        await as('B', 'adjustInvestmentHoldings', { ...fields, clientId: randomUUID(), assetId: b.asset, units: '102' }),
+        await as('B', 'adjustInvestmentHoldings', {
+          ...fields,
+          clientId: randomUUID(),
+          assetId: b.asset,
+          units: '102',
+        }),
       ).toMatchObject(ok({ kind: 'adjust', assetId: b.asset }));
     },
   },
@@ -291,7 +294,10 @@ export const cases = {
         { ok: false, code: 'INVALID_GOAL' },
       );
       expect(
-        await as('B', 'setAssetGoals', { assetId: b.asset, sources: [{ goalId: b.goal, mode: 'percent', pctBps: 4000 }] }),
+        await as('B', 'setAssetGoals', {
+          assetId: b.asset,
+          sources: [{ goalId: b.goal, mode: 'percent', pctBps: 4000 }],
+        }),
       ).toEqual(ok(null));
     },
   },

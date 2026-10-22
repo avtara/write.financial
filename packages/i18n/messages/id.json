@@ -1420,6 +1420,7 @@
   "invest_allocation_hint": "Lihat saran rebalancing di bawah",
   "invest_allocation_subtitle": "Porsi saat ini · ± poin dari target",
   "invest_allocation_title": "Alokasi aset",
+  "invest_approx": "≈",
   "invest_at_cost": "dinilai harga modal",
   "invest_cancel": "Batal",
   "invest_cash_name": "Kas {platform}",

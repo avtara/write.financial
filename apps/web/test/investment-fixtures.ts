@@ -15,7 +15,7 @@ import type {
 } from '@wf/db/investments';
 import type { BenchmarkView } from '@wf/db/market-data';
 import { goalShares, splitUnits, type GoalAssetSource } from '@wf/domain/goal-assets';
-import { averagePrice, replayTrades, type AssetClass, type TradeInput } from '@wf/domain/investments';
+import { averagePrice, replayTrades, type TradeInput } from '@wf/domain/investments';
 import type { ResolvedQuote } from '@wf/domain/market';
 import type { LocalDate } from '@wf/domain/period';
 import { DESIGN_SEED, seedClosingBalances } from '@wf/domain/seed';
@@ -163,17 +163,15 @@ const SEED_ASSETS: readonly AssetView[] = investments.assets.map((seed): AssetVi
     averagePrice: averagePrice(holding, currency),
     quote: manualQuote(seed.price),
     value,
-    goals: sources.map(
-      (part, index): AssetGoalView => ({
-        sourceId: `src-${seed.key}-${String(index)}`,
-        goalId: part.goalId,
-        goalName: part.goalName,
-        mode: part.source.mode,
-        bps: part.source.bps,
-        units: units.goals[index]?.value as string,
-        valueBaseMinor: shares.goals[index]?.value as bigint,
-      }),
-    ),
+    goals: sources.map((part, index): AssetGoalView => ({
+      sourceId: `src-${seed.key}-${String(index)}`,
+      goalId: part.goalId,
+      goalName: part.goalName,
+      mode: part.source.mode,
+      bps: part.source.bps,
+      units: units.goals[index]?.value as string,
+      valueBaseMinor: shares.goals[index]?.value as bigint,
+    })),
     freeBps: 10_000 - sources.reduce((sum, part) => sum + part.source.bps, 0),
   };
 });
@@ -250,19 +248,17 @@ export function portfolioView(
   const targets = overrides.targets ?? investments.targets;
   const categories =
     overrides.categories ??
-    investments.categories.map(
-      (category, index): CategoryView => ({
-        id: CATEGORY_IDS[category.name] as string,
-        name: category.name,
-        assetClass: category.assetClass,
-        sortOrder: index,
-        assetIds: assets.filter((asset) => asset.categoryId === CATEGORY_IDS[category.name]).map((asset) => asset.id),
-      }),
-    );
+    investments.categories.map((category, index): CategoryView => ({
+      id: CATEGORY_IDS[category.name] as string,
+      name: category.name,
+      assetClass: category.assetClass,
+      sortOrder: index,
+      assetIds: assets.filter((asset) => asset.categoryId === CATEGORY_IDS[category.name]).map((asset) => asset.id),
+    }));
   return {
     baseCurrency: BASE,
     today: TODAY,
-    assets,
+    assets: [...assets],
     platforms,
     categories,
     targets,
@@ -270,7 +266,7 @@ export function portfolioView(
     allocation:
       Object.keys(targets).length === 0 || summary.valueBaseMinor <= 0n
         ? null
-        : allocation(classItems(summary.positions), targets as Record<AssetClass, number>),
+        : allocation(classItems(summary.positions), targets),
     dividends,
     missingRates: overrides.missingRates ?? [],
   };

@@ -7,11 +7,11 @@
 import type { PortfolioView } from '@wf/db/investments';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
-import { Money } from '@wf/ui/money';
 import { Percent } from '@wf/ui/percent';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { toUsd, type DisplayCurrency } from './investments-model.ts';
+import { DisplayMoney } from './display-money.tsx';
+import type { DisplayCurrency } from './investments-model.ts';
 
 const VALUE = 'text-[22px] leading-tight font-medium tracking-[-0.4px]';
 
@@ -47,49 +47,40 @@ export function ChangeChip({ bps, locale }: { readonly bps: number; readonly loc
 
 export function InvestmentKpis({ portfolio, display, usdRate, locale }: InvestmentKpisProps) {
   const { summary, baseCurrency } = portfolio;
-  const usd = display === 'usd' && usdRate !== null;
-  const currency = usd ? 'USD' : baseCurrency;
-  const shown = (minor: bigint) => (usd ? toUsd(minor, baseCurrency, usdRate) : minor);
-  const money = (minor: bigint, className: string, context: 'amount' | 'delta' = 'amount') => (
-    <Money minor={shown(minor)} currency={currency} context={context} locale={locale} className={className} />
-  );
+  const shown = { base: baseCurrency, usdRate: display === 'usd' ? usdRate : null, locale };
   // Cash has a previous close of 1: "Hari ini" counts only priced holdings with a previous close.
-  const hasToday = summary.positions.some((position) => !position.key.startsWith('cash:') && position.todayBaseMinor !== null);
+  const hasToday = summary.positions.some(
+    (position) => !position.key.startsWith('cash:') && position.todayBaseMinor !== null,
+  );
   return (
     <section
       aria-label={m.invest_kpis_label()}
       className="grid grid-cols-1 overflow-hidden rounded-[12px] border border-border bg-card md:grid-cols-3 lg:grid-cols-5"
     >
       <Kpi label={m.invest_kpi_value()}>
-        {money(summary.valueBaseMinor, `${VALUE} text-fg`)}
+        <DisplayMoney baseMinor={summary.valueBaseMinor} display={shown} className={`${VALUE} text-fg`} />
         {usdRate === null ? null : (
           <span className="text-[12px] text-subtle">
-            ≈{' '}
-            {usd ? (
-              <Money minor={summary.valueBaseMinor} currency={baseCurrency} context="amount" locale={locale} />
-            ) : (
-              <Money
-                minor={toUsd(summary.valueBaseMinor, baseCurrency, usdRate)}
-                currency="USD"
-                context="amount"
-                locale={locale}
-              />
-            )}
+            {m.invest_approx()}{' '}
+            <DisplayMoney
+              baseMinor={summary.valueBaseMinor}
+              display={{ base: baseCurrency, usdRate: display === 'usd' ? null : usdRate, locale }}
+            />
           </span>
         )}
       </Kpi>
       <Kpi label={m.invest_kpi_cost()}>
-        {money(summary.costBaseMinor, `${VALUE} text-fg`)}
+        <DisplayMoney baseMinor={summary.costBaseMinor} display={shown} className={`${VALUE} text-fg`} />
         <span className="text-[12px] text-subtle">{m.invest_kpi_cost_sub()}</span>
       </Kpi>
       <Kpi label={m.invest_kpi_gain()}>
-        {money(summary.gainBaseMinor, VALUE, 'delta')}
+        <DisplayMoney baseMinor={summary.gainBaseMinor} display={shown} context="delta" className={VALUE} />
         {summary.gainBps === null ? null : <ChangeChip bps={summary.gainBps} locale={locale} />}
       </Kpi>
       <Kpi label={m.invest_kpi_today()}>
         {hasToday ? (
           <>
-            {money(summary.todayBaseMinor, VALUE, 'delta')}
+            <DisplayMoney baseMinor={summary.todayBaseMinor} display={shown} context="delta" className={VALUE} />
             {summary.todayBps === null ? null : <ChangeChip bps={summary.todayBps} locale={locale} />}
           </>
         ) : (
@@ -100,7 +91,7 @@ export function InvestmentKpis({ portfolio, display, usdRate, locale }: Investme
         )}
       </Kpi>
       <Kpi label={m.invest_kpi_dividends()}>
-        {money(summary.dividends12mBaseMinor, `${VALUE} text-fg`)}
+        <DisplayMoney baseMinor={summary.dividends12mBaseMinor} display={shown} className={`${VALUE} text-fg`} />
         <span className="text-[12px] text-subtle">
           {m.invest_kpi_dividends_sub()}
           {summary.yieldBps === null ? null : (

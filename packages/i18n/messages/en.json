@@ -1780,6 +1780,7 @@
   "invest_allocation_hint": "See the rebalancing suggestions below",
   "invest_allocation_subtitle": "Current share · ± points from target",
   "invest_allocation_title": "Asset allocation",
+  "invest_approx": "≈",
   "invest_at_cost": "valued at cost",
   "invest_cancel": "Cancel",
   "invest_cash_name": "{platform} cash",

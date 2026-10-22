@@ -437,7 +437,12 @@ export function createMarketData(db: Database, options: { readonly now?: () => D
           const provider = step.provider as MarketProvider;
           const baseline = before.get(provider) as BenchmarkClose;
           const current = after.get(provider) as BenchmarkClose;
-          views.push({ key: benchmark.key, baseline, current, ytdBps: benchmarkReturnBps(baseline.price, current.price) });
+          views.push({
+            key: benchmark.key,
+            baseline,
+            current,
+            ytdBps: benchmarkReturnBps(baseline.price, current.price),
+          });
         }
         return views;
       }),

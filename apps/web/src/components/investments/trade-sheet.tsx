@@ -104,7 +104,9 @@ export function TradeSheet({ open, onOpenChange, ...props }: TradeSheetProps) {
         <TradeTabs
           key={`${open.tab}:${open.assetId ?? ''}:${open.accountId ?? ''}`}
           initial={open}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => {
+            onOpenChange(false);
+          }}
           {...props}
         />
       )}
@@ -174,7 +176,24 @@ function useMarketFields(props: FormProps, assetId: string | null): MarketFields
     const nextRate = next === undefined ? undefined : props.rates[next.quoteCurrency];
     setRateText(nextRate === undefined ? '' : decimalText(nextRate, props.locale));
   };
-  return { asset, pick, priceText, setPriceText, price, fee, setFee, tax, setTax, foreign, rateText, setRateText, rate, date, setDate, clientId };
+  return {
+    asset,
+    pick,
+    priceText,
+    setPriceText,
+    price,
+    fee,
+    setFee,
+    tax,
+    setTax,
+    foreign,
+    rateText,
+    setRateText,
+    rate,
+    date,
+    setDate,
+    clientId,
+  };
 }
 
 interface MarketFields {
@@ -216,25 +235,50 @@ function AssetField({ fields, assets }: { readonly fields: MarketFields; readonl
   );
 }
 
-function CostFields({ fields, currency, locale }: { readonly fields: MarketFields; readonly currency: string; readonly locale: Locale }) {
+function CostFields({
+  fields,
+  currency,
+  locale,
+}: {
+  readonly fields: MarketFields;
+  readonly currency: string;
+  readonly locale: Locale;
+}) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       <Field label={m.invest_trade_fee()}>
         {({ id }) => (
           <div className={INPUT_FRAME.lg}>
-            <AmountInput id={id} value={fields.fee} onValueChange={fields.setFee} currency={currency} locale={locale} size="inline" />
+            <AmountInput
+              id={id}
+              value={fields.fee}
+              onValueChange={fields.setFee}
+              currency={currency}
+              locale={locale}
+              size="inline"
+            />
           </div>
         )}
       </Field>
       <Field label={m.invest_trade_tax()}>
         {({ id }) => (
           <div className={INPUT_FRAME.lg}>
-            <AmountInput id={id} value={fields.tax} onValueChange={fields.setTax} currency={currency} locale={locale} size="inline" />
+            <AmountInput
+              id={id}
+              value={fields.tax}
+              onValueChange={fields.setTax}
+              currency={currency}
+              locale={locale}
+              size="inline"
+            />
           </div>
         )}
       </Field>
       {fields.foreign ? (
-        <Field label={m.invest_trade_rate({ currency })} error={fields.rate === null ? m.invest_trade_error_rate() : null}>
+        <Field
+          label={m.invest_trade_rate({ currency })}
+          error={fields.rate === null ? m.invest_trade_error_rate() : null}
+        >
           {({ id, describedBy, invalid }) => (
             <TextInput
               id={id}
@@ -253,7 +297,17 @@ function CostFields({ fields, currency, locale }: { readonly fields: MarketField
   );
 }
 
-function DateField({ value, onChange, today, locale }: { readonly value: LocalDate; readonly onChange: (date: LocalDate) => void; readonly today: LocalDate; readonly locale: Locale }) {
+function DateField({
+  value,
+  onChange,
+  today,
+  locale,
+}: {
+  readonly value: LocalDate;
+  readonly onChange: (date: LocalDate) => void;
+  readonly today: LocalDate;
+  readonly locale: Locale;
+}) {
   return (
     <Field label={m.invest_trade_date()}>
       {({ id }) => (
@@ -281,16 +335,36 @@ function Summary({ title, children }: { readonly title: string; readonly childre
   );
 }
 
-function Line({ label, children, strong = false }: { readonly label: ReactNode; readonly children: ReactNode; readonly strong?: boolean }) {
+function Line({
+  label,
+  children,
+  strong = false,
+}: {
+  readonly label: ReactNode;
+  readonly children: ReactNode;
+  readonly strong?: boolean;
+}) {
   return (
-    <div className={`flex items-center justify-between gap-2 ${strong ? 'border-t border-border pt-1.5 font-medium text-fg' : 'text-muted-fg'}`}>
+    <div
+      className={`flex items-center justify-between gap-2 ${strong ? 'border-t border-border pt-1.5 font-medium text-fg' : 'text-muted-fg'}`}
+    >
       <dt>{label}</dt>
       <dd className="text-right">{children}</dd>
     </div>
   );
 }
 
-function Footer({ pending, failure, label, onCancel }: { readonly pending: boolean; readonly failure: string | null; readonly label: string; readonly onCancel: () => void }) {
+function Footer({
+  pending,
+  failure,
+  label,
+  onCancel,
+}: {
+  readonly pending: boolean;
+  readonly failure: string | null;
+  readonly label: string;
+  readonly onCancel: () => void;
+}) {
   return (
     <>
       {failure === null ? null : <FormError>{failure}</FormError>}
@@ -343,7 +417,10 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
   } catch {
     preview = null;
   }
-  const split = asset === null || preview === null || asset.goals.length === 0 ? null : splitUnits(preview.units, assetSources(asset));
+  const split =
+    asset === null || preview === null || asset.goals.length === 0
+      ? null
+      : splitUnits(preview.units, assetSources(asset));
 
   const submit = async (event: SyntheticEvent) => {
     event.preventDefault();
@@ -368,7 +445,10 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
     <form noValidate onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
       <AssetField fields={fields} assets={portfolio.assets} />
       <div className="grid grid-cols-2 gap-3">
-        <Field label={m.invest_trade_price({ currency })} error={showErrors && price === null ? m.invest_trade_error_price() : null}>
+        <Field
+          label={m.invest_trade_price({ currency })}
+          error={showErrors && price === null ? m.invest_trade_error_price() : null}
+        >
           {({ id, describedBy, invalid }) => (
             <TextInput
               id={id}
@@ -395,7 +475,10 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
         fill
       />
       {by === 'amount' ? (
-        <Field label={m.invest_trade_amount({ currency })} error={showErrors && preview === null ? m.invest_trade_error_amount() : null}>
+        <Field
+          label={m.invest_trade_amount({ currency })}
+          error={showErrors && preview === null ? m.invest_trade_error_amount() : null}
+        >
           {({ id, describedBy, invalid }) => (
             <div className={INPUT_FRAME.lg}>
               <AmountInput
@@ -412,7 +495,10 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
           )}
         </Field>
       ) : (
-        <Field label={m.invest_trade_units()} error={showErrors && preview === null ? m.invest_trade_error_units() : null}>
+        <Field
+          label={m.invest_trade_units()}
+          error={showErrors && preview === null ? m.invest_trade_error_units() : null}
+        >
           {({ id, describedBy, invalid }) => (
             <TextInput
               id={id}
@@ -457,14 +543,25 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
             <Money minor={preview.totalMinor} currency={currency} context="amount" locale={locale} />
             {currency === portfolio.baseCurrency ? null : (
               <span className="text-subtle">
-                {' ≈ '}
-                <Money minor={preview.totalBaseMinor} currency={portfolio.baseCurrency} context="amount" locale={locale} />
+                {' '}
+                {m.invest_approx()}{' '}
+                <Money
+                  minor={preview.totalBaseMinor}
+                  currency={portfolio.baseCurrency}
+                  context="amount"
+                  locale={locale}
+                />
               </span>
             )}
           </Line>
           {platform === undefined || platform.currency !== currency ? null : (
             <Line label={m.invest_trade_cash_after()}>
-              <Money minor={platform.cashMinor - preview.totalMinor} currency={currency} context="amount" locale={locale} />
+              <Money
+                minor={platform.cashMinor - preview.totalMinor}
+                currency={currency}
+                context="amount"
+                locale={locale}
+              />
             </Line>
           )}
           {split === null ? null : (
@@ -521,7 +618,12 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
   const after =
     asset === null || preview === null || (choose && reduceGoalId === null) || sources.length === 0
       ? null
-      : sellAllocation({ units: asset.holding.units, sources, soldUnits: preview.units, reduceGoalId: choose ? reduceGoalId : null });
+      : sellAllocation({
+          units: asset.holding.units,
+          sources,
+          soldUnits: preview.units,
+          reduceGoalId: choose ? reduceGoalId : null,
+        });
 
   const submit = async (event: SyntheticEvent) => {
     event.preventDefault();
@@ -549,7 +651,10 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
     <form noValidate onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
       <AssetField fields={fields} assets={held} />
       <div className="grid grid-cols-2 gap-3">
-        <Field label={m.invest_trade_price({ currency })} error={showErrors && price === null ? m.invest_trade_error_price() : null}>
+        <Field
+          label={m.invest_trade_price({ currency })}
+          error={showErrors && price === null ? m.invest_trade_error_price() : null}
+        >
           {({ id, describedBy, invalid }) => (
             <TextInput
               id={id}
@@ -567,7 +672,13 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
       </div>
       <Field
         label={m.invest_trade_sell_value({ currency })}
-        aside={preview === null ? undefined : m.invest_trade_position_share({ share: `${String(Math.round(preview.positionBps / 10) / 10).replace('.', locale === 'id' ? ',' : '.')}%` })}
+        aside={
+          preview === null
+            ? undefined
+            : m.invest_trade_position_share({
+                share: `${String(Math.round(preview.positionBps / 10) / 10).replace('.', locale === 'id' ? ',' : '.')}%`,
+              })
+        }
         error={showErrors && preview === null ? m.invest_trade_error_amount() : null}
       >
         {({ id, describedBy, invalid }) => (
@@ -645,7 +756,7 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
         ) : null}
       </fieldset>
       <CostFields fields={fields} currency={currency} locale={locale} />
-      {choose && asset !== null ? (
+      {choose ? (
         <fieldset className="flex flex-col gap-2 rounded-[10px] border border-amber-tint-3 p-3">
           <legend className="flex items-center gap-1.5 px-1 text-[12.5px] font-medium text-fg">
             <GitFork aria-hidden="true" className="size-3.5 text-amber-fg" />
@@ -681,7 +792,12 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
             <Money minor={preview.netMinor} currency={currency} context="amount" locale={locale} />
           </Line>
           <Line label={m.invest_trade_realized()}>
-            <Money minor={preview.realizedBaseMinor} currency={portfolio.baseCurrency} context="delta" locale={locale} />
+            <Money
+              minor={preview.realizedBaseMinor}
+              currency={portfolio.baseCurrency}
+              context="delta"
+              locale={locale}
+            />
           </Line>
           {after === null || asset === null
             ? null
@@ -792,7 +908,11 @@ function DividendForm({ assetId, ...props }: FormProps & { readonly assetId: str
         ))}
       </fieldset>
       {mode === 'reinvest' ? (
-        <Field label={m.invest_dividend_units()} hint={m.invest_dividend_units_hint()} error={showErrors ? errors.units : null}>
+        <Field
+          label={m.invest_dividend_units()}
+          hint={m.invest_dividend_units_hint()}
+          error={showErrors ? errors.units : null}
+        >
           {({ id, describedBy, invalid }) => (
             <TextInput
               id={id}
@@ -912,7 +1032,10 @@ function TopUpForm({ accountId, ...props }: FormProps & { readonly accountId: st
           )}
         </Field>
         {crossing ? (
-          <Field label={m.invest_topup_received({ currency: platform.currency })} error={showErrors ? errors.received : null}>
+          <Field
+            label={m.invest_topup_received({ currency: platform.currency })}
+            error={showErrors ? errors.received : null}
+          >
             {({ id, describedBy, invalid }) => (
               <div className={INPUT_FRAME.lg}>
                 <AmountInput

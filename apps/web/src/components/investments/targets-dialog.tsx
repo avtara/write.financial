@@ -34,7 +34,14 @@ export function TargetsDialog({ open, onOpenChange, portfolio, locale, onSubmit 
       description={m.invest_targets_description()}
       size="xl"
     >
-      <TargetsForm portfolio={portfolio} locale={locale} onSubmit={onSubmit} onCancel={() => onOpenChange(false)} />
+      <TargetsForm
+        portfolio={portfolio}
+        locale={locale}
+        onSubmit={onSubmit}
+        onCancel={() => {
+          onOpenChange(false);
+        }}
+      />
     </Modal>
   );
 }
