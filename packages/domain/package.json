@@ -10,9 +10,13 @@
     "./creditcard": "./src/creditcard.ts",
     "./dashboard": "./src/dashboard.ts",
     "./debt": "./src/debt.ts",
+    "./decimal": "./src/decimal.ts",
     "./fx": "./src/fx.ts",
+    "./goal-assets": "./src/goal-assets.ts",
     "./goals": "./src/goals.ts",
+    "./investments": "./src/investments.ts",
     "./ledger": "./src/ledger.ts",
+    "./market": "./src/market.ts",
     "./money": "./src/money.ts",
     "./onboarding": "./src/onboarding.ts",
     "./period": "./src/period.ts",
@@ -21,7 +25,8 @@
     "./seed": "./src/seed.ts",
     "./subscriptions": "./src/subscriptions.ts",
     "./tags": "./src/tags.ts",
-    "./transactions": "./src/transactions.ts"
+    "./transactions": "./src/transactions.ts",
+    "./valuation": "./src/valuation.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
