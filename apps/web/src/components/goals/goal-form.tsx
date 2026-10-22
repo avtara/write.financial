@@ -2,8 +2,9 @@
 /**
  * "Tujuan tabungan baru" / "Ubah …" (FR-G1, design 13 `q0jRa`, `IsSRI`): name, icon and color, the target (fixed, or
  * dynamic "3× pengeluaran bulanan" for an emergency fund), the deadline month, "Simpan di rekening" (where deposits
- * go), the account sources that count as its progress (whole balance or a fixed amount ≤ the free balance; investment
- * assets join in M5), and on a new goal its monthly contribution ("8× setoran (Nov 2026 – Jun 2027) · label
+ * go), the account sources that count as its progress (whole balance or a fixed amount ≤ the free balance), the
+ * investment assets (a percentage of the units or the whole asset, FR-G2), and on a new goal its monthly
+ * contribution ("8× setoran (Nov 2026 – Jun 2027) · label
  * #laptop-kerja"), which enters "Perlu ditinjau" every due date. Saves through `createGoal` / `updateGoal`.
  */
 import type { AccountView } from '@wf/db/accounts';
@@ -23,12 +24,20 @@ import { CalendarClock, Info, Plus, Repeat, Target, X } from 'lucide-react';
 import { useState, type SyntheticEvent } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { createGoal, updateGoal, type GoalSummary } from '../../server/fn/goals.ts';
+import type { GoalAssetOption } from '../../server/fn/investments.ts';
 import { ColorPicker } from '../color-picker.tsx';
 import { periodLabel } from '../dashboard/dashboard-format.ts';
 import { Button, Field, FormError, INPUT_FRAME, Select as NativeSelect, TextInput } from '../form.tsx';
 import { IconPicker } from '../icon-picker.tsx';
 import { Modal } from '../modal.tsx';
 import { RichMessage } from '../rich-message.tsx';
+import {
+  AssetSourceRows,
+  assetDraftsOf,
+  draftBps,
+  draftProblem,
+  type AssetSourceDraft,
+} from './goal-asset-sources.tsx';
 import { contributionCount, firstContribution } from './goals-model.ts';
 
 /** "Atau mulai dari template" and the onboarding-like presets. */
@@ -204,6 +213,8 @@ export interface GoalFormProps {
   readonly template?: GoalTemplate | undefined;
   readonly goals: readonly GoalView[];
   readonly accounts: readonly AccountView[];
+  /** Investment assets for asset sources (FR-G2); none: the form offers no asset rows. */
+  readonly assets?: readonly GoalAssetOption[];
   readonly baseCurrency: string;
   readonly today: LocalDate;
   readonly averageSpendingMinor: bigint;
@@ -232,6 +243,7 @@ function GoalFormBody({
   template,
   goals,
   accounts,
+  assets = [],
   baseCurrency,
   today,
   averageSpendingMinor,
@@ -264,6 +276,9 @@ function GoalFormBody({
       amountMinor: source.amountMinor,
     })),
   );
+  const [assetDrafts, setAssetDrafts] = useState<AssetSourceDraft[]>(() => assetDraftsOf(goal, locale));
+  // Assets fund goals in the base currency only.
+  const assetsAllowed = currency === baseCurrency && (assets.length > 0 || assetDrafts.length > 0);
   const [recurring, setRecurring] = useState(false);
   const [planAmount, setPlanAmount] = useState<bigint | null>(null);
   const [day, setDay] = useState(payday ?? DEFAULT_DAY);
@@ -301,6 +316,7 @@ function GoalFormBody({
     sources: sources.some(
       (source) => source.accountId === null || (source.mode === 'fixed' && (source.amountMinor ?? 0n) <= 0n),
     ),
+    assetSources: assetDrafts.some((draft) => draftProblem(draft, assets, goal?.id ?? null, locale) !== null),
   };
 
   const submit = async (event: SyntheticEvent) => {
@@ -324,6 +340,11 @@ function GoalFormBody({
       mode: source.mode,
       amountMinor: source.mode === 'fixed' ? source.amountMinor : null,
     }));
+    const assetInput = assetDrafts.map((draft) =>
+      draft.mode === 'whole'
+        ? { assetId: draft.assetId as string, mode: draft.mode }
+        : { assetId: draft.assetId as string, mode: draft.mode, pctBps: draftBps(draft) },
+    );
     const result =
       goal === undefined
         ? await createGoal({
@@ -333,6 +354,7 @@ function GoalFormBody({
               currency,
               tag: name.trim(),
               sources: sourceInput,
+              ...(assetsAllowed ? { assetSources: assetInput } : {}),
               plans:
                 recurring && monthly !== null
                   ? [
@@ -350,7 +372,14 @@ function GoalFormBody({
                   : [],
             },
           }).catch(() => null)
-        : await updateGoal({ data: { id: goal.id, patch: fields, sources: sourceInput } }).catch(() => null);
+        : await updateGoal({
+            data: {
+              id: goal.id,
+              patch: fields,
+              sources: sourceInput,
+              ...(assetsAllowed ? { assetSources: assetInput } : {}),
+            },
+          }).catch(() => null);
     setPending(false);
     if (result === null || !result.ok) {
       setFailure(result === null ? m.goals_save_failed() : ledgerErrorMessage(result.code, locale));
@@ -481,6 +510,17 @@ function GoalFormBody({
         locale={locale}
         showErrors={showErrors}
       />
+      {assetsAllowed ? (
+        <AssetSourceRows
+          drafts={assetDrafts}
+          onChange={setAssetDrafts}
+          assets={assets}
+          goalId={goal?.id ?? null}
+          currency={currency}
+          locale={locale}
+          showErrors={showErrors}
+        />
+      ) : null}
       {goal === undefined ? (
         <div className="flex flex-col gap-3 rounded-[10px] border border-border p-3">
           <Switch

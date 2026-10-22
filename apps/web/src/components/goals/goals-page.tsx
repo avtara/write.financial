@@ -49,10 +49,14 @@ import { goalState, type GoalSort } from './goals-model.ts';
 import { MonthContributions } from './month-contributions.tsx';
 import { SinkingForm } from './sinking-form.tsx';
 import { SinkingFunds } from './sinking-funds.tsx';
+import { accountsOnly, GoalAssetNotices } from './goal-asset-sources.tsx';
+import type { GoalAssetOption } from '../../server/fn/investments.ts';
 
 export interface GoalsPageProps {
   readonly overview: GoalsOverview;
   readonly accounts: readonly AccountView[];
+  /** Investment assets (asset sources, price notices); empty when they could not be loaded. */
+  readonly assets?: readonly GoalAssetOption[];
   readonly timeZone: string;
   /** `?goal=<id>`: its detail opens. */
   readonly initialGoalId?: string | undefined;
@@ -68,8 +72,9 @@ export interface GoalsPageProps {
 type Result<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly code: string };
 
 export function GoalsPage({
-  overview,
+  overview: loaded,
   accounts,
+  assets = [],
   timeZone,
   initialGoalId,
   initialNew = false,
@@ -82,6 +87,9 @@ export function GoalsPage({
   const { preferences } = usePreferences();
   const { locale, platform } = preferences;
   const record = useRecordTransaction();
+  // FR-G6 "Lihat saldo rekening saja": the goals counted on their accounts only.
+  const [onlyAccounts, setOnlyAccounts] = useState(false);
+  const overview = onlyAccounts ? { ...loaded, goals: accountsOnly(loaded.goals) } : loaded;
   const { goals, today, month, baseCurrency } = overview;
   const currentMonth = today.slice(0, 7) as YearMonth;
   const [tab, setTab] = useState<GoalTab>('active');
@@ -386,6 +394,15 @@ export function GoalsPage({
 
       <div className="flex flex-col gap-4">
         <GoalsKpis overview={overview} locale={locale} />
+        <GoalAssetNotices
+          goals={loaded.goals}
+          assets={assets}
+          accountsOnly={onlyAccounts}
+          currency={baseCurrency}
+          locale={locale}
+          onAccountsOnly={setOnlyAccounts}
+          onRetry={() => void refresh()}
+        />
         {goals.length === 0 ? (
           <GoalsEmpty
             averageSpendingMinor={overview.averageSpendingMinor}
@@ -432,6 +449,7 @@ export function GoalsPage({
         template={form?.template}
         goals={goals}
         accounts={accounts}
+        assets={assets}
         baseCurrency={baseCurrency}
         today={today}
         averageSpendingMinor={overview.averageSpendingMinor}

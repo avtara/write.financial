@@ -39,6 +39,7 @@ import {
 import { recordCardInstallment, recordCardPayment } from '../../server/fn/debts.ts';
 import { INSTALLMENT_MIN_MINOR } from '@wf/domain/creditcard';
 import { Button, FormError } from '../form.tsx';
+import { AllocatedAccountWarning } from '../goals/allocated-account-warning.tsx';
 import { GoalUseField } from '../goals/goal-use-field.tsx';
 import { matchGoal } from '../goals/goals-model.ts';
 import { Modal } from '../modal.tsx';
@@ -703,6 +704,19 @@ function RecordSheet({
             )
           }
         />
+        {payingGoal === null ? (
+          <AllocatedAccountWarning
+            goals={goals}
+            accounts={data.accounts}
+            accountId={values.accountId}
+            expense={values.type === 'expense'}
+            amountMinor={values.amountMinor}
+            locale={locale}
+            onSwitch={(accountId) => {
+              form.update({ accountId });
+            }}
+          />
+        ) : null}
         {cardContext === null || cardContext === 'loading' || cardContext === 'failed' ? null : values.type ===
           'expense' ? (
           <CardInstallmentField

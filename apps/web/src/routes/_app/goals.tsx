@@ -10,6 +10,7 @@ import { usePreferences } from '../../components/preferences.tsx';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { yearMonthParam } from '../../lib/transactions-search.ts';
 import { getGoals } from '../../server/fn/goals.ts';
+import { listInvestmentAssets } from '../../server/fn/investments.ts';
 import { listAccounts } from '../../server/fn/ledger.ts';
 
 /**
@@ -26,11 +27,13 @@ export const Route = createFileRoute('/_app/goals')({
   }),
   loaderDeps: ({ search }) => ({ month: search.month }),
   loader: async ({ deps }) => {
-    const [overview, accounts] = await Promise.all([
+    const [overview, accounts, assets] = await Promise.all([
       getGoals({ data: deps.month === undefined ? {} : { month: deps.month } }),
       listAccounts({ data: { status: 'all' } }),
+      // Asset sources and price notices only: the page works without them.
+      listInvestmentAssets({ data: {} }).catch(() => null),
     ]);
-    return { overview, accounts };
+    return { overview, accounts, assets };
   },
   head: () => ({ meta: [{ title: `${m.nav_goals()} · ${m.app_name()}` }] }),
   pendingComponent: GoalsPending,
@@ -38,7 +41,7 @@ export const Route = createFileRoute('/_app/goals')({
 });
 
 function GoalsRoute() {
-  const { overview, accounts } = Route.useLoaderData();
+  const { overview, accounts, assets } = Route.useLoaderData();
   const { viewer } = Route.useRouteContext();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -48,6 +51,7 @@ function GoalsRoute() {
     <GoalsPage
       overview={overview.value}
       accounts={accounts.value.accounts}
+      assets={assets?.ok === true ? assets.value : []}
       timeZone={viewer.timezone}
       initialGoalId={search.goal}
       initialNew={search.new === true}
