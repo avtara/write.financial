@@ -311,7 +311,21 @@ describe('recurrences', () => {
       }),
     );
     expect(own.template).toMatchObject({ allocations: [{ goalId: holder, amountMinor: 300_000n }] });
-    await test.query('DELETE FROM goal_funding_sources WHERE goal_id = $1', [holder]);
+    // Without the split only the active plans count against the holder: a paused one does not.
+    await test.query('UPDATE goal_contribution_plans SET active = false WHERE recurrence_id = $1', [view.id]);
+    await test.query(`UPDATE goal_funding_sources SET goal_id = $2 WHERE goal_id = $1`, [holder, other]);
+    const paused = await app((s) => s.updateRecurrence(fx.userId, view.id, { ...rent(), template: unsplit }));
+    expect(paused.template).toMatchObject({ allocations: [] });
+    await test.query('DELETE FROM goal_funding_sources WHERE goal_id = $1', [other]);
+    // A rule moved to a later start plans a new part from that start's month.
+    const later = await app((s) =>
+      s.updateRecurrence(fx.userId, view.id, {
+        ...rent(),
+        startOn: d('2027-01-14'),
+        template: { ...unsplit, allocations: [{ goalId: other, amountMinor: 300_000n }] },
+      }),
+    );
+    expect(later.template).toMatchObject({ allocations: [{ goalId: other, startMonth: '2027-01' }] });
     // An entry has no split: its plans go.
     await app((s) => s.updateRecurrence(fx.userId, view.id, rent()));
     expect(await plans()).toEqual([]);
