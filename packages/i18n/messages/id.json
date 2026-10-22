@@ -2925,7 +2925,6 @@
   "transactions_bulk_move_account": "Pindah rekening",
   "transactions_bulk_selected": "dipilih",
   "transactions_bulk_skipped_transfers": "{count} transfer dilewati — transfer tidak punya kategori atau satu rekening.",
-  "transactions_chart_caption": "Pengeluaran per hari",
   "transactions_chart_label": "Grafik pengeluaran harian, {days} hari",
   "transactions_columns_account": "Rekening",
   "transactions_columns_amount": "Jumlah",

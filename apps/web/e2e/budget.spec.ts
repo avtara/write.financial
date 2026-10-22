@@ -48,6 +48,19 @@ test('October shows the spending against the plan on day 15', async ({ page }) =
   const groups = page.getByRole('region', { name: 'Kebutuhan & Keinginan' });
   await expect(groups).toContainText(/Kebutuhan\s*87%/);
   await expect(groups).toContainText(/Keinginan\s*90%/);
+
+  // Nothing spent draws no bar and no marker; the note says so. A used line has its track and fill.
+  const bar = 'svg[viewBox="0 0 1000 10"]';
+  const unused = row(page, 'Kesehatan');
+  await expect(unused).toContainText('belum terpakai');
+  await expect(unused.locator(bar)).toHaveCount(1);
+  await expect(unused.locator(`${bar} rect`)).toHaveCount(0);
+  const used = page
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: /^Opsi / }) })
+    .filter({ hasText: /sisa Rp/ })
+    .first();
+  await expect(used.locator(`${bar} rect`).first()).toHaveAttribute('width', '1000');
   await screenshot(page, 'budget-1440');
 });
 

@@ -114,7 +114,6 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
         description={header}
         actions={actions}
       />
-      {refreshing ? <PageState kind="refreshing" title={m.transactions_page_refreshing()} /> : null}
       <TransactionSummary view={view} currency={ledger.baseCurrency} />
       <AccountStrip
         accounts={ledger.accounts}
@@ -137,12 +136,21 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
         }}
       >
         <div className="flex items-start gap-4">
-          <div className="min-w-0 flex-1">
+          <div className="relative min-w-0 flex-1">
+            {/* A slot over the table's top edge: the busy note takes no space, so nothing below it moves. */}
+            <div className="pointer-events-none absolute inset-x-0 -top-3 z-10 flex justify-center">
+              {refreshing ? (
+                <div className="rounded-full border border-border-strong bg-popover px-2.5 py-1 shadow-[0_4px_12px_var(--shadow)]">
+                  <PageState kind="refreshing" title={m.transactions_page_refreshing()} />
+                </div>
+              ) : null}
+            </div>
             <TransactionsTable
               view={view}
               search={search}
               ledger={ledger}
               timeZone={timeZone}
+              busy={refreshing}
               {...(search.tx === undefined ? {} : { selectedId: search.tx })}
               onOpen={(id) => {
                 onSearchChange({ tx: id });

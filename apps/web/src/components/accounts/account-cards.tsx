@@ -13,6 +13,7 @@ import { cardSlots } from '../../lib/accounts.ts';
 import { accountTypeLabel } from '../../lib/ledger-labels.ts';
 import { usePreferences } from '../preferences.tsx';
 import { AccountLogo } from './account-logo.tsx';
+import { ApproxBalance } from './approx-balance.tsx';
 
 export interface AccountCardsProps {
   readonly accounts: readonly AccountView[];
@@ -66,13 +67,16 @@ export function AccountCards({
                 {account.last4 === null ? (account.phoneMasked ?? ' ') : `•• ${account.last4}`}
               </span>
             </span>
-            <Money
-              minor={account.balanceMinor}
-              currency={account.currency}
-              context="amount"
-              locale={locale}
-              className="text-[17px] font-semibold text-fg"
-            />
+            <span className="flex flex-col gap-0.5">
+              <Money
+                minor={account.balanceMinor}
+                currency={account.currency}
+                context="amount"
+                locale={locale}
+                className="text-[17px] font-semibold text-fg"
+              />
+              <ApproxBalance account={account} baseCurrency={baseCurrency} />
+            </span>
             {footer?.([account])}
           </button>
         </li>

@@ -62,6 +62,8 @@ export interface TransactionsTableProps {
   readonly search: TransactionsSearch;
   readonly ledger: LedgerData;
   readonly timeZone: string;
+  /** The route is reloading the rows (a filter changed): `aria-busy` on the table region. */
+  readonly busy: boolean;
   /** The transaction open in the detail (highlighted). */
   readonly selectedId?: string;
   readonly onOpen: (id: string) => void;
@@ -191,6 +193,7 @@ export function TransactionsTable({
   search,
   ledger,
   timeZone,
+  busy,
   selectedId,
   onOpen,
   onSearchChange,
@@ -413,6 +416,7 @@ export function TransactionsTable({
   return (
     <section
       aria-label={m.transactions_table_label()}
+      aria-busy={busy}
       className="@container flex flex-col rounded-[14px] border border-border bg-card"
     >
       <div className="flex flex-col gap-3 p-3.5 pb-2">

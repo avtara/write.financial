@@ -79,4 +79,19 @@ describe('AccountsCard', () => {
     expect(others.element().querySelector('.text-red-fg')).not.toBeNull();
     await expect.element(screen.getByRole('button', { name: /Investasi/ })).not.toMatchTextContent('≈');
   });
+
+  it('adds "≈ Rp…" under a card in another currency', async () => {
+    const usd = account({
+      id: 'acc-usd',
+      displayName: 'Wise USD',
+      currency: 'USD',
+      showAsCard: true,
+      type: 'bank',
+      balanceMinor: 12_000n,
+      balanceBaseMinor: 1_962_000n,
+    });
+    const overview = { ...OVERVIEW, accounts: [usd, ...OVERVIEW.accounts] };
+    const { screen } = await renderApp(<AccountsCard overview={overview} dashboard={dashboard()} />);
+    await expect.element(screen.getByRole('button', { name: /Wise USD/ })).toMatchTextContent('US$120,00≈ Rp1.962.000');
+  });
 });

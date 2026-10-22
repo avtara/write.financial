@@ -73,6 +73,15 @@ describe('AccountStrip', () => {
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('adds "≈ Rp…" under another account in a foreign currency', async () => {
+    const wise = { ...JAGO, id: 'acc-wise', displayName: 'Wise USD', currency: 'USD', balanceBaseMinor: 1_962_000n };
+    const { section } = await renderStrip(undefined, [...ACCOUNTS, wise]);
+    await userEvent.click(section.getByRole('button', { name: /3 lainnya/ }));
+    const others = page.getByRole('dialog', { name: 'Rekening lainnya' });
+    await expect.element(others.getByRole('button', { name: /Wise USD/ })).toMatchTextContent(/≈ Rp1\.962\.000$/);
+    expect(others.getByRole('button', { name: /Bank Jago/ }).element().textContent).not.toContain('≈');
+  });
+
   it('marks the chosen other accounts', async () => {
     const { section } = await renderStrip(`${JAGO.id},${OVO.id}`);
     await userEvent.click(section.getByRole('button', { name: /2 lainnya/ }));

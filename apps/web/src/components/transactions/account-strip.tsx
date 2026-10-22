@@ -17,6 +17,7 @@ import { listParamOf, listValues } from '../../lib/transactions-search.ts';
 import type { TransactionsView } from '../../server/fn/transactions.ts';
 import { AccountCards } from '../accounts/account-cards.tsx';
 import { AccountLogo } from '../accounts/account-logo.tsx';
+import { ApproxBalance } from '../accounts/approx-balance.tsx';
 import { usePreferences } from '../preferences.tsx';
 
 export interface AccountStripProps {
@@ -143,13 +144,16 @@ export function AccountStrip({ accounts, baseCurrency, availableMinor, view, sel
                       {m.transactions_summary_count({ count: counts.get(account.id) ?? 0 })}
                     </span>
                   </span>
-                  <Money
-                    minor={account.balanceMinor}
-                    currency={account.currency}
-                    context="amount"
-                    locale={locale}
-                    className="text-[12.5px] text-fg"
-                  />
+                  <span className="flex shrink-0 flex-col items-end">
+                    <Money
+                      minor={account.balanceMinor}
+                      currency={account.currency}
+                      context="amount"
+                      locale={locale}
+                      className="text-[12.5px] text-fg"
+                    />
+                    <ApproxBalance account={account} baseCurrency={baseCurrency} />
+                  </span>
                 </button>
               </li>
             ))}

@@ -52,6 +52,61 @@ test('the summary, account cards, and the By day table show the seeded October',
   await screenshot(page, 'transactions-1440');
 });
 
+test('the daily spending chart has one name and a tooltip per day on hover and keyboard focus', async ({ page }) => {
+  await open(page);
+  const summary = page.getByRole('region', { name: 'Ringkasan transaksi' });
+  await expect(summary.getByRole('heading', { name: 'Pengeluaran harian', exact: true })).toBeVisible();
+  await expect(summary.getByText('Pengeluaran per hari')).toHaveCount(0);
+  const days = summary.getByRole('list', { name: 'Grafik pengeluaran harian, 15 hari' }).getByRole('listitem');
+  await expect(days).toHaveCount(15);
+
+  await days.first().hover();
+  const tooltip = page.getByRole('tooltip');
+  await expect(tooltip).toContainText(/^Kamis, 1 OktRp[\d.]+$/);
+  await page.keyboard.press('Escape');
+  await expect(tooltip).toHaveCount(0);
+
+  // One tab stop on the latest day; the arrow keys move between days.
+  await days.last().focus();
+  await expect(tooltip).toContainText(/^Kamis, 15 OktRp[\d.]+$/);
+  await page.keyboard.press('ArrowLeft');
+  await expect(days.nth(13)).toBeFocused();
+  await expect(tooltip).toContainText(/^Rabu, 14 OktRp[\d.]+$/);
+  await expect(days.nth(13)).toHaveAttribute('tabindex', '0');
+  await expect(days.last()).toHaveAttribute('tabindex', '-1');
+  await screenshot(page, 'transactions-daily-tooltip');
+});
+
+test('a filter change refreshes the table without moving the page', async ({ page }) => {
+  await open(page);
+  const region = table(page);
+  const top = async () => (await region.boundingBox())?.y;
+  const before = await top();
+  expect(before).toBeDefined();
+  // Hold the reload so the refreshing state can be measured.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/_serverFn/**', async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.getByRole('button', { name: /^Kategori/ }).click();
+  const popover = page.getByRole('dialog', { name: 'Kategori' });
+  await popover.getByLabel('Transportasi').check();
+  await popover.getByRole('button', { name: /^Tampilkan/ }).click();
+  await expect(region).toHaveAttribute('aria-busy', 'true');
+  await expect(page.getByRole('status').filter({ hasText: 'Memperbarui transaksi…' })).toBeVisible();
+  expect(await top()).toBe(before);
+  await screenshot(page, 'transactions-refreshing');
+  release();
+  await expect(region).toHaveAttribute('aria-busy', 'false');
+  await expect(row(page, 'Grab')).toBeVisible();
+  expect(await top()).toBe(before);
+  await page.unroute('**/_serverFn/**');
+});
+
 test('filters and search live in the URL', async ({ page }) => {
   await open(page);
   await page.getByRole('button', { name: /^Kategori/ }).click();

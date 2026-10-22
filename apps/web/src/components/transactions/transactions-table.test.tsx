@@ -94,6 +94,7 @@ function Harness(props: {
   onSearchChange: (patch: Partial<TransactionsSearch>) => void;
   onOpen: (id: string) => void;
   selectedId?: string;
+  busy?: boolean;
 }) {
   const [current, setCurrent] = useState(props.initial);
   useEffect(() => {
@@ -105,6 +106,7 @@ function Harness(props: {
       search={props.search}
       ledger={LEDGER}
       timeZone="Asia/Jakarta"
+      busy={props.busy === true}
       {...(props.selectedId === undefined ? {} : { selectedId: props.selectedId })}
       onOpen={props.onOpen}
       onSearchChange={props.onSearchChange}
@@ -113,7 +115,7 @@ function Harness(props: {
   );
 }
 
-async function renderTable(initial = view(), search: TransactionsSearch = {}, selectedId?: string) {
+async function renderTable(initial = view(), search: TransactionsSearch = {}, selectedId?: string, busy = false) {
   const onSearchChange = vi.fn();
   const onOpen = vi.fn();
   const { screen } = await renderApp(
@@ -122,6 +124,7 @@ async function renderTable(initial = view(), search: TransactionsSearch = {}, se
       search={search}
       onSearchChange={onSearchChange}
       onOpen={onOpen}
+      busy={busy}
       {...(selectedId === undefined ? {} : { selectedId })}
     />,
   );
@@ -164,6 +167,12 @@ describe('TransactionsTable', () => {
     await expect.element(row('Gojek')).toHaveAttribute('tabindex', '-1');
     await expect.element(table.getByText('Menampilkan 4 dari 4 transaksi')).toBeVisible();
     await expect.element(table.getByText(/^Dicari di/)).not.toBeInTheDocument();
+    await expect.element(table).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('marks the region busy while the route reloads', async () => {
+    const { table } = await renderTable(view(), {}, undefined, true);
+    await expect.element(table).toHaveAttribute('aria-busy', 'true');
   });
 
   it('switches views; Per hari also drops an amount sort', async () => {

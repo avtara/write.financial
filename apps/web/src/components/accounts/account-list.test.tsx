@@ -99,6 +99,11 @@ describe('AccountList', () => {
     await expect.element(investment.getByText('tidak dihitung di saldo tersedia')).toBeVisible();
     expect(investment.element().textContent).toContain('≈ Rp45.420.300');
     expect(investment.element().textContent).toContain('US$2.778,00');
+    // The foreign row says what it is worth in rupiah; base-currency rows do not.
+    await expect
+      .element(investment.getByRole('button', { name: /^Gotrade/ }))
+      .toMatchTextContent(/US\$2\.778,00≈ Rp45\.420\.300$/);
+    expect(bank.element().textContent).not.toContain('≈');
     await expect.element(screen.getByRole('button', { name: /^BCA Tahapan/ })).toHaveAttribute('aria-current', 'true');
     await userEvent.click(screen.getByRole('button', { name: /^Mandiri/ }));
     expect(onSelect).toHaveBeenCalledWith(MANDIRI);

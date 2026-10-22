@@ -55,6 +55,7 @@ import { Button } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
 import type { AccountFlag } from './account-detail.tsx';
 import { AccountLogo } from './account-logo.tsx';
+import { ApproxBalance } from './approx-balance.tsx';
 
 export interface AccountActions {
   readonly onSelect: (account: AccountView) => void;
@@ -178,6 +179,7 @@ export function AccountList({
                     <SortableRow
                       key={account.id}
                       account={account}
+                      baseCurrency={baseCurrency}
                       selected={account.id === selectedId}
                       cardsFull={cardsFull}
                       {...actions}
@@ -205,6 +207,7 @@ function rowMeta(account: AccountView): string {
 
 function SortableRow({
   account,
+  baseCurrency,
   selected,
   cardsFull,
   onSelect,
@@ -212,7 +215,7 @@ function SortableRow({
   onReconcile,
   onArchive,
   onToggle,
-}: AccountActions & { account: AccountView; selected: boolean; cardsFull: boolean }) {
+}: AccountActions & { account: AccountView; baseCurrency: string; selected: boolean; cardsFull: boolean }) {
   const { preferences } = usePreferences();
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -255,13 +258,16 @@ function SortableRow({
           </span>
           <span className="truncate text-[11.5px] text-subtle">{rowMeta(account)}</span>
         </span>
-        <Money
-          minor={account.balanceMinor}
-          currency={account.currency}
-          context="amount"
-          locale={preferences.locale}
-          className="text-[13.5px] font-medium text-fg"
-        />
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <Money
+            minor={account.balanceMinor}
+            currency={account.currency}
+            context="amount"
+            locale={preferences.locale}
+            className="text-[13.5px] font-medium text-fg"
+          />
+          <ApproxBalance account={account} baseCurrency={baseCurrency} />
+        </span>
       </button>
       <div>
         <DropdownMenu>
