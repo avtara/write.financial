@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { JOBS, type JobQueue } from '@wf/jobs/queues';
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { fakeDeps } from '../test/fakes.ts';
 import { PROCESSORS } from './processors.ts';
 
@@ -37,6 +37,17 @@ describe('PROCESSORS', () => {
     const run = PROCESSORS.fx.create(fakeDeps());
     // The payload is validated before any request, so this never reaches the network.
     await expect(run({ id: 'x', data: { userId: 'u1' }, attemptsMade: 0 })).rejects.toThrow();
+    // Offline: every source fails, and each failed request is logged as a built-in fetch.
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')));
+    try {
+      const deps = fakeDeps();
+      await expect(PROCESSORS.fx.create(deps)({ id: 'x', data: {}, attemptsMade: 0 })).rejects.toThrow(
+        /No FX reference rate available/,
+      );
+      expect(deps.db.calls.filter((call) => call.method === 'marketData.logRequest').length).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it.each([
