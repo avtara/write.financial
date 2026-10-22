@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "usage_limit_reached",
+    "message": "Your monthly usage limit has been reached. Please upgrade your Subscription Plan."
+  }
+}

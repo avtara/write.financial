@@ -5,9 +5,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import * as z from 'zod';
 import { FX_TIMEOUT_MS, FxProviderError, getJson, toRate } from './provider.ts';
 
-const URL_ = 'https://rates.example/v1/latest';
+const URL_ = 'https://api.frankfurter.dev/v2/rates';
 const schema = z.object({ rate: z.number() });
-const base = { provider: 'frankfurter', hosts: ['rates.example'], schema } as const;
+const base = { provider: 'frankfurter', schema } as const;
 
 const requests: Request[] = [];
 const server = setupServer(
@@ -45,8 +45,12 @@ describe('getJson', () => {
     await expect(getJson('https://evil.example/v1/latest', base)).rejects.toThrow(
       new FxProviderError('frankfurter', 'egress to https://evil.example is not allowed'),
     );
-    await expect(getJson('http://rates.example/v1/latest', base)).rejects.toThrow(
-      'frankfurter: egress to http://rates.example is not allowed',
+    await expect(getJson('http://api.frankfurter.dev/v2/rates', base)).rejects.toThrow(
+      'frankfurter: egress to http://api.frankfurter.dev is not allowed',
+    );
+    // Another source's host is outside this one's allowlist.
+    await expect(getJson('https://open.er-api.com/v6/latest/USD', base)).rejects.toThrow(
+      'frankfurter: egress to https://open.er-api.com is not allowed',
     );
     expect(requests).toHaveLength(0);
   });
@@ -86,6 +90,38 @@ describe('getJson', () => {
     const offline = new TypeError('fetch failed');
     const failing = (() => Promise.reject(offline)) as unknown as typeof fetch;
     await expect(getJson(URL_, { ...base, fetch: failing })).rejects.toMatchObject({ cause: offline });
+  });
+
+  it('reports every request it sent, with the path only, for the API log', async () => {
+    const calls: unknown[] = [];
+    const onCall = (call: unknown) => calls.push(call);
+    await getJson(`${URL_}?base=USD`, { ...base, onCall });
+    server.use(http.get(URL_, () => HttpResponse.json({}, { status: 404 })));
+    await getJson(URL_, { ...base, onCall, notFound: [404] });
+    server.use(http.get(URL_, () => HttpResponse.json({}, { status: 503 })));
+    await getJson(URL_, { ...base, onCall }).catch(() => undefined);
+    server.use(http.get(URL_, () => HttpResponse.text('<html>')));
+    await getJson(URL_, { ...base, onCall }).catch(() => undefined);
+    server.use(http.get(URL_, () => HttpResponse.json({ rate: 'x' })));
+    await getJson(URL_, { ...base, onCall }).catch(() => undefined);
+    const failing = (() => Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch;
+    await getJson(URL_, { ...base, onCall, fetch: failing }).catch(() => undefined);
+    const call = (httpStatus: number | null, errorCode: string | null) => ({
+      provider: 'frankfurter',
+      endpoint: 'GET /v2/rates',
+      httpStatus,
+      ok: errorCode === null,
+      durationMs: expect.any(Number) as number,
+      errorCode,
+    });
+    expect(calls).toEqual([
+      call(200, null),
+      call(404, null),
+      call(503, 'http_503'),
+      call(200, 'not_json'),
+      call(200, 'unexpected_body'),
+      call(null, 'network'),
+    ]);
   });
 });
 

@@ -64,7 +64,6 @@ export function createFrankfurter(options: FxProviderOptions = {}): FxProvider {
     const answer = await getJson(url, {
       ...options,
       provider: 'frankfurter',
-      hosts,
       schema: rows,
       notFound: [404, 422],
     });

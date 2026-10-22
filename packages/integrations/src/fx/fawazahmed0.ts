@@ -40,7 +40,6 @@ export function createFawazahmed0(options: FxProviderOptions = {}): FxProvider {
           const file = await getJson(`${url}${key}.min.json`, {
             ...options,
             provider: 'fawazahmed0',
-            hosts,
             schema,
             notFound: [404],
           });

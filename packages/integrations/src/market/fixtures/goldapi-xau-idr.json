@@ -1,0 +1,18 @@
+{
+  "timestamp": 1792054800,
+  "metal": "XAU",
+  "currency": "IDR",
+  "exchange": "FOREXCOM",
+  "symbol": "FOREXCOM:XAUIDR",
+  "prev_close_price": 75000000.12,
+  "open_price": 75010000.0,
+  "low_price": 74900000.0,
+  "high_price": 75600000.0,
+  "open_time": 1792108800,
+  "price": 75442309.12,
+  "ch": 442309.0,
+  "chp": 0.59,
+  "ask": 75443000.0,
+  "bid": 75441000.0,
+  "price_gram_24k": 2425527.79
+}

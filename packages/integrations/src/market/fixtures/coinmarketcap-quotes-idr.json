@@ -1,0 +1,46 @@
+{
+  "status": {
+    "timestamp": "2026-10-15T09:40:12.511Z",
+    "error_code": 0,
+    "error_message": null,
+    "elapsed": 21,
+    "credit_count": 1,
+    "notice": null
+  },
+  "data": {
+    "BTC": [
+      {
+        "id": 1,
+        "name": "Bitcoin",
+        "symbol": "BTC",
+        "slug": "bitcoin",
+        "quote": {
+          "IDR": {
+            "price": 1459802000.0,
+            "volume_24h": 510000000000000.0,
+            "percent_change_1h": 0.1,
+            "percent_change_24h": 2.5,
+            "market_cap": 2.9e16,
+            "last_updated": "2026-10-15T09:39:00.000Z"
+          }
+        }
+      }
+    ],
+    "ETH": [
+      {
+        "id": 1027,
+        "name": "Ethereum",
+        "symbol": "ETH",
+        "slug": "ethereum",
+        "quote": {
+          "IDR": {
+            "price": 61234000.5,
+            "percent_change_24h": -1.2,
+            "last_updated": "2026-10-15T09:39:00.000Z"
+          }
+        }
+      }
+    ],
+    "SOL": []
+  }
+}

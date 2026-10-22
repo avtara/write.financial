@@ -1,0 +1,9 @@
+{
+  "status": {
+    "timestamp": "2026-10-15T09:40:12.511Z",
+    "error_code": 1010,
+    "error_message": "You've exceeded your API Key's HTTP request rate limit. Rate limits reset at the start of each calendar month.",
+    "elapsed": 0,
+    "credit_count": 0
+  }
+}

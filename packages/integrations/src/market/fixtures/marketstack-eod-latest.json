@@ -1,0 +1,32 @@
+{
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "count": 2,
+    "total": 2
+  },
+  "data": [
+    {
+      "open": 8700.0,
+      "high": 8800.0,
+      "low": 8675.0,
+      "close": 8750.0,
+      "volume": 51234500.0,
+      "adj_close": 8750.0,
+      "symbol": "BBCA.XIDX",
+      "exchange": "XIDX",
+      "date": "2026-10-14T00:00:00+0000"
+    },
+    {
+      "open": 4200.0,
+      "high": 4260.0,
+      "low": 4190.0,
+      "close": 4230.0,
+      "volume": 91234500.0,
+      "adj_close": 4230.0,
+      "symbol": "BBRI.XIDX",
+      "exchange": "XIDX",
+      "date": "2026-10-14T00:00:00+0000"
+    }
+  ]
+}

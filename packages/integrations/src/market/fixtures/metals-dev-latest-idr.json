@@ -1,0 +1,18 @@
+{
+  "status": "success",
+  "currency": "IDR",
+  "unit": "toz",
+  "metals": {
+    "gold": 75442309.1,
+    "silver": 881234.5,
+    "platinum": 28123456.7,
+    "palladium": 17123456.7
+  },
+  "currencies": {
+    "USD": 16350.0
+  },
+  "timestamps": {
+    "metal": "2026-10-16T08:59:00.000Z",
+    "currency": "2026-10-16T08:59:00.000Z"
+  }
+}
