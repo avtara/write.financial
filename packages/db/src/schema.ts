@@ -2320,6 +2320,33 @@ export const marketApiLogs = pgTable(
   ],
 );
 
+/** What a built-in source's state can be: a key status, or no operator key configured (CoinMarketCap). */
+export const PROVIDER_STATE_STATUSES = [...CREDENTIAL_STATUSES, 'unconfigured'] as const;
+
+/**
+ * The state of each built-in source (FR-ST4 "Aktif · jam", "Kuota habis s.d. …"; global, written by the worker): paused
+ * after a 429 until `paused_until`, and CoinMarketCap's credits used this month (`credit_count`, 15 000 a month).
+ */
+export const marketProviderState = pgTable(
+  'market_provider_state',
+  {
+    provider: marketProvider('provider').primaryKey(),
+    status: varchar('status', { length: 16, enum: PROVIDER_STATE_STATUSES }).notNull(),
+    pausedUntil: timestamptz('paused_until'),
+    quotaUsed: integer('quota_used').notNull().default(0),
+    quotaLimit: integer('quota_limit'),
+    quotaResetAt: timestamptz('quota_reset_at'),
+    updatedAt: timestamptz('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'market_provider_state_status_check',
+      sql.raw(`status in (${PROVIDER_STATE_STATUSES.map((status) => `'${status}'`).join(', ')})`),
+    ),
+    check('market_provider_state_quota_check', sql`${table.quotaUsed} >= 0`),
+  ],
+);
+
 /** Portfolio value per day (the growth chart, FR-I3): daily by the worker, kept at month ends. */
 export const portfolioSnapshots = pgTable(
   'portfolio_snapshots',

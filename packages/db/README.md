@@ -107,6 +107,7 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `user_quotes` | S D | S I U D | – | – | own rows (BYOK results never shared) |
 | `market_quotes` (view `market_quotes_latest`: S for `wf_app`, `wf_worker`) | – | S I U | – | – | built-in sources only, global; `wf_migrate` reads it for the view |
 | `market_api_logs` | S I | S I | – | – | own rows + built-in fetches (`user_id` null) |
+| `market_provider_state` | S | S I U | – | – | global (built-in sources' pause and credits, no user data) |
 | `portfolio_snapshots` | S I U | S I U | – | – | own rows |
 | `scheduled_occurrences`                                    | S I U D                        | S I, U(`status`, `remind_at`, `reminded_at`, `expected_minor`, `updated_at`) | – | – | own rows; `wf_migrate`: dispatch scan (S)        |
 | `detected_recurring`                                       | S I U D                        | S I U        | –                 | –                        | own rows                                                 |
@@ -142,6 +143,9 @@ M3 adds four for the worker's scanners: `wf_worker_users() → (user_id, time_zo
 bigint` (FR-S5 90-day retention, `now` capped like the auth purge; outbox rows cascade). They return ids and time zones
 only; `wf_migrate` has SELECT policies on `scheduled_occurrences`, `notification_outbox`, and `notifications` (plus
 DELETE on `notifications`) for them.
+M5 adds two for the market jobs: `wf_market_server_targets() → (market, symbol, quote_currency)` (the union of
+every user's crypto and gold symbols the built-in sources price) and `wf_market_byok_users() → (user_id, time_zone)`
+(users with an active BYOK key); `wf_migrate` has SELECT policies on `assets` and `market_credentials` for them.
 
 Ledger rows reference their parents with composite `(user_id, id)` foreign keys, so a row can never point at another
 user's account, category, transaction, or tag (foreign-key checks bypass RLS). A trigger limits a transaction to five
