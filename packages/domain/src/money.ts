@@ -161,3 +161,25 @@ export function splitEvenly(totalMinor: bigint, count: number): bigint[] {
   const base = totalMinor / BigInt(count);
   return Array.from({ length: count }, (_, index) => (index === 0 ? totalMinor - base * BigInt(count - 1) : base));
 }
+
+/**
+ * `total` (any sign) split by `weightsBps` (Σ = 10 000) with the largest remainder, ties to the earlier weight; the
+ * parts add up to `total` exactly (goal shares of an asset FR-G2, rebalancing targets FR-I3).
+ */
+export function splitByBps(total: bigint, weightsBps: readonly number[]): bigint[] {
+  const magnitude = total < 0n ? -total : total;
+  const parts = weightsBps.map((weight, index) => {
+    const exact = magnitude * BigInt(weight);
+    return { index, part: exact / 10_000n, remainder: exact % 10_000n };
+  });
+  let left = magnitude - parts.reduce((sum, { part }) => sum + part, 0n);
+  const byRemainder = [...parts].sort((a, b) =>
+    a.remainder === b.remainder ? a.index - b.index : a.remainder > b.remainder ? -1 : 1,
+  );
+  for (const entry of byRemainder) {
+    if (left === 0n) break;
+    entry.part += 1n;
+    left -= 1n;
+  }
+  return parts.map(({ part }) => (total < 0n ? -part : part));
+}
