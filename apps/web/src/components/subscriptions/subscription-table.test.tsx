@@ -133,7 +133,9 @@ describe('SubscriptionTable', () => {
       .toHaveAttribute('aria-current', 'true');
     // Investment accounts and archived ones do not pay subscriptions.
     await expect.element(accounts.getByRole('menuitem', { name: /Gotrade/ })).not.toBeInTheDocument();
-    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    // Focus the item itself rather than arrowing to it: where the focus lands as the submenu opens depends on timing.
+    (accounts.getByRole('menuitem', { name: /^OVO / }).element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
     expect(handlers.changeAccount).toHaveBeenCalledWith(S_CHATGPT, OVO);
   });
 
