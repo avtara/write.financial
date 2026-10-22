@@ -90,6 +90,8 @@ export const EXPECTED_CODES: readonly string[] = [
     'IMAGE_REJECTED',
     // A transaction already has the most attachments of that kind (FR-L4).
     'ATTACHMENT_LIMIT',
+    // "Tes koneksi" pressed too often for one market data provider within the hour (FR-ST4).
+    'MARKET_TEST_LIMIT',
     // Ledger repositories (`LedgerError`).
     ...LEDGER_ERROR_CODES,
   ]),

@@ -25,6 +25,10 @@ GRANT SELECT, INSERT, UPDATE ON market_provider_state TO wf_worker;
 --> statement-breakpoint
 GRANT SELECT ON market_provider_state TO wf_app;
 --> statement-breakpoint
+-- "Tes koneksi" and "Sinkronkan harga" run in the app with the user's own key (the result is shown at once), so the
+-- app stores those results too; the owner policy keeps them the user's own rows.
+GRANT INSERT, UPDATE ON user_quotes TO wf_app;
+--> statement-breakpoint
 -- The scans below run once for every user, so they cannot set `app.user_id`: SECURITY DEFINER functions (owner
 -- wf_migrate, which these read policies let through) that return symbols, currencies, ids, and time zones only.
 CREATE POLICY assets_market_targets ON assets FOR SELECT TO wf_migrate USING (true);

@@ -22,6 +22,9 @@ import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createGoals, type GoalsRepository } from '@wf/db/goals';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvitations } from '@wf/db/invitations';
+import { createMarketCredentials, type MarketCredentialsRepository } from '@wf/db/market-credentials';
+import { createMarketData, type MarketDataRepository } from '@wf/db/market-data';
+import { createMarketJobs, type MarketJobs } from '@wf/db/market-jobs';
 import {
   createNotifications,
   createNotificationSettings,
@@ -45,6 +48,7 @@ import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
 import { createInstanceMailer, instanceSmtp, sendWith } from '@wf/integrations/instance-mailer';
 import type { Mailer } from '@wf/integrations/mailer';
+import { createMarketAdapters, type MarketAdapters } from '@wf/integrations/market/adapters';
 import { createObjectStore, type ObjectStore } from '@wf/integrations/objectstore';
 import { Redis } from 'ioredis';
 import { pino, type Logger } from 'pino';
@@ -120,6 +124,14 @@ export interface Services extends BaseRuntime {
   readonly debts: DebtsRepository;
   /** Receivables (M4); the Debts page reads their total. */
   readonly receivables: ReceivablesRepository;
+  /** Market data (M5, FR-I5/I6): quotes, the user's own-key results, the request log. */
+  readonly marketData: MarketDataRepository;
+  /** Settings › "API kurs & pasar": the user's keys (FR-ST4). */
+  readonly marketCredentials: MarketCredentialsRepository;
+  /** Sync targets, the decrypted key for a request, tests per hour, the built-in sources' state. */
+  readonly marketJobs: MarketJobs;
+  /** Quote adapters (egress-allowlisted) for "Tes koneksi" and "Sinkronkan harga" with the user's key. */
+  readonly marketAdapters: MarketAdapters;
   readonly mailer: Mailer;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
@@ -181,6 +193,10 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     goals: createGoals(appDb, { getDek, now }),
     debts: createDebts(appDb, { getDek, now }),
     receivables: createReceivables(appDb, { getDek, now }),
+    marketData: createMarketData(appDb, { now }),
+    marketCredentials: createMarketCredentials(appDb, { getDek, now }),
+    marketJobs: createMarketJobs(appDb, { getDek }),
+    marketAdapters: createMarketAdapters(),
     mailer,
     sendWith,
     invite: createInviter({

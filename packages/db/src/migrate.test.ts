@@ -119,7 +119,7 @@ const GRANTS = {
   user_plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   user_preferences: { wf_app: 'INSERT,SELECT,UPDATE', wf_worker: 'SELECT' },
   // Deleted with the provider's key (app); written by the BYOK polling (worker).
-  user_quotes: { wf_app: 'DELETE,SELECT', wf_worker: ALL },
+  user_quotes: { wf_app: ALL, wf_worker: ALL },
   users: { wf_app: `SELECT,UPDATE(${PROFILE_COLUMNS})`, wf_auth: ALL, wf_worker: 'SELECT' },
   verifications: { wf_auth: ALL },
 };
