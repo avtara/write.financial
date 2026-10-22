@@ -30,9 +30,9 @@ export function TransactionSummary({ view, currency }: TransactionSummaryProps) 
   return (
     <section
       aria-label={m.transactions_summary_label()}
-      className="grid grid-cols-2 divide-border overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-4 lg:divide-x"
+      className="grid grid-cols-2 overflow-hidden rounded-[12px] border border-border bg-card md:grid-cols-3 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,2fr)]"
     >
-      <div className={CARD}>
+      <div className={`${CARD} border-border md:border-r`}>
         <h2 className={LABEL}>
           <span aria-hidden="true" className="size-1.5 rounded-full bg-green" />
           {m.transactions_summary_in()}
@@ -45,7 +45,7 @@ export function TransactionSummary({ view, currency }: TransactionSummaryProps) 
         />
         <p className="text-[12px] text-subtle">{m.transactions_summary_count({ count: summary.inCount })}</p>
       </div>
-      <div className={CARD}>
+      <div className={`${CARD} border-border md:border-r`}>
         <h2 className={LABEL}>
           <span aria-hidden="true" className="size-1.5 rounded-full bg-red" />
           {m.transactions_summary_out()}
@@ -59,7 +59,7 @@ export function TransactionSummary({ view, currency }: TransactionSummaryProps) 
         />
         <p className="text-[12px] text-subtle">{m.transactions_summary_count({ count: summary.outCount })}</p>
       </div>
-      <div className={CARD}>
+      <div className={`${CARD} border-border xl:border-r`}>
         <h2 className={LABEL}>
           <span aria-hidden="true" className="size-1.5 rounded-full bg-subtle" />
           {m.transactions_summary_transfer()}
@@ -75,14 +75,20 @@ export function TransactionSummary({ view, currency }: TransactionSummaryProps) 
           {m.transactions_summary_transfer_note({ count: summary.transferCount })}
         </p>
       </div>
-      <div className={`${CARD} gap-2`}>
-        <h2 className="flex items-center justify-between gap-2 text-[12.5px] text-muted-fg">
-          {m.transactions_summary_daily()}
-          <span className="font-mono text-[11px] text-subtle">
-            {m.transactions_summary_average()}{' '}
-            <Money minor={averageMinor} currency={currency} context="amount" locale={locale} />
-          </span>
-        </h2>
+      <div className={`${CARD} col-span-2 gap-2 border-t border-border md:col-span-3 xl:col-span-1 xl:border-t-0`}>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-[12.5px] text-muted-fg">{m.transactions_summary_daily()}</h2>
+          {/* The legend of the dashed average line in the chart. */}
+          <p className="flex items-center gap-1.5 font-mono text-[11.5px] whitespace-nowrap text-subtle">
+            <svg aria-hidden="true" viewBox="0 0 12 2" className="h-0.5 w-3 shrink-0">
+              <line x1={0} x2={12} y1={1} y2={1} strokeDasharray="3 2" strokeWidth={1} className="stroke-muted-fg" />
+            </svg>
+            <span>
+              {m.transactions_summary_average()}{' '}
+              <Money minor={averageMinor} currency={currency} context="amount" locale={locale} />
+            </span>
+          </p>
+        </div>
         <DailyChart days={summary.dailySpend} averageMinor={averageMinor} currency={currency} today={view.today} />
       </div>
     </section>

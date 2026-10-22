@@ -41,6 +41,33 @@ describe('AccountCards', () => {
     expect(onShowOthers).toHaveBeenCalled();
   });
 
+  it('adds "≈ Rp…" under a balance in another currency when a rate is known', async () => {
+    const wise = accountView({
+      id: 'wise',
+      displayName: 'Wise USD',
+      currency: 'USD',
+      showAsCard: true,
+      balanceMinor: 12_000n,
+      balanceBaseMinor: 1_962_000n,
+    });
+    const unknown = accountView({
+      id: 'sgd',
+      displayName: 'DBS SGD',
+      currency: 'SGD',
+      showAsCard: true,
+      balanceBaseMinor: null,
+    });
+    const bca = accountView({ id: 'bca', displayName: 'BCA', showAsCard: true });
+    const { screen } = await renderApp(
+      <AccountCards accounts={[wise, unknown, bca]} baseCurrency="IDR" onSelect={vi.fn()} onShowOthers={vi.fn()} />,
+    );
+    await expect
+      .element(screen.getByRole('button', { name: /Wise USD/ }))
+      .toMatchTextContent(/US\$120,00≈ Rp1\.962\.000/);
+    expect(screen.getByRole('button', { name: /DBS SGD/ }).element().textContent).not.toContain('≈');
+    expect(screen.getByRole('button', { name: /BCA/ }).element().textContent).not.toContain('≈');
+  });
+
   it('shows nothing without everyday accounts, and no "lainnya" card when all are cards', async () => {
     const { screen } = await renderApp(
       <AccountCards

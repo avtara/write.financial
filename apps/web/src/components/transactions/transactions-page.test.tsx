@@ -31,10 +31,15 @@ vi.mock('../../server/fn/transactions.ts', () => ({ listTransactionRows: vi.fn()
  */
 vi.mock('./transactions-table.tsx', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  TransactionsTable: (props: { selectedId?: string; onOpen: (id: string) => void; filters: ReactNode }) => {
+  TransactionsTable: (props: {
+    selectedId?: string;
+    busy: boolean;
+    onOpen: (id: string) => void;
+    filters: ReactNode;
+  }) => {
     fake.table(props);
     return (
-      <section aria-label="table" data-selected={props.selectedId ?? 'none'}>
+      <section aria-label="table" aria-busy={props.busy} data-selected={props.selectedId ?? 'none'}>
         <button
           type="button"
           onClick={() => {
@@ -125,6 +130,7 @@ describe('TransactionsPage', () => {
     await expect.element(screen.getByText('128 transaksi di 1 rekening · 1–15 Okt')).toBeVisible();
     await expect.element(screen.getByRole('region', { name: 'Ringkasan transaksi' })).toBeVisible();
     await expect.element(screen.getByText('Memperbarui transaksi…')).not.toBeInTheDocument();
+    await expect.element(screen.getByRole('region', { name: 'table' })).toHaveAttribute('aria-busy', 'false');
     await expect.element(screen.getByRole('region', { name: 'table' })).toHaveAttribute('data-selected', 'none');
     await expect.element(screen.getByText('filters')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: /Catat Transaksi/ }));
@@ -179,7 +185,11 @@ describe('TransactionsPage', () => {
     fake.loading = true;
     const view = transactionsView([], { page: { rows: [], total: 49, balances: null } });
     const { screen } = await renderPage({ account: `${JAGO.id},acc-gone` }, view);
-    await expect.element(screen.getByText('Memperbarui transaksi…')).toBeInTheDocument();
+    const status = screen.getByRole('status').filter({ hasText: 'Memperbarui transaksi…' });
+    await expect.element(status).toBeVisible();
+    await expect.element(screen.getByRole('region', { name: 'table' })).toHaveAttribute('aria-busy', 'true');
+    // An overlay over the table's top edge: the note is out of the flow, so the page does not move.
+    expect(status.element().parentElement?.parentElement?.className).toContain('absolute');
     await expect.element(screen.getByText('Difilter: Bank Jago · 49 transaksi · 1–15 Okt')).toBeVisible();
   });
 

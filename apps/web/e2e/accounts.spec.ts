@@ -31,6 +31,9 @@ test('the seeded persona shows the available balance and the accounts at 1440', 
   await expect(kpis.getByText('Rp55.023.000')).toBeVisible();
   await expect(page.getByText('11 rekening · 6 untuk belanja, 5 platform investasi')).toBeVisible();
   await expect(row(page, 'BCA Tahapan')).toContainText('Rp42.810.000');
+  // A balance in another currency also reads in rupiah at the current rate (US$2.778 × Rp16.350).
+  await expect(row(page, 'Gotrade')).toContainText('US$2.778,00≈ Rp45.420.300');
+  await expect(row(page, 'BCA Tahapan')).not.toContainText('≈');
   const detail = page.getByRole('complementary', { name: 'Detail rekening' });
   await expect(detail.getByRole('heading', { name: 'BCA Tahapan' })).toBeVisible();
   await expect(detail.getByRole('img', { name: 'Saldo 6 bulan' })).toBeVisible();

@@ -36,10 +36,11 @@ describe('TransactionSummary', () => {
     await expect.element(summary.getByText('41 transaksi', { exact: true })).toBeVisible();
     await expect.element(summary.getByText('Rp3.000.000')).toBeVisible();
     await expect.element(summary.getByText('3 transaksi · tidak dihitung')).toBeVisible();
-    const daily = summary.getByRole('heading', { name: /Pengeluaran harian/ });
-    await expect.element(daily).toMatchTextContent(/rata-rata/);
-    await expect.element(daily.getByText('Rp1.100.000')).toBeVisible();
-    await expect.element(summary.getByRole('img', { name: 'Grafik pengeluaran harian, 3 hari' })).toBeVisible();
+    await expect.element(summary.getByRole('heading', { name: 'Pengeluaran harian', exact: true })).toBeVisible();
+    await expect.element(summary.getByText(/^rata-rata Rp1\.100\.000$/)).toBeVisible();
+    await expect.element(summary.getByRole('list', { name: 'Grafik pengeluaran harian, 3 hari' })).toBeVisible();
+    // One name for the chart: no second visible "Pengeluaran per hari" label.
+    await expect.element(summary.getByText('Pengeluaran per hari')).not.toBeInTheDocument();
   });
 
   it('averages zero before the first day', async () => {
@@ -50,6 +51,7 @@ describe('TransactionSummary', () => {
     const { screen } = await renderApp(<TransactionSummary view={view} currency="IDR" />, {
       preferences: { locale: 'en' },
     });
-    await expect.element(screen.getByRole('heading', { name: /Daily spending/ }).getByText('Rp0')).toBeVisible();
+    await expect.element(screen.getByRole('heading', { name: 'Daily spending', exact: true })).toBeVisible();
+    await expect.element(screen.getByText(/^average Rp0$/)).toBeVisible();
   });
 });

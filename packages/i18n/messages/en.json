@@ -3858,7 +3858,6 @@
       }
     }
   ],
-  "transactions_chart_caption": "Spending per day",
   "transactions_chart_label": "Daily spending chart, {days} days",
   "transactions_columns_account": "Account",
   "transactions_columns_amount": "Amount",
