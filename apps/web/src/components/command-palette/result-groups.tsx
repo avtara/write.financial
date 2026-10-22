@@ -12,6 +12,7 @@ import { Hash, Inbox, Receipt, Repeat, Shapes, Wallet, type LucideIcon } from 'l
 import type { ReactNode } from 'react';
 import { accountTypeLabel, categoryGroupLabel, categoryName } from '../../lib/ledger-labels.ts';
 import type { RecentEntityKind, SearchHits, SearchKind } from '../../lib/search.ts';
+import { openSettings } from '../settings/settings-sections.ts';
 
 /** What a result row shows. */
 export interface ResultView {
@@ -109,13 +110,13 @@ export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits
     icon: Shapes,
     recentKind: 'category',
     view: (hit) => ({ title: categoryName(hit), detail: withArchived(categoryGroupLabel(hit.group), hit.archived) }),
-    open: (_hit, navigate) => navigate({ to: '/settings/$section', params: { section: 'categories' } }),
+    open: (_hit, navigate) => navigate(openSettings('categories')),
   },
   tags: {
     heading: m.cmdk_group_tags,
     icon: Hash,
     recentKind: 'tag',
     view: (hit) => ({ title: `#${hit.slug}`, detail: m.cmdk_tag_usage({ count: hit.usageCount }) }),
-    open: (_hit, navigate) => navigate({ to: '/settings/$section', params: { section: 'tags' } }),
+    open: (_hit, navigate) => navigate(openSettings('tags')),
   },
 };

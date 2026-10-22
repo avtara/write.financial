@@ -7,6 +7,11 @@ import { renderApp } from '../../../test/render.tsx';
 import type { AccountHit, CategoryHit, ReviewHit, SubscriptionHit, TagHit, TransactionHit } from '../../lib/search.ts';
 import { RESULT_GROUPS, type ResultView } from './result-groups.tsx';
 
+// Opening Settings over the current page is `openSettings`' contract (tested there); here only the section matters.
+vi.mock('../settings/settings-sections.ts', () => ({
+  openSettings: (section: string) => ({ settingsOver: section }),
+}));
+
 const EXPENSE: TransactionHit = {
   id: 'tx-1',
   type: 'expense',
@@ -152,8 +157,8 @@ describe('RESULT_GROUPS', () => {
     expect(vi.mocked(navigate).mock.calls).toEqual([
       [{ to: '/accounts', search: { account: 'acc-bca' } }],
       [{ to: '/accounts', search: { account: 'acc-1' } }],
-      [{ to: '/settings/$section', params: { section: 'categories' } }],
-      [{ to: '/settings/$section', params: { section: 'tags' } }],
+      [{ settingsOver: 'categories' }],
+      [{ settingsOver: 'tags' }],
       [{ to: '/subscriptions', search: { subscription: 'sub-1' } }],
       [{ to: '/review', search: { item: 'rv-1' } }],
     ]);

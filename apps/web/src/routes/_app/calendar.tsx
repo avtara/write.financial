@@ -68,7 +68,8 @@ async function loadData(view: CalendarView, date: LocalDate, today: LocalDate): 
  */
 export const Route = createFileRoute('/_app/calendar')({
   validateSearch: SEARCH,
-  loaderDeps: ({ search }) => search,
+  // Its own keys only: opening Settings (the layout's `?settings=`) leaves the page loaded.
+  loaderDeps: ({ search: { view, date } }) => ({ view, date }),
   loader: async ({ deps, context }) => {
     const today = toLocalDate(new Date(), context.viewer.timezone);
     const view: CalendarView = deps.view ?? 'month';

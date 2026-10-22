@@ -45,7 +45,8 @@ export function ConfirmDialog({
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 bg-scrim" />
+        {/* z-50 like every modal layer, so it also covers a dialog it was opened from (Settings). */}
+        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
         <AlertDialog.Content
           onOpenAutoFocus={() => {
             // Radix only restores focus to an `AlertDialog.Trigger`; this dialog is opened by the caller,
@@ -56,7 +57,7 @@ export function ConfirmDialog({
             event.preventDefault();
             opener.current?.focus();
           }}
-          className="fixed top-1/2 left-1/2 flex w-[400px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-[8px] border border-border-dialog bg-dialog p-5 text-fg shadow-[0_16px_48px_var(--shadow)]"
+          className="fixed top-1/2 left-1/2 z-50 flex w-[400px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-[8px] border border-border-dialog bg-dialog p-5 text-fg shadow-[0_16px_48px_var(--shadow)]"
         >
           <AlertDialog.Title className="text-[15px] font-semibold">{title}</AlertDialog.Title>
           {/* Impact is part of the description, so screen readers announce it with the dialog. */}

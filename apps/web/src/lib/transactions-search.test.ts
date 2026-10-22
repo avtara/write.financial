@@ -103,8 +103,9 @@ describe('range params', () => {
 });
 
 describe('queryOf', () => {
-  it('drops view, tx, and unset keys', () => {
-    expect(queryOf({ period: '2026-10', account: ID, q: undefined, view: 'flat', tx: OTHER } as never)).toEqual({
+  it('drops view, tx, the layout keys (Settings), and unset keys', () => {
+    const search = { period: '2026-10', account: ID, q: undefined, view: 'flat', tx: OTHER, settings: 'tags' };
+    expect(queryOf(search as never)).toEqual({
       period: '2026-10',
       account: ID,
     });

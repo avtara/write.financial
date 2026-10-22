@@ -31,7 +31,8 @@ export const Route = createFileRoute('/_app/notifications')({
     from: date,
     to: date,
   }),
-  loaderDeps: ({ search }) => search,
+  // Its own keys only: opening Settings (the layout's `?settings=`) leaves the page loaded.
+  loaderDeps: ({ search: { filter, type, q, from, to } }) => ({ filter, type, q, from, to }),
   loader: async ({ deps, context }) => {
     // The server's day, so hydration renders the same day headings.
     const today = toLocalDate(new Date(), context.viewer.timezone);

@@ -128,16 +128,15 @@ export function rangeParamOf(from: LocalDate, to: LocalDate): string {
   return `${from}..${to}`;
 }
 
-/** Search keys that are not part of the query. */
-const PAGE_ONLY_KEYS: readonly string[] = ['view', 'tx'];
 /** Query keys that select the dates or the order, not a filter. */
 const NOT_FILTER_KEYS: readonly string[] = ['period', 'range', 'sort', 'tagMode'];
 
-/** Just the query part of the page's search (what the server functions take). */
+/**
+ * Just the query part of the page's search (what the server functions take): not the view, the open detail, or the
+ * layout's `?settings=`.
+ */
 export function queryOf(search: TransactionsSearch): TransactionsQuery {
-  return Object.fromEntries(
-    Object.entries(search).filter(([key, value]) => value !== undefined && !PAGE_ONLY_KEYS.includes(key)),
-  );
+  return Object.fromEntries(Object.entries(search).filter(([key, value]) => value !== undefined && key in QUERY_SHAPE));
 }
 
 /** Whether any filter beyond the date and the sort is set ("Hapus semua filter"); `tagMode` alone is none. */

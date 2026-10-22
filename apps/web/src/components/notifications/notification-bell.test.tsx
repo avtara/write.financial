@@ -49,6 +49,20 @@ describe('NotificationBell', () => {
     }
   });
 
+  it('puts the count on the icon’s top-right corner, clear of the bell, in both sizes', async () => {
+    for (const variant of ['sidebar', 'rail'] as const) {
+      const { screen } = await renderBell(12, variant);
+      const button = screen.getByRole('button', { name: 'Notifikasi, 12 baru' });
+      const icon = button.element().querySelector('svg')?.getBoundingClientRect();
+      const count = button.getByText('9+').element().getBoundingClientRect();
+      if (icon === undefined) throw new Error('bell icon missing');
+      // The bell's dome ends at 3/4 of the icon's width; the count stays right of it and above its shoulder.
+      expect(count.left).toBeGreaterThanOrEqual(icon.left + icon.width * 0.65);
+      expect(count.bottom).toBeLessThanOrEqual(icon.top + icon.height * 0.35);
+      await screen.unmount();
+    }
+  });
+
   it('lists the unread notifications by tab and day; an action opens its page and marks it read', async () => {
     server.listNotifications.mockResolvedValue(
       ok({ items: [NETFLIX_REMINDER, ICLOUD_OVERDUE, SYSTEM], nextCursor: null }),

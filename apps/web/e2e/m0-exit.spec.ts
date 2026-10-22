@@ -167,19 +167,41 @@ test('Settings › Security lists the devices and the history, and signs out the
   await expect(page.getByRole('heading', { level: 1, name: 'Selamat datang' })).toBeVisible();
   const other = await signInElsewhere(browser, admin);
 
+  // A deep link opens Settings as a dialog over the overview.
   await page.goto('/settings/security');
-  await expect(page.getByRole('heading', { name: 'Keamanan', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/\?settings=security$/);
+  const settings = page.getByRole('dialog', { name: 'Pengaturan' });
+  await expect(settings.getByRole('heading', { name: 'Keamanan', exact: true })).toBeVisible();
   await expect(page.getByText('Perangkat ini', { exact: true })).toBeVisible();
   await expect(page.getByText('Safari · iOS', { exact: true })).toBeVisible();
   await expect(page.getByText(/Akun dikunci/).first()).toBeVisible();
   await screenshot(page, 'settings-security-dark');
+  // The page behind it is inert: × closes it (opened by a link, it stays on the overview) to reach the user menu.
+  await settings.getByRole('button', { name: 'Tutup pengaturan' }).click();
+  await expect(settings).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
   await openUserMenu(page);
   await page.getByRole('menuitemradio', { name: 'Terang' }).click();
   await page.keyboard.press('Escape');
+  // "Pengaturan" in the user menu opens Profil & akun over the page; the section list switches to Keamanan.
+  await openUserMenu(page);
+  await page.getByRole('menuitem', { name: /^Pengaturan/ }).click();
+  await expect(page).toHaveURL(/\/\?settings=profile$/);
+  await expect(settings.getByRole('link', { name: 'Profil & akun' })).toBeFocused();
+  await settings.getByRole('link', { name: 'Keamanan' }).click();
+  await expect(page).toHaveURL(/\/\?settings=security$/);
+  await expect(page.getByText('Safari · iOS', { exact: true })).toBeVisible();
   await screenshot(page, 'settings-security-light');
+  // The browser's back closes it, back on the page it was opened over.
+  await page.goBack();
+  await expect(settings).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
   await openUserMenu(page);
   await page.getByRole('menuitemradio', { name: 'Gelap' }).click();
   await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+,');
+  await settings.getByRole('link', { name: 'Keamanan' }).click();
+  await expect(page).toHaveURL(/\/\?settings=security$/);
 
   await page.getByRole('button', { name: 'Keluar dari semua perangkat lain' }).click();
   await page

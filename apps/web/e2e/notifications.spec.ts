@@ -30,6 +30,12 @@ const popover = (page: Page) => page.getByRole('dialog', { name: 'Notifikasi' })
 test('the bell lists the reminder and the due bills; an action opens the Review queue', async ({ page }) => {
   await open(page, '/');
   await expect(bell(page)).toHaveAccessibleName(/^Notifikasi, \d+ baru$/);
+  // The count sits on the icon's top-right corner, right of and above the bell's dome, so the bell stays visible.
+  const icon = await bell(page).locator('svg').boundingBox();
+  const count = await bell(page).locator('span[aria-hidden="true"]').boundingBox();
+  if (icon === null || count === null) throw new Error('the bell or its count is not rendered');
+  expect(count.x).toBeGreaterThanOrEqual(icon.x + icon.width * 0.65);
+  expect(count.y + count.height).toBeLessThanOrEqual(icon.y + icon.height * 0.35);
   await bell(page).click();
   const panel = popover(page);
   await expect(panel.getByRole('tab', { name: /^Anggaran & tagihan/ })).toHaveAttribute('aria-selected', 'true');

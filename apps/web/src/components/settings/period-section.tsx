@@ -478,7 +478,7 @@ export function PeriodSection({ overview, payday }: PeriodSectionProps) {
         </fieldset>
       )}
 
-      <footer className="sticky bottom-0 z-10 -mx-7 -mb-[22px] flex flex-wrap items-center gap-2 border-t border-border bg-bg px-7 py-3">
+      <footer className="sticky bottom-0 z-10 -mx-7 -mb-[22px] flex flex-wrap items-center gap-2 border-t border-border bg-dialog px-7 py-3">
         <span
           role="status"
           className={`flex flex-1 items-center gap-1.5 text-[12px] ${dirty ? 'text-amber-fg' : 'text-subtle'}`}

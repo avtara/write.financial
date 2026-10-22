@@ -102,13 +102,18 @@ test('navigates with the G sequence, and opens from the tablet rail', async ({ p
   await page.keyboard.press('Escape');
   await expect(search).toBeFocused();
 
-  // A category opens Settings › Kategori.
+  // A category opens Settings › Kategori over the page; Escape returns to it.
   await page.keyboard.press('Control+k');
   await expect(dialog.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('makan');
   const category = dialog.getByRole('group', { name: /^Kategori/ }).getByRole('option', { name: /Makan & Dapur/ });
   await selectAndOpen(page, category);
-  await expect(page).toHaveURL(/\/settings\/categories$/);
+  await expect(page).toHaveURL(/\/\?settings=categories$/);
+  const settings = page.getByRole('dialog', { name: 'Pengaturan' });
+  await expect(settings.getByRole('heading', { name: 'Kategori', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(settings).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
 
   // An account opens it on "Rekening & dompet" (last: below 1280 px it opens the detail sheet).
   await page.keyboard.press('Control+k');

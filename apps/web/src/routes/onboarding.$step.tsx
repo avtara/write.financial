@@ -76,9 +76,7 @@ function OnboardingRoute() {
         <DoneStep
           view={view}
           onFinished={(target) => {
-            void navigate(
-              target === 'overview' ? { to: '/' } : { to: '/settings/$section', params: { section: 'profile' } },
-            );
+            void navigate(target === 'overview' ? { to: '/' } : { to: '/', search: { settings: 'profile' } });
           }}
         />
       ) : null}

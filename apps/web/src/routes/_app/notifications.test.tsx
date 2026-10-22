@@ -61,7 +61,7 @@ describe('/notifications', () => {
     });
     expect(search.parse({ filter: 'all', type: 'spam' })).toEqual({});
     const deps = Route.options.loaderDeps as unknown as (options: { search: object }) => object;
-    expect(deps({ search: { q: 'x' } })).toEqual({ q: 'x' });
+    expect(deps({ search: { q: 'x', settings: 'tags' } })).toEqual({ q: 'x' });
     const head = Route.options.head as unknown as () => { meta: { title: string }[] };
     expect(head().meta[0]?.title).toBe('Semua notifikasi · write.financial');
   });

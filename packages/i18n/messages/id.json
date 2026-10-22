@@ -2405,6 +2405,7 @@
   "security_totp_title": "Aplikasi autentikator",
   "settings_cancel": "Batal",
   "settings_categories_description": "Seret untuk mengubah urutan di form Catat Transaksi.",
+  "settings_close": "Tutup pengaturan",
   "settings_description": "Akun, mata uang & kurs, tampilan, notifikasi, dan data — tersinkron di semua perangkat.",
   "settings_group_account": "Akun",
   "settings_group_data": "Data",
