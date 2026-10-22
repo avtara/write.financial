@@ -91,6 +91,7 @@ describe('D14: the worker cannot reach transactions, postings, budgets, goals, o
         '@wf/db/goals',
         '@wf/db/debts',
         '@wf/db/receivables',
+        '@wf/db/investments',
       ]),
     );
     expect(WORKER_REPOSITORIES).toEqual([
@@ -104,6 +105,10 @@ describe('D14: the worker cannot reach transactions, postings, budgets, goals, o
       'balanceChecks',
       'detectRecurring',
       'outbox',
+      'marketData',
+      'marketCredentials',
+      'marketJobs',
+      'portfolioSnapshots',
     ]);
   });
 

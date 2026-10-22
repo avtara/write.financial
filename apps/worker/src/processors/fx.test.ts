@@ -48,7 +48,7 @@ describe('createFxProcessor', () => {
       queries,
     );
     const fawazahmed0 = provider('fawazahmed0', () => [rate('fawazahmed0', 'THB')]);
-    const run = createFxProcessor(fakeDeps({ db }), [frankfurter, fawazahmed0]);
+    const run = createFxProcessor(fakeDeps({ db }), () => [frankfurter, fawazahmed0]);
 
     expect(await run(job)).toEqual({ written: { frankfurter: 8, fawazahmed0: 1 }, missing: ['XAU'], failures: [] });
     expect(FX_QUOTE).toBe('IDR');
@@ -72,20 +72,20 @@ describe('createFxProcessor', () => {
   it('fails without writing when no source answers, so BullMQ retries and the last rates stay', async () => {
     const db = fakeDb(undefined, []);
     const down = provider('frankfurter', () => new FxProviderError('frankfurter', 'HTTP 503'));
-    const run = createFxProcessor(fakeDeps({ db }), [down]);
+    const run = createFxProcessor(fakeDeps({ db }), () => [down]);
     await expect(run(job)).rejects.toThrow(
       new FxUnavailableError(
         'No FX reference rate available (AUD, CNY, EUR, GBP, JPY, MYR, SGD, USD): FxProviderError: frankfurter: HTTP 503',
       ),
     );
-    const silent = createFxProcessor(fakeDeps({ db }), [provider('open-er-api', () => [])]);
+    const silent = createFxProcessor(fakeDeps({ db }), () => [provider('open-er-api', () => [])]);
     await expect(silent(job)).rejects.toThrow(/: no source covers these currencies$/);
     expect(db.fxUpserts).toEqual([]);
   });
 
   it('reports partial failures of a successful run', async () => {
     const db = fakeDb(undefined, []);
-    const run = createFxProcessor(fakeDeps({ db }), [
+    const run = createFxProcessor(fakeDeps({ db }), () => [
       provider('frankfurter', () => new FxProviderError('frankfurter', 'request failed')),
       provider('open-er-api', ({ bases }) => bases.map((base) => rate('open-er-api', base))),
     ]);
@@ -96,8 +96,30 @@ describe('createFxProcessor', () => {
     });
   });
 
+  it('logs every request of the sources as a built-in fetch, also when the run fails', async () => {
+    const db = fakeDb(undefined, []);
+    const call = {
+      provider: 'frankfurter' as const,
+      endpoint: 'GET /v2/rates',
+      httpStatus: 503,
+      ok: false,
+      durationMs: 12,
+      errorCode: 'http_503',
+    };
+    const run = createFxProcessor(fakeDeps({ db }), (onCall) => [
+      provider('frankfurter', () => {
+        onCall(call);
+        return new FxProviderError('frankfurter', 'HTTP 503');
+      }),
+    ]);
+    await expect(run(job)).rejects.toThrow(FxUnavailableError);
+    expect(db.calls).toEqual([
+      { method: 'marketData.logRequest', args: [null, { ...call, at: new Date('2026-10-18T02:00:00Z') }] },
+    ]);
+  });
+
   it('rejects a payload with keys', async () => {
-    const run = createFxProcessor(fakeDeps(), []);
+    const run = createFxProcessor(fakeDeps(), () => []);
     await expect(run({ ...job, data: { userId: 'u1' } })).rejects.toThrow();
   });
 });

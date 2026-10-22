@@ -3,6 +3,7 @@ import { hostname } from 'node:os';
 import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring, type Keyring } from '@wf/crypto/keyring';
 import { createInstanceMailer, sendWith } from '@wf/integrations/instance-mailer';
+import { createMarketAdapters } from '@wf/integrations/market/adapters';
 import type { DestinationStream } from 'pino';
 import { HEARTBEAT, heartbeatKey, isHealthy, type HeartbeatSettings } from './heartbeat.ts';
 import { createLogger } from './logger.ts';
@@ -126,6 +127,8 @@ async function work(
     db: database.db,
     mailer,
     publicUrl: config.publicUrl,
+    // Every adapter checks the egress allowlist before a request.
+    market: { adapters: createMarketAdapters(), cmcApiKey: config.market.cmcApiKey },
     logger,
     now,
     heartbeat,

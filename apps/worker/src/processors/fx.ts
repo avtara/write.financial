@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { FxProvider, FxProviderName } from '@wf/integrations/fx/provider';
+import type { MarketCall } from '@wf/integrations/market/http';
 import { DEFAULT_FX_BASES, fetchReferenceRates, type FxFetchResult } from '@wf/integrations/fx/rates';
 import { JOBS } from '@wf/jobs/queues';
 import type { ProcessorDeps, ProcessorJob } from '../processors.ts';
@@ -24,16 +25,21 @@ export class FxUnavailableError extends Error {
  * Built-in FX reference rates (plan §6 `fx`): fetches IDR rates for the default bases plus every currency in use,
  * from the first source that answers each, and upserts them as global `fx_rates` rows. Upserting by publication day
  * makes a retry or a second run the same day harmless. A run that gets no rate at all fails (and is retried); a run
- * that misses some bases succeeds, and those bases keep their last rate.
+ * that misses some bases succeeds, and those bases keep their last rate. Every request is logged as a built-in fetch
+ * ("Buka log API"); `createProviders` builds the sources with that log hook.
  */
 export function createFxProcessor(
-  { db }: ProcessorDeps,
-  providers: readonly FxProvider[],
+  { db, now }: ProcessorDeps,
+  createProviders: (onCall: (call: MarketCall) => void) => readonly FxProvider[],
 ): (job: ProcessorJob) => Promise<FxResult> {
   return async (job) => {
     JOBS.fx.parse(job.data);
+    const calls: MarketCall[] = [];
+    const providers = createProviders((call) => calls.push(call));
     const bases = [...DEFAULT_FX_BASES, ...(await db.fxRates.currenciesInUse())];
     const { rates, missing, failures } = await fetchReferenceRates(providers, { quote: FX_QUOTE, bases });
+    const at = now();
+    for (const call of calls) await db.marketData.logRequest(null, { ...call, at });
     if (rates.length === 0) {
       const reasons = failures.map((failure) => failure.error).join('; ') || 'no source covers these currencies';
       throw new FxUnavailableError(`No FX reference rate available (${missing.join(', ')}): ${reasons}`);

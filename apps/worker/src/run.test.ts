@@ -40,6 +40,9 @@ const QUEUES = [
   'period-close',
   'notify',
   'detect-recurring',
+  'market-server',
+  'market-byok',
+  'snapshots',
 ];
 
 const KEY = heartbeatKey('host-1');
@@ -132,12 +135,12 @@ describe('worker', () => {
     signals.emit(signal);
     expect(await exit).toBe(0);
     expect(log.messages()).toEqual([
-      ...Array<string>(4).fill('job scheduler registered'),
+      ...Array<string>(6).fill('job scheduler registered'),
       'worker started',
       'shutting down',
       'worker stopped',
     ]);
-    expect(log.lines[5]).toMatchObject({ signal });
+    expect(log.lines[7]).toMatchObject({ signal });
     expect(broker.closed).toEqual([
       ...QUEUES.map((queue) => `worker:${queue}`),
       ...QUEUES.map((queue) => `queue:${queue}`),

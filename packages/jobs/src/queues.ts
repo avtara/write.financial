@@ -65,6 +65,15 @@ export const JOBS = {
   notify: z.strictObject({ userId: z.uuid(), outboxId: z.uuid() }),
   /** FR-SUB4 subscription candidates (suggestions only). */
   'detect-recurring': userJob,
+  /**
+   * Built-in market prices (FR-I6, plan §6 `market-server`): `crypto` every 5 minutes (CoinMarketCap, one call for the
+   * union of every user's symbols), `gold` twice a day (fawazahmed0 XAU spot). The symbols come from the database.
+   */
+  'market-server': z.strictObject({ source: z.enum(['crypto', 'gold']) }),
+  /** A user's own-key prices (FR-I6 BYOK, plan §6 `market-byok`): each market's providers when their refresh is due. */
+  'market-byok': userJob,
+  /** The daily portfolio snapshot (FR-I3 growth chart, plan §6 `snapshots`). */
+  snapshots: userJob,
 } as const satisfies { readonly [Q in QueueName]?: z.ZodType<object> };
 
 /** Queues that have a processor. */
@@ -77,6 +86,9 @@ declare const jobIdOf: unique symbol;
 /** A deterministic job id of queue `Q` (plan §6 idempotency column); only {@link jobIds} creates one. */
 export type JobId<Q extends JobQueue> = string & { readonly [jobIdOf]: Q };
 
+/** The UTC minute of `at` without `:` (`2026-10-18T2030`), the slot part of minute-based job ids. */
+const minuteOf = (at: Date): string => at.toISOString().slice(0, 16).replace(':', '');
+
 /**
  * Builders for the deterministic job ids: enqueuing the same work twice yields one job. The plan writes them with `:`
  * (`mt:{date}`), but BullMQ rejects custom ids containing `:` (it separates Redis key parts), so the parts are joined
@@ -87,7 +99,7 @@ export const jobIds = {
   maintenance: (date: LocalDate) => `mt.${date}` as JobId<'maintenance'>,
   fx: (date: LocalDate) => `fx.${date}` as JobId<'fx'>,
   /** One dispatch per UTC minute (`dsp.2026-10-18T2030`). */
-  dispatch: (at: Date) => `dsp.${at.toISOString().slice(0, 16).replace(':', '')}` as JobId<'dispatch'>,
+  dispatch: (at: Date) => `dsp.${minuteOf(at)}` as JobId<'dispatch'>,
   occurrences: (userId: string, date: LocalDate) => `occ.${userId}.${date}` as JobId<'occurrences'>,
   reminders: (occurrenceId: string) => `rem.${occurrenceId}` as JobId<'reminders'>,
   'budget-alerts': (userId: string, date: LocalDate, hour: number) =>
@@ -96,6 +108,12 @@ export const jobIds = {
   'period-close': (userId: string, date: LocalDate) => `close.${userId}.${date}` as JobId<'period-close'>,
   notify: (outboxId: string) => `ntf.${outboxId}` as JobId<'notify'>,
   'detect-recurring': (userId: string, date: LocalDate) => `det.${userId}.${date}` as JobId<'detect-recurring'>,
+  /** One built-in run per source and UTC minute (`mks.crypto.2026-10-15T0940`). */
+  'market-server': (source: 'crypto' | 'gold', at: Date) => `mks.${source}.${minuteOf(at)}` as JobId<'market-server'>,
+  /** One own-key run per user and 5-minute slot (`mkb.{userId}.2026-10-15T0940`). */
+  'market-byok': (userId: string, at: Date) =>
+    `mkb.${userId}.${minuteOf(new Date(Math.floor(at.getTime() / 300_000) * 300_000))}` as JobId<'market-byok'>,
+  snapshots: (userId: string, date: LocalDate) => `snap.${userId}.${date}` as JobId<'snapshots'>,
 } as const satisfies { readonly [Q in JobQueue]: (...args: never[]) => JobId<Q> };
 
 /** Redis key prefix of every queue. */

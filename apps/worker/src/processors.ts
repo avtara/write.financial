@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { Mailer } from '@wf/integrations/mailer';
 import { createBuiltInFxProviders } from '@wf/integrations/fx/rates';
+import type { Mailer } from '@wf/integrations/mailer';
+import type { MarketAdapters } from '@wf/integrations/market/adapters';
 import type { Enqueue } from '@wf/jobs/enqueue';
 import type { JobQueue } from '@wf/jobs/queues';
 import { createBalanceChecksProcessor } from './processors/balance-checks.ts';
@@ -9,10 +10,13 @@ import { createDetectRecurringProcessor } from './processors/detect-recurring.ts
 import { createDispatchProcessor } from './processors/dispatch.ts';
 import { createFxProcessor } from './processors/fx.ts';
 import { createMaintenanceProcessor } from './processors/maintenance.ts';
+import { createMarketByokProcessor } from './processors/market-byok.ts';
+import { createMarketServerProcessor } from './processors/market-server.ts';
 import { createNotifyProcessor } from './processors/notify.ts';
 import { createOccurrencesProcessor } from './processors/occurrences.ts';
 import { createPeriodCloseProcessor } from './processors/period-close.ts';
 import { createRemindersProcessor } from './processors/reminders.ts';
+import { createSnapshotsProcessor } from './processors/snapshots.ts';
 import type { WorkerDb } from './worker-db.ts';
 
 /** What a processor sees of a BullMQ job: the payload is validated by the processor against its queue's schema. */
@@ -32,6 +36,8 @@ export interface ProcessorDeps {
   readonly mailer: Mailer;
   /** `PUBLIC_URL`: links in emails. */
   readonly publicUrl: string;
+  /** Market quote adapters (egress-allowlisted) and the operator's CoinMarketCap key (`CMC_API_KEY`, null: none). */
+  readonly market: { readonly adapters: MarketAdapters; readonly cmcApiKey: string | null };
 }
 
 export type Processor = (job: ProcessorJob) => Promise<object>;
@@ -48,7 +54,7 @@ export interface ProcessorDefinition {
  */
 export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
   maintenance: { concurrency: 1, create: createMaintenanceProcessor },
-  fx: { concurrency: 1, create: (deps) => createFxProcessor(deps, createBuiltInFxProviders()) },
+  fx: { concurrency: 1, create: (deps) => createFxProcessor(deps, (onCall) => createBuiltInFxProviders({ onCall })) },
   dispatch: { concurrency: 1, create: createDispatchProcessor },
   occurrences: { concurrency: 2, create: createOccurrencesProcessor },
   reminders: { concurrency: 4, create: createRemindersProcessor },
@@ -57,4 +63,7 @@ export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
   'period-close': { concurrency: 2, create: createPeriodCloseProcessor },
   notify: { concurrency: 2, create: createNotifyProcessor },
   'detect-recurring': { concurrency: 1, create: createDetectRecurringProcessor },
+  'market-server': { concurrency: 1, create: createMarketServerProcessor },
+  'market-byok': { concurrency: 2, create: createMarketByokProcessor },
+  snapshots: { concurrency: 2, create: createSnapshotsProcessor },
 };

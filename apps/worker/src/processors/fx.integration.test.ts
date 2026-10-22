@@ -92,12 +92,12 @@ const job = { id: 'fx.2026-10-19', data: {}, attemptsMade: 0 };
 describe('fx job (wf_worker → fx_rates)', () => {
   it("fetches every user's currencies and writes global rows, idempotently per publication day", async () => {
     const queries: FxQuery[] = [];
-    const run = createFxProcessor(fakeDeps({ db: worker.db }), [fakeSource('17948.00000000', queries)]);
+    const run = createFxProcessor(fakeDeps({ db: worker.db }), () => [fakeSource('17948.00000000', queries)]);
     expect(await run(job)).toEqual({ written: { frankfurter: 10 }, missing: [], failures: [] });
     expect(queries[0]?.bases).toEqual(['AUD', 'CNY', 'EUR', 'GBP', 'JPY', 'KRW', 'MYR', 'SGD', 'THB', 'USD']);
 
     // A second run the same day (retry, manual refresh) updates the rows instead of adding more.
-    const rerun = createFxProcessor(fakeDeps({ db: worker.db }), [fakeSource('17950.5')]);
+    const rerun = createFxProcessor(fakeDeps({ db: worker.db }), () => [fakeSource('17950.5')]);
     await rerun(job);
     const rows = await superuser<{ base: string; rate: string; user_id: string | null; rate_type: string }[]>`
       SELECT base, rate::text, user_id, rate_type::text FROM fx_rates ORDER BY base`;

@@ -20,9 +20,12 @@ describe('JOBS', () => {
       'period-close',
       'notify',
       'detect-recurring',
+      'market-server',
+      'market-byok',
+      'snapshots',
     ]);
     expectTypeOf<JobQueue>().toExtend<QueueName>();
-    expectTypeOf<'market-server'>().not.toExtend<JobQueue>();
+    expectTypeOf<'market-test'>().not.toExtend<JobQueue>();
   });
 
   it.each(['maintenance', 'fx', 'dispatch'] as const)('accepts an empty %s payload and rejects any key', (queue) => {
@@ -30,15 +33,27 @@ describe('JOBS', () => {
     expect(JOBS[queue].safeParse({ userId: USER }).success).toBe(false);
   });
 
-  it.each(['occurrences', 'budget-alerts', 'balance-checks', 'period-close', 'detect-recurring'] as const)(
-    'accepts { userId } for %s and nothing else',
-    (queue) => {
-      expect(JOBS[queue].parse({ userId: USER })).toEqual({ userId: USER });
-      expect(JOBS[queue].safeParse({}).success).toBe(false);
-      expect(JOBS[queue].safeParse({ userId: 'u1' }).success).toBe(false);
-      expect(JOBS[queue].safeParse({ userId: USER, amountMinor: '1' }).success).toBe(false);
-    },
-  );
+  it.each([
+    'occurrences',
+    'budget-alerts',
+    'balance-checks',
+    'period-close',
+    'detect-recurring',
+    'market-byok',
+    'snapshots',
+  ] as const)('accepts { userId } for %s and nothing else', (queue) => {
+    expect(JOBS[queue].parse({ userId: USER })).toEqual({ userId: USER });
+    expect(JOBS[queue].safeParse({}).success).toBe(false);
+    expect(JOBS[queue].safeParse({ userId: 'u1' }).success).toBe(false);
+    expect(JOBS[queue].safeParse({ userId: USER, amountMinor: '1' }).success).toBe(false);
+  });
+
+  it('names the built-in market source and nothing else', () => {
+    expect(JOBS['market-server'].parse({ source: 'crypto' })).toEqual({ source: 'crypto' });
+    expect(JOBS['market-server'].parse({ source: 'gold' })).toEqual({ source: 'gold' });
+    expect(JOBS['market-server'].safeParse({ source: 'stocks' }).success).toBe(false);
+    expect(JOBS['market-server'].safeParse({ source: 'crypto', symbols: ['BTC'] }).success).toBe(false);
+  });
 
   it('carries ids only for reminders and notify', () => {
     expect(JOBS.reminders.parse({ userId: USER, occurrenceId: OTHER })).toEqual({ userId: USER, occurrenceId: OTHER });
@@ -66,11 +81,18 @@ describe('jobIds', () => {
     expect(jobIds['period-close'](USER, DAY)).toBe(`close.${USER}.2026-10-18`);
     expect(jobIds.notify(OTHER)).toBe(`ntf.${OTHER}`);
     expect(jobIds['detect-recurring'](USER, DAY)).toBe(`det.${USER}.2026-10-18`);
+    expect(jobIds.snapshots(USER, DAY)).toBe(`snap.${USER}.2026-10-18`);
+    expect(jobIds['market-server']('crypto', new Date('2026-10-15T09:40:59Z'))).toBe('mks.crypto.2026-10-15T0940');
+    // One own-key run per 5-minute slot.
+    expect(jobIds['market-byok'](USER, new Date('2026-10-15T09:44:59Z'))).toBe(`mkb.${USER}.2026-10-15T0940`);
+    expect(jobIds['market-byok'](USER, new Date('2026-10-15T09:45:00Z'))).toBe(`mkb.${USER}.2026-10-15T0945`);
     const all = [
       jobIds.dispatch(new Date()),
       jobIds.occurrences(USER, DAY),
       jobIds['budget-alerts'](USER, DAY, 9),
       jobIds.notify(OTHER),
+      jobIds['market-server']('gold', new Date()),
+      jobIds['market-byok'](USER, new Date()),
     ];
     for (const id of all) expect(id).not.toContain(':');
   });

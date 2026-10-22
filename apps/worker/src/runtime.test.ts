@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JOBS } from '@wf/jobs/queues';
-import { captureLog, fakeBroker, fakeDb, fakeMailer, type FakeBroker, type LogCapture } from '../test/fakes.ts';
+import {
+  captureLog,
+  fakeAdapters,
+  fakeBroker,
+  fakeDb,
+  fakeMailer,
+  type FakeBroker,
+  type LogCapture,
+} from '../test/fakes.ts';
 import { heartbeatKey } from './heartbeat.ts';
 import { createLogger } from './logger.ts';
 import { startWorker, type Runtime } from './runtime.ts';
@@ -29,6 +37,7 @@ const start = (db: WorkerDb = fakeDb()): Promise<Runtime> =>
     db,
     mailer: fakeMailer(),
     publicUrl: 'https://uang.example/',
+    market: { adapters: fakeAdapters(), cmcApiKey: null },
     logger: createLogger('info', log),
     now: Date.now,
     heartbeat: { key: KEY, intervalMs: 1_000, maxAgeMs: 4_000 },
@@ -44,8 +53,8 @@ describe('startWorker', () => {
     expect(broker.workers.get('maintenance')?.concurrency).toBe(1);
     expect(broker.workers.get('fx')?.concurrency).toBe(1);
     expect(broker.store.entries.get(KEY)?.value).toBe(String(NOW));
-    expect(log.messages()).toEqual([...Array<string>(4).fill('job scheduler registered'), 'worker started']);
-    expect(log.lines[4]).toMatchObject({ queues: Object.keys(JOBS) });
+    expect(log.messages()).toEqual([...Array<string>(6).fill('job scheduler registered'), 'worker started']);
+    expect(log.lines[6]).toMatchObject({ queues: Object.keys(JOBS) });
     await runtime.stop();
   });
 

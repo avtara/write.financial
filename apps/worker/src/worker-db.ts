@@ -8,10 +8,14 @@ import { createDispatch, type Dispatch } from '@wf/db/dispatch';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createMaintenance, type Maintenance } from '@wf/db/maintenance';
+import { createMarketCredentials, type MarketCredentialsRepository } from '@wf/db/market-credentials';
+import { createMarketData, type MarketDataRepository } from '@wf/db/market-data';
+import { createMarketJobs, type MarketJobs } from '@wf/db/market-jobs';
 import { createOccurrenceJobs, type OccurrenceJobs } from '@wf/db/occurrence-jobs';
 import { createOutbox, type Outbox } from '@wf/db/outbox';
 import { createPeriodClose, type PeriodClose } from '@wf/db/period-close';
 import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
+import { createPortfolioSnapshots, type PortfolioSnapshots } from '@wf/db/portfolio-snapshots';
 import { createUserKeys } from '@wf/db/user-keys';
 import { instanceSmtp, type SmtpConnection } from '@wf/integrations/instance-mailer';
 
@@ -38,6 +42,17 @@ export interface WorkerDb {
   readonly detectRecurring: DetectRecurring;
   /** Email delivery of notifications. */
   readonly outbox: Outbox;
+  /** Market data writes: built-in quotes (global), the user's own-key quotes, the request log. */
+  readonly marketData: Pick<MarketDataRepository, 'recordServerQuotes' | 'recordUserQuotes' | 'logRequest'>;
+  /** The user's keys: which exist (last 4 only) and the outcome of a request (status, quota, pause). */
+  readonly marketCredentials: Pick<MarketCredentialsRepository, 'list' | 'setStatus'>;
+  /** What the market jobs read (targets, decrypted key for a request) and the built-in sources' state. */
+  readonly marketJobs: Pick<
+    MarketJobs,
+    'serverTargets' | 'byokUsers' | 'userTargets' | 'credential' | 'lastRequests' | 'providerState' | 'setProviderState'
+  >;
+  /** The daily portfolio snapshot (reads the portfolio, writes `portfolio_snapshots` only). */
+  readonly portfolioSnapshots: PortfolioSnapshots;
 }
 
 export interface WorkerDbConnection {
@@ -55,7 +70,7 @@ export interface WorkerDbOptions {
 
 /**
  * Opens a lazily connecting pool as `wf_worker` (`DATABASE_URL_WORKER`). The keyring unwraps users' DEKs (review item
- * payloads are encrypted) and the instance DEK (SMTP password).
+ * payloads and market keys are encrypted) and the instance DEK (SMTP password).
  */
 export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOptions = {}): WorkerDbConnection {
   const database = createDb(url, { max: 4 });
@@ -71,6 +86,11 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { detect } = createDetectRecurring(database);
   const { get, markSent, markFailed } = createOutbox(database);
   const { get: settings, smtpPassword } = createInstanceSettings(database, keyring);
+  const { recordServerQuotes, recordUserQuotes, logRequest } = createMarketData(database);
+  const { list: listKeys, setStatus } = createMarketCredentials(database, { getDek });
+  const { serverTargets, byokUsers, userTargets, credential, lastRequests, providerState, setProviderState } =
+    createMarketJobs(database, { getDek });
+  const { record: recordSnapshot } = createPortfolioSnapshots(database);
   return {
     db: Object.freeze({
       maintenance: Object.freeze({ purgeExpiredAuth, purgeNotifications }),
@@ -83,6 +103,18 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
       balanceChecks: Object.freeze({ check: checkBalances }),
       detectRecurring: Object.freeze({ detect }),
       outbox: Object.freeze({ get, markSent, markFailed }),
+      marketData: Object.freeze({ recordServerQuotes, recordUserQuotes, logRequest }),
+      marketCredentials: Object.freeze({ list: listKeys, setStatus }),
+      marketJobs: Object.freeze({
+        serverTargets,
+        byokUsers,
+        userTargets,
+        credential,
+        lastRequests,
+        providerState,
+        setProviderState,
+      }),
+      portfolioSnapshots: Object.freeze({ record: recordSnapshot }),
     }),
     smtp: instanceSmtp({ get: settings, smtpPassword }),
     close: () => database.$client.end(),
