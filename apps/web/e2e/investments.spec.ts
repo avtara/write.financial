@@ -68,7 +68,9 @@ test('providers off retain manual values, report source outcomes and open the re
   const log = page.getByRole('dialog', { name: 'Log permintaan' });
   await expect(log).toContainText('Belum ada permintaan.');
   await screenshot(page, 'investments-providers-off-log');
-  await log.getByRole('button', { name: 'Tutup', exact: true }).click();
+  // The Modal has no footer button; Escape is its documented close path (and exercises onOpenChange).
+  await page.keyboard.press('Escape');
+  await expect(log).toBeHidden();
 });
 
 test('buy with fee/tax from platform cash, DCA split, and persisted history', async ({ page }) => {
@@ -88,7 +90,8 @@ test('buy with fee/tax from platform cash, DCA split, and persisted history', as
   await page.reload();
   await assetMenu(page, 'Lihat detail');
   const detail = page.getByRole('dialog', { name: 'SPY · SPDR S&P 500 ETF' });
-  await expect(detail).toContainText('0,0725');
+  // The history renders units to 3 decimals: US$50 @ US$690,10 = 0,07245 → "0,072 unit".
+  await expect(detail).toContainText('0,072 unit');
   await expect(detail).toContainText('60%');
   await expect(detail).toContainText('40%');
   await screenshot(page, 'investments-spy-detail');
