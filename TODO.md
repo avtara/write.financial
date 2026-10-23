@@ -75,9 +75,9 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M5 — Investments & market data
 
-- [ ] Assets, investment transactions, valuation, allocation, rebalancing
-- [ ] Built-in, BYOK, and manual price sources + exchange rate & market API screen
-- [ ] M5 unit tests: 100% per-file coverage gate green
+- [x] Assets, investment transactions, valuation, allocation, rebalancing
+- [x] Built-in, BYOK, and manual price sources + exchange rate & market API screen
+- [x] M5 unit tests: 100% per-file coverage gate green
 
 ## M6 — Reports, export, import
 
