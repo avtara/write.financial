@@ -38,6 +38,7 @@ describe('WorkerDb (D14)', () => {
       budgetAlerts: ['check'],
       balanceChecks: ['check'],
       detectRecurring: ['detect'],
+      reports: ['generate', 'pendingMonthly'],
       outbox: ['get', 'markSent', 'markFailed'],
       // Market data: writes of quotes and logs, key outcomes, the job scans; no key saving or quote deletion.
       marketData: ['recordServerQuotes', 'recordUserQuotes', 'logRequest'],

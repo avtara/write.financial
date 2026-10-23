@@ -17,6 +17,7 @@ import { createOccurrencesProcessor } from './processors/occurrences.ts';
 import { createPeriodCloseProcessor } from './processors/period-close.ts';
 import { createRemindersProcessor } from './processors/reminders.ts';
 import { createSnapshotsProcessor } from './processors/snapshots.ts';
+import { createReportsProcessor } from './processors/reports.ts';
 import type { WorkerDb } from './worker-db.ts';
 
 /** What a processor sees of a BullMQ job: the payload is validated by the processor against its queue's schema. */
@@ -61,6 +62,7 @@ export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
   'budget-alerts': { concurrency: 2, create: createBudgetAlertsProcessor },
   'balance-checks': { concurrency: 2, create: createBalanceChecksProcessor },
   'period-close': { concurrency: 2, create: createPeriodCloseProcessor },
+  reports: { concurrency: 2, create: createReportsProcessor },
   notify: { concurrency: 2, create: createNotifyProcessor },
   'detect-recurring': { concurrency: 1, create: createDetectRecurringProcessor },
   'market-server': { concurrency: 1, create: createMarketServerProcessor },

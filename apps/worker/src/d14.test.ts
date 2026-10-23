@@ -109,6 +109,7 @@ describe('D14: the worker cannot reach transactions, postings, budgets, goals, o
       'marketCredentials',
       'marketJobs',
       'portfolioSnapshots',
+      'reports',
     ]);
   });
 

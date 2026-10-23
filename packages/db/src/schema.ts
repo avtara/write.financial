@@ -17,6 +17,7 @@ import { CANCEL_MODES, SUBSCRIPTION_CYCLES, SUBSCRIPTION_STATUSES, USAGE_RATINGS
 import { GOAL_KINDS, GOAL_STATUSES, GOAL_TARGET_MODES } from '@wf/domain/goals';
 import { DEBT_KINDS, INTEREST_METHODS, RECALC_MODES } from '@wf/domain/debt';
 import { RECEIVABLE_SOURCES, RECEIVABLE_STATUSES } from '@wf/domain/receivables';
+import { REPORT_KINDS, REPORT_STATUSES } from '@wf/domain/report';
 import { ASSET_CLASSES, DIVIDEND_MODES, PRICE_MODES, TRADE_KINDS, TRADE_STATUSES } from '@wf/domain/investments';
 import { CREDENTIAL_STATUSES, MARKET_PROVIDERS, MARKETS } from '@wf/domain/market';
 import { LOCALES } from '@wf/i18n/locale';
@@ -2364,4 +2365,65 @@ export const portfolioSnapshots = pgTable(
     createdAt: createdAt(),
   },
   (table) => [primaryKey({ name: 'portfolio_snapshots_pkey', columns: [table.userId, table.snapshotDate] })],
+);
+
+export const reportKind = pgEnum('report_kind', REPORT_KINDS);
+export const reportStatus = pgEnum('report_status', REPORT_STATUSES);
+
+/**
+ * FR-LP1–LP3: one row per report — a monthly report snapshots its closed period, and a quarter, year, or custom
+ * range aggregates the final monthly reports plus the current period ("sementara"). The row keeps every number the
+ * report shows, so a later change to the ledger or to a name never rewrites a published report. `sections` holds the
+ * spending lines (categories, merchants, tags, accounts), goals, largest transactions, subscriptions, and the daily
+ * series; amounts there are decimal strings, because `jsonb` has no bigint.
+ */
+export const reports = pgTable(
+  'reports',
+  {
+    id: id(),
+    userId: ownerId(),
+    kind: reportKind('kind').notNull(),
+    status: reportStatus('status').notNull(),
+    /** The period a monthly report belongs to; `null` for a range. */
+    periodId: uuid('period_id'),
+    /** "September 2026", "Q3 2026", "2026", "1–15 Okt 2026". */
+    label: text('label').notNull(),
+    rangeStart: localDate('range_start').notNull(),
+    rangeEnd: localDate('range_end').notNull(),
+    /** The compared range ("Agustus 2026"), absent for a first report. */
+    compareStart: localDate('compare_start'),
+    compareEnd: localDate('compare_end'),
+    compareLabel: text('compare_label'),
+    txCount: integer('tx_count').notNull(),
+    incomeMinor: money('income_minor').notNull(),
+    expenseMinor: money('expense_minor').notNull(),
+    savedMinor: money('saved_minor').notNull(),
+    savingRateBps: integer('saving_rate_bps'),
+    /** Cash + investments at `range_end`; null when it could not be valued. */
+    netWorthMinor: money('net_worth_minor'),
+    previous: jsonb('previous').$type<JsonObject>(),
+    sections: jsonb('sections').$type<JsonObject>().notNull(),
+    generatedAt: timestamptz('generated_at').notNull().defaultNow(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('reports_user_id_id_key').on(table.userId, table.id),
+    unique('reports_user_id_range_key').on(table.userId, table.kind, table.rangeStart, table.rangeEnd),
+    index('reports_user_id_range_end_idx').on(table.userId, table.rangeEnd.desc()),
+    foreignKey({
+      name: 'reports_period_fk',
+      columns: [table.userId, table.periodId],
+      foreignColumns: [periods.userId, periods.id],
+    }).onDelete('set null'),
+    check('reports_range_check', sql`${table.rangeEnd} >= ${table.rangeStart}`),
+    check(
+      'reports_totals_check',
+      sql`${table.incomeMinor} >= 0 and ${table.expenseMinor} >= 0 and ${table.savedMinor} = ${table.incomeMinor} - ${table.expenseMinor} and ${table.txCount} >= 0`,
+    ),
+    check(
+      'reports_compare_check',
+      sql`(${table.compareStart} is null) = (${table.compareEnd} is null) and (${table.compareStart} is null or ${table.compareStart} <= ${table.compareEnd})`,
+    ),
+  ],
 );

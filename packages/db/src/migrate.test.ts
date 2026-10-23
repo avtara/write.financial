@@ -94,6 +94,8 @@ const GRANTS = {
   receivable_payments: LEDGER,
   receivables: LEDGER,
   recent_items: { wf_app: ALL },
+  // FR-LP1: the app reads and deletes (account data export/deletion); the worker generates the monthly snapshots.
+  reports: { wf_app: 'DELETE,INSERT,SELECT', wf_worker: 'INSERT,SELECT' },
   recurrences: { wf_app: ALL, wf_worker: 'SELECT' },
   // D14: the worker creates review items but cannot resolve them (no UPDATE); only confirmReview (wf_app) does.
   review_items: { wf_app: ALL, wf_worker: 'INSERT,SELECT' },

@@ -22,6 +22,7 @@
     "./period": "./src/period.ts",
     "./receivables": "./src/receivables.ts",
     "./recurrence": "./src/recurrence.ts",
+    "./report": "./src/report.ts",
     "./seed": "./src/seed.ts",
     "./subscriptions": "./src/subscriptions.ts",
     "./tags": "./src/tags.ts",

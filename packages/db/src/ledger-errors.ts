@@ -69,6 +69,9 @@ export const LEDGER_ERROR_CODES = [
   'INVALID_MARKET_CREDENTIAL',
   /** FR-ST4: saving a market data key requires active two-factor authentication. */
   'TWO_FACTOR_REQUIRED',
+  /** FR-LP1–LP5: invalid report input (a range that starts after it ends or is longer than a year, a stored row that
+   * cannot be read back). */
+  'INVALID_REPORT',
 ] as const;
 
 export type LedgerErrorCode = (typeof LEDGER_ERROR_CODES)[number];

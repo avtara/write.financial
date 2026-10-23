@@ -30,6 +30,7 @@ export const WORKER_REPOSITORIES = [
   'marketCredentials',
   'marketJobs',
   'portfolioSnapshots',
+  'reports',
 ] as const;
 
 export type WorkerRepository = (typeof WORKER_REPOSITORIES)[number];
