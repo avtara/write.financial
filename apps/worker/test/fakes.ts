@@ -223,6 +223,7 @@ export function fakeDb(
       baselineExists: method('marketJobs.baselineExists', false),
     },
     portfolioSnapshots: { record: method('portfolioSnapshots.record', null) },
+    goalSnapshots: { record: method('goalSnapshots.record', undefined) },
     reports: {
       pendingMonthly: method('reports.pendingMonthly', []),
       generate: method('reports.generate', { id: 'report' }),

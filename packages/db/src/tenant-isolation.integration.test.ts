@@ -38,6 +38,7 @@ import {
   balanceAdjustments,
   drafts,
   goals,
+  goalSnapshots,
   passkeys,
   recentItems,
   reports,
@@ -272,6 +273,9 @@ beforeAll(async () => {
         savedMinor: -1n,
         sections: {},
       });
+      await tx
+        .insert(goalSnapshots)
+        .values({ userId, snapshotDate: TODAY, recordedAt: new Date('2026-10-15T10:00:00Z'), goals: [] });
       await tx.insert(goals).values({
         userId,
         name: 'Dana Darurat',

@@ -32,7 +32,7 @@ import { createPeriods, ensureIn } from './periods.ts';
 import { createPreferences } from './preferences.ts';
 import { createReceivables } from './receivables.ts';
 import { createSchedules } from './schedules.ts';
-import { accounts, periods, users } from './schema.ts';
+import { accounts, goalSnapshots, periods, users } from './schema.ts';
 import { createTransactions } from './transactions.ts';
 
 export interface SeedResult {
@@ -301,6 +301,30 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
     if (goalId === undefined) throw new SeedMismatchError(`Seed goal ${name} is missing`);
     return goalId;
   };
+  for (const snapshot of seed.goalSnapshots) {
+    const data = snapshot.goals.map((goal) => ({
+      goalId: goalOf(goal.goal),
+      name: goal.goal,
+      currency: goal.currency,
+      valuation: goal.valuation,
+      targetMinor: goal.targetMinor.toString(),
+      savedMinor: goal.savedMinor === null ? null : goal.savedMinor.toString(),
+    }));
+    await withUser(db, userId, (tx) =>
+      tx
+        .insert(goalSnapshots)
+        .values({
+          userId,
+          snapshotDate: parseLocalDate(snapshot.date),
+          recordedAt: new Date(snapshot.recordedAt),
+          goals: data,
+        })
+        .onConflictDoUpdate({
+          target: [goalSnapshots.userId, goalSnapshots.snapshotDate],
+          set: { recordedAt: new Date(snapshot.recordedAt), goals: data },
+        }),
+    );
+  }
   for (const recurrence of seed.recurrences) {
     const { id } = await schedules.createRecurrence(userId, {
       template: {

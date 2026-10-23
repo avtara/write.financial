@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { JOBS } from '@wf/jobs/queues';
-import type { ProcessorDeps, ProcessorJob } from '../processors.ts';
+import type { ProcessorJob } from '../processors.ts';
+import type { WorkerDb } from '../worker-db.ts';
 
 export interface ReportsResult {
-  /** Monthly reports created by this run (0 when every closed period already has one). */
+  /** Closed periods processed (0 when every closed period already has a report). */
   readonly generated: number;
+}
+
+export interface ReportsProcessorDeps {
+  readonly db: Pick<WorkerDb, 'reports'>;
+  readonly now: () => Date;
 }
 
 /**
@@ -12,7 +18,10 @@ export interface ReportsResult {
  * gets one. It runs after `period-close` (00.05), so the period is locked and final first; a stored report is never
  * rewritten, so a retry or a later dispatch only fills what is missing.
  */
-export function createReportsProcessor({ db, now }: ProcessorDeps): (job: ProcessorJob) => Promise<ReportsResult> {
+export function createReportsProcessor({
+  db,
+  now,
+}: ReportsProcessorDeps): (job: ProcessorJob) => Promise<ReportsResult> {
   return async (job) => {
     const { userId } = JOBS.reports.parse(job.data);
     const at = now();

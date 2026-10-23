@@ -58,6 +58,8 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./market-data` | `createMarketData(db)` → the effective quote per asset with source, time, and stale flag (`@wf/domain/market` `resolveQuote`), manual prices, the API log; worker writes of built-in quotes (global) and BYOK results (per user) |
 | `./market-credentials` | `createMarketCredentials(db, { getDek })` → BYOK market keys encrypted with the user's DEK (last 4 only; 2FA required), status/quota/retry-after, `apiKey` for the worker, `remove` (also the provider's BYOK results) |
 | `./portfolio` | In-transaction valuation of every asset now (`assetValuesIn`, `holdingsValueByAccount`) for accounts, goals, and investments |
+| `./goal-snapshots` | `createGoalSnapshots(db)` → daily observed goal positions (native currency, frozen names/targets and explicit cash/market/cost/unavailable valuation); `goalSnapshotIn(tx, userId, cutoff)` reads the latest actual observation |
+| `./reports` | `createReports(db)` → immutable closed-period monthly snapshots, refreshable provisional Quarterly/Yearly/Custom aggregates, `list`, `get`, `latestFinal`, `pendingMonthly`; worker `reports` runs after 00:10 local |
 | `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget, goals with their account and asset sources, the investments (assets, opening holdings, DCA buys, the pending RDPU buy, targets, a snapshot), 11 subscriptions, 4 recurring transfers with their paid bills and goal shares, 5 receivables recorded without ledger transactions) through the repositories; `seedAutomation(workerDb, userId, { getDek })` (as `wf_worker`): what the jobs would have created by now (overdue bills, September close proposal) |
 | `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)`, `purgeNotifications(now)` (90 days) (worker only, via `wf_maintenance_purge_auth` / `wf_maintenance_purge_notifications`) |
 | `./dispatch` | Worker: `createDispatch(db)` → `users()`, `dueReminders(now, limit)`, `pendingOutbox(now, limit)` (SECURITY DEFINER `wf_worker_users`, `wf_due_reminders`, `wf_pending_outbox`: ids and time zones only) |
@@ -70,6 +72,22 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 Repositories take `userId` from the caller's session or job, never from request input, and run every query through
 `withUser`, which sets `app.user_id` with `set_config(…, true)` (transaction-local) and rejects non-UUID ids. Methods are
 plain functions, so `getDek: userKeys.getOrCreateDek` can be handed to other packages.
+
+Report aggregates reuse the stored monthly snapshots for full closed periods; only partial boundaries and the current
+period read live transactions. Cutoffs use the user's time zone and `transactions.local_date`. Historical FX never
+falls forward to a future quote. Net worth includes platform cash only through the portfolio snapshot and subtracts
+non-card outstanding principal (card liabilities are already in account balances). Missing FX or a missing portfolio
+snapshot leaves the KPI unavailable; absent earlier month-end valuations stay `null`, not invented zeros. The
+September seed's exact net worth is Rp112.223.000 (cash Rp54.523.000 + portfolio Rp57.700.000), whereas the design's
+Rp112.200.000 illustration uses rounded cash. Final report rows cannot be updated by either app or worker; app UPDATE
+is permitted only for its own non-monthly provisional rows.
+
+The daily `snapshots` job also records goals, including an explicit empty observation for users without goals or
+investments. Reports never reconstruct historical goal positions from current funding sources. `goalsAsOf` gives the
+actual observation date; `null` means history is unavailable, not that the user had no goals. Opening values require an
+observation on the day immediately before the range. Missing asset FX makes the goal value/progress unavailable;
+cost-based estimates remain labeled `cost`. Historical seed observations are explicit design data, not backfilled from
+today's allocations.
 
 **Better Auth** (auth module): Drizzle adapter with this schema; model names `users`, `sessions`, `accounts_auth`,
 `verifications`, `two_factors`, `passkeys`; `advanced.database.generateId: 'uuid'` (ids default to `uuidv7()`); the extra
@@ -109,7 +127,8 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `market_api_logs` | S I | S I | – | – | own rows + built-in fetches (`user_id` null) |
 | `market_provider_state` | S | S I U | – | – | global (built-in sources' pause and credits, no user data) |
 | `portfolio_snapshots` | S I U | S I U | – | – | own rows |
-| `reports` | S I D | S I | – | – | own rows; a stored report is never updated (final snapshots) |
+| `goal_snapshots` | S I U D | S I U | – | – | own dated observations, including empty days; no worker writes to live goals |
+| `reports` | S I U D | S I | – | – | own rows; UPDATE only for non-monthly provisional aggregates; final monthly snapshots immutable |
 | `scheduled_occurrences`                                    | S I U D                        | S I, U(`status`, `remind_at`, `reminded_at`, `expected_minor`, `updated_at`) | – | – | own rows; `wf_migrate`: dispatch scan (S)        |
 | `detected_recurring`                                       | S I U D                        | S I U        | –                 | –                        | own rows                                                 |
 | `review_items`                                             | S I U D                        | S I (D14: no UPDATE) | –         | –                        | own rows                                                 |

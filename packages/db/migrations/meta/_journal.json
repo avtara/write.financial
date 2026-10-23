@@ -99,6 +99,20 @@
       "when": 1792677054723,
       "tag": "0013_market_provider_state",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792754608238,
+      "tag": "0014_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792757206445,
+      "tag": "0015_goal_snapshots",
+      "breakpoints": true
     }
   ]
 }

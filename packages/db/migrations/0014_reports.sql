@@ -26,14 +26,15 @@ CREATE TABLE "reports" (
 	CONSTRAINT "reports_user_id_id_key" UNIQUE("user_id","id"),
 	CONSTRAINT "reports_user_id_range_key" UNIQUE("user_id","kind","range_start","range_end"),
 	CONSTRAINT "reports_range_check" CHECK ("reports"."range_end" >= "reports"."range_start"),
-	CONSTRAINT "reports_kind_status_check" CHECK (("kind" = 'monthly' AND "status" = 'final' AND "period_id" IS NOT NULL) OR ("kind" <> 'monthly' AND "status" = 'provisional' AND "period_id" IS NULL)),
+	CONSTRAINT "reports_kind_status_check" CHECK (("reports"."kind" = 'monthly' and "reports"."status" = 'final' and "reports"."period_id" is not null) or ("reports"."kind" <> 'monthly' and "reports"."status" = 'provisional' and "reports"."period_id" is null)),
 	CONSTRAINT "reports_totals_check" CHECK ("reports"."income_minor" >= 0 and "reports"."expense_minor" >= 0 and "reports"."saved_minor" = "reports"."income_minor" - "reports"."expense_minor" and "reports"."tx_count" >= 0),
 	CONSTRAINT "reports_compare_check" CHECK (("reports"."compare_start" is null) = ("reports"."compare_end" is null) and ("reports"."compare_start" is null or "reports"."compare_start" <= "reports"."compare_end"))
 );
 --> statement-breakpoint
 ALTER TABLE "reports" ADD CONSTRAINT "reports_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "reports" ADD CONSTRAINT "reports_period_fk" FOREIGN KEY ("user_id","period_id") REFERENCES "public"."periods"("user_id","id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "reports_user_id_range_end_idx" ON "reports" USING btree ("user_id","range_end" DESC NULLS LAST);--> statement-breakpoint
+ALTER TABLE "reports" ADD CONSTRAINT "reports_period_fk" FOREIGN KEY ("user_id","period_id") REFERENCES "public"."periods"("user_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "reports_user_id_range_end_idx" ON "reports" USING btree ("user_id","range_end" DESC NULLS LAST);
+--> statement-breakpoint
 
 -- FR-LP1–LP5 / D10: only monthly reports are final. App aggregates may refresh, but final snapshots cannot update.
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
