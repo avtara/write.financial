@@ -20,7 +20,12 @@ export interface PriceSyncState {
   readonly results: readonly MarketSyncResult[];
 }
 
-export function PriceSyncStatus({ state, today, timeZone, locale }: {
+export function PriceSyncStatus({
+  state,
+  today,
+  timeZone,
+  locale,
+}: {
   readonly state: PriceSyncState | null;
   readonly today: LocalDate;
   readonly timeZone: string;
@@ -46,12 +51,16 @@ export function PriceSyncStatus({ state, today, timeZone, locale }: {
           <ul className="flex flex-wrap gap-x-5 gap-y-2">
             {state.results.map((result) => (
               <li key={result.market} className="text-muted-fg">
-                <span className="font-medium text-fg">{marketLabel(result.market)}</span>{' · '}{syncText(result, time)}
+                <span className="font-medium text-fg">{marketLabel(result.market)}</span>
+                {' · '}
+                {syncText(result, time)}
               </li>
             ))}
             {state.current === null ? null : (
               <li className="text-fg">
-                {marketLabel(state.current)}{' · '}{m.market_sync_progress({done: state.results.length + 1, total: SYNC_MARKETS.length})}
+                {marketLabel(state.current)}
+                {' · '}
+                {m.market_sync_progress({ done: state.results.length + 1, total: SYNC_MARKETS.length })}
               </li>
             )}
           </ul>
@@ -66,7 +75,14 @@ export function PriceSyncStatus({ state, today, timeZone, locale }: {
         </Button>
       </div>
       {failed ? <FormError>{m.market_log_failed()}</FormError> : null}
-      <Modal open={log !== null} onOpenChange={(open) => { if (!open) setLog(null); }} title={m.market_log_title()} size="xl">
+      <Modal
+        open={log !== null}
+        onOpenChange={() => {
+          setLog(null);
+        }}
+        title={m.market_log_title()}
+        size="xl"
+      >
         {log === null ? null : <ApiLog entries={log} time={time} />}
       </Modal>
     </section>

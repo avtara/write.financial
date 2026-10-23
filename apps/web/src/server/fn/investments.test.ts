@@ -3,7 +3,9 @@ import { LedgerError } from '@wf/db/ledger-errors';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeSession } from '../../../test/fixtures.ts';
 import { call, requestContext, validatorOf } from '../../../test/server-fn.ts';
+import type { Result } from '../access.ts';
 import * as fns from './investments.ts';
+import type { InvestmentsOverview } from './investments.ts';
 
 const fake = vi.hoisted(() => ({
   investments: {
@@ -86,20 +88,19 @@ beforeEach(() => {
 
 describe('reading the portfolio', () => {
   it('answers the page: portfolio, snapshots, this year’s benchmarks, current rates, and base-currency goals', async () => {
-    expect(await call(fns.getInvestments, { context: context(), data: {} })).toEqual({
-      ok: true,
-      value: {
-        portfolio: expect.objectContaining({ baseCurrency: 'IDR' }),
-        snapshots: ['sep'],
-        benchmarks: ['spy'],
-        rates: { USD: '16350' },
-        goals: [{ id: GOAL, name: 'DP Rumah' }],
-      },
+    const result = await call<Result<InvestmentsOverview>>(fns.getInvestments, { context: context(), data: {} });
+    if (!result.ok) throw new Error(`expected ok, got ${result.code}`);
+    expect(result.value.portfolio).toMatchObject({ baseCurrency: 'IDR' });
+    expect(result.value).toMatchObject({
+      snapshots: ['sep'],
+      benchmarks: ['spy'],
+      rates: { USD: '16350' },
+      goals: [{ id: GOAL, name: 'DP Rumah' }],
     });
     expect(fake.marketData.benchmarks).toHaveBeenCalledWith(USER_ID, { year: 2026 });
-    expect(fake.fxRates.referenceRate.mock.calls.map((args) => args.slice(1))).toEqual([
-      ['USD', 'IDR'],
-      ['EUR', 'IDR'],
+    expect(fake.fxRates.referenceRate.mock.calls).toEqual([
+      [USER_ID, 'USD', 'IDR'],
+      [USER_ID, 'EUR', 'IDR'],
     ]);
     expect(fake.goals.list).toHaveBeenCalledWith(USER_ID, { status: 'active' });
   });
@@ -178,7 +179,8 @@ describe('assets, categories, and targets', () => {
       ok: true,
       value: spy,
     });
-    const { categoryId: _skipped, ...sent } = input;
+    const { categoryId, ...sent } = input;
+    expect(categoryId).toBeUndefined();
     expect(fake.investments.createAsset).toHaveBeenCalledWith(USER_ID, sent);
     fake.investments.updateAsset.mockResolvedValueOnce(spy);
     await call(fns.updateInvestmentAsset, {
@@ -231,7 +233,8 @@ describe('trades', () => {
       ok: true,
       value: { id: 'trade' },
     });
-    const { description: _none, ...sentBuy } = buy;
+    const { description, ...sentBuy } = buy;
+    expect(description).toBeUndefined();
     expect(fake.investments.recordTrade).toHaveBeenLastCalledWith(USER_ID, sentBuy);
     const sell = { ...sentBuy, kind: 'sell', units: '0.047', proceedsAccountId: OTHER, reduceGoalId: GOAL };
     await call(fns.recordInvestmentTrade, { context: context(), data: sell });
@@ -259,7 +262,8 @@ describe('trades', () => {
       ok: true,
       value: { id: 'adjust' },
     });
-    const { fxRate: _rate, ...sent } = input;
+    const { fxRate, ...sent } = input;
+    expect(fxRate).toBeUndefined();
     expect(fake.investments.adjustHoldings).toHaveBeenCalledWith(USER_ID, sent);
   });
 

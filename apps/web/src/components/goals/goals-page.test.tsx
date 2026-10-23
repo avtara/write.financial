@@ -9,6 +9,7 @@ import {
   DANA_PENSIUN,
   DP_RUMAH,
   GOAL_ACCOUNTS,
+  goalSummary,
   goalsOverview,
   LIBURAN_BALI,
   PERPANJANG_STNK,
@@ -16,6 +17,7 @@ import {
   SERVIS_MOTOR,
   source,
 } from '../../../test/goal-fixtures.ts';
+import { goalAssetOptions, SPY } from '../../../test/investment-fixtures.ts';
 import { BCA, JAGO } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import type { GoalsOverview } from '../../server/fn/goals.ts';
@@ -470,5 +472,38 @@ describe('GoalsPage', () => {
     await expect.element(screen.getByText('6 tujuan aktif · September 2026')).toBeVisible();
     await screen.getByRole('button', { name: 'Bulan berikutnya' }).click();
     expect(onMonthChange).toHaveBeenCalledWith('2026-10');
+  });
+
+  it('switches to account-only valuation, counts accounts only, and retries the prices', async () => {
+    const goal = goalSummary({
+      id: DP_RUMAH.id,
+      name: DP_RUMAH.name,
+      sources: DP_RUMAH.sources,
+      assetSources: [
+        {
+          id: 'src-spy',
+          assetId: SPY.id,
+          symbol: 'SPY',
+          assetName: SPY.name,
+          mode: 'percent',
+          bps: 6000,
+          units: '0.718',
+          valueMinor: 9_100_000n,
+          sortOrder: 1,
+        },
+      ],
+    });
+    const { screen, invalidate } = await renderPage({
+      overview: goalsOverview({ goals: [goal] }),
+      assets: goalAssetOptions([{ ...SPY, quote: null }]),
+    });
+    const notice = screen.getByLabelText('Nilai tujuan berbasis investasi');
+    await expect.element(notice).toMatchTextContent('Harga investasi belum tersedia');
+    await screen.getByRole('button', { name: 'Coba lagi' }).click();
+    expect(invalidate).toHaveBeenCalled();
+    await screen.getByRole('button', { name: 'Lihat saldo rekening saja' }).click();
+    await expect.element(notice).toMatchTextContent('Menampilkan saldo rekening saja');
+    await screen.getByRole('button', { name: 'Hitung lagi dengan investasi' }).click();
+    await expect.element(notice).toMatchTextContent('Harga investasi belum tersedia');
   });
 });

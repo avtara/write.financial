@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent, type Locator } from 'vitest/browser';
 import { budgetStatus, RECORD_BUDGET } from '../../../test/budget-fixtures.ts';
 import { visa } from '../../../test/debt-fixtures.ts';
-import { PERPANJANG_STNK, SERVIS_MOTOR, source } from '../../../test/goal-fixtures.ts';
+import { DANA_DARURAT, PERPANJANG_STNK, SERVIS_MOTOR, source } from '../../../test/goal-fixtures.ts';
 import { ACCOUNTS, BCA, CARD, CATEGORIES, categoryId, JAGO, OVO, TAGS } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import {
@@ -852,5 +852,16 @@ describe('Bayar dari tujuan (FR-G4)', () => {
     const { sheet } = await open({ goalId: bare.id, accountId: OVO.id });
     await userEvent.click(sheet.getByRole('button', { name: 'Pakai dana tujuan' }));
     await expect.element(sheet.getByRole('button', { name: 'Rekening' })).toMatchTextContent(OVO.displayName);
+  });
+
+  it('warns about savings kept wholly in the paying account and switches accounts on request', async () => {
+    goals.listGoals.mockResolvedValueOnce({ ok: true, value: [DANA_DARURAT] });
+    const { sheet, amount } = await open({ type: 'expense', accountId: JAGO.id });
+    await userEvent.fill(amount, '450000');
+    await food(sheet);
+    const warning = sheet.getByRole('status', { name: 'Rekening dialokasikan ke tujuan' });
+    await expect.element(warning).toMatchTextContent('Bank Jago seluruhnya untuk Dana Darurat');
+    await userEvent.click(warning.getByRole('button', { name: `Pakai ${BCA.displayName}` }));
+    await expect.element(sheet.getByRole('button', { name: 'Rekening' })).toMatchTextContent(BCA.displayName);
   });
 });

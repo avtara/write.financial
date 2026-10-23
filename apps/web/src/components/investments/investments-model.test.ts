@@ -14,13 +14,18 @@ import {
 } from '../../../test/investment-fixtures.ts';
 import {
   assetSources,
+  decimalInput,
+  decimalText,
   formatUnits,
   growthPoints,
   holdingGroups,
   holdingItems,
   isHeld,
+  marketLabel,
   pointsInRange,
   priceMinor,
+  priceModeLabel,
+  quoteLabel,
   quoteStatus,
   rebalanceItems,
   toUsd,
@@ -31,6 +36,45 @@ beforeAll(async () => {
 });
 
 const ym = (value: string) => value as YearMonth;
+
+describe('labels and decimal inputs', () => {
+  it('labels every market, price mode, and quote source', async () => {
+    expect(marketLabel('fx')).toBe('Kurs');
+    expect(marketLabel('us_equity')).toBe('Saham/ETF AS');
+    expect(marketLabel('idx_equity')).toBe('Saham BEI');
+    expect(marketLabel('crypto')).toBe('Kripto');
+    expect(marketLabel('gold_spot')).toBe('Emas spot');
+    expect(marketLabel('gold_antam')).toBe('Emas Antam');
+    expect(marketLabel('mutual_fund')).toBe('Reksa dana');
+    expect(marketLabel('sbn')).toBe('SBN ritel');
+    expect(priceModeLabel('server')).toBe('Bawaan server');
+    expect(priceModeLabel('byok')).toBe('Key pribadi (BYOK)');
+    expect(priceModeLabel('manual')).toBe('Manual');
+    expect(priceModeLabel('computed')).toBe('Dihitung (estimasi)');
+    expect(quoteLabel('delayed')).toBe('tertunda');
+    expect(quoteLabel('close')).toBe('penutupan');
+    expect(quoteLabel('manual')).toBe('manual');
+    expect(quoteLabel('estimate')).toBe('estimasi');
+    expect(quoteLabel('last')).toBe('terakhir');
+    await setLocale('en', { reload: false });
+    expect(marketLabel('crypto')).toBe('Crypto');
+    await setLocale('id', { reload: false });
+  });
+
+  it('reads a typed decimal in each locale and writes one back without grouping', () => {
+    expect(decimalInput('0,0725', 'id')).toBe('0.0725');
+    expect(decimalInput('1.234,5', 'id')).toBe('1234.5');
+    expect(decimalInput('0.0725', 'en')).toBe('0.0725');
+    expect(decimalInput('1,234.5', 'en')).toBe('1234.5');
+    expect(decimalInput(' 12 ', 'id')).toBe('12');
+    expect(decimalInput('0', 'id')).toBeNull();
+    expect(decimalInput('-1', 'id')).toBeNull();
+    expect(decimalInput('1,2,3', 'id')).toBeNull();
+    expect(decimalInput('1.1234567890123456789', 'en')).toBeNull();
+    expect(decimalText('0.0725', 'id')).toBe('0,0725');
+    expect(decimalText('1234.5', 'en')).toBe('1234.5');
+  });
+});
 
 describe('formatting', () => {
   it('rounds units for display and turns prices into amounts', () => {

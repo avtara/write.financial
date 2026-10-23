@@ -25,7 +25,7 @@ import { Percent } from '@wf/ui/percent';
 import { usePrivacy } from '@wf/ui/privacy';
 import { useState } from 'react';
 import { useElementWidth } from '../../lib/use-element-width.ts';
-import { monthName, periodLabel } from '../dashboard/dashboard-format.ts';
+import { monthName } from '../dashboard/dashboard-format.ts';
 import { pointsInRange } from './investments-model.ts';
 
 const TOP = 22;
@@ -90,7 +90,7 @@ export function GrowthCard({ points, benchmarks, currency, convert, locale }: Gr
       loss,
       current: index === shown.length - 1,
       text: chartValue(point.valueMinor),
-      label: `${periodLabel(point.month, locale)}: ${currency === 'IDR' ? m.invest_growth_legend_value() : currency} ${hidden ? '•••' : chartValue(point.valueMinor)}`,
+      label: `${monthName(point.month, locale, 'long')} ${point.month.slice(0, 4)}: ${currency === 'IDR' ? m.invest_growth_legend_value() : currency} ${hidden ? '•••' : chartValue(point.valueMinor)}`,
     };
   });
 
@@ -282,7 +282,9 @@ function GrowthTooltip({ point, previous, x, width, currency, locale }: GrowthTo
       className="pointer-events-none absolute z-10 flex w-[230px] flex-col gap-2 rounded-[10px] border border-border-strong bg-popover p-3 text-[12px] shadow-lg"
     >
       <span className="text-[11px] text-subtle">
-        {m.invest_growth_tip_end({ month: periodLabel(point.month, locale) })}
+        {m.invest_growth_tip_end({
+          month: `${monthName(point.month, locale, 'long')} ${point.month.slice(0, 4)}`,
+        })}
       </span>
       <Money
         minor={point.valueMinor}

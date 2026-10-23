@@ -87,7 +87,6 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   });
 
   const refresh = async () => {
-    if (refreshing) return;
     setRefreshing(true);
     const results: MarketSyncResult[] = [];
     try {
@@ -262,7 +261,11 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
           <Button variant="secondary" pending={refreshing} onClick={() => void refresh()}>
             <RefreshCw aria-hidden="true" className="size-3.5" />
             {refreshing
-              ? m.market_sync_progress({ done: Math.min((sync?.results.length ?? 0) + 1, SYNC_MARKETS.length), total: SYNC_MARKETS.length })
+              ? m.market_sync_progress({
+                  // While refreshing, the first source is already in `sync`.
+                  done: Math.min((sync as PriceSyncState).results.length + 1, SYNC_MARKETS.length),
+                  total: SYNC_MARKETS.length,
+                })
               : m.invest_sync()}
           </Button>
           <Button
@@ -285,15 +288,15 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
         platforms={portfolio.platforms}
         categories={portfolio.categories}
         locale={locale}
-        onOpenChange={(open) => {
-          if (!open) setForm(null);
+        onOpenChange={() => {
+          setForm(null);
         }}
         onSubmit={saveAsset}
       />
       <TradeSheet
         open={trade}
-        onOpenChange={(open) => {
-          if (!open) setTrade(null);
+        onOpenChange={() => {
+          setTrade(null);
         }}
         portfolio={portfolio}
         accounts={accounts}
@@ -393,8 +396,8 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
         portfolio={portfolio}
         timeZone={timeZone}
         locale={locale}
-        onOpenChange={(open) => {
-          if (!open) setDetailId(null);
+        onOpenChange={() => {
+          setDetailId(null);
         }}
         onAction={(action, asset) => {
           setDetailId(null);
@@ -422,8 +425,8 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
         })()}
         base={base}
         locale={locale}
-        onOpenChange={(open) => {
-          if (!open) setAdjustId(null);
+        onOpenChange={() => {
+          setAdjustId(null);
         }}
         onSubmit={adjust}
         onSell={(asset, sellAmountMinor) => {
@@ -434,8 +437,8 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
       <MoveDialog
         asset={byId(moveId)}
         categories={portfolio.categories}
-        onOpenChange={(open) => {
-          if (!open) setMoveId(null);
+        onOpenChange={() => {
+          setMoveId(null);
         }}
         onSubmit={(asset, categoryId) =>
           run(moveInvestmentAsset({ data: { assetId: asset.id, categoryId } }), () => {
@@ -449,8 +452,8 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
         goals={overview.goals}
         base={base}
         locale={locale}
-        onOpenChange={(open) => {
-          if (!open) setGoalsId(null);
+        onOpenChange={() => {
+          setGoalsId(null);
         }}
         onSubmit={(asset, sources: readonly GoalAssetSource[]) =>
           run(
@@ -473,8 +476,8 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
       />
       <ConfirmDialog
         open={removeId !== null}
-        onOpenChange={(open) => {
-          if (!open) setRemoveId(null);
+        onOpenChange={() => {
+          setRemoveId(null);
         }}
         title={m.invest_remove_title({ symbol: byId(removeId)?.symbol ?? '' })}
         description={m.invest_remove_description()}
@@ -482,9 +485,9 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
         cancelLabel={m.invest_cancel()}
         variant="destructive"
         onConfirm={() => {
-          const asset = byId(removeId);
+          // The dialog only opens with an id, and its asset.
+          const asset = byId(removeId) as AssetView;
           setRemoveId(null);
-          if (asset === null) return;
           void run(removeInvestmentAsset({ data: { id: asset.id } }), () => {
             toast({ tone: 'success', title: m.invest_toast_removed({ symbol: asset.symbol }) });
           }).then((failed) => {

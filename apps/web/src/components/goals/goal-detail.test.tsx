@@ -272,4 +272,50 @@ describe('GoalDetail', () => {
     await Promise.resolve();
     expect(server.getGoalHistory).toHaveBeenCalledTimes(2);
   });
+
+  it('lists investment asset sources with their share, units, and market price', async () => {
+    const assetSources = [
+      {
+        id: 'src-spy',
+        assetId: 'a1',
+        symbol: 'SPY',
+        assetName: 'SPDR S&P 500 ETF',
+        mode: 'whole' as const,
+        bps: 10_000,
+        units: '1.197',
+        valueMinor: 13_500_000n,
+        sortOrder: 1,
+      },
+      {
+        id: 'src-qqq',
+        assetId: 'a2',
+        symbol: 'QQQ',
+        assetName: 'Invesco QQQ Trust',
+        mode: 'percent' as const,
+        bps: 6050,
+        units: '0.718',
+        valueMinor: 8_100_000n,
+        sortOrder: 2,
+      },
+    ];
+    const { screen } = await detail(goalSummary({ id: 'g1', name: 'DP Rumah', assetSources })).view;
+    const sheet = screen.getByRole('dialog', { name: 'DP Rumah' });
+    await expect.element(sheet).toMatchTextContent(/SPYSeluruh aset · 1,197 unit · ikut harga pasar/);
+    await expect.element(sheet).toMatchTextContent(/QQQ60,5% · 0,718 unit · ikut harga pasar/);
+    await screen.unmount();
+    const english = await renderApp(
+      <GoalDetail
+        goal={goalSummary({ id: 'g1', name: 'DP Rumah', assetSources })}
+        accounts={GOAL_ACCOUNTS}
+        today={TODAY}
+        locale="en"
+        onOpenChange={vi.fn()}
+        actions={actions()}
+      />,
+      { preferences: { locale: 'en' } },
+    );
+    await expect
+      .element(english.screen.getByRole('dialog', { name: 'DP Rumah' }))
+      .toMatchTextContent(/QQQ60.5% · 0.718 units · follows market price/);
+  });
 });

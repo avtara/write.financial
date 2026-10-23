@@ -103,14 +103,14 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
             <p className="text-[12.5px] text-muted-fg">{m.invest_rebalance_balanced()}</p>
           ) : (
             <>
-              {buys.length === 0 ? null : (
-                <div>
-                  <h3 className="text-[11px] font-medium tracking-[0.04em] text-subtle uppercase">
-                    {m.invest_rebalance_buy()}
-                  </h3>
-                  <ul>{buys.map(row)}</ul>
-                </div>
-              )}
+              {/* `rebalance` returns trades only for classes that move: with no negative extra money, any
+                  non-empty result has at least one buy. */}
+              <div>
+                <h3 className="text-[11px] font-medium tracking-[0.04em] text-subtle uppercase">
+                  {m.invest_rebalance_buy()}
+                </h3>
+                <ul>{buys.map(row)}</ul>
+              </div>
               {sells.length === 0 ? null : (
                 <div>
                   <h3 className="text-[11px] font-medium tracking-[0.04em] text-subtle uppercase">
