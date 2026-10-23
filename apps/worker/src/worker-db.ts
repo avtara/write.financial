@@ -49,7 +49,15 @@ export interface WorkerDb {
   /** What the market jobs read (targets, decrypted key for a request) and the built-in sources' state. */
   readonly marketJobs: Pick<
     MarketJobs,
-    'serverTargets' | 'byokUsers' | 'userTargets' | 'credential' | 'lastRequests' | 'providerState' | 'setProviderState'
+    | 'serverTargets'
+    | 'byokUsers'
+    | 'userTargets'
+    | 'credential'
+    | 'lastRequests'
+    | 'providerState'
+    | 'setProviderState'
+    | 'purgeLogs'
+    | 'baselineExists'
   >;
   /** The daily portfolio snapshot (reads the portfolio, writes `portfolio_snapshots` only). */
   readonly portfolioSnapshots: PortfolioSnapshots;
@@ -88,8 +96,17 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { get: settings, smtpPassword } = createInstanceSettings(database, keyring);
   const { recordServerQuotes, recordUserQuotes, logRequest } = createMarketData(database);
   const { list: listKeys, setStatus } = createMarketCredentials(database, { getDek });
-  const { serverTargets, byokUsers, userTargets, credential, lastRequests, providerState, setProviderState } =
-    createMarketJobs(database, { getDek });
+  const {
+    serverTargets,
+    byokUsers,
+    userTargets,
+    credential,
+    lastRequests,
+    providerState,
+    setProviderState,
+    purgeLogs,
+    baselineExists,
+  } = createMarketJobs(database, { getDek });
   const { record: recordSnapshot } = createPortfolioSnapshots(database);
   return {
     db: Object.freeze({
@@ -113,6 +130,8 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
         lastRequests,
         providerState,
         setProviderState,
+        purgeLogs,
+        baselineExists,
       }),
       portfolioSnapshots: Object.freeze({ record: recordSnapshot }),
     }),

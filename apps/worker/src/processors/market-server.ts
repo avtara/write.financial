@@ -28,6 +28,8 @@ export function createMarketServerProcessor({
   return async (job) => {
     const { source } = JOBS['market-server'].parse(job.data);
     const at = now();
+    // The daily gold run also applies the request log's physical 30-day retention.
+    if (source === 'gold') await db.marketJobs.purgeLogs(at);
     const wanted = source === 'crypto' ? 'crypto' : 'gold_spot';
     const requests = (await db.marketJobs.serverTargets())
       .filter((target) => target.market === wanted)

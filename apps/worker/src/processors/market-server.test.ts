@@ -108,6 +108,7 @@ describe('market-server processor', () => {
       },
     );
     expect(inputs[0]?.requests).toEqual([{ symbol: 'XAU', currency: 'IDR' }]);
+    expect(ok.db.calls).toContainEqual({ method: 'marketJobs.purgeLogs', args: [NOW] });
     const down = fakeDeps(
       {
         db: db(),

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Settings › "API kurs & pasar" (FR-ST4, FR-I5, FR-I6; design `W6ThPJ`, log `iCbPR`): the price source of every
+ * Settings › "API kurs & pasar" (FR-ST4, FR-I5, FR-I6; design `JtnsQ`, log `iCbPR`): the price source of every
  * asset class with its mode (Bawaan / BYOK / Manual / Estimasi) and status ("Aktif · 16.42", "Terhubung", "Atur key",
  * "Kuota habis s.d. …"); per BYOK provider the masked key, frequency within the free quota, quota meter, "Dapatkan key
  * gratis", "Tes koneksi" with per-symbol results, and the license notes. Saving a key requires 2FA; deleting it deletes
@@ -12,7 +12,13 @@ import type { MarketCredentialView } from '@wf/db/market-credentials';
 import type { ApiLogView } from '@wf/db/market-data';
 import type { ProviderStateView } from '@wf/db/market-jobs';
 import { divideRound, parseDecimal } from '@wf/domain/decimal';
-import { refreshPlan, type ByokProvider, type CredentialStatus, type ServerProvider } from '@wf/domain/market';
+import {
+  refreshPlan,
+  type ByokProvider,
+  type CredentialStatus,
+  type QuoteLabel,
+  type ServerProvider,
+} from '@wf/domain/market';
 import { currencyInfo } from '@wf/domain/money';
 import { formatDate } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
@@ -87,6 +93,14 @@ function statusText(status: CredentialStatus, until: Date | null, time: (date: D
   return texts[status]();
 }
 
+const LABEL_TEXT: Readonly<Record<QuoteLabel, () => string>> = {
+  delayed: m.market_label_delayed,
+  close: m.market_label_close,
+  manual: m.market_label_manual,
+  estimate: m.market_label_estimate,
+  last: m.market_label_last,
+};
+
 function ModeBadge({ children }: { children: ReactNode }) {
   return (
     <span className="inline-flex h-5 items-center rounded-full bg-surface-3 px-2 text-[11px] font-medium text-muted-fg">
@@ -96,7 +110,7 @@ function ModeBadge({ children }: { children: ReactNode }) {
 }
 
 /** "Sinkronkan harga" outcome of one source. */
-function syncText(result: MarketSyncResult, time: (date: Date) => string): string {
+export function syncText(result: MarketSyncResult, time: (date: Date) => string): string {
   if (result.status === 'synced') {
     return m.market_sync_synced({ count: result.synced, provider: PROVIDER_NAMES[result.provider as ByokProvider] });
   }
@@ -377,7 +391,7 @@ function builtInStatus(state: ProviderStateView | undefined, time: (date: Date) 
 }
 
 /** "Buka log API" (design `iCbPR`). */
-function ApiLog({ entries, time }: { entries: ApiLogView[]; time: (date: Date) => string }) {
+export function ApiLog({ entries, time }: { entries: ApiLogView[]; time: (date: Date) => string }) {
   const today = new Date().toDateString();
   const ofToday = entries.filter((entry) => entry.at.toDateString() === today);
   return (
@@ -538,6 +552,19 @@ export function MarketSection({ settings, timeZone }: MarketSectionProps) {
         </Button>
       </div>
       {logError ? <FormError>{m.market_log_failed()}</FormError> : null}
+      <section aria-label={m.market_prices_title()} className="flex flex-col gap-0.5 text-[12px]">
+        <h4 className="font-medium text-fg">{m.market_prices_title()}</h4>
+        {settings.prices.length === 0 ? (
+          <p className="text-muted-fg">{m.market_prices_none()}</p>
+        ) : (
+          settings.prices.map((entry) => (
+            <p key={`${entry.label}:${entry.provider}`} className="text-muted-fg">
+              {entry.provider === null ? null : `${PROVIDER_NAMES[entry.provider]} · `}
+              {m.market_prices_entry({ count: entry.count, label: LABEL_TEXT[entry.label](), time: time(entry.asOf) })}
+            </p>
+          ))
+        )}
+      </section>
       {sync === null ? null : (
         <ul
           aria-live="polite"

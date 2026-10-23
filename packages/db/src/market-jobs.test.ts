@@ -187,6 +187,17 @@ describe('credential, lastRequests, testsSince, quoteCounts', () => {
     expect(await asWorker(() => jobs().credential(bob, 'tiingo'))).toBeNull();
   });
 
+  it('stops decrypting or dispatching saved keys after 2FA is disabled, but keeps them readable and removable', async () => {
+    await asApp(() => credentials().save(alice, { provider: 'tiingo', apiKey: KEY }));
+    await test.query('UPDATE users SET two_factor_enabled = false WHERE id = $1', [alice]);
+    expect(await asWorker(() => jobs().byokUsers())).toEqual([]);
+    expect(await asWorker(() => jobs().credential(alice, 'tiingo'))).toBeNull();
+    expect(await asApp(() => jobs().credential(alice, 'tiingo'))).toBeNull();
+    expect((await asApp(() => credentials().list(alice)))[0]?.last4).toBe(KEY.slice(-4));
+    await asApp(() => credentials().remove(alice, 'tiingo'));
+    expect(await asApp(() => credentials().list(alice))).toEqual([]);
+  });
+
   it('knows when each provider was last asked, the tests of the last hour, and the prices per key', async () => {
     const data = createMarketData(test.db);
     const log = (userId: string | null, provider: 'tiingo' | 'eodhd', endpoint: string, at: string) =>
@@ -264,5 +275,69 @@ describe('provider state (market_provider_state)', () => {
     await expect(asApp(() => jobs().setProviderState('coinmarketcap', state, NOW))).rejects.toMatchObject(
       pgError(/permission denied for table market_provider_state/),
     );
+  });
+});
+
+describe('market log retention', () => {
+  it('purges both shared and tenant logs strictly older than 30 days and caps future clocks', async () => {
+    const [clock] = await test.query<{ at: string }>('SELECT now()::text AS at');
+    const at = new Date(clock?.at as string);
+    for (const userId of [alice, bob, null]) {
+      for (const age of [31, 30, 29]) {
+        await test.query(
+          `INSERT INTO market_api_logs (user_id, provider, endpoint, ok, duration_ms, at)
+          VALUES ($1, 'eodhd', $2, true, 1, $3::timestamptz - $4::int * interval '1 day')`,
+          [userId, `age-${String(age)}`, at.toISOString(), age],
+        );
+      }
+    }
+    expect(await asWorker(() => jobs().purgeLogs(at))).toBe(3);
+    expect(await asWorker(() => jobs().purgeLogs(at))).toBe(0);
+    expect(await asWorker(() => jobs().purgeLogs(new Date(at.getTime() + 365 * 86_400_000)))).toBe(3);
+    expect(await test.query('SELECT endpoint FROM market_api_logs')).toEqual([
+      { endpoint: 'age-29' },
+      { endpoint: 'age-29' },
+      { endpoint: 'age-29' },
+    ]);
+  });
+
+  it.each(['wf_app', 'wf_auth', 'wf_readonly_ops'] as const)('denies retention execution to %s', async (role) => {
+    await expect(test.as(role, () => jobs().purgeLogs(NOW))).rejects.toMatchObject(
+      pgError(/permission denied for function wf_market_purge_logs/),
+    );
+  });
+});
+
+describe('baselineExists', () => {
+  it('only accepts the same tenant, provider, symbol, currency and prior December session', async () => {
+    const data = createMarketData(test.db);
+    await asWorker(() =>
+      data.recordUserQuotes(
+        alice,
+        [
+          {
+            provider: 'eodhd',
+            symbol: 'JKSE.INDX',
+            quoteCurrency: 'IDR',
+            price: '900',
+            prevClose: null,
+            bucketTs: new Date('2025-12-30T00:00:00Z'),
+          },
+        ],
+        NOW,
+      ),
+    );
+    expect(await asApp(() => jobs().baselineExists(alice, 'eodhd', 'JKSE.INDX', 'IDR', 2026))).toBe(true);
+    const rejected: [string, 'eodhd' | 'tiingo', string, string, number][] = [
+      [bob, 'eodhd', 'JKSE.INDX', 'IDR', 2026],
+      [alice, 'tiingo', 'JKSE.INDX', 'IDR', 2026],
+      [alice, 'eodhd', 'BBCA', 'IDR', 2026],
+      [alice, 'eodhd', 'JKSE.INDX', 'USD', 2026],
+      [alice, 'eodhd', 'JKSE.INDX', 'IDR', 2025],
+      [alice, 'eodhd', 'JKSE.INDX', 'IDR', 2027],
+    ];
+    for (const args of rejected) {
+      expect(await asWorker(() => jobs().baselineExists(...args))).toBe(false);
+    }
   });
 });

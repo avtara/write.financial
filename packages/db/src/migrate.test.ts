@@ -196,6 +196,7 @@ describe('migrate', () => {
         'wf_maintenance_purge_auth',
         'wf_maintenance_purge_notifications',
         'wf_market_byok_users',
+        'wf_market_purge_logs',
         'wf_market_server_targets',
         'wf_pending_outbox',
         'wf_worker_users',

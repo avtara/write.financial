@@ -88,6 +88,14 @@ export interface ByokPorts {
   setStatus: (userId: string, provider: ByokProvider, update: CredentialUpdate) => Promise<unknown>;
   recordUserQuotes: (userId: string, quotes: readonly QuoteRow<ByokProvider>[], fetchedAt: Date) => Promise<void>;
   logRequest: (userId: string | null, entry: LogEntry) => Promise<void>;
+  /** A year-end quote already exists for this provider, symbol, currency and prior year. */
+  baselineExists: (
+    userId: string,
+    provider: ByokProvider,
+    symbol: string,
+    currency: string,
+    year: number,
+  ) => Promise<boolean>;
 }
 
 /** A built-in source's state (`market_provider_state`): pause, monthly credits. */
@@ -325,6 +333,33 @@ export async function syncByokMarket(
       const result = run.results[index] as SymbolResult;
       if (result.price !== null) answers.set(target, result);
     });
+    const history = adapters[provider].fetchPriorClose?.bind(adapters[provider]);
+    const symbol =
+      market === 'us_equity' ? 'SPY' : market === 'idx_equity' ? (provider === 'eodhd' ? 'JKSE.INDX' : 'IHSG') : null;
+    if (history !== undefined && symbol !== null && run.status === 'connected') {
+      const currency = market === 'us_equity' ? 'USD' : 'IDR';
+      if (!(await ports.baselineExists(userId, provider, symbol, currency, now.getUTCFullYear()))) {
+        const current = await ports.credential(userId, provider);
+        const window = quotaWindow(provider, now);
+        const used =
+          current !== null && current.quotaResetAt !== null && current.quotaResetAt > now ? current.quotaUsed : 0;
+        if (
+          current !== null &&
+          (window.limit === null || used + 1 <= Math.floor((window.limit * (10_000 - QUOTA_RESERVE_BPS)) / 10_000))
+        ) {
+          await runByokProvider(
+            ports,
+            { provider, fetchQuotes: history },
+            {
+              userId,
+              credential: current,
+              targets: [{ market, currency, symbols: { [provider]: symbol }, serverAsOf: null }],
+              now,
+            },
+          );
+        }
+      }
+    }
   }
   return {
     market,

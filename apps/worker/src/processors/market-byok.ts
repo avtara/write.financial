@@ -51,6 +51,7 @@ export function createMarketByokProcessor({
       setStatus: db.marketCredentials.setStatus,
       recordUserQuotes: db.marketData.recordUserQuotes,
       logRequest: db.marketData.logRequest,
+      baselineExists: db.marketJobs.baselineExists,
     };
     const markets: MarketByokOutcome[] = [];
     for (const market of [...new Set(targets.map((target) => target.market))]) {

@@ -50,6 +50,8 @@ describe('WorkerDb (D14)', () => {
         'lastRequests',
         'providerState',
         'setProviderState',
+        'purgeLogs',
+        'baselineExists',
       ],
       portfolioSnapshots: ['record'],
     });

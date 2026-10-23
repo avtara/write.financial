@@ -18,7 +18,7 @@ import {
   type MarketProvider,
   type ServerProvider,
 } from '@wf/domain/market';
-import { and, count, countDistinct, eq, gte, inArray, like, max, sql } from 'drizzle-orm';
+import { and, count, countDistinct, eq, gte, inArray, like, lt, max, sql } from 'drizzle-orm';
 import { firstRow, withUser, type Database } from './db.ts';
 import type { WorkerUser } from './dispatch.ts';
 import { API_KEY_PURPOSE } from './market-credentials.ts';
@@ -30,6 +30,7 @@ import {
   marketProviderState,
   marketQuotesLatest,
   userQuotes,
+  users,
   type PROVIDER_STATE_STATUSES,
 } from './schema.ts';
 
@@ -122,6 +123,16 @@ export interface MarketJobs {
   providerState: (provider: ServerProvider) => Promise<ProviderStateInput | null>;
   /** Worker: keeps a built-in source's state. */
   setProviderState: (provider: ServerProvider, state: ProviderStateInput, at: Date) => Promise<void>;
+  /** Worker: deletes API logs older than 30 days, capped at the database clock (FR-ST4). */
+  purgeLogs: (at: Date) => Promise<number>;
+  /** Whether this user's provider already holds a close from the previous December. */
+  baselineExists: (
+    userId: string,
+    provider: ByokProvider,
+    symbol: string,
+    currency: string,
+    year: number,
+  ) => Promise<boolean>;
 }
 
 const FETCHED_MODES: readonly PriceMode[] = ['server', 'byok'];
@@ -210,7 +221,8 @@ export function createMarketJobs(
             retryAfter: marketCredentials.retryAfter,
           })
           .from(marketCredentials)
-          .where(eq(marketCredentials.provider, provider)),
+          .innerJoin(users, eq(users.id, marketCredentials.userId))
+          .where(and(eq(marketCredentials.provider, provider), eq(users.twoFactorEnabled, true))),
       );
       if (row === undefined) return null;
       const { apiKeyEnc, ...state } = row;
@@ -272,5 +284,30 @@ export function createMarketJobs(
         .values({ provider, ...state, updatedAt: at })
         .onConflictDoUpdate({ target: marketProviderState.provider, set: { ...state, updatedAt: at } });
     },
+
+    purgeLogs: async (at) => {
+      const rows = await db.execute<{ deleted: string }>(
+        sql`select wf_market_purge_logs(${at.toISOString()}::timestamptz) as deleted`,
+      );
+      return Number(firstRow(rows, 'market retention').deleted);
+    },
+
+    baselineExists: (userId, provider, symbol, currency, year) =>
+      withUser(db, userId, async (tx) => {
+        const rows = await tx
+          .select({ symbol: userQuotes.symbol })
+          .from(userQuotes)
+          .where(
+            and(
+              eq(userQuotes.provider, provider),
+              eq(userQuotes.symbol, symbol),
+              eq(userQuotes.quoteCurrency, currency),
+              gte(userQuotes.bucketTs, new Date(Date.UTC(year - 1, 11, 20))),
+              lt(userQuotes.bucketTs, new Date(Date.UTC(year, 0, 1))),
+            ),
+          )
+          .limit(1);
+        return rows.length > 0;
+      }),
   };
 }

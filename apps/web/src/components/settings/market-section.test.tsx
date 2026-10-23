@@ -78,6 +78,10 @@ const SETTINGS: MarketSettings = {
   ],
   cmcConfigured: true,
   symbolCounts: { idx_equity: 2, us_equity: 30 },
+  prices: [
+    { label: 'manual', provider: null, count: 22, asOf: now },
+    { label: 'last', provider: 'eodhd', count: 1, asOf: lastWeek },
+  ],
 };
 
 const render = (settings: MarketSettings = SETTINGS, locale: 'id' | 'en' = 'id') =>
@@ -104,6 +108,9 @@ describe('MarketSection', () => {
       await expect.element(page.getByRole('region', { name: label })).toBeVisible();
     }
     await expect.element(page.getByText('Aktif · harian 17.00 & 08.00 WIB')).toBeVisible();
+    // Source and time of the prices in use (FR-I5), with or without any key.
+    const prices = page.getByRole('region', { name: 'Harga yang dipakai' });
+    await expect.element(prices.getByText(/EODHD · 1 terakhir/)).toBeVisible();
     await expect
       .element(page.getByText(/^Key ••••eo99 · Terhubung · Tiap 60 menit · 2 harga tersimpan$/))
       .toBeVisible();
@@ -157,7 +164,9 @@ describe('MarketSection', () => {
     await expect
       .element(row('tiingo').getByRole('link', { name: 'Dapatkan key gratis' }))
       .toHaveAttribute('href', 'https://www.tiingo.com/account/api/token');
-    await render({ ...SETTINGS, keys: [], serverSources: [] }, 'en');
+    await expect.element(page.getByText('Belum ada harga — nilai memakai modal')).not.toBeInTheDocument();
+    await render({ ...SETTINGS, keys: [], serverSources: [], prices: [] }, 'en');
+    await expect.element(page.getByText('No prices yet — values use the cost')).toBeVisible();
     await expect.element(page.getByText('Waiting for the first sync').first()).toBeVisible();
     // English clock: "Active · 21:23".
     await render({ ...SETTINGS, keys: [] }, 'en');

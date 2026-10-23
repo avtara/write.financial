@@ -11,7 +11,14 @@ import { LedgerError } from '@wf/db/ledger-errors';
 import type { MarketCredentialView } from '@wf/db/market-credentials';
 import type { ApiLogView } from '@wf/db/market-data';
 import type { ProviderStateView } from '@wf/db/market-jobs';
-import { BYOK_PROVIDERS, STALE_AFTER_MS, type ByokProvider } from '@wf/domain/market';
+import {
+  BYOK_PROVIDERS,
+  STALE_AFTER_MS,
+  type ByokProvider,
+  type QuoteLabel,
+  type MarketProvider,
+  type ResolvedQuote,
+} from '@wf/domain/market';
 import {
   runByokProvider,
   syncByokMarket,
@@ -50,6 +57,16 @@ export interface MarketSettings {
   readonly cmcConfigured: boolean;
   /** Distinct priced things per market (frequency per key). */
   readonly symbolCounts: Partial<Record<SyncMarket, number>>;
+  /**
+   * The prices the user's assets are valued with now, per label (FR-I5: source and time, never "real-time"): how many
+   * and the newest. Empty when nothing is priced (values at cost, FR-G6).
+   */
+  readonly prices: {
+    readonly label: QuoteLabel;
+    readonly provider: MarketProvider | null;
+    readonly count: number;
+    readonly asOf: Date;
+  }[];
 }
 
 export interface MarketTestResult {
@@ -78,6 +95,7 @@ function byokPorts(s: Services): ByokPorts {
     setStatus: s.marketCredentials.setStatus,
     recordUserQuotes: s.marketData.recordUserQuotes,
     logRequest: s.marketData.logRequest,
+    baselineExists: s.marketJobs.baselineExists,
   };
 }
 
@@ -89,6 +107,20 @@ export const getMarketSettings = createServerFn({ method: 'GET' }).handler(
       const targets = await s.marketJobs.userTargets(user.id);
       const symbolCounts: Partial<Record<SyncMarket, number>> = {};
       for (const target of targets) symbolCounts[target.market] = (symbolCounts[target.market] ?? 0) + 1;
+      const quotes = [...(await s.marketData.quotes(user.id)).values()].filter(
+        (quote): quote is ResolvedQuote => quote !== null,
+      );
+      const grouped = new Map<string, MarketSettings['prices'][number]>();
+      for (const quote of quotes) {
+        const key = `${quote.label}:${quote.provider}`;
+        const existing = grouped.get(key);
+        grouped.set(key, {
+          label: quote.label,
+          provider: quote.provider ?? null,
+          count: (existing?.count ?? 0) + 1,
+          asOf: new Date(Math.max(existing?.asOf.getTime() ?? 0, quote.asOf)),
+        });
+      }
       return {
         twoFactorEnabled: user.twoFactorEnabled === true,
         keys: await s.marketCredentials.list(user.id),
@@ -96,6 +128,7 @@ export const getMarketSettings = createServerFn({ method: 'GET' }).handler(
         serverSources: await s.marketJobs.providerStates(),
         cmcConfigured: s.config.market.cmcApiKey !== null,
         symbolCounts,
+        prices: [...grouped.values()],
       };
     });
   },
@@ -107,7 +140,7 @@ export const saveMarketKey = createServerFn({ method: 'POST' })
   .handler(async ({ context, data }): Promise<Result<MarketCredentialView>> => {
     const s = await services();
     return attempt(async () => {
-      const { user } = await requireSession(context.session, { twoFactor: true }, s.now());
+      const { user } = await requireSession(context.session, { twoFactor: true, fresh: true }, s.now());
       return s.marketCredentials.save(user.id, data);
     });
   });
@@ -118,7 +151,7 @@ export const setMarketKeyActive = createServerFn({ method: 'POST' })
   .handler(async ({ context, data }): Promise<Result<MarketCredentialView>> => {
     const s = await services();
     return attempt(async () => {
-      const { user } = await requireSession(context.session, {}, s.now());
+      const { user } = await requireSession(context.session, { twoFactor: true }, s.now());
       return s.marketCredentials.setActive(user.id, data.provider, data.active);
     });
   });
@@ -146,7 +179,7 @@ export const testMarketKey = createServerFn({ method: 'POST' })
     const s = await services();
     return attempt(async () => {
       const now = s.now();
-      const { user } = await requireSession(context.session, {}, now);
+      const { user } = await requireSession(context.session, { twoFactor: true }, now);
       const credential = await s.marketJobs.credential(user.id, data.provider);
       if (credential === null) throw new LedgerError('NOT_FOUND', 'No key for this provider');
       const since = new Date(now.getTime() - 3_600_000);
@@ -181,7 +214,7 @@ export const syncMarketSource = createServerFn({ method: 'POST' })
     const s = await services();
     return attempt(async () => {
       const now = s.now();
-      const { user } = await requireSession(context.session, {}, now);
+      const { user } = await requireSession(context.session, { twoFactor: true }, now);
       const { market } = data;
       const targets = (await s.marketJobs.userTargets(user.id, { fetchedOnly: true })).filter(
         (target) =>

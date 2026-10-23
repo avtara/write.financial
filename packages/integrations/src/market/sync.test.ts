@@ -104,6 +104,7 @@ function byokPorts(credentials: StoredCredential[]) {
     }),
     recordUserQuotes: vi.fn(() => Promise.resolve()),
     logRequest: vi.fn(() => Promise.resolve()),
+    baselineExists: vi.fn(() => Promise.resolve(false)),
   } satisfies ByokPorts;
   return { ports, updates };
 }
@@ -313,6 +314,111 @@ describe('syncByokMarket', () => {
       now: NOW,
     });
     expect(none.results).toEqual([{ symbol: '', currency: 'IDR', provider: null, price: null, asOf: null }]);
+  });
+
+  it.each([
+    ['tiingo', 'us_equity', 'SPY', 'USD'],
+    ['eodhd', 'idx_equity', 'JKSE.INDX', 'IDR'],
+  ] as const)(
+    'stores actual year-end history once per user/provider/year without replacing the current result (%s)',
+    async (provider, market, symbol, currency) => {
+      const adapter = fakeAdapter(provider, { [symbol]: '1000' });
+      const historical = vi.fn((input: FetchQuotesInput): Promise<AdapterResult> =>
+        Promise.resolve({
+          quotes: input.requests.map((request) => ({
+            ...request,
+            price: '900',
+            prevClose: null,
+            asOf: new Date('2025-12-30T00:00:00Z'),
+          })),
+          calls: [call(provider)],
+          failure: null,
+          unverified: false,
+          credits: null,
+        }),
+      );
+      const { ports } = byokPorts([credential(provider)]);
+      const run = () =>
+        syncByokMarket(ports, adapters({ [provider]: { ...adapter, fetchPriorClose: historical } }), {
+          userId: USER,
+          market,
+          targets: [target(market, symbol, currency)],
+          now: NOW,
+        });
+      expect((await run()).results[0]?.price).toBe('1000');
+      expect(ports.recordUserQuotes).toHaveBeenLastCalledWith(
+        USER,
+        [
+          {
+            provider,
+            symbol,
+            quoteCurrency: currency,
+            bucketTs: new Date('2025-12-30T00:00:00Z'),
+            price: '900',
+            prevClose: null,
+          },
+        ],
+        NOW,
+      );
+      ports.baselineExists.mockResolvedValue(true);
+      await run();
+      expect(historical).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('uses the IDX benchmark when the key is not EODHD, and no baseline at all outside US/IDX', async () => {
+    const historical = vi.fn<(input: FetchQuotesInput) => Promise<AdapterResult>>(() =>
+      Promise.resolve({
+        quotes: [],
+        calls: [call('marketstack')],
+        failure: null,
+        unverified: false,
+        credits: null,
+      }),
+    );
+    const marketstack = { ...fakeAdapter('marketstack', { IHSG: '7000' }), fetchPriorClose: historical };
+    const idx = byokPorts([credential('marketstack')]);
+    await syncByokMarket(idx.ports, adapters({ marketstack }), {
+      userId: USER,
+      market: 'idx_equity',
+      targets: [target('idx_equity', 'IHSG', 'IDR')],
+      now: NOW,
+    });
+    expect(historical.mock.calls[0]?.[0]?.requests).toEqual([{ symbol: 'IHSG.XIDX', currency: 'IDR' }]);
+
+    const cryptoHistory = vi.fn<(input: FetchQuotesInput) => Promise<AdapterResult>>(() =>
+      Promise.resolve({
+        quotes: [],
+        calls: [call('coinmarketcap')],
+        failure: null,
+        unverified: false,
+        credits: null,
+      }),
+    );
+    const coinmarketcap = { ...fakeAdapter('coinmarketcap', { BTC: '1' }), fetchPriorClose: cryptoHistory };
+    const crypto = byokPorts([credential('coinmarketcap')]);
+    await syncByokMarket(crypto.ports, adapters({ coinmarketcap }), {
+      userId: USER,
+      market: 'crypto',
+      targets: [target('crypto', 'BTC', 'IDR')],
+      now: NOW,
+    });
+    expect(cryptoHistory).not.toHaveBeenCalled();
+  });
+
+  it('does not spend the free-quota reserve on historical closes', async () => {
+    const adapter = fakeAdapter('eodhd', { 'JKSE.INDX': '1000' });
+    const historical = vi.fn((input: FetchQuotesInput) => adapter.fetchQuotes(input));
+    const { ports } = byokPorts([
+      credential('eodhd', { quotaUsed: 20, quotaResetAt: new Date('2026-10-16T00:00:00Z') }),
+    ]);
+    await syncByokMarket(ports, adapters({ eodhd: { ...adapter, fetchPriorClose: historical } }), {
+      userId: USER,
+      market: 'idx_equity',
+      targets: [target('idx_equity', 'JKSE.INDX', 'IDR')],
+      now: NOW,
+    });
+    expect(historical).not.toHaveBeenCalled();
   });
 });
 
