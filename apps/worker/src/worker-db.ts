@@ -16,6 +16,7 @@ import { createOutbox, type Outbox } from '@wf/db/outbox';
 import { createPeriodClose, type PeriodClose } from '@wf/db/period-close';
 import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
 import { createPortfolioSnapshots, type PortfolioSnapshots } from '@wf/db/portfolio-snapshots';
+import { createGoalSnapshots, type GoalSnapshots } from '@wf/db/goal-snapshots';
 import { createReports, type ReportsRepository } from '@wf/db/reports';
 import { createUserKeys } from '@wf/db/user-keys';
 import { instanceSmtp, type SmtpConnection } from '@wf/integrations/instance-mailer';
@@ -62,6 +63,8 @@ export interface WorkerDb {
   >;
   /** The daily portfolio snapshot (reads the portfolio, writes `portfolio_snapshots` only). */
   readonly portfolioSnapshots: PortfolioSnapshots;
+  /** Dated goal positions, including explicit empty days (writes only `goal_snapshots`). */
+  readonly goalSnapshots: GoalSnapshots;
   /** FR-LP1: generate snapshots, exposing only their ids to the worker (no financial values in job results). */
   readonly reports: {
     readonly pendingMonthly: ReportsRepository['pendingMonthly'];
@@ -99,7 +102,8 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { check: checkBalances } = createBalanceChecks(database);
   const { detect } = createDetectRecurring(database);
   const { get, markSent, markFailed } = createOutbox(database);
-  const { generate: generateReport, pendingMonthly } = createReports(database, { getDek });
+  const { generate: generateReport, pendingMonthly } = createReports(database);
+  const { record: recordGoals } = createGoalSnapshots(database);
   const { get: settings, smtpPassword } = createInstanceSettings(database, keyring);
   const { recordServerQuotes, recordUserQuotes, logRequest } = createMarketData(database);
   const { list: listKeys, setStatus } = createMarketCredentials(database, { getDek });
@@ -141,6 +145,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
         baselineExists,
       }),
       portfolioSnapshots: Object.freeze({ record: recordSnapshot }),
+      goalSnapshots: Object.freeze({ record: recordGoals }),
       reports: Object.freeze({ generate: generateReport, pendingMonthly }),
     }),
     smtp: instanceSmtp({ get: settings, smtpPassword }),

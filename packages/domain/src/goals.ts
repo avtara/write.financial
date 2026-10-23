@@ -24,6 +24,9 @@ export type GoalTargetMode = (typeof GOAL_TARGET_MODES)[number];
 export const GOAL_STATUSES = ['active', 'completed', 'used'] as const;
 export type GoalStatus = (typeof GOAL_STATUSES)[number];
 
+/** Whether a goal value is cash, quoted, valued at cost, or unavailable because a reference rate is missing. */
+export type GoalValuation = 'cash' | 'market' | 'cost' | 'unavailable';
+
 /** FR-G1 emergency fund "target 3 bulan pengeluaran". */
 export const EMERGENCY_FUND_MONTHS = 3;
 

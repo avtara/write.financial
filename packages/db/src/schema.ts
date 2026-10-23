@@ -15,6 +15,7 @@ import { POSTING_ROLES, TRANSACTION_SOURCES, TRANSACTION_TYPES } from '@wf/domai
 import { RECURRENCE_END_TYPES, RECURRENCE_FREQS } from '@wf/domain/recurrence';
 import { CANCEL_MODES, SUBSCRIPTION_CYCLES, SUBSCRIPTION_STATUSES, USAGE_RATINGS } from '@wf/domain/subscriptions';
 import { GOAL_KINDS, GOAL_STATUSES, GOAL_TARGET_MODES } from '@wf/domain/goals';
+import type { GoalValuation } from '@wf/domain/goals';
 import { DEBT_KINDS, INTEREST_METHODS, RECALC_MODES } from '@wf/domain/debt';
 import { RECEIVABLE_SOURCES, RECEIVABLE_STATUSES } from '@wf/domain/receivables';
 import { REPORT_KINDS, REPORT_STATUSES } from '@wf/domain/report';
@@ -2367,15 +2368,40 @@ export const portfolioSnapshots = pgTable(
   (table) => [primaryKey({ name: 'portfolio_snapshots_pkey', columns: [table.userId, table.snapshotDate] })],
 );
 
+/** A daily goal position, independent of the live goal row so deletion/renaming cannot erase historical labels. */
+export interface GoalSnapshotData {
+  readonly goalId: string;
+  readonly name: string;
+  readonly currency: string;
+  readonly targetMinor: string;
+  readonly savedMinor: string | null;
+  readonly valuation: GoalValuation;
+}
+
+/** FR-LP1: daily positions (including an explicit empty day) for period-end goals; worker snapshots only, D14. */
+export const goalSnapshots = pgTable(
+  'goal_snapshots',
+  {
+    userId: ownerId(),
+    snapshotDate: localDate('snapshot_date').notNull(),
+    recordedAt: timestamptz('recorded_at').notNull(),
+    goals: jsonb('goals').$type<readonly GoalSnapshotData[]>().notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'goal_snapshots_pkey', columns: [table.userId, table.snapshotDate] }),
+    check('goal_snapshots_goals_check', sql`jsonb_typeof(${table.goals}) = 'array'`),
+  ],
+);
+
 export const reportKind = pgEnum('report_kind', REPORT_KINDS);
 export const reportStatus = pgEnum('report_status', REPORT_STATUSES);
 
 /**
  * FR-LP1–LP3: one row per report — a monthly report snapshots its closed period, and a quarter, year, or custom
- * range aggregates the final monthly reports plus the current period ("sementara"). The row keeps every number the
- * report shows, so a later change to the ledger or to a name never rewrites a published report. `sections` holds the
- * spending lines (categories, merchants, tags, accounts), goals, largest transactions, subscriptions, and the daily
- * series; amounts there are decimal strings, because `jsonb` has no bigint.
+ * range aggregates final monthly reports plus live boundary segments ("sementara"). Final monthly snapshots keep
+ * their figures and names; provisional aggregates refresh on request. `sections` holds income sources, categories
+ * against budgets, merchants, tags, accounts, goals, largest transactions, subscriptions, the daily series and six
+ * month-end net-worth valuations. JSON amounts are decimal strings because `jsonb` has no bigint.
  */
 export const reports = pgTable(
   'reports',
@@ -2415,7 +2441,7 @@ export const reports = pgTable(
       name: 'reports_period_fk',
       columns: [table.userId, table.periodId],
       foreignColumns: [periods.userId, periods.id],
-    }).onDelete('set null'),
+    }).onDelete('cascade'),
     check('reports_range_check', sql`${table.rangeEnd} >= ${table.rangeStart}`),
     check(
       'reports_kind_status_check',

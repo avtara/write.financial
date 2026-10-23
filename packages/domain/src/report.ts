@@ -29,7 +29,7 @@ export interface ReportTotals {
   readonly savingRateBps: number | null;
   /** Transactions in the range, transfers included (the design's "121 transaksi"). */
   readonly txCount: number;
-  /** Cash + investments at the range end; `null` when it could not be valued. */
+  /** Cash + investments − debt at the cutoff; `null` when the valuation is incomplete or unavailable. */
   readonly netWorthMinor: bigint | null;
 }
 

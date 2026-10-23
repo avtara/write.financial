@@ -58,6 +58,7 @@
     "./market-credentials": "./src/market-credentials.ts",
     "./market-jobs": "./src/market-jobs.ts",
     "./portfolio-snapshots": "./src/portfolio-snapshots.ts",
+    "./goal-snapshots": "./src/goal-snapshots.ts",
     "./reports": "./src/reports.ts"
   },
   "scripts": {

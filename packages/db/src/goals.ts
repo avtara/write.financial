@@ -20,7 +20,7 @@ import {
   type GoalAssetSource,
   type GoalAssetSourceMode,
 } from '@wf/domain/goal-assets';
-import type { GoalKind, GoalStatus, GoalTargetMode } from '@wf/domain/goals';
+import type { GoalKind, GoalStatus, GoalTargetMode, GoalValuation } from '@wf/domain/goals';
 import type { LocalDate, YearMonth } from '@wf/domain/period';
 import { and, asc, eq, inArray, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
 import { viewsIn as accountViewsIn } from './accounts.ts';
@@ -106,6 +106,8 @@ export interface GoalAssetSourceView {
   readonly units: string;
   /** Its part of the asset's value now plus pending buys ("diproses"), base currency (= the goal's). */
   readonly valueMinor: bigint;
+  /** Missing FX is not a zero valuation; a missing price uses cost (FR-G6). */
+  readonly valuation: Exclude<GoalValuation, 'cash'>;
   readonly sortOrder: number;
 }
 
@@ -347,7 +349,8 @@ async function balancesIn(tx: Transaction, userId: string, ids: readonly string[
   return new Map(views.map((view) => [view.id, view.balanceMinor]));
 }
 
-async function viewsIn(tx: Transaction, userId: string, now: Date, where?: SQL): Promise<GoalView[]> {
+/** Read-only, same-transaction builder shared with the dated goal snapshot job. */
+export async function goalViewsIn(tx: Transaction, userId: string, now: Date, where?: SQL): Promise<GoalView[]> {
   const rows = await tx
     .select({
       id: goals.id,
@@ -453,7 +456,7 @@ async function viewsIn(tx: Transaction, userId: string, now: Date, where?: SQL):
 }
 
 async function viewIn(tx: Transaction, userId: string, now: Date, id: string): Promise<GoalView> {
-  const [view] = await viewsIn(tx, userId, now, eq(goals.id, id));
+  const [view] = await goalViewsIn(tx, userId, now, eq(goals.id, id));
   if (view === undefined) throw new LedgerError('NOT_FOUND', 'No such goal');
   return view;
 }
@@ -656,6 +659,14 @@ async function assetSourcesIn(
                 bps: (domain[index] as GoalAssetSource).bps,
                 units: (units.goals[index] as { value: string }).value,
                 valueMinor: (shares.goals[index] as { value: bigint }).value,
+                valuation:
+                  valuation.holding.units === '0'
+                    ? 'cost'
+                    : valuation.value === null
+                      ? 'unavailable'
+                      : valuation.value.priced
+                        ? 'market'
+                        : 'cost',
                 sortOrder: row.sortOrder,
               },
             },
@@ -913,7 +924,9 @@ export function createGoals(
 
   return {
     list: (userId, { status = 'all' } = {}) =>
-      withUser(db, userId, (tx) => viewsIn(tx, userId, now(), status === 'all' ? undefined : eq(goals.status, status))),
+      withUser(db, userId, (tx) =>
+        goalViewsIn(tx, userId, now(), status === 'all' ? undefined : eq(goals.status, status)),
+      ),
 
     get: (userId, id) => withUser(db, userId, (tx) => viewIn(tx, userId, now(), id)),
 
@@ -1172,7 +1185,7 @@ export function createGoals(
           }
         }
         await tx.delete(goalFundingSources).where(eq(goalFundingSources.goalId, id));
-        return viewsIn(tx, userId, now(), inArray(goals.id, toGoalId === null ? [id] : [id, toGoalId]));
+        return goalViewsIn(tx, userId, now(), inArray(goals.id, toGoalId === null ? [id] : [id, toGoalId]));
       }),
 
     complete: (userId, id, { stopPlans }) =>

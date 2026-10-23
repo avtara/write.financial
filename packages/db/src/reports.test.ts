@@ -18,7 +18,7 @@ let userId: string;
 const dek = generateDek();
 const options = { getDek: () => Promise.resolve(dek), now: () => new Date('2026-10-15T10:00:00Z') };
 const asApp = <T>(fn: () => Promise<T>) => test.as('wf_app', fn);
-const reports = () => createReports(test.db, options);
+const reports = () => createReports(test.db);
 
 /** Seeded once: the September report is the milestone's golden. */
 beforeAll(async () => {
@@ -74,6 +74,15 @@ describe('the September report (M6 golden)', { timeout: PGLITE_HOOK_TIMEOUT }, (
       missingPortfolio: false,
       unvaluedCurrencies: [],
       asOf: '2026-09-30',
+    });
+    expect(september.sections.goalsAsOf).toBe('2026-09-30');
+    expect(september.sections.goals.find((goal) => goal.name === 'Dana Darurat')).toMatchObject({
+      currency: 'IDR',
+      valuation: 'cash',
+      openingMinor: 5_125_000n,
+      savedMinor: 7_625_000n,
+      targetMinor: 54_000_000n,
+      progressBps: 1412,
     });
   });
 

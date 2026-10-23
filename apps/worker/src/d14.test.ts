@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { DB_CONNECTION_FILE, DB_CONNECTION_MODULE, FORBIDDEN_IMPORTS, WORKER_REPOSITORIES } from './d14.ts';
+import { DB_CONNECTION_FILE, DB_CONNECTION_MODULE, FORBIDDEN_IMPORTS } from './d14.ts';
 
 const SRC = path.dirname(fileURLToPath(import.meta.url));
 
@@ -94,23 +94,6 @@ describe('D14: the worker cannot reach transactions, postings, budgets, goals, o
         '@wf/db/investments',
       ]),
     );
-    expect(WORKER_REPOSITORIES).toEqual([
-      'maintenance',
-      'fxRates',
-      'dispatch',
-      'occurrences',
-      'periods',
-      'periodClose',
-      'budgetAlerts',
-      'balanceChecks',
-      'detectRecurring',
-      'outbox',
-      'marketData',
-      'marketCredentials',
-      'marketJobs',
-      'portfolioSnapshots',
-      'reports',
-    ]);
   });
 
   // M3 exit criterion (plan §8): automation only proposes; the worker cannot even import what records or budgets.

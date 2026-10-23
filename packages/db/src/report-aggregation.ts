@@ -20,6 +20,7 @@ export function aggregateReports(segments: readonly ReportSegment[], range: Date
   const totals = combineMonths(segments);
   const last = segments.at(-1);
   if (totals === null || last === undefined) throw new RangeError('A report needs at least one segment');
+  const initialGoals = new Map((segments[0] as ReportSegment).sections.goals.map((goal) => [goal.goalId, goal]));
   const categories = new Map<string | null, ReportCategoryLine>();
   const income = new Map<string | null, ReportIncomeLine>();
   const merchants = new Map<string, ReportMerchantLine>();
@@ -119,7 +120,11 @@ export function aggregateReports(segments: readonly ReportSegment[], range: Date
     accounts: [...accounts.values()].sort(
       (a, b) => a.name.localeCompare(b.name) || a.accountId.localeCompare(b.accountId),
     ),
-    goals: last.sections.goals,
+    goals: last.sections.goals.map((goal) => {
+      const initial = initialGoals.get(goal.goalId);
+      return { ...goal, openingMinor: initial?.currency === goal.currency ? initial.openingMinor : null };
+    }),
+    goalsAsOf: last.sections.goalsAsOf,
     subscriptions: {
       ...last.sections.subscriptions,
       shareBps:

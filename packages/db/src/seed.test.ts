@@ -30,6 +30,7 @@ const tiny = (overrides: Partial<DesignSeed>): DesignSeed => ({
   closedPeriods: [],
   budgets: [],
   goals: [],
+  goalSnapshots: [],
   fxRates: [],
   subscriptions: [],
   recurrences: [],

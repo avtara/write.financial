@@ -90,12 +90,13 @@ const GRANTS = {
   plans: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   // The daily snapshot job (worker) and the seed (app).
   portfolio_snapshots: { wf_app: 'INSERT,SELECT,UPDATE', wf_worker: 'INSERT,SELECT,UPDATE' },
+  goal_snapshots: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
   postings: LEDGER,
   receivable_payments: LEDGER,
   receivables: LEDGER,
   recent_items: { wf_app: ALL },
-  // FR-LP1: the app reads and deletes (account data export/deletion); the worker generates the monthly snapshots.
-  reports: { wf_app: 'DELETE,INSERT,SELECT', wf_worker: 'INSERT,SELECT' },
+  // FR-LP1 / D10: app may refresh its provisional aggregates; RLS refuses final UPDATE. Worker only reads/inserts.
+  reports: { wf_app: ALL, wf_worker: 'INSERT,SELECT' },
   recurrences: { wf_app: ALL, wf_worker: 'SELECT' },
   // D14: the worker creates review items but cannot resolve them (no UPDATE); only confirmReview (wf_app) does.
   review_items: { wf_app: ALL, wf_worker: 'INSERT,SELECT' },

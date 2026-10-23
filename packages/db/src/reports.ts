@@ -2,15 +2,16 @@
 /**
  * Reports (FR-LP1–LP5). A report is a stored snapshot of a range: the KPIs with their comparison, the savings rate,
  * the spending lines (categories against their budget, merchants, tags, accounts), goals, the largest transactions,
- * subscriptions, the daily series, and net worth at the range end. A monthly report is final once its period closed and
- * is never rewritten; quarters, years, and custom ranges are built from the same ledger figures and marked
- * provisional while they include a day that has not ended.
+ * subscriptions, the daily series, and net worth at the range end. Closed monthly reports are final and never
+ * rewritten. Quarterly/yearly/custom reports always remain provisional (D10): full closed periods reuse their
+ * final monthly snapshots, while only partial boundaries and the current period read the live ledger.
  *
- * Net worth counts the balances of the user's accounts at the range end (opening + postings up to it + corrections)
- * plus the investment portfolio's value at the last daily snapshot on or before it. A balance in a currency with no
- * reference rate at that date is left out and named in `unvaluedCurrencies`, so a snapshot never invents a rate.
+ * Net worth counts non-platform balances at the cutoff (opening + local-date postings + dated corrections), plus
+ * the last portfolio snapshot (platform cash included once), less outstanding non-card principal. Card liabilities
+ * are already reflected in their account balances. Missing historical FX or portfolio data makes the KPI unavailable.
  */
-import type { Dek } from '@wf/crypto/envelope';
+import type { GoalValuation } from '@wf/domain/goals';
+import type { CategoryGroup } from '@wf/domain/categories';
 import { convert } from '@wf/domain/fx';
 import type { AccountType } from '@wf/domain/ledger';
 import { addDays, addMonths, countDays, type LocalDate } from '@wf/domain/period';
@@ -36,7 +37,7 @@ import { activeOn, subscriptionTotals, type PricedSubscription } from '@wf/domai
 import { and, asc, desc, eq, gte, isNull, lt, lte, sql } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { budgetStatusIn } from './budgets.ts';
-import { createGoals, type GoalView } from './goals.ts';
+import { goalSnapshotIn } from './goal-snapshots.ts';
 import { referenceRateIn, type ReferenceRate } from './fx-rates.ts';
 import { localDateOf, userContextIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
@@ -65,6 +66,8 @@ import type { JsonObject, JsonValue } from './schema.ts';
 export interface ReportCategoryLine {
   readonly categoryId: string | null;
   readonly name: string | null;
+  readonly group: CategoryGroup | null;
+  readonly isFixed: boolean | null;
   readonly spentMinor: bigint;
   readonly shareBps: number;
   readonly limitMinor: bigint | null;
@@ -77,6 +80,7 @@ export interface ReportCategoryLine {
 export interface ReportIncomeLine {
   readonly categoryId: string | null;
   readonly name: string | null;
+  readonly group: CategoryGroup | null;
   readonly totalMinor: bigint;
   readonly shareBps: number;
 }
@@ -107,9 +111,13 @@ export interface ReportAccountLine {
 export interface ReportGoalLine {
   readonly goalId: string;
   readonly name: string;
-  readonly savedMinor: bigint;
+  readonly currency: string;
+  readonly valuation: GoalValuation;
+  readonly savedMinor: bigint | null;
+  /** Unknown unless an actual snapshot covers the day immediately before the range. */
+  readonly openingMinor: bigint | null;
   readonly targetMinor: bigint;
-  readonly progressBps: number;
+  readonly progressBps: number | null;
 }
 
 export interface ReportLargestLine {
@@ -196,6 +204,8 @@ export interface ReportSections {
   readonly tags: readonly ReportTagLine[];
   readonly accounts: readonly ReportAccountLine[];
   readonly goals: readonly ReportGoalLine[];
+  /** Null means no historical observation, not an empty goal list. A stale observation keeps its actual date. */
+  readonly goalsAsOf: LocalDate | null;
   readonly largest: readonly ReportLargestLine[];
   /** "6 transaksi = 40% dari pengeluaran"; `null` without expenses. */
   readonly largestShareBps: number | null;
@@ -248,8 +258,8 @@ export type ReportRequest =
 
 export interface ReportsRepository {
   /**
-   * The report of a closed period, generated on first use and returned as stored afterwards (final reports are
-   * immutable). `now` decides whether a range is still provisional.
+   * Closed monthly reports are generated once and returned unchanged. Other kinds refresh their stored range from
+   * final monthly snapshots plus live boundary segments; `now` bounds them to the user's local today.
    * @throws {LedgerError} `NOT_FOUND`, `INVALID_PERIOD` (not closed, bad range)
    */
   generate: (userId: string, request: ReportRequest, now: Date) => Promise<ReportView>;
@@ -273,12 +283,21 @@ const big = (value: JsonValue): bigint => BigInt(value as string);
 
 const nullableBig = (value: JsonValue | undefined): bigint | null => (value == null ? null : big(value));
 
+/** A field `encodeSections` always writes; its absence means the stored row is corrupt. */
+const required = (object: JsonObject, key: string): JsonValue => {
+  const value = object[key];
+  if (value === undefined) throw new TypeError(`Corrupt report row: missing ${key}`);
+  return value;
+};
+
 function encodeSections(sections: ReportSections): JsonObject {
   return toJson({
     incomeSources: sections.incomeSources.map((line) => ({ ...line, totalMinor: str(line.totalMinor) })),
     categories: sections.categories.map((line) => ({
       categoryId: line.categoryId,
       name: line.name,
+      group: line.group,
+      isFixed: line.isFixed,
       spentMinor: str(line.spentMinor),
       shareBps: line.shareBps,
       limitMinor: line.limitMinor === null ? null : str(line.limitMinor),
@@ -307,10 +326,14 @@ function encodeSections(sections: ReportSections): JsonObject {
     goals: sections.goals.map((line) => ({
       goalId: line.goalId,
       name: line.name,
-      savedMinor: str(line.savedMinor),
+      currency: line.currency,
+      valuation: line.valuation,
+      savedMinor: line.savedMinor === null ? null : str(line.savedMinor),
+      openingMinor: line.openingMinor === null ? null : str(line.openingMinor),
       targetMinor: str(line.targetMinor),
       progressBps: line.progressBps,
     })),
+    goalsAsOf: sections.goalsAsOf,
     largest: sections.largest.map((line) => ({
       transactionId: line.transactionId,
       date: line.date,
@@ -350,17 +373,35 @@ function decodeSections(raw: JsonObject): ReportSections {
     categories: {
       categoryId: string | null;
       name: string | null;
+      group: CategoryGroup | null;
+      isFixed: boolean | null;
       spentMinor: JsonValue;
       shareBps: number;
       limitMinor: JsonValue;
       usedBps: number | null;
       overMinor: JsonValue;
     }[];
-    incomeSources: { categoryId: string | null; name: string | null; totalMinor: string; shareBps: number }[];
+    incomeSources: {
+      categoryId: string | null;
+      name: string | null;
+      group: CategoryGroup | null;
+      totalMinor: string;
+      shareBps: number;
+    }[];
     merchants: { merchant: string; totalMinor: JsonValue; count: number; shareBps: number }[];
     tags: { tagId: string; name: string; totalMinor: JsonValue; count: number }[];
     accounts: { accountId: string; name: string; type: AccountType; inMinor: JsonValue; outMinor: JsonValue }[];
-    goals: { goalId: string; name: string; savedMinor: JsonValue; targetMinor: JsonValue; progressBps: number }[];
+    goals: {
+      goalId: string;
+      name: string;
+      currency: string;
+      valuation: GoalValuation;
+      savedMinor: JsonValue;
+      openingMinor: JsonValue;
+      targetMinor: JsonValue;
+      progressBps: number | null;
+    }[];
+    goalsAsOf: LocalDate | null;
     largest: {
       transactionId: string;
       date: LocalDate;
@@ -388,6 +429,8 @@ function decodeSections(raw: JsonObject): ReportSections {
     categories: data.categories.map((line) => ({
       categoryId: line.categoryId,
       name: line.name,
+      group: line.group,
+      isFixed: line.isFixed,
       spentMinor: big(line.spentMinor),
       shareBps: line.shareBps,
       limitMinor: nullableBig(line.limitMinor),
@@ -416,10 +459,14 @@ function decodeSections(raw: JsonObject): ReportSections {
     goals: data.goals.map((line) => ({
       goalId: line.goalId,
       name: line.name,
-      savedMinor: big(line.savedMinor),
+      currency: line.currency,
+      valuation: line.valuation,
+      savedMinor: nullableBig(line.savedMinor),
+      openingMinor: nullableBig(line.openingMinor),
       targetMinor: big(line.targetMinor),
       progressBps: line.progressBps,
     })),
+    goalsAsOf: data.goalsAsOf,
     largest: data.largest.map((line) => ({
       transactionId: line.transactionId,
       date: line.date,
@@ -462,10 +509,10 @@ function viewOf(row: typeof reports.$inferSelect): ReportView {
     row.previous === null
       ? null
       : reportTotals({
-          incomeMinor: big((row.previous as JsonObject)['incomeMinor'] as JsonValue),
-          expenseMinor: big((row.previous as JsonObject)['expenseMinor'] as JsonValue),
-          txCount: Number((row.previous as JsonObject)['txCount'] as JsonValue),
-          netWorthMinor: nullableBig((row.previous as JsonObject)['netWorthMinor']),
+          incomeMinor: big(required(row.previous, 'incomeMinor')),
+          expenseMinor: big(required(row.previous, 'expenseMinor')),
+          txCount: Number(required(row.previous, 'txCount')),
+          netWorthMinor: nullableBig(required(row.previous, 'netWorthMinor')),
         });
   return {
     id: row.id,
@@ -500,13 +547,7 @@ const summaryOf = (row: typeof reports.$inferSelect): ReportSummary => ({
   }),
 });
 
-export function createReports(
-  db: Database,
-  options: { readonly getDek: (userId: string) => Promise<Dek>; readonly now?: () => Date },
-): ReportsRepository {
-  const now = options.now ?? (() => new Date());
-  const goalsRepo = createGoals(db, { getDek: options.getDek, now });
-
+export function createReports(db: Database): ReportsRepository {
   const repo: ReportsRepository = {
     generate: async (userId, request, at) => {
       const resolved = await resolve(userId, request, at);
@@ -530,9 +571,6 @@ export function createReports(
         );
         for (const period of closed) await repo.generate(userId, { kind: 'monthly', periodId: period.id }, at);
       }
-      // Goal progress lives in the goals repository (accounts and asset shares); it is read once, before the report's
-      // own transaction, so nothing nests a user transaction inside another.
-      const goalValues = await goalsRepo.list(userId);
       const row = await withUser(db, userId, async (tx) => {
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtextextended(${`report:${userId}:${resolved.kind}:${resolved.range.from}:${resolved.range.to}`}, 0))`,
@@ -541,8 +579,8 @@ export function createReports(
         if (existing?.status === 'final') return existing;
         const { totals, sections } =
           resolved.kind === 'monthly'
-            ? await segmentIn(tx, userId, resolved.range, resolved.period, at, goalValues)
-            : await aggregateIn(tx, userId, resolved.range, at, goalValues);
+            ? await segmentIn(tx, userId, resolved.range, resolved.period, at)
+            : await aggregateIn(tx, userId, resolved.range, at);
         const compare = await compareIn(tx, userId, resolved);
         const values: typeof reports.$inferInsert = {
           userId,
@@ -635,7 +673,6 @@ export function createReports(
     userId: string,
     range: { readonly from: LocalDate; readonly to: LocalDate },
     at: Date,
-    goalValues: readonly GoalView[],
   ): Promise<ReportSegment> {
     const finals = await tx
       .select()
@@ -653,14 +690,11 @@ export function createReports(
     let cursor = range.from;
     for (const row of finals) {
       if (cursor < row.rangeStart)
-        segments.push(
-          await segmentIn(tx, userId, { from: cursor, to: addDays(row.rangeStart, -1) }, null, at, goalValues),
-        );
+        segments.push(await segmentIn(tx, userId, { from: cursor, to: addDays(row.rangeStart, -1) }, null, at));
       segments.push(viewOf(row));
       cursor = addDays(row.rangeEnd, 1);
     }
-    if (cursor <= range.to)
-      segments.push(await segmentIn(tx, userId, { from: cursor, to: range.to }, null, at, goalValues));
+    if (cursor <= range.to) segments.push(await segmentIn(tx, userId, { from: cursor, to: range.to }, null, at));
     return aggregateReports(segments, range);
   }
 
@@ -670,7 +704,6 @@ export function createReports(
     range: { readonly from: LocalDate; readonly to: LocalDate },
     period: PeriodView | null,
     at: Date,
-    goalValues: readonly GoalView[],
   ): Promise<ReportSegment> {
     const { baseCurrency } = await userContextIn(tx, userId);
     const sourceDays = await dayTotalsIn(tx, userId, range);
@@ -690,7 +723,6 @@ export function createReports(
       period,
       totals,
       at,
-      goalValues,
       baseCurrency,
       days,
       netWorth,
@@ -975,7 +1007,6 @@ export function createReports(
     period: PeriodView | null,
     totals: ReportTotals,
     at: Date,
-    goalValues: readonly GoalView[],
     baseCurrency: string,
     days: readonly ReportDayLine[],
     netWorth: ReportNetWorth | null,
@@ -984,7 +1015,11 @@ export function createReports(
     const categoryTotals = await categoryTotalsIn(tx, userId, { from: range.from, to: range.to });
     const expense = categoryTotals.filter((line) => line.kind === 'expense');
     const names = new Map(
-      (await tx.select({ id: categories.id, name: categories.name }).from(categories)).map((row) => [row.id, row.name]),
+      (
+        await tx
+          .select({ id: categories.id, name: categories.name, group: categories.group, isFixed: categories.isFixed })
+          .from(categories)
+      ).map((row) => [row.id, row]),
     );
     const income = categoryTotals.filter((line) => line.kind === 'income');
     const incomeShares = shareLines(
@@ -993,7 +1028,8 @@ export function createReports(
     );
     const incomeSources = income.map((line, index) => ({
       categoryId: line.categoryId,
-      name: line.categoryId === null ? null : (names.get(line.categoryId) as string),
+      name: line.categoryId === null ? null : (names.get(line.categoryId)?.name ?? null),
+      group: line.categoryId === null ? null : (names.get(line.categoryId)?.group ?? null),
       totalMinor: line.totalMinor,
       shareBps: (incomeShares[index] as ShareLine<string | null>).shareBps,
     }));
@@ -1011,7 +1047,9 @@ export function createReports(
       const limit = line.categoryId === null ? undefined : limits.get(line.categoryId);
       return {
         categoryId: line.categoryId,
-        name: line.categoryId === null ? null : (names.get(line.categoryId) as string),
+        name: line.categoryId === null ? null : (names.get(line.categoryId)?.name ?? null),
+        group: line.categoryId === null ? null : (names.get(line.categoryId)?.group ?? null),
+        isFixed: line.categoryId === null ? null : (names.get(line.categoryId)?.isFixed ?? null),
         spentMinor: line.totalMinor,
         shareBps: (shares[index] as ShareLine<string | null>).shareBps,
         limitMinor: limit?.limitMinor ?? null,
@@ -1107,15 +1145,23 @@ export function createReports(
       outMinor: BigInt(row.outMinor),
     }));
 
-    const goalLines: ReportGoalLine[] = goalValues
-      .filter((goal) => goal.archivedAt === null)
-      .map((goal) => ({
-        goalId: goal.id,
+    const goalSnapshot = await goalSnapshotIn(tx, userId, range.to);
+    const before = addDays(range.from, -1);
+    const opening = await goalSnapshotIn(tx, userId, before);
+    const previousGoals = opening?.date === before ? new Map(opening.goals.map((goal) => [goal.goalId, goal])) : null;
+    const goalLines: ReportGoalLine[] = (goalSnapshot?.goals ?? []).map((goal) => {
+      const prior = previousGoals?.get(goal.goalId);
+      return {
+        goalId: goal.goalId,
         name: goal.name,
+        currency: goal.currency,
+        valuation: goal.valuation,
         savedMinor: goal.savedMinor,
+        openingMinor: prior?.currency === goal.currency ? prior.savedMinor : null,
         targetMinor: goal.targetMinor,
-        progressBps: progressBps(goal.savedMinor, goal.targetMinor),
-      }));
+        progressBps: goal.savedMinor === null ? null : progressBps(goal.savedMinor, goal.targetMinor),
+      };
+    });
 
     const largestRows = await tx
       .select({
@@ -1207,6 +1253,7 @@ export function createReports(
       tags: tagLines,
       accounts: accountLines,
       goals: goalLines,
+      goalsAsOf: goalSnapshot?.date ?? null,
       largest,
       largestShareBps: topShareBps(largest, LARGEST_LIMIT, totals.expenseMinor),
       subscriptions: subscriptionSection,

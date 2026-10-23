@@ -9,6 +9,7 @@
 import type { AlertPct } from './budget.ts';
 import type { BuiltInCategoryKey } from './categories.ts';
 import type { GoalAssetSourceMode } from './goal-assets.ts';
+import type { GoalValuation } from './goals.ts';
 import type { AssetClass } from './investments.ts';
 import type { AccountType } from './ledger.ts';
 import type { Market } from './market.ts';
@@ -182,6 +183,19 @@ export interface SeedBudgetVersion {
   }[];
 }
 
+/** Explicit historical observations from Section 10, not reconstructed from October's live allocations. */
+export interface SeedGoalSnapshot {
+  readonly date: string;
+  readonly recordedAt: string;
+  readonly goals: readonly {
+    readonly goal: string;
+    readonly currency: string;
+    readonly targetMinor: bigint;
+    readonly savedMinor: bigint | null;
+    readonly valuation: GoalValuation;
+  }[];
+}
+
 /** A bill of a seed subscription or recurrence that a seed transaction already paid (a confirmed occurrence). */
 export interface SeedPaidBill {
   readonly dueDate: string;
@@ -253,6 +267,7 @@ export interface DesignSeed {
   readonly budgets: readonly SeedBudgetVersion[];
   readonly fxRates: readonly SeedFxRate[];
   readonly goals: readonly SeedGoal[];
+  readonly goalSnapshots: readonly SeedGoalSnapshot[];
   /** 7 active (Rp904.900/bulan + Niagahoster Rp660.900/tahun), 1 paused, 3 cancelled. */
   readonly subscriptions: readonly SeedSubscription[];
   readonly recurrences: readonly SeedRecurrence[];
@@ -1687,6 +1702,44 @@ export const DESIGN_SEED: DesignSeed = {
       accountKey: null,
       sources: [{ accountKey: 'bca', mode: 'fixed', amountMinor: 680_000n }],
       assetSources: [],
+    },
+  ],
+  goalSnapshots: [
+    {
+      date: '2026-08-31',
+      recordedAt: '2026-08-31T23:55:00+07:00',
+      goals: [
+        { goal: 'Dana Darurat', currency: 'IDR', targetMinor: 54_000_000n, savedMinor: 5_125_000n, valuation: 'cash' },
+        { goal: 'DP Rumah', currency: 'IDR', targetMinor: 150_000_000n, savedMinor: 9_504_000n, valuation: 'market' },
+        {
+          goal: 'Dana Pensiun',
+          currency: 'IDR',
+          targetMinor: 500_000_000n,
+          savedMinor: 3_176_000n,
+          valuation: 'market',
+        },
+        { goal: 'Liburan Bali', currency: 'IDR', targetMinor: 8_000_000n, savedMinor: 1_933_000n, valuation: 'cash' },
+        { goal: 'Servis motor', currency: 'IDR', targetMinor: 1_200_000n, savedMinor: 480_000n, valuation: 'cash' },
+        { goal: 'Perpanjang STNK', currency: 'IDR', targetMinor: 850_000n, savedMinor: 637_000n, valuation: 'cash' },
+      ],
+    },
+    {
+      date: '2026-09-30',
+      recordedAt: '2026-09-30T23:55:00+07:00',
+      goals: [
+        { goal: 'Dana Darurat', currency: 'IDR', targetMinor: 54_000_000n, savedMinor: 7_625_000n, valuation: 'cash' },
+        { goal: 'DP Rumah', currency: 'IDR', targetMinor: 150_000_000n, savedMinor: 11_514_000n, valuation: 'market' },
+        {
+          goal: 'Dana Pensiun',
+          currency: 'IDR',
+          targetMinor: 500_000_000n,
+          savedMinor: 6_526_000n,
+          valuation: 'market',
+        },
+        { goal: 'Liburan Bali', currency: 'IDR', targetMinor: 8_000_000n, savedMinor: 2_800_000n, valuation: 'cash' },
+        { goal: 'Servis motor', currency: 'IDR', targetMinor: 1_200_000n, savedMinor: 720_000n, valuation: 'cash' },
+        { goal: 'Perpanjang STNK', currency: 'IDR', targetMinor: 850_000n, savedMinor: 680_000n, valuation: 'cash' },
+      ],
     },
   ],
   subscriptions: SUBSCRIPTIONS,

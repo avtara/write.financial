@@ -30,6 +30,7 @@ export const WORKER_REPOSITORIES = [
   'marketCredentials',
   'marketJobs',
   'portfolioSnapshots',
+  'goalSnapshots',
   'reports',
 ] as const;
 
