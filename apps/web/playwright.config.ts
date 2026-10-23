@@ -47,7 +47,7 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  *   EODHD key refused without 2FA, saved after turning 2FA on, tested against the fake provider (`e2e/market-fetch.ts`)
  *   with per-symbol results, then deleted with its prices; the API log; 1440/1024/768.
  */
-const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
+const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependencies?: string[] }> = {
   tablet: { testMatch: 'tablet.spec.ts', use: { viewport: { width: 1024, height: 768 } } },
   app: { testMatch: 'smoke.spec.ts' },
   'settings-ledger': { testMatch: 'settings-ledger.spec.ts' },
@@ -66,7 +66,13 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   goals: { testMatch: 'goals.spec.ts', use: { viewport: { width: 1440, height: 1198 } } },
   receivables: { testMatch: 'receivables.spec.ts' },
   'market-api': { testMatch: 'market-api.spec.ts' },
-  investments: { testMatch: 'investments.spec.ts', use: { viewport: { width: 1440, height: 1024 } } },
+  // After `market-api`: its sync writes the global built-in quotes and pauses the shared provider, so this page's
+  // goldens (Rp61.420.000 / +Rp7.489.000) must not be read while those land.
+  investments: {
+    testMatch: 'investments.spec.ts',
+    dependencies: ['m0', 'market-api'],
+    use: { viewport: { width: 1440, height: 1024 } },
+  },
 };
 
 /**
@@ -113,10 +119,10 @@ export default defineConfig({
   projects: [
     // No retry: the setup wizard it starts with is closed for good once it has run.
     { name: 'm0', testMatch: 'm0-exit.spec.ts', retries: 0, use: projectUse(0) },
-    ...Object.entries(FEATURES).map(([name, { testMatch, use }], index) => ({
+    ...Object.entries(FEATURES).map(([name, { testMatch, use, dependencies }], index) => ({
       name,
       testMatch,
-      dependencies: ['m0'],
+      dependencies: dependencies ?? ['m0'],
       use: projectUse(index + 1, use),
     })),
   ],
