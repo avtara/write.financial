@@ -986,13 +986,8 @@
   "goals_badge_reached": "Tercapai",
   "goals_badge_soon": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bulan lagi",
         "countPlural=*": "{count} bulan lagi"
@@ -1029,13 +1024,8 @@
   "goals_detail_due": "Jatuh tempo {month}",
   "goals_detail_due_in": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Jatuh tempo {month} · {count} bulan lagi",
         "countPlural=*": "Jatuh tempo {month} · {count} bulan lagi"
@@ -1103,13 +1093,8 @@
   "goals_form_target_months_option": "{count}× pengeluaran",
   "goals_header_active": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} tujuan aktif",
         "countPlural=*": "{count} tujuan aktif"
@@ -1127,13 +1112,8 @@
   "goals_kpi_emergency": "Dana darurat",
   "goals_kpi_emergency_sub": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "target {count} bulan pengeluaran",
         "countPlural=*": "target {count} bulan pengeluaran"
@@ -1149,13 +1129,8 @@
   "goals_kpi_total_empty": "belum ada tujuan",
   "goals_kpi_total_sub": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "di {count} tujuan",
         "countPlural=*": "di {count} tujuan"
@@ -1218,13 +1193,8 @@
   "goals_preview_reaches": "Tercapai setelah setoran ini",
   "goals_reached_body": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{amount} terkumpul, {count} bulan lebih cepat dari rencana {month}. Dananya siap dipakai kapan saja.",
         "countPlural=*": "{amount} terkumpul, {count} bulan lebih cepat dari rencana {month}. Dananya siap dipakai kapan saja."
@@ -1256,13 +1226,8 @@
   "goals_sinking_form_monthly": "Disisihkan tiap bulan",
   "goals_sinking_form_months": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bulan · {range}",
         "countPlural=*": "{count} bulan · {range}"

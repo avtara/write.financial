@@ -248,13 +248,8 @@
   "budget_attention_dismiss_label": "Dismiss the {name} warning until the period ends",
   "budget_attention_dismissed": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} dismissed until the end of the month · {names}",
         "countPlural=*": "{count} dismissed until the end of the month · {names}"
@@ -280,13 +275,8 @@
   "budget_detail_daily_title": "Daily spending",
   "budget_detail_days_left": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} day left",
         "countPlural=*": "{count} days left"
@@ -312,13 +302,8 @@
   "budget_groups_description": "Used of the {month} limits",
   "budget_groups_over": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} category over its limit",
         "countPlural=*": "{count} categories over their limit"
@@ -337,13 +322,8 @@
   "budget_history_button": "Change history",
   "budget_history_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} change",
         "countPlural=*": "{count} changes"
@@ -353,13 +333,8 @@
   "budget_history_created": "Budget created",
   "budget_history_created_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} category",
         "countPlural=*": "{count} categories"
@@ -383,13 +358,8 @@
   "budget_kpi_over": "Over the limit",
   "budget_kpi_over_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} category",
         "countPlural=*": "{count} categories"
@@ -405,13 +375,8 @@
   "budget_kpi_safe_daily": "Safe daily limit",
   "budget_kpi_safe_daily_note": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "left ÷ {count} day",
         "countPlural=*": "left ÷ {count} days"
@@ -439,13 +404,8 @@
   "budget_line_will_exceed": "will go {amount} over",
   "budget_list_description": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} category · white line = today's ideal position",
         "countPlural=*": "{count} categories · white line = today's ideal position"
@@ -501,13 +461,8 @@
   "budget_setup_button": "Set budget",
   "budget_setup_changes": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} change · effective from {month}",
         "countPlural=*": "{count} changes · effective from {month}"
@@ -516,13 +471,8 @@
   ],
   "budget_setup_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} category",
         "countPlural=*": "{count} categories"
@@ -562,13 +512,8 @@
   "calendar_day_empty": "No transactions yet",
   "calendar_day_in": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "in {days} day",
         "daysPlural=*": "in {days} days"
@@ -595,13 +540,8 @@
   "calendar_kpi_average": "Daily average",
   "calendar_kpi_bills": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bill",
         "countPlural=*": "{count} bills"
@@ -612,13 +552,8 @@
   "calendar_kpi_costliest_note": "{date} · {times}× the average",
   "calendar_kpi_days": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} day",
         "countPlural=*": "{count} days"
@@ -627,13 +562,8 @@
   ],
   "calendar_kpi_elapsed": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day so far",
         "daysPlural=*": "{days} days so far"
@@ -676,13 +606,8 @@
   "calendar_surplus": "surplus",
   "calendar_tip_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction",
         "countPlural=*": "{count} transactions"
@@ -711,13 +636,8 @@
   "calendar_week_out": "Out this week",
   "calendar_week_out_note": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day",
         "daysPlural=*": "{days} days"
@@ -780,13 +700,8 @@
   "category_created": "Category {name} created",
   "category_delete_impact": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction stays recorded — balances and reports don’t change — and moves to Needs a category until you pick a new one.",
         "countPlural=*": "{count} transactions stay recorded — balances and reports don’t change — and move to Needs a category until you pick a new one."
@@ -797,13 +712,8 @@
   "category_delete_unused": "This category isn’t used yet. This can’t be undone.",
   "category_delete_used": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "This category is still used by {count} transaction. This can’t be undone.",
         "countPlural=*": "This category is still used by {count} transactions. This can’t be undone."
@@ -813,13 +723,8 @@
   "category_deleted": "{name} deleted",
   "category_deleted_uncategorized": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction needs a new category.",
         "countPlural=*": "{count} transactions need a new category."
@@ -865,13 +770,8 @@
   "category_merge_description": "All its transactions move to the target category, then this category is deleted.",
   "category_merge_impact": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction moves from {source} to {target}. {source} is deleted.",
         "countPlural=*": "{count} transactions move from {source} to {target}. {source} is deleted."
@@ -885,13 +785,8 @@
   "category_merged": "{source} merged into {target}",
   "category_merged_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction moved.",
         "countPlural=*": "{count} transactions moved."
@@ -913,13 +808,8 @@
   "category_tabs_label": "Category type",
   "category_transaction_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction",
         "countPlural=*": "{count} transactions"
@@ -1063,14 +953,8 @@
   "debts_card_statement_installments": "installments",
   "debts_card_transactions": [
     {
-      "declarations": [
-        "input count",
-        "input month",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input month", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction in {month}",
         "countPlural=*": "{count} transactions in {month}"
@@ -1101,13 +985,8 @@
   "debts_description_free": "Debt-free",
   "debts_description_installments": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} active installment",
         "countPlural=*": "{count} active installments"
@@ -1117,14 +996,8 @@
   "debts_description_none": "No debts recorded",
   "debts_description_receivables": [
     {
-      "declarations": [
-        "input amount",
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input amount", "input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} active receivable {amount}",
         "countPlural=*": "{count} active receivables {amount}"
@@ -1138,14 +1011,8 @@
   "debts_item_event_converted": "Made from a card transaction",
   "debts_item_event_converted_note": [
     {
-      "declarations": [
-        "input count",
-        "input date",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input date", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Split into {count} installment; the expense stays on {date} · principal",
         "countPlural=*": "Split into {count} installments; the expense stays on {date} · principal"
@@ -1155,13 +1022,8 @@
   "debts_item_event_created": "Recorded",
   "debts_item_event_created_note": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Split into {count} installment · principal",
         "countPlural=*": "Split into {count} installments · principal"
@@ -1177,13 +1039,8 @@
   "debts_item_mode_shorten": "Recalculated after an early payoff · choice: shorter tenor",
   "debts_item_months": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} month",
         "countPlural=*": "{count} months"
@@ -1210,13 +1067,8 @@
   "debts_kind_zero": "0% installment",
   "debts_kpi_bills": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} current bill",
         "countPlural=*": "{count} current bills"
@@ -1225,13 +1077,8 @@
   ],
   "debts_kpi_card_bills": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} credit card bill",
         "countPlural=*": "{count} credit card bills"
@@ -1245,13 +1092,8 @@
   "debts_kpi_due_statement": "statement {statement} · due {due}",
   "debts_kpi_installments": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} installment",
         "countPlural=*": "{count} installments"
@@ -1261,14 +1103,8 @@
   "debts_kpi_nearest": "Next due date",
   "debts_kpi_nearest_days": [
     {
-      "declarations": [
-        "input name",
-        "input days",
-        "local namePlural = name: plural"
-      ],
-      "selectors": [
-        "namePlural"
-      ],
+      "declarations": ["input name", "input days", "local namePlural = name: plural"],
+      "selectors": ["namePlural"],
       "match": {
         "namePlural=one": "{name} · in {days} day",
         "namePlural=*": "{name} · in {days} days"
@@ -1281,14 +1117,8 @@
   "debts_kpi_receivables": "Receivables",
   "debts_kpi_receivables_due_days": [
     {
-      "declarations": [
-        "input count",
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input count", "input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{count} due in {days} day",
         "daysPlural=*": "{count} due in {days} days"
@@ -1299,13 +1129,8 @@
   "debts_kpi_receivables_none": "nobody owes you money",
   "debts_kpi_receivables_people": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} person",
         "countPlural=*": "{count} people"
@@ -1347,13 +1172,8 @@
   "debts_terms_interest_invalid": "Enter interest 0–100, at most 2 decimals",
   "debts_terms_months": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} month",
         "countPlural=*": "{count} months"
@@ -1362,13 +1182,8 @@
   ],
   "debts_terms_more": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "+{count} more installment",
         "countPlural=*": "+{count} more installments"
@@ -1396,14 +1211,8 @@
   "device_revoke_others_description": "This device stays signed in. Other devices will need to sign in again.",
   "device_revoke_others_impact": [
     {
-      "declarations": [
-        "input count",
-        "input devices",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input devices", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} device: {devices}",
         "countPlural=*": "{count} devices: {devices}"
@@ -1415,13 +1224,8 @@
   "device_revoked": "{device} was signed out.",
   "device_revoked_others": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} other device was signed out.",
         "countPlural=*": "{count} other devices were signed out."
@@ -1524,13 +1328,8 @@
   "goals_badge_reached": "Reached",
   "goals_badge_soon": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} month left",
         "countPlural=*": "{count} months left"
@@ -1567,13 +1366,8 @@
   "goals_detail_due": "Due {month}",
   "goals_detail_due_in": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Due {month} · {count} month left",
         "countPlural=*": "Due {month} · {count} months left"
@@ -1641,13 +1435,8 @@
   "goals_form_target_months_option": "{count}× spending",
   "goals_header_active": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} active goal",
         "countPlural=*": "{count} active goals"
@@ -1665,13 +1454,8 @@
   "goals_kpi_emergency": "Emergency fund",
   "goals_kpi_emergency_sub": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "target {count} month of spending",
         "countPlural=*": "target {count} months of spending"
@@ -1687,13 +1471,8 @@
   "goals_kpi_total_empty": "no goals yet",
   "goals_kpi_total_sub": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "in {count} goal",
         "countPlural=*": "in {count} goals"
@@ -1756,13 +1535,8 @@
   "goals_preview_reaches": "Reached with this deposit",
   "goals_reached_body": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{amount} saved, {count} month ahead of the {month} plan. The money is ready whenever you need it.",
         "countPlural=*": "{amount} saved, {count} months ahead of the {month} plan. The money is ready whenever you need it."
@@ -1794,13 +1568,8 @@
   "goals_sinking_form_monthly": "Set aside every month",
   "goals_sinking_form_months": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} month · {range}",
         "countPlural=*": "{count} months · {range}"
@@ -1876,13 +1645,8 @@
   "goals_withdraw_to": "To account",
   "history_device_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} device",
         "countPlural=*": "{count} devices"
@@ -1920,13 +1684,8 @@
   "history_new_device": "new device",
   "history_remaining_attempts": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} attempt left",
         "countPlural=*": "{count} attempts left"
@@ -2518,15 +2277,8 @@
   "notification_bill_overdue_title": "{name} not confirmed",
   "notification_bill_reminder_body": [
     {
-      "declarations": [
-        "input account",
-        "input amount",
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input account", "input amount", "input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{amount} from {account} · in {days} day.",
         "daysPlural=*": "{amount} from {account} · in {days} days."
@@ -2547,9 +2299,7 @@
         "input until",
         "local countPlural = count: plural"
       ],
-      "selectors": [
-        "countPlural"
-      ],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bill of {needed} by {until}, balance {balance}. Top up or change the account.",
         "countPlural=*": "{count} bills of {needed} by {until}, balance {balance}. Top up or change the account."
@@ -2563,14 +2313,8 @@
   "notification_pause_ending_title": "{name} resumes {pausedUntil}",
   "notification_period_closed_body": [
     {
-      "declarations": [
-        "input leftover",
-        "input proposals",
-        "local proposalsPlural = proposals: plural"
-      ],
-      "selectors": [
-        "proposalsPlural"
-      ],
+      "declarations": ["input leftover", "input proposals", "local proposalsPlural = proposals: plural"],
+      "selectors": ["proposalsPlural"],
       "match": {
         "proposalsPlural=one": "{proposals} closing proposal in Needs review · {leftover} left.",
         "proposalsPlural=*": "{proposals} closing proposals in Needs review · {leftover} left."
@@ -2580,15 +2324,8 @@
   "notification_period_closed_title": "Period {start} – {end} closed",
   "notification_receivable_due_body": [
     {
-      "declarations": [
-        "input amount",
-        "input description",
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input amount", "input description", "input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{description} · {amount} left · in {days} day.",
         "daysPlural=*": "{description} · {amount} left · in {days} days."
@@ -2597,14 +2334,8 @@
   ],
   "notification_receivable_due_plain_body": [
     {
-      "declarations": [
-        "input amount",
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input amount", "input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{amount} left · in {days} day.",
         "daysPlural=*": "{amount} left · in {days} days."
@@ -2616,15 +2347,8 @@
   "notification_review_due_title": "{name} is due today",
   "notification_subscriptions_detected_body": [
     {
-      "declarations": [
-        "input amount",
-        "input count",
-        "input day",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input amount", "input count", "input day", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{amount} on day {day} of the month, {count} month in a row.",
         "countPlural=*": "{amount} on day {day} of the month, {count} months in a row."
@@ -2643,13 +2367,8 @@
   "notifications_all_read": "All caught up",
   "notifications_bell_unread": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Notifications, {count} new",
         "countPlural=*": "Notifications, {count} new"
@@ -2674,13 +2393,8 @@
   "notifications_next_reminder": "Next reminder: {name} is billed {date} ({amount}), sent {offset} at {time}.",
   "notifications_offset_days": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day before",
         "daysPlural=*": "{days} days before"
@@ -2696,13 +2410,8 @@
   "notifications_range_label": "Notification date range",
   "notifications_range_summary": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day",
         "daysPlural=*": "{days} days"
@@ -2751,13 +2460,8 @@
   "onboarding_currency_option": "{code} — {name}",
   "onboarding_done_accounts": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} account · available balance",
         "countPlural=*": "{count} accounts · available balance"
@@ -2848,13 +2552,8 @@
   "overview_accounts_hint": "Click a card to see its transactions",
   "overview_accounts_platforms": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} platform",
         "countPlural=*": "{count} platforms"
@@ -2868,13 +2567,8 @@
   "overview_budget_empty": "No budget for this period yet.",
   "overview_budget_over": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} over the limit",
         "countPlural=*": "{count} over the limit"
@@ -2893,13 +2587,8 @@
   "overview_calendar_costliest_week": "costliest this week",
   "overview_calendar_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction",
         "countPlural=*": "{count} transactions"
@@ -2946,13 +2635,8 @@
   "overview_cashflow_trend_value": "{change} / 3 months",
   "overview_categories_caption": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} category · {caption}",
         "countPlural=*": "{count} categories · {caption}"
@@ -2989,13 +2673,8 @@
   "overview_flow_tip_income_share": "Share of income",
   "overview_flow_tip_open": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Click to see {count} transaction",
         "countPlural=*": "Click to see {count} transactions"
@@ -3075,13 +2754,8 @@
   "overview_subs_caption": "{active} active · {due} due in 7 days",
   "overview_subs_due_in": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "in {days} day",
         "daysPlural=*": "in {days} days"
@@ -3151,13 +2825,8 @@
   "period_settings_day": "Day {day}",
   "period_settings_days": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} day",
         "countPlural=*": "{count} days"
@@ -3179,13 +2848,8 @@
   "period_settings_payday_aligned": "Matches",
   "period_settings_payday_match": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Salary from {payer} arrives on day {day} (last month)",
         "countPlural=*": "Salary from {payer} arrives on day {day} (last {count} months)"
@@ -3194,13 +2858,8 @@
   ],
   "period_settings_payday_match_unnamed": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Salary arrives on day {day} (last month)",
         "countPlural=*": "Salary arrives on day {day} (last {count} months)"
@@ -3278,13 +2937,8 @@
   "receivables_after_remaining": "{name}'s balance",
   "receivables_badge_days": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "in {days} day",
         "daysPlural=*": "in {days} days"
@@ -3293,13 +2947,8 @@
   ],
   "receivables_badge_overdue": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day overdue",
         "daysPlural=*": "{days} days overdue"
@@ -3588,13 +3237,8 @@
   "record_split_save": "Save split",
   "record_split_saved": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} receivable recorded under Debts",
         "countPlural=*": "{count} receivables recorded under Debts"
@@ -3684,13 +3328,8 @@
   "review_bills_pay_all_description": "Each bill is recorded with its amount and taken from its account.",
   "review_bills_pay_all_title": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Mark {count} bill paid?",
         "countPlural=*": "Mark {count} bills paid?"
@@ -3701,13 +3340,8 @@
   "review_bills_total": "Total waiting",
   "review_bulk_done": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} item confirmed",
         "countPlural=*": "{count} items confirmed"
@@ -3716,13 +3350,8 @@
   ],
   "review_bulk_failed": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} item could not be confirmed",
         "countPlural=*": "{count} items could not be confirmed"
@@ -3732,13 +3361,8 @@
   "review_cancel": "Cancel",
   "review_category_bulk": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Set a category for the {count} transaction",
         "countPlural=*": "Set a category for all {count} transactions"
@@ -3748,13 +3372,8 @@
   "review_category_bulk_description": "The transactions are already recorded; only their category changes.",
   "review_category_bulk_title": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Set {category} for {count} transaction?",
         "countPlural=*": "Set {category} for {count} transactions?"
@@ -3780,13 +3399,8 @@
   "review_confirmed_title": "Recorded",
   "review_description": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} item waits for your confirmation. Balances and budgets change only after you confirm.",
         "countPlural=*": "{count} items wait for your confirmation. Balances and budgets change only after you confirm."
@@ -3795,13 +3409,8 @@
   ],
   "review_due_overdue": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day overdue",
         "daysPlural=*": "{days} days overdue"
@@ -3811,13 +3420,8 @@
   "review_due_today": "Due today",
   "review_due_upcoming": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "Due in {days} day",
         "daysPlural=*": "Due in {days} days"
@@ -3829,13 +3433,8 @@
   "review_ignore": "Ignore",
   "review_ignored": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} item ignored",
         "countPlural=*": "{count} items ignored"
@@ -3946,13 +3545,8 @@
   "settings_notifications_kind": "Kind",
   "settings_notifications_moved": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} reminder moved to {time}.",
         "countPlural=*": "{count} reminders moved to {time}."
@@ -4021,14 +3615,8 @@
   "signout_everywhere": "Sign out of all devices",
   "signout_other_devices": [
     {
-      "declarations": [
-        "input count",
-        "input labels",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input labels", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Active on {count} other device · {labels}",
         "countPlural=*": "Active on {count} other devices · {labels}"
@@ -4106,13 +3694,8 @@
   "subscriptions_detect_pattern": "around day {day} each month · last {date}",
   "subscriptions_detect_title": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} recurring charge detected",
         "countPlural=*": "{count} recurring charges detected"
@@ -4121,13 +3704,8 @@
   ],
   "subscriptions_due_in": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "in {days} day",
         "daysPlural=*": "in {days} days"
@@ -4142,14 +3720,8 @@
   "subscriptions_filter_share": "{share} of the total",
   "subscriptions_filter_summary": [
     {
-      "declarations": [
-        "input count",
-        "input category",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input category", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} {category} subscription",
         "countPlural=*": "{count} {category} subscriptions"
@@ -4158,13 +3730,8 @@
   ],
   "subscriptions_footer_active": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} active subscription in total",
         "countPlural=*": "{count} active subscriptions in total"
@@ -4173,13 +3740,8 @@
   ],
   "subscriptions_footer_cancelled": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} cancelled · can be reactivated from the ⋮ menu",
         "countPlural=*": "{count} cancelled · can be reactivated from the ⋮ menu"
@@ -4188,13 +3750,8 @@
   ],
   "subscriptions_footer_paused": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} paused subscription · not shown in the calendar",
         "countPlural=*": "{count} paused subscriptions · not shown in the calendar"
@@ -4216,14 +3773,8 @@
   "subscriptions_form_description_placeholder": "Add a description…",
   "subscriptions_form_edit_description": [
     {
-      "declarations": [
-        "input count",
-        "input since",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input since", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bill recorded since {since}",
         "countPlural=*": "{count} bills recorded since {since}"
@@ -4257,13 +3808,8 @@
   "subscriptions_form_remind_days": "How many days before",
   "subscriptions_form_remind_hint": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day before · notification",
         "daysPlural=*": "{days} days before · notification"
@@ -4273,13 +3819,8 @@
   "subscriptions_form_remind_off": "No reminder",
   "subscriptions_form_remind_option": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day before",
         "daysPlural=*": "{days} days before"
@@ -4293,13 +3834,8 @@
   "subscriptions_form_trial": "Free trial",
   "subscriptions_form_trial_days": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "{days} day",
         "daysPlural=*": "{days} days"
@@ -4320,13 +3856,8 @@
   "subscriptions_header_next_tomorrow": "next {name}, tomorrow",
   "subscriptions_header_remaining": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bill left this month",
         "countPlural=*": "{count} bills left this month"
@@ -4339,14 +3870,8 @@
   "subscriptions_kpi_remaining": "Bills left in {month}",
   "subscriptions_kpi_remaining_bills": [
     {
-      "declarations": [
-        "input count",
-        "input dates",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input dates", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bill · {dates}",
         "countPlural=*": "{count} bills · {dates}"
@@ -4370,13 +3895,8 @@
   "subscriptions_menu_short": "short for {date}:",
   "subscriptions_months_ago": [
     {
-      "declarations": [
-        "input months",
-        "local monthsPlural = months: plural"
-      ],
-      "selectors": [
-        "monthsPlural"
-      ],
+      "declarations": ["input months", "local monthsPlural = months: plural"],
+      "selectors": ["monthsPlural"],
       "match": {
         "monthsPlural=one": "{months} month ago",
         "monthsPlural=*": "{months} months ago"
@@ -4394,13 +3914,8 @@
   "subscriptions_pause_left": "Bills left in {month} become {amount}",
   "subscriptions_pause_months": [
     {
-      "declarations": [
-        "input months",
-        "local monthsPlural = months: plural"
-      ],
-      "selectors": [
-        "monthsPlural"
-      ],
+      "declarations": ["input months", "local monthsPlural = months: plural"],
+      "selectors": ["monthsPlural"],
       "match": {
         "monthsPlural=one": "{months} month",
         "monthsPlural=*": "{months} months"
@@ -4411,13 +3926,8 @@
   "subscriptions_pause_pick_date": "Pick a date…",
   "subscriptions_pause_remind": [
     {
-      "declarations": [
-        "input days",
-        "local daysPlural = days: plural"
-      ],
-      "selectors": [
-        "daysPlural"
-      ],
+      "declarations": ["input days", "local daysPlural = days: plural"],
+      "selectors": ["daysPlural"],
       "match": {
         "daysPlural=one": "Remind me {days} day before it resumes",
         "daysPlural=*": "Remind me {days} days before it resumes"
@@ -4429,13 +3939,8 @@
   "subscriptions_pause_resumes": "resumes {date}",
   "subscriptions_pause_submit": [
     {
-      "declarations": [
-        "input months",
-        "local monthsPlural = months: plural"
-      ],
-      "selectors": [
-        "monthsPlural"
-      ],
+      "declarations": ["input months", "local monthsPlural = months: plural"],
+      "selectors": ["monthsPlural"],
       "match": {
         "monthsPlural=one": "Pause {months} month",
         "monthsPlural=*": "Pause {months} months"
@@ -4472,13 +3977,8 @@
   "subscriptions_save_title": "Could save",
   "subscriptions_save_untracked": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} recurring charge not tracked yet",
         "countPlural=*": "{count} recurring charges not tracked yet"
@@ -4496,13 +3996,8 @@
   "subscriptions_schedule_nothing_left": "No bills left this month",
   "subscriptions_schedule_overdue": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bill is past its date but not recorded",
         "countPlural=*": "{count} bills are past their date but not recorded"
@@ -4512,14 +4007,8 @@
   "subscriptions_schedule_paid": "Paid",
   "subscriptions_schedule_short": [
     {
-      "declarations": [
-        "input count",
-        "input account",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "input account", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{account} balance doesn’t cover {count} bill",
         "countPlural=*": "{account} balance doesn’t cover {count} bills"
@@ -4538,13 +4027,8 @@
   "subscriptions_status_paused": "Paused",
   "subscriptions_sum_bills": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} bill",
         "countPlural=*": "{count} bills"
@@ -4576,13 +4060,8 @@
   "subscriptions_toast_deleted": "{name} deleted",
   "subscriptions_toast_detected_added": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} subscription added",
         "countPlural=*": "{count} subscriptions added"
@@ -4611,13 +4090,8 @@
   "tag_column_used": "Used",
   "tag_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} tag",
         "countPlural=*": "{count} tags"
@@ -4630,13 +4104,8 @@
   "tag_delete_unused": "This tag isn’t used yet. This can’t be undone.",
   "tag_delete_used": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "This tag is removed from {count} transaction. This can’t be undone.",
         "countPlural=*": "This tag is removed from {count} transactions. This can’t be undone."
@@ -4667,13 +4136,8 @@
   "tag_merge_impact_removed": "{tags} are deleted and become other names of {target}",
   "tag_merge_impact_updated": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction updated ({breakdown})",
         "countPlural=*": "{count} transactions updated ({breakdown})"
@@ -4684,13 +4148,8 @@
   "tag_merge_pick_two": "Choose at least 2 tags to merge.",
   "tag_merge_results": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} result",
         "countPlural=*": "{count} results"
@@ -4703,13 +4162,8 @@
   "tag_merge_title": "Merge tags",
   "tag_merged": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} tag merged into {target}",
         "countPlural=*": "{count} tags merged into {target}"
@@ -4782,13 +4236,8 @@
   "transactions_activity_repeat_resumed": "Repeat turned back on",
   "transactions_activity_repeat_stopped": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Repeat stopped · {count} date removed",
         "countPlural=*": "Repeat stopped · {count} dates removed"
@@ -4805,13 +4254,8 @@
   "transactions_addtag_description": "The tag is added to every selected transaction.",
   "transactions_addtag_done": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Tag #{tag} added to {count} transaction",
         "countPlural=*": "Tag #{tag} added to {count} transactions"
@@ -4820,13 +4264,8 @@
   ],
   "transactions_addtag_title": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Add a tag to {count} transaction",
         "countPlural=*": "Add a tag to {count} transactions"
@@ -4869,13 +4308,8 @@
   "transactions_bulk_selected": "selected",
   "transactions_bulk_skipped_transfers": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transfer is skipped — transfers have no category or single account.",
         "countPlural=*": "{count} transfers are skipped — transfers have no category or single account."
@@ -4911,13 +4345,8 @@
   "transactions_copy_failed": "Couldn't copy the amount",
   "transactions_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count: number} transaction",
         "countPlural=*": "{count: number} transactions"
@@ -4931,13 +4360,8 @@
   "transactions_delete_description_attachments": "Its receipt and images are deleted too. You can still undo it for a few seconds after deleting.",
   "transactions_delete_done_many": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction deleted",
         "countPlural=*": "{count} transactions deleted"
@@ -4948,13 +4372,8 @@
   "transactions_delete_done_returned": "returned to {account}.",
   "transactions_delete_title_many": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Delete {count} transaction?",
         "countPlural=*": "Delete {count} transactions?"
@@ -5063,13 +4482,8 @@
   "transactions_move_description": "{currency} accounts only; the amounts stay the same.",
   "transactions_move_done": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction moved",
         "countPlural=*": "{count} transactions moved"
@@ -5080,13 +4494,8 @@
   "transactions_move_pick": "Pick the account",
   "transactions_move_title": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Move {count} transaction",
         "countPlural=*": "Move {count} transactions"
@@ -5114,13 +4523,8 @@
   "transactions_page_title": "Transactions",
   "transactions_recategorize_done": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Category of {count} transaction changed",
         "countPlural=*": "Category of {count} transactions changed"
@@ -5131,13 +4535,8 @@
   "transactions_recategorize_pick": "Pick a category",
   "transactions_recategorize_title": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Change the category of {count} transaction",
         "countPlural=*": "Change the category of {count} transactions"
@@ -5181,13 +4580,8 @@
   "transactions_summary_average": "average",
   "transactions_summary_count": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction",
         "countPlural=*": "{count} transactions"
@@ -5201,13 +4595,8 @@
   "transactions_summary_transfer": "Transfer",
   "transactions_summary_transfer_note": [
     {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural"
-      ],
-      "selectors": [
-        "countPlural"
-      ],
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "{count} transaction · not counted",
         "countPlural=*": "{count} transactions · not counted"
