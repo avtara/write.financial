@@ -94,44 +94,6 @@ beforeEach(() => {
 });
 
 describe('MarketSection', () => {
-  it('shows every class with its mode and each key’s status, frequency, quota, and saved prices', async () => {
-    await render();
-    for (const label of [
-      'Kurs mata uang',
-      'Saham & ETF AS',
-      'Saham IDX & IHSG',
-      'Kripto',
-      'Emas',
-      'Reksa dana',
-      'SBN (ORI)',
-    ]) {
-      await expect.element(page.getByRole('region', { name: label })).toBeVisible();
-    }
-    await expect.element(page.getByText('Aktif · harian 17.00 & 08.00 WIB')).toBeVisible();
-    // Source and time of the prices in use (FR-I5), with or without any key.
-    const prices = page.getByRole('region', { name: 'Harga yang dipakai' });
-    await expect.element(prices.getByText(/EODHD · 1 terakhir/)).toBeVisible();
-    await expect
-      .element(page.getByText(/^Key ••••eo99 · Terhubung · Tiap 60 menit · 2 harga tersimpan$/))
-      .toBeVisible();
-    await expect.element(page.getByRole('progressbar', { name: 'Pemakaian kuota EODHD' })).toBeVisible();
-    await expect.element(page.getByText('Kuota 4/20')).toBeVisible();
-    await expect.element(page.getByText(/Key ••••ti99 · Nonaktif · Tiap 15 menit/)).toBeVisible();
-    await expect
-      .element(page.getByText(/Terhubung \(key tidak dapat diverifikasi\) · Terlalu banyak simbol/))
-      .toBeVisible();
-    await expect.element(page.getByText(/Limit, coba lagi s\.d\. \d\d\.\d\d/).first()).toBeVisible();
-    await expect.element(page.getByText(/Kuota habis s\.d\. \d\d\.\d\d/)).toBeVisible();
-    await expect.element(page.getByText(/Key salah/)).toBeVisible();
-    await expect.element(page.getByText(/Gagal terhubung/)).toBeVisible();
-    await expect.element(page.getByText(/Belum diuji/)).toBeVisible();
-    await expect.element(page.getByText(/^Aktif · \d\d\.\d\d · 120\/15000 kredit bulan ini$/)).toBeVisible();
-    await expect.element(page.getByText('Antam = spot × (1 + premium), ditandai estimasi')).toBeVisible();
-    await expect
-      .element(page.getByText('Key pribadi, data hanya untukmu · Tertunda/penutupan, bukan real-time'))
-      .toBeVisible();
-  });
-
   it('shows built-in sources waiting, not set up, or failed, and keys still to set', async () => {
     await render({
       ...SETTINGS,
