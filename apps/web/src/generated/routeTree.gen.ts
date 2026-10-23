@@ -22,6 +22,7 @@ import { Route as AppDebtsRouteImport } from './../routes/_app/debts.tsx';
 import { Route as AppGoalsRouteImport } from './../routes/_app/goals.tsx';
 import { Route as AppInvestmentsRouteImport } from './../routes/_app/investments.tsx';
 import { Route as AppNotificationsRouteImport } from './../routes/_app/notifications.tsx';
+import { Route as AppReportsRouteImport } from './../routes/_app/reports.tsx';
 import { Route as AppReviewRouteImport } from './../routes/_app/review.tsx';
 import { Route as AppSubscriptionsRouteImport } from './../routes/_app/subscriptions.tsx';
 import { Route as AppTransactionsRouteImport } from './../routes/_app/transactions.tsx';
@@ -100,6 +101,11 @@ const AppInvestmentsRoute = AppInvestmentsRouteImport.update({
 const AppNotificationsRoute = AppNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => AppRoute,
+} as any);
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AppRoute,
 } as any);
 const AppReviewRoute = AppReviewRouteImport.update({
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/goals': typeof AppGoalsRoute;
   '/investments': typeof AppInvestmentsRoute;
   '/notifications': typeof AppNotificationsRoute;
+  '/reports': typeof AppReportsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
@@ -225,6 +232,7 @@ export interface FileRoutesByTo {
   '/goals': typeof AppGoalsRoute;
   '/investments': typeof AppInvestmentsRoute;
   '/notifications': typeof AppNotificationsRoute;
+  '/reports': typeof AppReportsRoute;
   '/review': typeof AppReviewRoute;
   '/subscriptions': typeof AppSubscriptionsRoute;
   '/transactions': typeof AppTransactionsRoute;
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/_app/goals': typeof AppGoalsRoute;
   '/_app/investments': typeof AppInvestmentsRoute;
   '/_app/notifications': typeof AppNotificationsRoute;
+  '/_app/reports': typeof AppReportsRoute;
   '/_app/review': typeof AppReviewRoute;
   '/_app/subscriptions': typeof AppSubscriptionsRoute;
   '/_app/transactions': typeof AppTransactionsRoute;
@@ -288,6 +297,7 @@ export interface FileRouteTypes {
     | '/goals'
     | '/investments'
     | '/notifications'
+    | '/reports'
     | '/review'
     | '/subscriptions'
     | '/transactions'
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/goals'
     | '/investments'
     | '/notifications'
+    | '/reports'
     | '/review'
     | '/subscriptions'
     | '/transactions'
@@ -347,6 +358,7 @@ export interface FileRouteTypes {
     | '/_app/goals'
     | '/_app/investments'
     | '/_app/notifications'
+    | '/_app/reports'
     | '/_app/review'
     | '/_app/subscriptions'
     | '/_app/transactions'
@@ -473,6 +485,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNotificationsRouteImport;
       parentRoute: typeof AppRoute;
     };
+    '/_app/reports': {
+      id: '/_app/reports';
+      path: '/reports';
+      fullPath: '/reports';
+      preLoaderRoute: typeof AppReportsRouteImport;
+      parentRoute: typeof AppRoute;
+    };
     '/_app/review': {
       id: '/_app/review';
       path: '/review';
@@ -596,6 +615,7 @@ interface AppRouteChildren {
   AppGoalsRoute: typeof AppGoalsRoute;
   AppInvestmentsRoute: typeof AppInvestmentsRoute;
   AppNotificationsRoute: typeof AppNotificationsRoute;
+  AppReportsRoute: typeof AppReportsRoute;
   AppReviewRoute: typeof AppReviewRoute;
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute;
   AppTransactionsRoute: typeof AppTransactionsRoute;
@@ -611,6 +631,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppGoalsRoute: AppGoalsRoute,
   AppInvestmentsRoute: AppInvestmentsRoute,
   AppNotificationsRoute: AppNotificationsRoute,
+  AppReportsRoute: AppReportsRoute,
   AppReviewRoute: AppReviewRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,

@@ -36,6 +36,7 @@ import { createOnboarding, type OnboardingRepository } from '@wf/db/onboarding';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-items';
 import { createReceivables, type ReceivablesRepository } from '@wf/db/receivables';
+import { createReports, type ReportsRepository } from '@wf/db/reports';
 import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
 import { createReview, type ReviewRepository } from '@wf/db/review';
 import { createSchedules, type SchedulesRepository } from '@wf/db/schedules';
@@ -129,6 +130,8 @@ export interface Services extends BaseRuntime {
   readonly investments: InvestmentsRepository;
   /** Market data (M5, FR-I5/I6): quotes, the user's own-key results, the request log. */
   readonly marketData: MarketDataRepository;
+  /** Reports (M6): the stored report snapshots and their generation, on `wf_app`. */
+  readonly reports: ReportsRepository;
   /** Settings › "API kurs & pasar": the user's keys (FR-ST4). */
   readonly marketCredentials: MarketCredentialsRepository;
   /** Sync targets, the decrypted key for a request, tests per hour, the built-in sources' state. */
@@ -198,6 +201,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     receivables: createReceivables(appDb, { getDek, now }),
     investments: createInvestments(appDb, { now }),
     marketData: createMarketData(appDb, { now }),
+    reports: createReports(appDb),
     marketCredentials: createMarketCredentials(appDb, { getDek, now }),
     marketJobs: createMarketJobs(appDb, { getDek }),
     marketAdapters: createMarketAdapters(),

@@ -18,7 +18,7 @@ design/html/
 
 # Test reports
 coverage/
-reports/
+/reports/
 .stryker-tmp/
 
 # Paraglide output, compiled from packages/i18n/messages by the package's `prepare` script on install
