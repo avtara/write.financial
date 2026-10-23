@@ -52,6 +52,7 @@ import {
   skipOnboardingGoal,
 } from '../../src/server/fn/onboarding.ts';
 import * as receivables from '../../src/server/fn/receivables.ts';
+import * as reports from '../../src/server/fn/reports.ts';
 import * as review from '../../src/server/fn/review.ts';
 import * as schedules from '../../src/server/fn/schedules.ts';
 import * as search from '../../src/server/fn/search.ts';
@@ -155,6 +156,7 @@ export const FUNCTIONS = {
   ...market,
   ...notifications,
   ...receivables,
+  ...reports,
   ...review,
   ...schedules,
   ...search,

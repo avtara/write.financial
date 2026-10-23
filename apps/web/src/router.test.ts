@@ -75,6 +75,7 @@ describe('getRouter', () => {
       '/investments',
       '/notifications',
       '/onboarding/$step',
+      '/reports',
       '/reset-password',
       '/review',
       '/settings/$section',

@@ -4,7 +4,7 @@ import { m } from '@wf/i18n/messages';
 import { NAV_GROUPS } from './nav.ts';
 
 describe('NAV_GROUPS', () => {
-  it('lists Overview, Transactions, Budget, Subscriptions, Calendar, Investasi, Tabungan, Utang & cicilan, and Perlu ditinjau under MENU and Accounts & wallets under Akun', () => {
+  it('lists Overview, Transactions, Budget, Subscriptions, Calendar, Investasi, Laporan, Tabungan, Utang & cicilan, and Perlu ditinjau under MENU and Accounts & wallets under Akun', () => {
     expect(NAV_GROUPS.map((group) => group.label())).toEqual([m.nav_menu(), m.nav_group_account()]);
     expect(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.to))).toEqual([
       '/',
@@ -13,6 +13,7 @@ describe('NAV_GROUPS', () => {
       '/subscriptions',
       '/calendar',
       '/investments',
+      '/reports',
       '/goals',
       '/debts',
       '/review',
@@ -30,6 +31,7 @@ describe('NAV_GROUPS', () => {
       m.nav_subscriptions,
       m.nav_calendar,
       m.invest_title,
+      m.reports_title,
       m.nav_goals,
       m.debts_title,
       m.review_title,
@@ -48,6 +50,8 @@ describe('NAV_GROUPS', () => {
     expect(m.nav_calendar({}, { locale: 'en' })).toBe('Calendar');
     expect(m.invest_title({}, { locale: 'id' })).toBe('Investasi');
     expect(m.invest_title({}, { locale: 'en' })).toBe('Investments');
+    expect(m.reports_title({}, { locale: 'id' })).toBe('Laporan');
+    expect(m.reports_title({}, { locale: 'en' })).toBe('Reports');
     expect(m.nav_goals({}, { locale: 'id' })).toBe('Tabungan');
     expect(m.nav_goals({}, { locale: 'en' })).toBe('Savings');
     expect(m.debts_title({}, { locale: 'id' })).toBe('Utang & cicilan');
@@ -64,6 +68,7 @@ describe('NAV_GROUPS', () => {
       'transactions',
       undefined,
       'subscriptions',
+      undefined,
       undefined,
       undefined,
       undefined,
