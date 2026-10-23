@@ -339,7 +339,7 @@ export function growthPoints(
   live: { readonly month: YearMonth; readonly valueMinor: bigint; readonly costMinor: bigint },
 ): PortfolioSnapshot[] {
   const byMonth = new Map<YearMonth, PortfolioSnapshot>();
-  for (const snapshot of snapshots) {
+  for (const snapshot of [...snapshots].sort((a, b) => a.date.localeCompare(b.date))) {
     const month = monthOf(snapshot.date);
     if (month >= live.month) continue;
     byMonth.set(month, {

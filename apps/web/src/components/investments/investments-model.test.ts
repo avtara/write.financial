@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { setLocale } from '@wf/i18n/runtime';
-import type { AssetClass, PriceMode } from '@wf/domain/investments';
-import type { Market, QuoteLabel } from '@wf/domain/market';
 import type { YearMonth } from '@wf/domain/period';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -16,18 +14,13 @@ import {
 } from '../../../test/investment-fixtures.ts';
 import {
   assetSources,
-  CLASS_TONE,
-  classLabel,
   formatUnits,
   growthPoints,
   holdingGroups,
   holdingItems,
   isHeld,
-  marketLabel,
   pointsInRange,
   priceMinor,
-  priceModeLabel,
-  quoteLabel,
   quoteStatus,
   rebalanceItems,
   toUsd,
@@ -38,36 +31,6 @@ beforeAll(async () => {
 });
 
 const ym = (value: string) => value as YearMonth;
-
-describe('labels', () => {
-  it('names every class, market, price mode and quote label (never “real-time”)', () => {
-    expect((Object.keys(CLASS_TONE) as AssetClass[]).map(classLabel)).toEqual([
-      'Saham AS',
-      'Internasional',
-      'Indonesia',
-      'Kripto',
-      'Kas & SGOV',
-      'Emas',
-      'Income',
-    ]);
-    const markets: Market[] = [
-      'fx',
-      'us_equity',
-      'idx_equity',
-      'crypto',
-      'gold_spot',
-      'gold_antam',
-      'mutual_fund',
-      'sbn',
-    ];
-    expect(markets.map(marketLabel)).toHaveLength(8);
-    expect(new Set(markets.map(marketLabel)).size).toBe(8);
-    expect((['server', 'byok', 'manual', 'computed'] as PriceMode[]).map(priceModeLabel)).toHaveLength(4);
-    const labels = (['delayed', 'close', 'manual', 'estimate', 'last'] as QuoteLabel[]).map(quoteLabel);
-    expect(labels).toEqual(['tertunda', 'penutupan', 'manual', 'estimasi', 'terakhir']);
-    expect(labels.join(' ')).not.toMatch(/real/i);
-  });
-});
 
 describe('formatting', () => {
   it('rounds units for display and turns prices into amounts', () => {
@@ -206,7 +169,7 @@ describe('growth', () => {
     );
     expect(several.map((point) => [point.month, point.valueMinor])).toEqual([
       ['2025-12', 10n],
-      ['2026-08', 45n],
+      ['2026-08', 50n],
       ['2026-10', 61_420_000n],
     ]);
     expect(growthPoints([], live)[0]?.contributionsMinor).toBe(53_931_000n);

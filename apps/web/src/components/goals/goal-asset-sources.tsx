@@ -267,7 +267,16 @@ export function GoalAssetNotices({
 }: GoalAssetNoticesProps) {
   const used = new Set(goals.flatMap((goal) => goal.assetSources.map((source) => source.assetId)));
   const held = assets.filter((asset) => used.has(asset.id));
-  const unpriced = held.filter((asset) => asset.quote === null);
+  const unpriced = [
+    ...new Set(
+      goals.flatMap((goal) =>
+        goal.assetSources.flatMap((source) => {
+          const asset = assets.find((candidate) => candidate.id === source.assetId);
+          return asset === undefined || asset.quote === null || asset.valueBaseMinor === null ? [source.symbol] : [];
+        }),
+      ),
+    ),
+  ];
   const drops = held.flatMap((asset) => {
     if (asset.valueBaseMinor === null || asset.todayBaseMinor === null || asset.todayBaseMinor >= 0n) return [];
     const before = asset.valueBaseMinor - asset.todayBaseMinor;
@@ -295,7 +304,7 @@ export function GoalAssetNotices({
             <p className="text-[12.5px] text-muted-fg">
               {only
                 ? m.goals_asset_fallback_on()
-                : m.goals_asset_fallback({ symbols: unpriced.map((asset) => asset.symbol).join(', ') })}
+                : m.goals_asset_fallback({ symbols: unpriced.join(', ') })}
             </p>
           </div>
           <Button size="sm" variant="secondary" onClick={onRetry}>

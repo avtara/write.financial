@@ -66,6 +66,7 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   goals: { testMatch: 'goals.spec.ts', use: { viewport: { width: 1440, height: 1198 } } },
   receivables: { testMatch: 'receivables.spec.ts' },
   'market-api': { testMatch: 'market-api.spec.ts' },
+  investments: { testMatch: 'investments.spec.ts', use: { viewport: { width: 1440, height: 1024 } } },
 };
 
 /**

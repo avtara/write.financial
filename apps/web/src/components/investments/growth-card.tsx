@@ -7,6 +7,7 @@
  */
 import type { BenchmarkView } from '@wf/db/market-data';
 import type { BenchmarkKey } from '@wf/domain/market';
+import { currencyInfo } from '@wf/domain/money';
 import type { YearMonth } from '@wf/domain/period';
 import {
   GROWTH_RANGES,
@@ -64,7 +65,10 @@ export function GrowthCard({ points, benchmarks, currency, convert, locale }: Gr
       contributionsMinor: convert(point.contributionsMinor),
     })),
   );
-  const ytd = periodReturnBps(pointsInRange(points, 'ytd'));
+  const ytdPoints = pointsInRange(points, 'ytd');
+  const year = points.at(-1)?.month.slice(0, 4);
+  const baseline = year === undefined ? null : `${String(Number(year) - 1)}-12`;
+  const ytd = ytdPoints[0]?.month === baseline ? periodReturnBps(ytdPoints) : null;
   const max = shown.reduce(
     (top, point) => [point.valueMinor, point.costMinor, top].reduce((a, b) => (b > a ? b : a)),
     1n,
@@ -72,8 +76,9 @@ export function GrowthCard({ points, benchmarks, currency, convert, locale }: Gr
   const y = (minor: bigint) => TOP + PLOT - (Number(minor < 0n ? 0n : minor) / Number(max)) * PLOT;
   const slot = width === null || shown.length === 0 ? 0 : width / shown.length;
   const bar = Math.min(Math.max(slot * 0.62, 8), 64);
-  const millions = (minor: bigint) =>
-    formatNumber(Number(minor) / 1_000_000, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const scale = currency === 'IDR' ? 1_000_000 : 10 ** currencyInfo(currency).minorDigits;
+  const chartValue = (minor: bigint) =>
+    formatNumber(Number(minor) / scale, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   // Geometry and text of each column, computed before rendering (amounts reach the DOM only as these numbers).
   const bars = shown.map((point, index) => {
     const loss = point.valueMinor < point.costMinor;
@@ -84,8 +89,8 @@ export function GrowthCard({ points, benchmarks, currency, convert, locale }: Gr
       topY: y(loss ? point.costMinor : point.valueMinor),
       loss,
       current: index === shown.length - 1,
-      text: millions(point.valueMinor),
-      label: `${periodLabel(point.month, locale)}: ${m.invest_growth_legend_value()} ${hidden ? '•••' : millions(point.valueMinor)}`,
+      text: chartValue(point.valueMinor),
+      label: `${periodLabel(point.month, locale)}: ${currency === 'IDR' ? m.invest_growth_legend_value() : currency} ${hidden ? '•••' : chartValue(point.valueMinor)}`,
     };
   });
 

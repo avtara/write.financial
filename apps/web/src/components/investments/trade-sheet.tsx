@@ -8,7 +8,7 @@
  */
 import type { AccountView } from '@wf/db/accounts';
 import type { AssetView, PortfolioView } from '@wf/db/investments';
-import { needsGoalChoice, sellAllocation, splitUnits } from '@wf/domain/goal-assets';
+import { InvalidGoalAssetError, needsGoalChoice, sellAllocation, splitUnits } from '@wf/domain/goal-assets';
 import { buyPreview, sellPreview, type BuyPreview, type DividendMode, type SellPreview } from '@wf/domain/investments';
 import type { LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
@@ -79,7 +79,12 @@ export type TradeDraft =
 
 export interface TradeSheetProps {
   /** `null`: closed. */
-  readonly open: { readonly tab: TradeTab; readonly assetId: string | null; readonly accountId?: string } | null;
+  readonly open: {
+    readonly tab: TradeTab;
+    readonly assetId: string | null;
+    readonly accountId?: string;
+    readonly sellAmountMinor?: bigint;
+  } | null;
   readonly onOpenChange: (open: boolean) => void;
   readonly portfolio: PortfolioView;
   readonly accounts: readonly AccountView[];
@@ -140,7 +145,7 @@ function TradeTabs({ initial, ...props }: FormProps & { readonly initial: NonNul
         <BuyForm assetId={assetId} {...props} />
       </TabsContent>
       <TabsContent value="sell">
-        <SellForm assetId={assetId} {...props} />
+        <SellForm assetId={assetId} initialValue={initial.sellAmountMinor ?? null} {...props} />
       </TabsContent>
       <TabsContent value="dividend">
         <DividendForm assetId={assetId} {...props} />
@@ -359,11 +364,13 @@ function Footer({
   failure,
   label,
   onCancel,
+  disabled = false,
 }: {
   readonly pending: boolean;
   readonly failure: string | null;
   readonly label: string;
   readonly onCancel: () => void;
+  readonly disabled?: boolean;
 }) {
   return (
     <>
@@ -372,7 +379,7 @@ function Footer({
         <Button variant="secondary" onClick={onCancel}>
           {m.invest_cancel()}
         </Button>
-        <Button type="submit" pending={pending}>
+        <Button type="submit" pending={pending} disabled={disabled}>
           {label}
         </Button>
       </div>
@@ -583,12 +590,16 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
 
 const QUICK_SHARES = [2500, 5000, 10_000] as const;
 
-function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string | null }) {
+function SellForm({
+  assetId,
+  initialValue,
+  ...props
+}: FormProps & { readonly assetId: string | null; readonly initialValue: bigint | null }) {
   const { locale, portfolio, accounts } = props;
   const held = portfolio.assets.filter((asset) => asset.holding.units !== '0');
   const fields = useMarketFields(props, held.some((asset) => asset.id === assetId) ? assetId : (held[0]?.id ?? null));
   const { asset, price, rate } = fields;
-  const [value, setValue] = useState<bigint | null>(null);
+  const [value, setValue] = useState<bigint | null>(initialValue);
   const [shareBps, setShareBps] = useState<number | null>(null);
   const [toAccount, setToAccount] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -615,21 +626,29 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
   }
   const sources = asset === null ? [] : assetSources(asset);
   const choose = asset !== null && preview !== null && needsGoalChoice(asset.holding.units, sources, preview.units);
-  const after =
-    asset === null || preview === null || (choose && reduceGoalId === null) || sources.length === 0
-      ? null
-      : sellAllocation({
-          units: asset.holding.units,
-          sources,
-          soldUnits: preview.units,
-          reduceGoalId: choose ? reduceGoalId : null,
-        });
+  let after = null;
+  let allocationFailure: string | null = null;
+  if (asset !== null && preview !== null && (!choose || reduceGoalId !== null) && sources.length > 0) {
+    try {
+      after = sellAllocation({
+        units: asset.holding.units,
+        sources,
+        soldUnits: preview.units,
+        reduceGoalId: choose ? reduceGoalId : null,
+      });
+    } catch (error) {
+      if (!(error instanceof InvalidGoalAssetError)) throw error;
+      allocationFailure =
+        error.reason === 'choice' ? m.invest_trade_error_goal() : m.invest_trade_error_goal_units();
+    }
+  }
 
   const submit = async (event: SyntheticEvent) => {
     event.preventDefault();
     setShowErrors(true);
     if (asset === null || preview === null || price === null || rate === null) return;
     if (choose && reduceGoalId === null) return;
+    if (allocationFailure !== null) return;
     if (toAccount && accountId === null) return;
     await run({
       kind: 'sell',
@@ -781,6 +800,11 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
               {m.invest_trade_error_goal()}
             </p>
           ) : null}
+          {allocationFailure === null ? null : (
+            <p role="alert" className="text-[12px] text-red-fg">
+              {allocationFailure}
+            </p>
+          )}
         </fieldset>
       ) : null}
       {preview === null ? null : (
@@ -813,7 +837,7 @@ function SellForm({ assetId, ...props }: FormProps & { readonly assetId: string 
               })}
         </Summary>
       )}
-      <Footer pending={pending} failure={failure} label={m.invest_trade_save_sell()} onCancel={props.onCancel} />
+      <Footer pending={pending} failure={failure} label={m.invest_trade_save_sell()} onCancel={props.onCancel} disabled={allocationFailure !== null} />
     </form>
   );
 }

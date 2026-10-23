@@ -17,6 +17,7 @@ import { Sheet } from '@wf/ui/sheet';
 import { ArrowDownToLine, ArrowUpFromLine, Pencil, Scale, TrendingDown } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
+import { PROVIDER_NAMES } from '../../lib/market-sources.ts';
 import { getAssetTrades } from '../../server/fn/investments.ts';
 import { Button } from '../form.tsx';
 import type { AssetAction } from './holdings-table.tsx';
@@ -275,7 +276,7 @@ function DetailBody({
         {quote === null
           ? m.invest_detail_source_none()
           : m.invest_detail_source({
-              source: quote.provider ?? quoteLabel(quote.label),
+              source: quote.provider === null ? quoteLabel(quote.label) : PROVIDER_NAMES[quote.provider],
               time: quoteTime(quote, portfolio.today, timeZone, locale),
             })}
       </p>
