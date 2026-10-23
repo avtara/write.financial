@@ -14,6 +14,8 @@ export const DISPATCH_LIMIT = 500;
 export const DAILY_AT = {
   occurrences: '00:05',
   'period-close': '00:05',
+  // After the close, so a month's report sees its period locked and final.
+  reports: '00:10',
   'detect-recurring': '03:00',
   'balance-checks': '07:00',
   // The day's portfolio value, once the day's prices are in (plan §6 `snapshots`, 23.55).

@@ -38,6 +38,7 @@ const QUEUES = [
   'budget-alerts',
   'balance-checks',
   'period-close',
+  'reports',
   'notify',
   'detect-recurring',
   'market-server',

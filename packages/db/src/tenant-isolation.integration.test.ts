@@ -40,6 +40,7 @@ import {
   goals,
   passkeys,
   recentItems,
+  reports,
   sessions,
   tagAliases,
   tags,
@@ -257,6 +258,20 @@ beforeAll(async () => {
       });
       await tx.insert(drafts).values({ userId, kind: 'transaction', payloadEnc: Uint8Array.of(1, 2, 3) });
       await tx.insert(recentItems).values({ userId, kind: 'transaction', ref: expenseId });
+      // FR-LP1: a stored report snapshot is tenant data (the worker writes it, the user reads it).
+      await tx.insert(reports).values({
+        userId,
+        kind: 'custom',
+        status: 'provisional',
+        label: '2026-10-01/2026-10-15',
+        rangeStart: '2026-10-01' as LocalDate,
+        rangeEnd: '2026-10-15' as LocalDate,
+        txCount: 1,
+        incomeMinor: 0n,
+        expenseMinor: 1n,
+        savedMinor: -1n,
+        sections: {},
+      });
       await tx.insert(goals).values({
         userId,
         name: 'Dana Darurat',

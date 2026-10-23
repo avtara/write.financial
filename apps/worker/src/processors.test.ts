@@ -25,6 +25,7 @@ describe('PROCESSORS', () => {
       'budget-alerts': 2,
       'balance-checks': 2,
       'period-close': 2,
+      reports: 2,
       notify: 2,
       'detect-recurring': 1,
       'market-server': 1,

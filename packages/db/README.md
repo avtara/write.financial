@@ -109,6 +109,7 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `market_api_logs` | S I | S I | – | – | own rows + built-in fetches (`user_id` null) |
 | `market_provider_state` | S | S I U | – | – | global (built-in sources' pause and credits, no user data) |
 | `portfolio_snapshots` | S I U | S I U | – | – | own rows |
+| `reports` | S I D | S I | – | – | own rows; a stored report is never updated (final snapshots) |
 | `scheduled_occurrences`                                    | S I U D                        | S I, U(`status`, `remind_at`, `reminded_at`, `expected_minor`, `updated_at`) | – | – | own rows; `wf_migrate`: dispatch scan (S)        |
 | `detected_recurring`                                       | S I U D                        | S I U        | –                 | –                        | own rows                                                 |
 | `review_items`                                             | S I U D                        | S I (D14: no UPDATE) | –         | –                        | own rows                                                 |

@@ -223,6 +223,10 @@ export function fakeDb(
       baselineExists: method('marketJobs.baselineExists', false),
     },
     portfolioSnapshots: { record: method('portfolioSnapshots.record', null) },
+    reports: {
+      pendingMonthly: method('reports.pendingMonthly', []),
+      generate: method('reports.generate', { id: 'report' }),
+    },
   };
 }
 

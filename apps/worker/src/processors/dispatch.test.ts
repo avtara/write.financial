@@ -53,6 +53,7 @@ describe('dispatch processor', () => {
     expect(DAILY_AT).toEqual({
       occurrences: '00:05',
       'period-close': '00:05',
+      reports: '00:10',
       'detect-recurring': '03:00',
       'balance-checks': '07:00',
       snapshots: '23:55',
@@ -67,11 +68,13 @@ describe('dispatch processor', () => {
     expect(d.enqueued).toEqual([
       { queue: 'occurrences', payload: { userId: JAKARTA }, jobId: `occ.${JAKARTA}.2026-10-18` },
       { queue: 'period-close', payload: { userId: JAKARTA }, jobId: `close.${JAKARTA}.2026-10-18` },
+      { queue: 'reports', payload: { userId: JAKARTA }, jobId: `rep.${JAKARTA}.2026-10-18` },
       { queue: 'detect-recurring', payload: { userId: JAKARTA }, jobId: `det.${JAKARTA}.2026-10-18` },
       { queue: 'balance-checks', payload: { userId: JAKARTA }, jobId: `bal.${JAKARTA}.2026-10-18` },
       { queue: 'budget-alerts', payload: { userId: JAKARTA }, jobId: `bud.${JAKARTA}.2026-10-18.09` },
       { queue: 'occurrences', payload: { userId: LONDON }, jobId: `occ.${LONDON}.2026-10-18` },
       { queue: 'period-close', payload: { userId: LONDON }, jobId: `close.${LONDON}.2026-10-18` },
+      { queue: 'reports', payload: { userId: LONDON }, jobId: `rep.${LONDON}.2026-10-18` },
       { queue: 'detect-recurring', payload: { userId: LONDON }, jobId: `det.${LONDON}.2026-10-18` },
       {
         queue: 'reminders',
@@ -87,6 +90,7 @@ describe('dispatch processor', () => {
       enqueued: {
         occurrences: 2,
         'period-close': 2,
+        reports: 2,
         'detect-recurring': 2,
         'balance-checks': 1,
         'budget-alerts': 1,

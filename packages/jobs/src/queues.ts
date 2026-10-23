@@ -61,6 +61,8 @@ export const JOBS = {
   'balance-checks': userJob,
   /** FR-P4: locks ended periods and proposes the rollover and leftover moves in the Review queue. */
   'period-close': userJob,
+  /** FR-LP1: the monthly report of every closed period that has none yet (after `period-close`). */
+  reports: userJob,
   /** Sends one outbox row (email). */
   notify: z.strictObject({ userId: z.uuid(), outboxId: z.uuid() }),
   /** FR-SUB4 subscription candidates (suggestions only). */
@@ -106,6 +108,7 @@ export const jobIds = {
     `bud.${userId}.${date}.${String(hour).padStart(2, '0')}` as JobId<'budget-alerts'>,
   'balance-checks': (userId: string, date: LocalDate) => `bal.${userId}.${date}` as JobId<'balance-checks'>,
   'period-close': (userId: string, date: LocalDate) => `close.${userId}.${date}` as JobId<'period-close'>,
+  reports: (userId: string, date: LocalDate) => `rep.${userId}.${date}` as JobId<'reports'>,
   notify: (outboxId: string) => `ntf.${outboxId}` as JobId<'notify'>,
   'detect-recurring': (userId: string, date: LocalDate) => `det.${userId}.${date}` as JobId<'detect-recurring'>,
   /** One built-in run per source and UTC minute (`mks.crypto.2026-10-15T0940`). */
