@@ -29,10 +29,12 @@ test('the seeded persona shows the available balance and the accounts at 1440', 
   await expect(page.getByRole('heading', { level: 1, name: 'Rekening & dompet' })).toBeVisible();
   const kpis = page.getByRole('region', { name: 'Ringkasan rekening' });
   await expect(kpis.getByText('Rp55.023.000')).toBeVisible();
+  // Holdings still count toward assets, but are not spendable platform cash.
+  await expect(kpis.getByText('Rp116.443.000')).toBeVisible();
   await expect(page.getByText('11 rekening · 6 untuk belanja, 5 platform investasi')).toBeVisible();
   await expect(row(page, 'BCA Tahapan')).toContainText('Rp42.810.000');
-  // A balance in another currency also reads in rupiah at the current rate (US$2.778 × Rp16.350).
-  await expect(row(page, 'Gotrade')).toContainText('US$2.778,00≈ Rp45.420.300');
+  // M5 separates platform cash from holdings; the cash subtitle uses the current USD/IDR rate.
+  await expect(row(page, 'Gotrade')).toContainText('US$51,99≈ Rp850.037');
   await expect(row(page, 'BCA Tahapan')).not.toContainText('≈');
   const detail = page.getByRole('complementary', { name: 'Detail rekening' });
   await expect(detail.getByRole('heading', { name: 'BCA Tahapan' })).toBeVisible();
