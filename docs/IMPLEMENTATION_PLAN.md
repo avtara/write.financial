@@ -264,6 +264,7 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 ### M5 — Investments & market data
 - Assets, trades, holdings (FR-I1, I2, I4); valuation + charts + drift + rebalancing (FR-I3); asset allocation to goals (FR-G2, G5, G6).
 - Market data per FR-I6: Frankfurter/fawazahmed0/open.er-api adapters, CMC Basic (operator key), BYOK Tiingo/Finnhub/Massive/Alpha Vantage/EODHD/Marketstack/CoinGecko/CMC/GoldAPI/metals.dev, manual + estimates (Antam premium, RDPU accrual, ORI coupon). Exchange rate & market API screen (FR-ST4) with connection test, quota meter, licensing, mandatory 2FA.
+- Platform account rows show cash only; holdings are valued separately and included once in investment and total-asset KPIs. The seed's Gotrade cash is US$51.99 (≈ Rp850.037 at Rp16.350/USD), while available balance remains Rp55.023.000 and total assets are Rp116.443.000.
 
 **Exit:** seed: Rp61.420.000 / +Rp7.489.000 / drift 3,1%; **user A's BYOK results are never readable by user B** (test); delete key → that provider's `user_quotes` are deleted; all providers disabled → page still renders with source + timestamp; 429 pauses until `retry-after`; no requests to disallowed domains (egress allowlist in adapters).
 

@@ -34,6 +34,8 @@ git fetch --quiet origin main
 base=$(git merge-base HEAD origin/main)
 
 step pnpm format:check
+# A pull or rebase can add messages without rerunning the install-time generator.
+step pnpm --filter @wf/i18n compile
 step env NODE_OPTIONS=--max-old-space-size=6144 pnpm lint
 step pnpm exec tsc -p tsconfig.json
 step pnpm exec turbo run typecheck --concurrency=2
