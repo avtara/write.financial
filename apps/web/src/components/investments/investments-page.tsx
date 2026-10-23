@@ -17,8 +17,10 @@ import { EmptyState } from '@wf/ui/empty-state';
 import { Money } from '@wf/ui/money';
 import { toast } from '@wf/ui/toast';
 import { CandlestickChart, Plus, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
+import { SYNC_MARKETS } from '../../lib/market-sources.ts';
+import { syncMarketSource, type MarketSyncResult } from '../../server/fn/market.ts';
 import {
   adjustInvestmentHoldings,
   createInvestmentAsset,
@@ -44,9 +46,10 @@ import { DividendsCard, PlatformsCard } from './income-cards.tsx';
 import { InvestmentKpis } from './investment-kpis.tsx';
 import { growthPoints, isHeld, priceMinor, quoteStatus, toUsd, type DisplayCurrency } from './investments-model.ts';
 import { PriceFallback, PriceStatusPill } from './price-status.tsx';
+import { PriceSyncStatus, type PriceSyncState } from './price-sync.tsx';
 import { RebalanceCard } from './rebalance-card.tsx';
 import { TargetsDialog } from './targets-dialog.tsx';
-import { TradeSheet, type TradeDraft, type TradeTab } from './trade-sheet.tsx';
+import { TradeSheet, type TradeDraft } from './trade-sheet.tsx';
 
 export interface InvestmentsPageProps {
   readonly overview: InvestmentsOverview;
@@ -65,8 +68,9 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   const usdRate = rates.USD ?? null;
   const [display, setDisplay] = useState<DisplayCurrency>('base');
   const [refreshing, setRefreshing] = useState(false);
+  const [sync, setSync] = useState<PriceSyncState | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [trade, setTrade] = useState<{ tab: TradeTab; assetId: string | null; accountId?: string } | null>(null);
+  const [trade, setTrade] = useState<NonNullable<ComponentProps<typeof TradeSheet>['open']> | null>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [moveId, setMoveId] = useState<string | null>(null);
@@ -83,9 +87,24 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   });
 
   const refresh = async () => {
+    if (refreshing) return;
     setRefreshing(true);
-    await router.invalidate();
-    setRefreshing(false);
+    const results: MarketSyncResult[] = [];
+    try {
+      for (const market of SYNC_MARKETS) {
+        setSync({ current: market, results: [...results] });
+        const result = await syncMarketSource({ data: { market } }).catch(() => null);
+        results.push(
+          result?.ok === true
+            ? result.value
+            : { market, status: 'failed', synced: 0, missing: 0, provider: null, pausedUntil: null },
+        );
+      }
+      setSync({ current: null, results });
+      await router.invalidate();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   /** Runs a change: the error's message (for the form) on failure, else `success`, a reload, and `null`. */
@@ -242,7 +261,9 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
           )}
           <Button variant="secondary" pending={refreshing} onClick={() => void refresh()}>
             <RefreshCw aria-hidden="true" className="size-3.5" />
-            {m.invest_sync()}
+            {refreshing
+              ? m.market_sync_progress({ done: Math.min((sync?.results.length ?? 0) + 1, SYNC_MARKETS.length), total: SYNC_MARKETS.length })
+              : m.invest_sync()}
           </Button>
           <Button
             onClick={() => {
@@ -288,6 +309,7 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
     return (
       <>
         {header}
+        <PriceSyncStatus state={sync} today={portfolio.today} timeZone={timeZone} locale={locale} />
         <section className="rounded-[12px] border border-border bg-card">
           <EmptyState
             icon={CandlestickChart}
@@ -315,6 +337,7 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   return (
     <>
       {header}
+      <PriceSyncStatus state={sync} today={portfolio.today} timeZone={timeZone} locale={locale} />
       <PriceFallback
         status={status}
         today={portfolio.today}
@@ -403,9 +426,9 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
           if (!open) setAdjustId(null);
         }}
         onSubmit={adjust}
-        onSell={(asset) => {
+        onSell={(asset, sellAmountMinor) => {
           setAdjustId(null);
-          setTrade({ tab: 'sell', assetId: asset.id });
+          setTrade({ tab: 'sell', assetId: asset.id, sellAmountMinor });
         }}
       />
       <MoveDialog

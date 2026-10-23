@@ -46,7 +46,7 @@ export interface AdjustDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly onSubmit: (draft: AdjustDraft) => Promise<string | null>;
   /** "Lanjut ke Catat jual" with the missing units. */
-  readonly onSell: (asset: AssetView) => void;
+  readonly onSell: (asset: AssetView, amountMinor: bigint) => void;
 }
 
 export function AdjustDialog({ asset, onOpenChange, ...props }: AdjustDialogProps) {
@@ -81,7 +81,7 @@ function AdjustForm({
   onCancel,
 }: Omit<AdjustDialogProps, 'asset' | 'onOpenChange'> & { readonly asset: AssetView; readonly onCancel: () => void }) {
   const [unitsText, setUnitsText] = useState('');
-  const [reason, setReason] = useState<'sale' | AdjustReason>('unrecorded_buy');
+  const [reason, setReason] = useState<'sale' | AdjustReason | null>(null);
   const [reduceGoalId, setReduceGoalId] = useState<string | null>(null);
   const [clientId] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
@@ -96,10 +96,10 @@ function AdjustForm({
   const delta = preview === null ? 0n : parseDecimal(preview.unitsDelta);
   const fewer = delta < 0n;
   const chosen: 'sale' | AdjustReason = fewer
-    ? reason === 'sale'
+    ? reason === null || reason === 'sale'
       ? 'sale'
       : 'correction'
-    : reason === 'sale'
+    : reason === null || reason === 'sale'
       ? 'unrecorded_buy'
       : reason;
   const sources = assetSources(asset);
@@ -115,7 +115,7 @@ function AdjustForm({
     event.preventDefault();
     if (preview === null || units === null || delta === 0n) return;
     if (chosen === 'sale') {
-      onSell(asset);
+      onSell(asset, -preview.valueMinor);
       return;
     }
     if (choose && reduceGoalId === null) return;

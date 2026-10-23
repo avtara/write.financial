@@ -13,6 +13,7 @@ import { m } from '@wf/i18n/messages';
 import { formatDate, formatTime, toLocalDate } from '@wf/ui/dates';
 import { CircleAlert, RotateCw } from 'lucide-react';
 import { Button } from '../form.tsx';
+import { PROVIDER_NAMES } from '../../lib/market-sources.ts';
 import { quoteLabel, type QuoteStatus } from './investments-model.ts';
 
 /** "16.42 WIB" today, "14 Okt, 16.42" another day. */
@@ -45,7 +46,7 @@ export function PriceStatusPill({ status, today, timeZone, locale }: PriceStatus
       <span aria-hidden="true" className={`size-1.5 rounded-full ${warn ? 'bg-amber' : 'bg-green'}`} />
       {newest === null
         ? m.invest_price_none()
-        : `${m.invest_price_at({ time: quoteTime(newest, today, timeZone, locale) })} · ${quoteLabel(newest.label)}`}
+        : `${m.invest_price_at({ time: quoteTime(newest, today, timeZone, locale) })} · ${quoteLabel(newest.label)}${newest.provider === null ? '' : ` · ${PROVIDER_NAMES[newest.provider]}`}`}
     </span>
   );
 }
@@ -70,10 +71,14 @@ export interface PriceFallbackProps {
 /** Shown while some held asset has no price or an old one; `null` otherwise. */
 export function PriceFallback({ status, today, timeZone, locale, retrying, onRetry }: PriceFallbackProps) {
   if (status.unpriced.length === 0 && status.stale.length === 0) return null;
-  const oldest = status.stale.reduce<ResolvedQuote | null>((first, asset) => {
+  const sources = new Map<string, { quote: ResolvedQuote; assets: AssetView[] }>();
+  for (const asset of status.stale) {
     const quote = asset.quote as ResolvedQuote;
-    return first === null || quote.asOf < first.asOf ? quote : first;
-  }, null);
+    const key = `${quote.provider ?? quote.source}:${String(quote.asOf)}`;
+    const group = sources.get(key);
+    if (group === undefined) sources.set(key, { quote, assets: [asset] });
+    else group.assets.push(asset);
+  }
   return (
     <section
       role="status"
@@ -88,12 +93,12 @@ export function PriceFallback({ status, today, timeZone, locale, retrying, onRet
         <p className="text-[12.5px] text-muted-fg">
           {[
             status.unpriced.length > 0 ? m.invest_fallback_missing({ symbols: symbols(status.unpriced) }) : null,
-            oldest === null
-              ? null
-              : m.invest_fallback_stale({
-                  symbols: symbols(status.stale),
-                  time: quoteTime(oldest, today, timeZone, locale),
-                }),
+            ...[...sources.values()].map(({ quote, assets }) =>
+              m.invest_fallback_stale({
+                symbols: symbols(assets),
+                time: `${quoteTime(quote, today, timeZone, locale)} · ${quote.provider === null ? quoteLabel(quote.label) : PROVIDER_NAMES[quote.provider]}`,
+              }),
+            ),
           ]
             .filter((part) => part !== null)
             .join(' ')}
