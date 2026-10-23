@@ -136,10 +136,11 @@ function DetailBody({
   const { value, quote } = asset;
   const share = value === null ? null : ratioBps(value.valueBaseMinor, portfolio.summary.valueBaseMinor);
   const classRow = portfolio.allocation?.rows.find((row) => row.key === asset.assetClass);
-  const before = value === null || value.todayBaseMinor === null ? null : value.valueBaseMinor - value.todayBaseMinor;
-  const dayBps = before === null || value === null ? null : ratioBps(value.todayBaseMinor ?? 0n, before);
+  const todayMinor = value === null ? null : value.todayBaseMinor;
+  const before = value === null || todayMinor === null ? null : value.valueBaseMinor - todayMinor;
+  const dayBps = todayMinor === null || before === null ? null : ratioBps(todayMinor, before);
   const impact =
-    before === null || value === null || asset.goals.length === 0 || (value.todayBaseMinor ?? 0n) >= 0n
+    before === null || value === null || todayMinor === null || asset.goals.length === 0 || todayMinor >= 0n
       ? []
       : goalImpact(before, value.valueBaseMinor, assetSources(asset));
 

@@ -25,8 +25,10 @@ export function quoteTime(quote: Pick<ResolvedQuote, 'asOf'>, today: LocalDate, 
   }
   const zone = new Intl.DateTimeFormat(locale, { timeZone, timeZoneName: 'short' })
     .formatToParts(instant)
-    .find((part) => part.type === 'timeZoneName')?.value;
-  return zone === undefined ? time : `${time} ${zone}`;
+    .filter((part) => part.type === 'timeZoneName')
+    .map((part) => part.value)
+    .join('');
+  return `${time} ${zone}`.trim();
 }
 
 export interface PriceStatusPillProps {

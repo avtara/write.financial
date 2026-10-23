@@ -103,10 +103,8 @@ function AdjustForm({
       ? 'unrecorded_buy'
       : reason;
   const sources = assetSources(asset);
-  const choose =
-    fewer &&
-    chosen === 'correction' &&
-    needsGoalChoice(asset.holding.units, sources, preview?.unitsDelta.slice(1) ?? '0');
+  const missingUnits = preview === null ? '0' : preview.unitsDelta.slice(1);
+  const choose = fewer && chosen === 'correction' && needsGoalChoice(asset.holding.units, sources, missingUnits);
   const valueNow = asset.value?.valueBaseMinor ?? 0n;
   const impact =
     preview === null || sources.length === 0 ? [] : goalImpact(valueNow, valueNow + preview.valueBaseMinor, sources);
@@ -390,7 +388,7 @@ function AssetGoalsForm({
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const sources = goals.flatMap((goal): GoalAssetSource[] => {
-    const choice = choices[goal.id] ?? { mode: 'none' };
+    const choice = choices[goal.id] as ShareChoice;
     if (choice.mode === 'none') return [];
     return [
       { goalId: goal.id, mode: choice.mode, bps: choice.mode === 'whole' ? 10_000 : (percentToBps(choice.text) ?? 0) },
@@ -420,7 +418,7 @@ function AssetGoalsForm({
       {goals.length === 0 ? <p className="text-[12.5px] text-muted-fg">{m.invest_goals_none()}</p> : null}
       <ul className="flex flex-col gap-2">
         {goals.map((goal) => {
-          const choice = choices[goal.id] ?? { mode: 'none' };
+          const choice = choices[goal.id] as ShareChoice;
           const set = (next: ShareChoice) => {
             setChoices((previous) => ({ ...previous, [goal.id]: next }));
           };

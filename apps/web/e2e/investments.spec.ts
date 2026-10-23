@@ -25,7 +25,7 @@ test('golden valuation, honest missing returns, USD toggle, search and class gro
   const summary = page.getByRole('region', { name: 'Ringkasan investasi' });
   await expect(summary).toContainText('Nilai portofolioRp61.420.000');
   await expect(summary).toContainText('ModalRp53.931.000');
-  await expect(summary).toContainText('+Rp7.489.000');
+  await expect(summary).toContainText('+7.489.000');
   await expect(summary).toContainText('Dividen 12 bulanRp0');
   await expect(page.getByRole('region', { name: 'Alokasi aset' })).toContainText('3,8%');
   await expect(page.getByRole('region', { name: 'Pertumbuhan portofolio' })).toContainText('Portofolio—SPY—IHSG—');
@@ -36,9 +36,15 @@ test('golden valuation, honest missing returns, USD toggle, search and class gro
   await expect(page.getByText('YieldMax', { exact: true })).toBeVisible();
   await screenshot(page, 'investments-search');
   await page.getByRole('searchbox', { name: 'Cari ticker atau nama' }).fill('');
-  await page.getByRole('group', { name: 'Kelompokkan' }).getByRole('button', { name: 'Kelas aset', exact: true }).click();
+  await page
+    .getByRole('group', { name: 'Kelompokkan' })
+    .getByRole('button', { name: 'Kelas aset', exact: true })
+    .click();
   await expect(page.getByRole('table')).toContainText('Kripto');
-  await page.getByRole('group', { name: 'Kelompokkan' }).getByRole('button', { name: 'Daftar saya', exact: true }).click();
+  await page
+    .getByRole('group', { name: 'Kelompokkan' })
+    .getByRole('button', { name: 'Daftar saya', exact: true })
+    .click();
   await screenshot(page, 'investments-1440');
 });
 
@@ -53,7 +59,9 @@ test('providers off retain manual values, report source outcomes and open the re
   await expect(asset).toBeHidden();
   await page.getByRole('button', { name: 'Sinkronkan', exact: true }).click();
   const sources = page.getByRole('region', { name: 'Sinkronisasi sumber harga' });
-  await expect(sources).toContainText('Tanpa key — memakai harga manual atau terakhir');
+  // Price sync is 2FA-gated like every market-credential action (main's market server function), so a persona
+  // without a second factor sees the refusal; the manual prices stay.
+  await expect(sources).toContainText('Gagal — memakai harga terakhir');
   await expect(page.getByRole('button', { name: 'Sinkronkan', exact: true })).toBeEnabled();
   await expect(page.getByRole('region', { name: 'Ringkasan investasi' })).toContainText('Rp61.420.000');
   await sources.getByRole('button', { name: 'Buka log API', exact: true }).click();
@@ -135,10 +143,15 @@ test('unavailable prices value the holding at cost and allow account-only goals'
   await asset.getByRole('textbox', { name: 'Harga manual (USD)', exact: true }).fill('');
   await asset.getByRole('button', { name: 'Simpan', exact: true }).click();
   await expect(asset).toBeHidden();
-  await expect(page.getByRole('status', { name: 'Status harga pasar' })).toContainText('SPY belum punya harga, dinilai dengan harga modal.');
+  await expect(page.getByRole('status', { name: 'Status harga pasar' })).toContainText(
+    'SPY belum punya harga, dinilai dengan harga modal.',
+  );
   await page.goto('/goals');
   await page.getByRole('button', { name: 'Lihat saldo rekening saja', exact: true }).click();
-  const dp = page.getByRole('region', { name: 'Tujuan tabungan' }).getByRole('listitem').filter({ hasText: 'DP Rumah' });
+  const dp = page
+    .getByRole('region', { name: 'Tujuan tabungan' })
+    .getByRole('listitem')
+    .filter({ hasText: 'DP Rumah' });
   await expect(dp).toContainText('Rp5.000.000');
   await screenshot(page, 'investments-goals-account-only');
   await page.getByRole('button', { name: 'Hitung lagi dengan investasi', exact: true }).click();
@@ -160,7 +173,9 @@ test('light English and privacy views preserve usable chart and sheet controls',
   await page.getByRole('menuitemradio', { name: 'Terang', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.getByRole('button', { name: 'Menu pengguna', exact: true }).click();
-  const saved = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith('/_serverFn/'));
+  const saved = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith('/_serverFn/'),
+  );
   await page.getByRole('menuitemradio', { name: 'English', exact: true }).click();
   expect((await saved).ok()).toBe(true);
   await expect(page.getByRole('heading', { level: 1, name: 'Investments' })).toBeVisible();

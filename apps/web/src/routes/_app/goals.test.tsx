@@ -5,8 +5,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../../../test/render.tsx';
 import { Route } from './goals.tsx';
 
-const fake = vi.hoisted(() => ({ getGoals: vi.fn(), listAccounts: vi.fn(), page: vi.fn() }));
+const fake = vi.hoisted(() => ({ getGoals: vi.fn(), listAccounts: vi.fn(), listAssets: vi.fn(), page: vi.fn() }));
 vi.mock('../../server/fn/goals.ts', () => ({ getGoals: fake.getGoals }));
+vi.mock('../../server/fn/investments.ts', () => ({ listInvestmentAssets: fake.listAssets }));
 vi.mock('../../server/fn/ledger.ts', () => ({ listAccounts: fake.listAccounts }));
 vi.mock('../../components/goals/goals-page.tsx', () => ({
   GoalsPage: (props: { onConsumeSearch: () => void; onMonthChange: (month: string) => void }) => {
@@ -55,14 +56,19 @@ describe('/goals', () => {
   it('loads the goals of the month asked for and every account', async () => {
     fake.getGoals.mockResolvedValue(ok('overview'));
     fake.listAccounts.mockResolvedValue(ACCOUNTS);
+    fake.listAssets.mockResolvedValue(ok([]));
     const loader = Route.options.loader as unknown as (options: { deps: { month?: string } }) => Promise<unknown>;
-    expect(await loader({ deps: {} })).toEqual({ overview: ok('overview'), accounts: ACCOUNTS });
+    expect(await loader({ deps: {} })).toEqual({ overview: ok('overview'), accounts: ACCOUNTS, assets: ok([]) });
     expect(fake.getGoals).toHaveBeenCalledWith({ data: {} });
     expect(fake.listAccounts).toHaveBeenCalledWith({ data: { status: 'all' } });
+    expect(fake.listAssets).toHaveBeenCalledWith({ data: {} });
     await loader({ deps: { month: '2026-09' } });
     expect(fake.getGoals).toHaveBeenLastCalledWith({ data: { month: '2026-09' } });
     const deps = Route.options.loaderDeps as unknown as (options: { search: object }) => unknown;
     expect(deps({ search: { month: '2026-09', goal: ID } })).toEqual({ month: '2026-09' });
+    // The page works without the asset options: a failed load is not a page failure.
+    fake.listAssets.mockRejectedValueOnce(new Error('offline'));
+    expect(await loader({ deps: {} })).toEqual({ overview: ok('overview'), accounts: ACCOUNTS, assets: null });
   });
 
   it('titles the page and keeps only valid search params', () => {
@@ -105,9 +111,13 @@ describe('/goals', () => {
     const moved = navigate.mock.lastCall?.[0] as { search: (previous: object) => object };
     expect(moved.search({ month: '2026-10' })).toEqual({ month: '2026-09' });
     await screen.unmount();
-    stubRoute({});
+    stubRoute({ assets: null });
     await renderApp(<Component />);
-    expect(fake.page.mock.lastCall?.[0]).toMatchObject({ initialNew: false, initialGoalId: undefined });
+    expect(fake.page.mock.lastCall?.[0]).toMatchObject({ initialNew: false, initialGoalId: undefined, assets: [] });
+    await screen.unmount();
+    stubRoute({ assets: { ok: true, value: [{ id: 'asset-1' }] } });
+    await renderApp(<Component />);
+    expect(fake.page.mock.lastCall?.[0]).toMatchObject({ assets: [{ id: 'asset-1' }] });
   });
 
   it('explains a failed load with a retry, and shows a loading state', async () => {

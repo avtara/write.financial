@@ -302,9 +302,7 @@ export function GoalAssetNotices({
               {only ? m.goals_asset_fallback_on_title() : m.goals_asset_fallback_title()}
             </p>
             <p className="text-[12.5px] text-muted-fg">
-              {only
-                ? m.goals_asset_fallback_on()
-                : m.goals_asset_fallback({ symbols: unpriced.join(', ') })}
+              {only ? m.goals_asset_fallback_on() : m.goals_asset_fallback({ symbols: unpriced.join(', ') })}
             </p>
           </div>
           <Button size="sm" variant="secondary" onClick={onRetry}>

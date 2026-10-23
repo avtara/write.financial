@@ -10,6 +10,7 @@ import {
   SEED_GOALS,
   source,
 } from '../../../test/goal-fixtures.ts';
+import { BBCA, goalAssetOptions, SPY } from '../../../test/investment-fixtures.ts';
 import { BCA, GOTRADE, JAGO, OVO } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import type { GoalSummary } from '../../server/fn/goals.ts';
@@ -265,5 +266,62 @@ describe('freeBalance', () => {
       sources: [source({ id: 'x', accountId: OVO.id, amountMinor: null, valueMinor: 0n })],
     });
     expect(freeBalance(OVO, [odd, LIBURAN_BALI], null)).toBe(OVO.balanceMinor);
+  });
+
+  it('adds an investment asset source by share, refusing an empty one', async () => {
+    const { view } = form({ goal: DP_RUMAH, assets: goalAssetOptions([SPY]) });
+    const { screen } = await view;
+    const dialog = screen.getByRole('dialog', { name: 'Ubah DP Rumah' });
+    await dialog.getByRole('button', { name: 'Tambah aset' }).click();
+    await dialog.getByRole('combobox', { name: 'Pilih aset' }).click();
+    await screen.getByRole('option', { name: /^SPY · / }).click();
+    await dialog.getByRole('button', { name: 'Simpan' }).click();
+    await expect.element(dialog.getByText('Isi persentase 0,01–100%')).toBeVisible();
+    expect(server.updateGoal).not.toHaveBeenCalled();
+    await dialog.getByRole('textbox', { name: 'Persentase SPY' }).fill('10');
+    await expect.element(dialog).toMatchTextContent('= Rp1.350.000 · 0,12 unit');
+    await dialog.getByRole('button', { name: 'Simpan' }).click();
+    expect(server.updateGoal).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: DP_RUMAH.id,
+        assetSources: [{ assetId: SPY.id, mode: 'percent', pctBps: 1000 }],
+      }) as unknown,
+    });
+  });
+
+  it('adds a whole investment asset source without a percentage', async () => {
+    const { view } = form({ goal: DP_RUMAH, assets: goalAssetOptions([BBCA]) });
+    const { screen } = await view;
+    const dialog = screen.getByRole('dialog', { name: 'Ubah DP Rumah' });
+    await dialog.getByRole('button', { name: 'Tambah aset' }).click();
+    await dialog.getByRole('combobox', { name: 'Pilih aset' }).click();
+    await screen.getByRole('option', { name: /^BBCA · / }).click();
+    await dialog.getByRole('combobox', { name: 'Cara alokasi' }).click();
+    await screen.getByRole('option', { name: 'Seluruh aset' }).click();
+    await dialog.getByRole('button', { name: 'Simpan' }).click();
+    expect(server.updateGoal).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        assetSources: [{ assetId: BBCA.id, mode: 'whole' }],
+      }) as unknown,
+    });
+  });
+
+  it('creates a goal with a whole asset source when the goal is new', async () => {
+    const { view } = form({ assets: goalAssetOptions([BBCA]) });
+    const { screen } = await view;
+    const dialog = screen.getByRole('dialog');
+    await dialog.getByRole('textbox', { name: 'Nama tujuan' }).fill('Dana rumah');
+    await dialog.getByRole('textbox', { name: 'Target' }).fill('50.000.000');
+    await dialog.getByRole('button', { name: 'Tambah aset' }).click();
+    await dialog.getByRole('combobox', { name: 'Pilih aset' }).click();
+    await screen.getByRole('option', { name: /^BBCA · / }).click();
+    await dialog.getByRole('combobox', { name: 'Cara alokasi' }).click();
+    await screen.getByRole('option', { name: 'Seluruh aset' }).click();
+    await dialog.getByRole('button', { name: 'Buat tujuan' }).click();
+    expect(server.createGoal).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        assetSources: [{ assetId: BBCA.id, mode: 'whole' }],
+      }) as unknown,
+    });
   });
 });

@@ -8,7 +8,7 @@
  */
 import type { AccountView } from '@wf/db/accounts';
 import type { AssetView, PortfolioView } from '@wf/db/investments';
-import { InvalidGoalAssetError, needsGoalChoice, sellAllocation, splitUnits } from '@wf/domain/goal-assets';
+import { needsGoalChoice, sellAllocation, splitUnits } from '@wf/domain/goal-assets';
 import { buyPreview, sellPreview, type BuyPreview, type DividendMode, type SellPreview } from '@wf/domain/investments';
 import type { LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
@@ -145,7 +145,7 @@ function TradeTabs({ initial, ...props }: FormProps & { readonly initial: NonNul
         <BuyForm assetId={assetId} {...props} />
       </TabsContent>
       <TabsContent value="sell">
-        <SellForm assetId={assetId} initialValue={initial.sellAmountMinor ?? null} {...props} />
+        <SellForm assetId={assetId} initialValueMinor={initial.sellAmountMinor ?? null} {...props} />
       </TabsContent>
       <TabsContent value="dividend">
         <DividendForm assetId={assetId} {...props} />
@@ -175,10 +175,11 @@ function useMarketFields(props: FormProps, assetId: string | null): MarketFields
   const rate = foreign ? (typedRate !== null && /^\d+(\.\d{1,8})?$/.test(typedRate) ? typedRate : null) : '1';
   const pick = (id: string) => {
     setSelected(id);
-    const next = props.portfolio.assets.find((candidate) => candidate.id === id);
-    const nextPrice = next?.quote?.price ?? next?.averagePrice ?? null;
+    // Only offered assets reach `pick`, so the asset is always there.
+    const next = props.portfolio.assets.find((candidate) => candidate.id === id) as AssetView;
+    const nextPrice = next.quote?.price ?? next.averagePrice ?? null;
     setPriceText(nextPrice === null ? '' : decimalText(nextPrice, props.locale));
-    const nextRate = next === undefined ? undefined : props.rates[next.quoteCurrency];
+    const nextRate = props.rates[next.quoteCurrency];
     setRateText(nextRate === undefined ? '' : decimalText(nextRate, props.locale));
   };
   return {
@@ -413,16 +414,12 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
   const units = decimalInput(unitsText, locale);
   const platform = portfolio.platforms.find((candidate) => candidate.accountId === asset?.accountId);
   let preview: BuyPreview | null = null;
-  try {
-    if (price !== null && rate !== null && (by === 'amount' ? amount !== null && amount > 0n : units !== null)) {
-      preview = buyPreview(
-        by === 'amount' ? { by, amountMinor: amount as bigint } : { by, units: units as string },
-        { price, feeMinor: fields.fee ?? 0n, taxMinor: fields.tax ?? 0n, fxRate: rate },
-        { quote: currency, base: portfolio.baseCurrency },
-      );
-    }
-  } catch {
-    preview = null;
+  if (price !== null && rate !== null && (by === 'amount' ? amount !== null && amount > 0n : units !== null)) {
+    preview = buyPreview(
+      by === 'amount' ? { by, amountMinor: amount as bigint } : { by, units: units as string },
+      { price, feeMinor: fields.fee ?? 0n, taxMinor: fields.tax ?? 0n, fxRate: rate },
+      { quote: currency, base: portfolio.baseCurrency },
+    );
   }
   const split =
     asset === null || preview === null || asset.goals.length === 0
@@ -575,8 +572,9 @@ function BuyForm({ assetId, ...props }: FormProps & { readonly assetId: string |
             <Line label={m.invest_trade_split()}>
               {split.goals
                 .map((part) => {
+                  // The split is over the asset's own goal sources, so the goal is always there.
                   const goal = asset?.goals.find((candidate) => candidate.goalId === part.goalId);
-                  return `${goal?.goalName ?? ''} ${formatUnits(part.value, locale)}`;
+                  return `${goal?.goalName} ${formatUnits(part.value, locale)}`;
                 })
                 .join(' · ')}
             </Line>
@@ -592,14 +590,14 @@ const QUICK_SHARES = [2500, 5000, 10_000] as const;
 
 function SellForm({
   assetId,
-  initialValue,
+  initialValueMinor,
   ...props
-}: FormProps & { readonly assetId: string | null; readonly initialValue: bigint | null }) {
+}: FormProps & { readonly assetId: string | null; readonly initialValueMinor: bigint | null }) {
   const { locale, portfolio, accounts } = props;
   const held = portfolio.assets.filter((asset) => asset.holding.units !== '0');
   const fields = useMarketFields(props, held.some((asset) => asset.id === assetId) ? assetId : (held[0]?.id ?? null));
   const { asset, price, rate } = fields;
-  const [value, setValue] = useState<bigint | null>(initialValue);
+  const [value, setValue] = useState<bigint | null>(initialValueMinor);
   const [shareBps, setShareBps] = useState<number | null>(null);
   const [toAccount, setToAccount] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -612,17 +610,13 @@ function SellForm({
     (account) => account.status === 'active' && account.currency === currency && account.id !== asset?.accountId,
   );
   let preview: SellPreview | null = null;
-  try {
-    if (asset !== null && price !== null && rate !== null && (shareBps !== null || (value !== null && value > 0n))) {
-      preview = sellPreview(
-        asset.holding,
-        shareBps === null ? { by: 'value', amountMinor: value as bigint } : { by: 'percent', bps: shareBps },
-        { price, feeMinor: fields.fee ?? 0n, taxMinor: fields.tax ?? 0n, fxRate: rate },
-        { quote: currency, base: portfolio.baseCurrency },
-      );
-    }
-  } catch {
-    preview = null;
+  if (asset !== null && price !== null && rate !== null && (shareBps !== null || (value !== null && value > 0n))) {
+    preview = sellPreview(
+      asset.holding,
+      shareBps === null ? { by: 'value', amountMinor: value as bigint } : { by: 'percent', bps: shareBps },
+      { price, feeMinor: fields.fee ?? 0n, taxMinor: fields.tax ?? 0n, fxRate: rate },
+      { quote: currency, base: portfolio.baseCurrency },
+    );
   }
   const sources = asset === null ? [] : assetSources(asset);
   const choose = asset !== null && preview !== null && needsGoalChoice(asset.holding.units, sources, preview.units);
@@ -636,10 +630,9 @@ function SellForm({
         soldUnits: preview.units,
         reduceGoalId: choose ? reduceGoalId : null,
       });
-    } catch (error) {
-      if (!(error instanceof InvalidGoalAssetError)) throw error;
-      allocationFailure =
-        error.reason === 'choice' ? m.invest_trade_error_goal() : m.invest_trade_error_goal_units();
+    } catch {
+      // With the reduced goal chosen (or none needed), only its capacity can refuse.
+      allocationFailure = m.invest_trade_error_goal_units();
     }
   }
 
@@ -755,7 +748,6 @@ function SellForm({
             type="radio"
             name="proceeds"
             checked={toAccount}
-            disabled={targets.length === 0}
             onChange={() => {
               setToAccount(true);
               setAccountId((current) => current ?? targets[0]?.id ?? null);
@@ -830,14 +822,20 @@ function SellForm({
                 return (
                   <Line key={part.goalId} label={goal?.goalName}>
                     <span className="font-mono">
-                      {formatUnits(goal?.units ?? '0', locale, 3)} → {formatUnits(part.value, locale, 3)}
+                      {formatUnits(goal?.units as string, locale, 3)} → {formatUnits(part.value, locale, 3)}
                     </span>
                   </Line>
                 );
               })}
         </Summary>
       )}
-      <Footer pending={pending} failure={failure} label={m.invest_trade_save_sell()} onCancel={props.onCancel} disabled={allocationFailure !== null} />
+      <Footer
+        pending={pending}
+        failure={failure}
+        label={m.invest_trade_save_sell()}
+        onCancel={props.onCancel}
+        disabled={allocationFailure !== null}
+      />
     </form>
   );
 }
@@ -920,7 +918,6 @@ function DividendForm({ assetId, ...props }: FormProps & { readonly assetId: str
               type="radio"
               name="dividend-mode"
               checked={mode === option.value}
-              disabled={option.value === 'account' && targets.length === 0}
               onChange={() => {
                 setMode(option.value);
                 if (option.value === 'account') setAccountId((current) => current ?? targets[0]?.id ?? null);
