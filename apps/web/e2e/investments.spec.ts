@@ -155,10 +155,12 @@ test('unavailable prices value the holding at cost and allow account-only goals'
     .getByRole('region', { name: 'Tujuan tabungan' })
     .getByRole('listitem')
     .filter({ hasText: 'DP Rumah' });
-  await expect(dp).toContainText('Rp5.000.000');
+  // The cash-only view saves the BCA allocation (Rp5.000.000); the funding row itself stays listed, so anchor on the
+  // saved-…-dari-target pair instead of the whole card.
+  await expect(dp).toContainText('Rp5.000.000dari');
   await screenshot(page, 'investments-goals-account-only');
   await page.getByRole('button', { name: 'Hitung lagi dengan investasi', exact: true }).click();
-  await expect(dp).not.toContainText('Rp5.000.000');
+  await expect(dp).not.toContainText('Rp5.000.000dari');
 });
 
 for (const width of [1024, 768]) {
