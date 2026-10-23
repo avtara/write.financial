@@ -244,6 +244,8 @@ export interface ReportView {
 export interface ReportSummary {
   readonly id: string;
   readonly kind: ReportKind;
+  /** The closed period a monthly report is a snapshot of; `null` for the other kinds. */
+  readonly periodId: string | null;
   readonly status: ReportStatus;
   readonly label: string;
   readonly range: { readonly from: LocalDate; readonly to: LocalDate };
@@ -536,6 +538,7 @@ function viewOf(row: typeof reports.$inferSelect): ReportView {
 const summaryOf = (row: typeof reports.$inferSelect): ReportSummary => ({
   id: row.id,
   kind: row.kind,
+  periodId: row.periodId,
   status: row.status,
   label: row.label,
   range: { from: row.rangeStart, to: row.rangeEnd },

@@ -486,6 +486,7 @@ describe('GoalsPage', () => {
           symbol: 'SPY',
           assetName: SPY.name,
           mode: 'percent',
+          valuation: 'market',
           bps: 6000,
           units: '0.718',
           valueMinor: 9_100_000n,
