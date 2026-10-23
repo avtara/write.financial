@@ -156,6 +156,8 @@ export interface FetchQuotesInput {
 export interface MarketAdapter {
   readonly provider: MarketProvider;
   fetchQuotes(input: FetchQuotesInput): Promise<AdapterResult>;
+  /** Optional licensed history: last actual session on or before the previous Dec 31. */
+  fetchPriorClose?(input: FetchQuotesInput): Promise<AdapterResult>;
 }
 
 /** Collects the calls and quotes of one adapter run. */

@@ -219,6 +219,8 @@ export function fakeDb(
       lastRequests: method('marketJobs.lastRequests', {}),
       providerState: method('marketJobs.providerState', null),
       setProviderState: method('marketJobs.setProviderState', undefined),
+      purgeLogs: method('marketJobs.purgeLogs', 0),
+      baselineExists: method('marketJobs.baselineExists', false),
     },
     portfolioSnapshots: { record: method('portfolioSnapshots.record', null) },
   };

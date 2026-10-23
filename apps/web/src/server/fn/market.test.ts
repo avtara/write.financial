@@ -44,6 +44,16 @@ const fake = vi.hoisted(() => {
     marketData: {
       recordUserQuotes: vi.fn(() => Promise.resolve()),
       logRequest: vi.fn(() => Promise.resolve()),
+      quotes: vi.fn(() =>
+        Promise.resolve(
+          new Map([
+            ['a', { label: 'manual', provider: null, asOf: Date.parse('2026-10-15T09:42:00Z') }],
+            ['b', { label: 'manual', provider: null, asOf: Date.parse('2026-10-14T09:42:00Z') }],
+            ['c', { label: 'last', provider: null, asOf: Date.parse('2026-10-01T00:00:00Z') }],
+            ['d', null],
+          ]),
+        ),
+      ),
       apiLog: vi.fn(() =>
         Promise.resolve([
           { id: 'new', at: new Date('2026-10-15T05:00:00Z') },
@@ -64,6 +74,7 @@ const fake = vi.hoisted(() => {
       testsSince: vi.fn(() => Promise.resolve(0)),
       quoteCounts: vi.fn(() => Promise.resolve({ eodhd: 2 })),
       providerStates: vi.fn(() => Promise.resolve([])),
+      baselineExists: vi.fn(() => Promise.resolve(false)),
     },
     marketAdapters: {
       eodhd: {
@@ -90,7 +101,13 @@ vi.mock('../runtime.ts', () => ({
 }));
 
 const USER_ID = fakeSession().user.id;
-const signedIn = (twoFactorEnabled = true) => requestContext(fakeSession({ twoFactorEnabled }));
+const signedIn = (twoFactorEnabled = true, ageMinutes = 1) => {
+  const value = fakeSession({ twoFactorEnabled });
+  return requestContext({
+    ...value,
+    session: { ...value.session, createdAt: new Date(NOW.getTime() - ageMinutes * 60_000) },
+  });
+};
 const parse = (fn: unknown, data: unknown): unknown => validatorOf(fn).parse(data);
 const key = (provider: string, active = true) => ({ provider, active });
 const idx = (symbol: string, serverAsOf: Date | null = null) => ({
@@ -122,6 +139,10 @@ describe('market settings', () => {
         serverSources: [],
         cmcConfigured: false,
         symbolCounts: { idx_equity: 2, us_equity: 1 },
+        prices: [
+          { label: 'manual', provider: null, count: 2, asOf: new Date('2026-10-15T09:42:00Z') },
+          { label: 'last', provider: null, count: 1, asOf: new Date('2026-10-01T00:00:00Z') },
+        ],
       },
     });
     expect(fake.marketJobs.userTargets).toHaveBeenCalledWith(USER_ID);
@@ -148,6 +169,28 @@ describe('market settings', () => {
       value: { quotesDeleted: 3 },
     });
     expect(fake.marketCredentials.remove).toHaveBeenCalledWith(USER_ID, 'eodhd');
+    expect(await call(saveMarketKey, { context: signedIn(true, 16), data: input })).toEqual({
+      ok: false,
+      code: 'REAUTHENTICATION_REQUIRED',
+    });
+    expect(
+      await call(setMarketKeyActive, { context: signedIn(false), data: { provider: 'eodhd', active: true } }),
+    ).toEqual({
+      ok: false,
+      code: 'TWO_FACTOR_REQUIRED',
+    });
+    expect(await call(testMarketKey, { context: signedIn(false), data: { provider: 'eodhd' } })).toEqual({
+      ok: false,
+      code: 'TWO_FACTOR_REQUIRED',
+    });
+    expect(await call(syncMarketSource, { context: signedIn(false), data: { market: 'idx_equity' } })).toEqual({
+      ok: false,
+      code: 'TWO_FACTOR_REQUIRED',
+    });
+    expect(await call(removeMarketKey, { context: signedIn(false), data: { provider: 'eodhd' } })).toEqual({
+      ok: true,
+      value: { quotesDeleted: 3 },
+    });
   });
 
   it('keeps the last 30 days of the API log', async () => {

@@ -59,10 +59,30 @@ CREATE FUNCTION wf_market_byok_users() RETURNS TABLE (user_id uuid, time_zone te
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public
 AS $$
   SELECT DISTINCT u.id, u.timezone FROM public.market_credentials c JOIN public.users u ON u.id = c.user_id
-  WHERE c.active AND u.deletion_requested_at IS NULL
+  WHERE c.active AND u.two_factor_enabled AND u.deletion_requested_at IS NULL
   ORDER BY u.id
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION wf_market_byok_users() FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION wf_market_byok_users() TO wf_worker;
+--> statement-breakpoint
+-- FR-ST4: physical retention, including per-user logs, without giving the worker broad DELETE access.
+CREATE POLICY market_api_logs_retention ON market_api_logs FOR DELETE TO wf_migrate USING (true);
+--> statement-breakpoint
+CREATE FUNCTION wf_market_purge_logs(p_now timestamptz) RETURNS bigint
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public
+AS $$
+DECLARE deleted bigint;
+BEGIN
+  DELETE FROM public.market_api_logs WHERE at < least(p_now, now()) - interval '30 days';
+  GET DIAGNOSTICS deleted = ROW_COUNT;
+  RETURN deleted;
+END
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION wf_market_purge_logs(timestamptz) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION wf_market_purge_logs(timestamptz) TO wf_worker;
+--> statement-breakpoint
+CREATE POLICY market_api_logs_retention_read ON market_api_logs FOR SELECT TO wf_migrate USING (true);

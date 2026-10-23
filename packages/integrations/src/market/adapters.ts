@@ -12,6 +12,7 @@ import { createFawazahmed0Gold } from './fawazahmed0-gold.ts';
 import { createFinnhub } from './finnhub.ts';
 import { createGoldApi } from './goldapi.ts';
 import type { MarketAdapter, MarketHttpOptions } from './http.ts';
+import { fetchPriorClose } from './history.ts';
 import { createMarketstack } from './marketstack.ts';
 import { createMassive } from './massive.ts';
 import { createMetalsDev } from './metals-dev.ts';
@@ -26,11 +27,11 @@ export function createMarketAdapters(options: MarketHttpOptions = {}): MarketAda
   return {
     fawazahmed0: createFawazahmed0Gold(options),
     coinmarketcap: createCoinMarketCap(options),
-    tiingo: createTiingo(options),
+    tiingo: { ...createTiingo(options), fetchPriorClose: (input) => fetchPriorClose('tiingo', input, options) },
     finnhub: createFinnhub(options),
-    massive: createMassive(options),
+    massive: { ...createMassive(options), fetchPriorClose: (input) => fetchPriorClose('massive', input, options) },
     alpha_vantage: createAlphaVantage(options),
-    eodhd: createEodhd(options),
+    eodhd: { ...createEodhd(options), fetchPriorClose: (input) => fetchPriorClose('eodhd', input, options) },
     marketstack: createMarketstack(options),
     coingecko: createCoinGecko(options),
     goldapi: createGoldApi(options),
