@@ -2418,6 +2418,10 @@ export const reports = pgTable(
     }).onDelete('set null'),
     check('reports_range_check', sql`${table.rangeEnd} >= ${table.rangeStart}`),
     check(
+      'reports_kind_status_check',
+      sql`(${table.kind} = 'monthly' and ${table.status} = 'final' and ${table.periodId} is not null) or (${table.kind} <> 'monthly' and ${table.status} = 'provisional' and ${table.periodId} is null)`,
+    ),
+    check(
       'reports_totals_check',
       sql`${table.incomeMinor} >= 0 and ${table.expenseMinor} >= 0 and ${table.savedMinor} = ${table.incomeMinor} - ${table.expenseMinor} and ${table.txCount} >= 0`,
     ),

@@ -15,7 +15,7 @@ import { addDays, countDays } from './period.ts';
 export const REPORT_KINDS = ['monthly', 'quarterly', 'yearly', 'custom'] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 
-/** A monthly report is final once its period closed; an aggregate that includes the current period is provisional. */
+/** D10: only closed monthly reports are final; quarterly/yearly/custom aggregates are always provisional. */
 export const REPORT_STATUSES = ['final', 'provisional'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 
@@ -88,12 +88,20 @@ export interface ShareLine<K> {
 }
 
 /** Share of each row in `totalMinor`; rows keep their order, ties are not reordered. */
-export function shareLines<K>(rows: readonly { readonly key: K; readonly totalMinor: bigint }[], totalMinor: bigint): ShareLine<K>[] {
+export function shareLines<K>(
+  rows: readonly { readonly key: K; readonly totalMinor: bigint }[],
+  totalMinor: bigint,
+): ShareLine<K>[] {
   return rows.map((row) => ({
     key: row.key,
     totalMinor: row.totalMinor,
     shareBps: totalMinor > 0n ? Number(divideFloor(row.totalMinor * 10_000n, totalMinor)) : 0,
   }));
+}
+
+/** A goal's progress ("Dana Darurat 7.625.000/54.000.000 = 14,1%"), 0 for a goal without a target. */
+export function progressBps(savedMinor: bigint, targetMinor: bigint): number {
+  return targetMinor > 0n ? Number(divideFloor(savedMinor * 10_000n, targetMinor)) : 0;
 }
 
 /** "Rata-rata Rp610.000/hari": expenses ÷ the days of the range, floored. */
@@ -116,22 +124,27 @@ export interface BusiestWeek {
 }
 
 /**
- * The highest seven consecutive days inside the range, walking day by day so a week cut by a period boundary still
- * counts; `null` without spending or a range shorter than a day. The window starts on the first day when it ties.
+ * The highest seven consecutive calendar days within `range`; ties use the earliest start. `days` must be sorted
+ * oldest first. Sparse days count as zero, and a range shorter than a week uses its complete, bounded interval.
  */
-export function busiestWeek(days: readonly ReportDay[]): BusiestWeek | null {
-  if (days.length === 0) return null;
+export function busiestWeek(days: readonly ReportDay[], range: DateRange): BusiestWeek | null {
+  let left = 0;
+  let right = 0;
+  let totalMinor = 0n;
   let best: BusiestWeek | null = null;
-  for (let start = 0; start < days.length; start += 1) {
-    const from = days[start]?.date;
-    if (from === undefined) continue;
-    const to = addDays(from, 6);
-    const totalMinor = days
-      .slice(start)
-      .filter((day) => day.date <= to)
-      .reduce((total, day) => total + day.outMinor, 0n);
-    if (totalMinor === 0n) continue;
-    if (best === null || totalMinor > best.totalMinor) best = { from, to, totalMinor };
+  const lastStart = countDays(range.from, range.to) < 7 ? range.from : addDays(range.to, -6);
+  for (let from = range.from; from <= lastStart && from <= range.to; from = addDays(from, 1)) {
+    const weekEnd = addDays(from, 6);
+    const to = weekEnd < range.to ? weekEnd : range.to;
+    while (right < days.length && (days[right] as ReportDay).date <= to) {
+      totalMinor += (days[right] as ReportDay).outMinor;
+      right += 1;
+    }
+    while (left < right && (days[left] as ReportDay).date < from) {
+      totalMinor -= (days[left] as ReportDay).outMinor;
+      left += 1;
+    }
+    if (totalMinor > 0n && (best === null || totalMinor > best.totalMinor)) best = { from, to, totalMinor };
   }
   return best;
 }
@@ -140,7 +153,11 @@ export function busiestWeek(days: readonly ReportDay[]): BusiestWeek | null {
  * "6 transaksi = 40% dari pengeluaran": the share of all expenses that the first `count` of `rows` (already largest
  * first) make up. `null` without expenses.
  */
-export function topShareBps(rows: readonly { readonly amountMinor: bigint }[], count: number, expenseMinor: bigint): number | null {
+export function topShareBps(
+  rows: readonly { readonly amountMinor: bigint }[],
+  count: number,
+  expenseMinor: bigint,
+): number | null {
   if (expenseMinor <= 0n) return null;
   const top = rows.slice(0, count).reduce((total, row) => total + row.amountMinor, 0n);
   return Number(divideFloor(top * 10_000n, expenseMinor));
@@ -158,16 +175,17 @@ export interface ReportMonth {
  */
 export function combineMonths(months: readonly ReportMonth[]): ReportTotals | null {
   if (months.length === 0) return null;
-  const totals = months.reduce(
-    (sum, month) => ({
-      incomeMinor: sum.incomeMinor + month.totals.incomeMinor,
-      expenseMinor: sum.expenseMinor + month.totals.expenseMinor,
-      txCount: sum.txCount + month.totals.txCount,
-    }),
-    { incomeMinor: 0n, expenseMinor: 0n, txCount: 0 },
-  );
-  const last = [...months].sort((a, b) => (a.range.to < b.range.to ? -1 : a.range.to > b.range.to ? 1 : 0)).at(-1);
-  return reportTotals({ ...totals, netWorthMinor: last?.totals.netWorthMinor ?? null });
+  let last = months[0] as ReportMonth;
+  let incomeMinor = 0n;
+  let expenseMinor = 0n;
+  let txCount = 0;
+  for (const month of months) {
+    incomeMinor += month.totals.incomeMinor;
+    expenseMinor += month.totals.expenseMinor;
+    txCount += month.totals.txCount;
+    if (month.range.to > last.range.to) last = month;
+  }
+  return reportTotals({ incomeMinor, expenseMinor, txCount, netWorthMinor: last.totals.netWorthMinor });
 }
 
 /** The calendar quarter of a month (`2026-09` → 3). */
@@ -197,9 +215,4 @@ export function previousRange(range: DateRange): DateRange {
   const days = countDays(range.from, range.to);
   const to = addDays(range.from, -1);
   return { from: addDays(to, -(days - 1)), to };
-}
-
-/** Whether the range ends before `today` (a final report) or includes it (provisional). */
-export function statusOf(range: DateRange, today: DateRange['from']): ReportStatus {
-  return range.to < today ? 'final' : 'provisional';
 }

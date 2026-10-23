@@ -368,7 +368,13 @@ export interface CostMonth {
 }
 
 /** Whether `subscription` was billed (neither in trial, paused, nor ended) on `on`. */
-function activeOn(subscription: HistorySubscription, on: LocalDate): boolean {
+export function activeOn(
+  subscription: Pick<
+    HistorySubscription,
+    'startedOn' | 'trialEndsOn' | 'pausedOn' | 'pausedUntil' | 'endsOn' | 'status' | 'cancelMode'
+  >,
+  on: LocalDate,
+): boolean {
   const { endsOn, pausedOn, pausedUntil, trialEndsOn } = subscription;
   if (subscription.startedOn > on || (trialEndsOn !== null && trialEndsOn >= on)) return false;
   const ended =

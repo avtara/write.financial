@@ -26,6 +26,7 @@ CREATE TABLE "reports" (
 	CONSTRAINT "reports_user_id_id_key" UNIQUE("user_id","id"),
 	CONSTRAINT "reports_user_id_range_key" UNIQUE("user_id","kind","range_start","range_end"),
 	CONSTRAINT "reports_range_check" CHECK ("reports"."range_end" >= "reports"."range_start"),
+	CONSTRAINT "reports_kind_status_check" CHECK (("kind" = 'monthly' AND "status" = 'final' AND "period_id" IS NOT NULL) OR ("kind" <> 'monthly' AND "status" = 'provisional' AND "period_id" IS NULL)),
 	CONSTRAINT "reports_totals_check" CHECK ("reports"."income_minor" >= 0 and "reports"."expense_minor" >= 0 and "reports"."saved_minor" = "reports"."income_minor" - "reports"."expense_minor" and "reports"."tx_count" >= 0),
 	CONSTRAINT "reports_compare_check" CHECK (("reports"."compare_start" is null) = ("reports"."compare_end" is null) and ("reports"."compare_start" is null or "reports"."compare_start" <= "reports"."compare_end"))
 );
@@ -34,8 +35,7 @@ ALTER TABLE "reports" ADD CONSTRAINT "reports_user_id_users_id_fk" FOREIGN KEY (
 ALTER TABLE "reports" ADD CONSTRAINT "reports_period_fk" FOREIGN KEY ("user_id","period_id") REFERENCES "public"."periods"("user_id","id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "reports_user_id_range_end_idx" ON "reports" USING btree ("user_id","range_end" DESC NULLS LAST);--> statement-breakpoint
 
--- FR-LP1–LP5: one row per report, the user's own. A final monthly report is never rewritten; the regenerate path
--- inserts first and keeps the existing row (unique per user, kind, and range).
+-- FR-LP1–LP5 / D10: only monthly reports are final. App aggregates may refresh, but final snapshots cannot update.
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE reports FORCE ROW LEVEL SECURITY;
@@ -46,13 +46,17 @@ CREATE POLICY reports_owner ON reports FOR SELECT TO wf_app, wf_worker
 CREATE POLICY reports_insert ON reports FOR INSERT TO wf_app, wf_worker
   WITH CHECK (user_id = app_user_id());
 --> statement-breakpoint
--- Deleting the account's data (FR-ST5/A11) removes the user's reports with it; nothing edits a report in place.
+CREATE POLICY reports_update_provisional ON reports FOR UPDATE TO wf_app
+  USING (user_id = app_user_id() AND kind <> 'monthly' AND status = 'provisional')
+  WITH CHECK (user_id = app_user_id() AND kind <> 'monthly' AND status = 'provisional');
+--> statement-breakpoint
+-- FR-ST5/A11: deleting the user's data removes reports, including final snapshots.
 CREATE POLICY reports_delete ON reports FOR DELETE TO wf_app
   USING (user_id = app_user_id());
 --> statement-breakpoint
 
 -- The app reads the reports; the worker generates them after a period closes and never edits the ledger for it.
-GRANT SELECT, INSERT, DELETE ON reports TO wf_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON reports TO wf_app;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON reports TO wf_worker;
 --> statement-breakpoint
