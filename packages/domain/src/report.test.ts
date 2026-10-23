@@ -10,7 +10,6 @@ import {
   quarterRange,
   reportTotals,
   shareLines,
-  statusOf,
   topShareBps,
   totalsDelta,
   yearRange,
@@ -102,14 +101,31 @@ describe('rankings and daily figures', () => {
       { date: '2026-09-13' as LocalDate, outMinor: 200_000n },
       { date: '2026-09-14' as LocalDate, outMinor: 50_000n },
     ];
-    expect(busiestWeek(days)).toEqual({
+    const range = { from: '2026-09-01' as LocalDate, to: '2026-09-30' as LocalDate };
+    expect(busiestWeek(days, range)).toEqual({
       from: '2026-09-07' as LocalDate,
       to: '2026-09-13' as LocalDate,
       // 07 + 08 + 13: 5.200.000 + 1.000.000 + 200.000.
       totalMinor: 6_400_000n,
     });
-    expect(busiestWeek([])).toBeNull();
-    expect(busiestWeek([{ date: '2026-09-01' as LocalDate, outMinor: 0n }])).toBeNull();
+    expect(busiestWeek([], range)).toBeNull();
+    expect(busiestWeek([{ date: range.from, outMinor: 0n }], range)).toBeNull();
+  });
+
+  it('bounds sparse and short windows and picks the earliest equal-cost week', () => {
+    const range = { from: '2026-09-01' as LocalDate, to: '2026-09-30' as LocalDate };
+    expect(busiestWeek([{ date: '2026-09-30' as LocalDate, outMinor: 100n }], range)).toEqual({
+      from: '2026-09-24',
+      to: '2026-09-30',
+      totalMinor: 100n,
+    });
+    expect(
+      busiestWeek([{ date: range.from, outMinor: 100n }], { from: range.from, to: '2026-09-03' as LocalDate }),
+    ).toEqual({
+      from: '2026-09-01',
+      to: '2026-09-03',
+      totalMinor: 100n,
+    });
   });
 
   it('shares the largest transactions of the spending ("6 transaksi = 40%")', () => {
@@ -122,9 +138,9 @@ describe('rankings and daily figures', () => {
 
 describe('quarters, years, and aggregation', () => {
   it('maps a month to its calendar quarter and back', () => {
-    expect(['2026-01', '2026-03', '2026-04', '2026-06', '2026-07', '2026-09', '2026-10', '2026-12'].map(quarterOf)).toEqual([
-      1, 1, 2, 2, 3, 3, 4, 4,
-    ]);
+    expect(
+      ['2026-01', '2026-03', '2026-04', '2026-06', '2026-07', '2026-09', '2026-10', '2026-12'].map(quarterOf),
+    ).toEqual([1, 1, 2, 2, 3, 3, 4, 4]);
     expect(quarterRange(2026, 1)).toEqual({ from: '2026-01-01', to: '2026-03-31' });
     expect(quarterRange(2026, 2)).toEqual({ from: '2026-04-01', to: '2026-06-30' });
     expect(quarterRange(2026, 3)).toEqual({ from: '2026-07-01', to: '2026-09-30' });
@@ -162,11 +178,5 @@ describe('quarters, years, and aggregation', () => {
       from: '2026-01-29',
       to: '2026-02-28',
     });
-  });
-
-  it('marks a range that ended before today final and one that includes today provisional', () => {
-    const today = '2026-10-15' as LocalDate;
-    expect(statusOf({ from: '2026-09-01' as LocalDate, to: '2026-09-30' as LocalDate }, today)).toBe('final');
-    expect(statusOf({ from: '2026-10-01' as LocalDate, to: '2026-10-31' as LocalDate }, today)).toBe('provisional');
   });
 });

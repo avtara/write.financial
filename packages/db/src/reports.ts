@@ -11,8 +11,9 @@
  * reference rate at that date is left out and named in `unvaluedCurrencies`, so a snapshot never invents a rate.
  */
 import type { Dek } from '@wf/crypto/envelope';
+import { convert } from '@wf/domain/fx';
 import type { AccountType } from '@wf/domain/ledger';
-import { countDays, type LocalDate } from '@wf/domain/period';
+import { addDays, addMonths, countDays, type LocalDate } from '@wf/domain/period';
 import {
   busiestWeek,
   dailyAverageMinor,
@@ -20,7 +21,8 @@ import {
   quarterRange,
   reportTotals,
   shareLines,
-  statusOf,
+  progressBps,
+  type ShareLine,
   topShareBps,
   totalsDelta,
   yearRange,
@@ -30,17 +32,23 @@ import {
   type ReportTotals,
   type TotalsDelta,
 } from '@wf/domain/report';
+import { activeOn, subscriptionTotals, type PricedSubscription } from '@wf/domain/subscriptions';
 import { and, asc, desc, eq, gte, isNull, lt, lte, sql } from 'drizzle-orm';
-import { withUser, type Database, type Transaction } from './db.ts';
+import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { budgetStatusIn } from './budgets.ts';
 import { createGoals, type GoalView } from './goals.ts';
+import { referenceRateIn, type ReferenceRate } from './fx-rates.ts';
+import { localDateOf, userContextIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
 import { periodIn, type PeriodView } from './periods.ts';
+import { aggregateReports, type ReportSegment } from './report-aggregation.ts';
 import {
   accounts,
   balanceAdjustments,
   categories,
-  fxRates,
+  debtInstallments,
+  debts,
+  investmentTrades,
   periods,
   portfolioSnapshots,
   postings,
@@ -49,7 +57,6 @@ import {
   tags,
   transactionTags,
   transactions,
-  users,
 } from './schema.ts';
 import { categoryTotalsIn, dayTotalsIn, isOut } from './transaction-query.ts';
 import type { JsonObject, JsonValue } from './schema.ts';
@@ -64,6 +71,14 @@ export interface ReportCategoryLine {
   readonly usedBps: number | null;
   /** "lewat Rp600.000" when over the limit. */
   readonly overMinor: bigint;
+}
+
+/** Named income sources retained in the final snapshot for the money-flow source table. */
+export interface ReportIncomeLine {
+  readonly categoryId: string | null;
+  readonly name: string | null;
+  readonly totalMinor: bigint;
+  readonly shareBps: number;
 }
 
 export interface ReportMerchantLine {
@@ -109,7 +124,7 @@ export interface ReportLargestLine {
 
 export interface ReportSubscriptionLine {
   readonly active: number;
-  /** Normalized to a month, base currency only; foreign subscriptions are counted in `unconverted`. */
+  /** Same monthly normalization as Subscriptions; foreign prices use an exact historical reference rate. */
   readonly monthlyMinor: bigint;
   readonly yearlyMinor: bigint;
   /** Of all expenses; `null` without expenses. */
@@ -124,9 +139,49 @@ export interface ReportNetWorth {
   readonly cashMinor: bigint;
   /** The portfolio's value at the last daily snapshot on or before the range end. */
   readonly investmentsMinor: bigint;
+  /** Non-card principal still owed; card balances are already included in cash. */
+  readonly debtMinor: bigint;
+  /** Existing platform cash or holdings without any historical portfolio snapshot. */
+  readonly missingPortfolio: boolean;
   /** Currencies left out because no reference rate covered the range end. */
   readonly unvaluedCurrencies: string[];
   readonly asOf: LocalDate;
+}
+
+type EncodedNetWorth = Omit<ReportNetWorth, 'valueMinor' | 'cashMinor' | 'investmentsMinor' | 'debtMinor'> & {
+  valueMinor: string;
+  cashMinor: string;
+  investmentsMinor: string;
+  debtMinor: string;
+};
+
+function encodeNetWorth(value: ReportNetWorth | null): EncodedNetWorth | null {
+  return value === null
+    ? null
+    : {
+        ...value,
+        valueMinor: value.valueMinor.toString(),
+        cashMinor: value.cashMinor.toString(),
+        investmentsMinor: value.investmentsMinor.toString(),
+        debtMinor: value.debtMinor.toString(),
+      };
+}
+
+function decodeNetWorth(value: EncodedNetWorth | null): ReportNetWorth | null {
+  return value === null
+    ? null
+    : {
+        ...value,
+        valueMinor: BigInt(value.valueMinor),
+        cashMinor: BigInt(value.cashMinor),
+        investmentsMinor: BigInt(value.investmentsMinor),
+        debtMinor: BigInt(value.debtMinor),
+      };
+}
+
+/** Partial valuations are available for explanation but must never be presented as a complete KPI. */
+function completeNetWorth(value: ReportNetWorth | null): bigint | null {
+  return value === null || value.missingPortfolio || value.unvaluedCurrencies.length > 0 ? null : value.valueMinor;
 }
 
 export interface ReportDayLine {
@@ -136,6 +191,7 @@ export interface ReportDayLine {
 
 export interface ReportSections {
   readonly categories: readonly ReportCategoryLine[];
+  readonly incomeSources: readonly ReportIncomeLine[];
   readonly merchants: readonly ReportMerchantLine[];
   readonly tags: readonly ReportTagLine[];
   readonly accounts: readonly ReportAccountLine[];
@@ -149,6 +205,8 @@ export interface ReportSections {
   readonly busiestWeek: BusiestWeek | null;
   /** `null` when no account balance or portfolio value could be valued. */
   readonly netWorth: ReportNetWorth | null;
+  /** Six month-ends ending at the report cutoff; unknown history remains null, never an invented zero. */
+  readonly netWorthHistory: readonly { readonly date: LocalDate; readonly valuation: ReportNetWorth | null }[];
 }
 
 export interface ReportRangeLabel {
@@ -205,26 +263,19 @@ export interface ReportsRepository {
 }
 
 const MAX_CUSTOM_DAYS = 366;
-const MONTHS_ID = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'] as const;
-const MERCHANT_LIMIT = 8;
-const TAG_LIMIT = 8;
 const LARGEST_LIMIT = 6;
 
 const toJson = (value: unknown): JsonValue => value as JsonValue;
 const str = (value: bigint): JsonValue => value.toString();
 
 /** Money in a `jsonb` column is a decimal string (json has no bigint). */
-const big = (value: JsonValue, field: string): bigint => {
-  if (typeof value !== 'string') throw new LedgerError('INVALID_REPORT', `${field} is not a string`);
-  return BigInt(value);
-};
+const big = (value: JsonValue): bigint => BigInt(value as string);
 
-const nullableBig = (value: JsonValue): bigint | null => (value === null ? null : big(value, 'amount'));
-
-const optionalBig = (value: JsonValue | undefined): bigint | null => (value === undefined || value === null ? null : big(value, 'amount'));
+const nullableBig = (value: JsonValue | undefined): bigint | null => (value == null ? null : big(value));
 
 function encodeSections(sections: ReportSections): JsonObject {
   return toJson({
+    incomeSources: sections.incomeSources.map((line) => ({ ...line, totalMinor: str(line.totalMinor) })),
     categories: sections.categories.map((line) => ({
       categoryId: line.categoryId,
       name: line.name,
@@ -286,74 +337,87 @@ function encodeSections(sections: ReportSections): JsonObject {
             to: sections.busiestWeek.to,
             totalMinor: str(sections.busiestWeek.totalMinor),
           },
-    netWorth:
-      sections.netWorth === null
-        ? null
-        : {
-            valueMinor: str(sections.netWorth.valueMinor),
-            cashMinor: str(sections.netWorth.cashMinor),
-            investmentsMinor: str(sections.netWorth.investmentsMinor),
-            unvaluedCurrencies: [...sections.netWorth.unvaluedCurrencies],
-            asOf: sections.netWorth.asOf,
-          },
+    netWorth: encodeNetWorth(sections.netWorth),
+    netWorthHistory: sections.netWorthHistory.map((point) => ({
+      date: point.date,
+      valuation: encodeNetWorth(point.valuation),
+    })),
   }) as JsonObject;
 }
 
 function decodeSections(raw: JsonObject): ReportSections {
   const data = raw as unknown as {
-    categories: { categoryId: string | null; name: string | null; spentMinor: JsonValue; shareBps: number; limitMinor: JsonValue; usedBps: number | null; overMinor: JsonValue }[];
+    categories: {
+      categoryId: string | null;
+      name: string | null;
+      spentMinor: JsonValue;
+      shareBps: number;
+      limitMinor: JsonValue;
+      usedBps: number | null;
+      overMinor: JsonValue;
+    }[];
+    incomeSources: { categoryId: string | null; name: string | null; totalMinor: string; shareBps: number }[];
     merchants: { merchant: string; totalMinor: JsonValue; count: number; shareBps: number }[];
     tags: { tagId: string; name: string; totalMinor: JsonValue; count: number }[];
     accounts: { accountId: string; name: string; type: AccountType; inMinor: JsonValue; outMinor: JsonValue }[];
     goals: { goalId: string; name: string; savedMinor: JsonValue; targetMinor: JsonValue; progressBps: number }[];
-    largest: { transactionId: string; date: LocalDate; description: string; merchant: string | null; amountMinor: JsonValue; shareBps: number }[];
+    largest: {
+      transactionId: string;
+      date: LocalDate;
+      description: string;
+      merchant: string | null;
+      amountMinor: JsonValue;
+      shareBps: number;
+    }[];
     largestShareBps: number | null;
-    subscriptions: { active: number; monthlyMinor: JsonValue; yearlyMinor: JsonValue; shareBps: number | null; unconverted: number };
+    subscriptions: {
+      active: number;
+      monthlyMinor: JsonValue;
+      yearlyMinor: JsonValue;
+      shareBps: number | null;
+      unconverted: number;
+    };
     days: { date: LocalDate; outMinor: JsonValue }[];
     averageDailyMinor: JsonValue;
     busiestWeek: { from: LocalDate; to: LocalDate; totalMinor: JsonValue } | null;
-    netWorth: {
-      valueMinor: JsonValue;
-      cashMinor: JsonValue;
-      investmentsMinor: JsonValue;
-      unvaluedCurrencies: string[];
-      asOf: LocalDate;
-    } | null;
+    netWorth: EncodedNetWorth | null;
+    netWorthHistory: { date: LocalDate; valuation: EncodedNetWorth | null }[];
   };
   return {
+    incomeSources: data.incomeSources.map((line) => ({ ...line, totalMinor: BigInt(line.totalMinor) })),
     categories: data.categories.map((line) => ({
       categoryId: line.categoryId,
       name: line.name,
-      spentMinor: big(line.spentMinor, 'spentMinor'),
+      spentMinor: big(line.spentMinor),
       shareBps: line.shareBps,
       limitMinor: nullableBig(line.limitMinor),
       usedBps: line.usedBps,
-      overMinor: big(line.overMinor, 'overMinor'),
+      overMinor: big(line.overMinor),
     })),
     merchants: data.merchants.map((line) => ({
       merchant: line.merchant,
-      totalMinor: big(line.totalMinor, 'totalMinor'),
+      totalMinor: big(line.totalMinor),
       count: line.count,
       shareBps: line.shareBps,
     })),
     tags: data.tags.map((line) => ({
       tagId: line.tagId,
       name: line.name,
-      totalMinor: big(line.totalMinor, 'totalMinor'),
+      totalMinor: big(line.totalMinor),
       count: line.count,
     })),
     accounts: data.accounts.map((line) => ({
       accountId: line.accountId,
       name: line.name,
       type: line.type,
-      inMinor: big(line.inMinor, 'inMinor'),
-      outMinor: big(line.outMinor, 'outMinor'),
+      inMinor: big(line.inMinor),
+      outMinor: big(line.outMinor),
     })),
     goals: data.goals.map((line) => ({
       goalId: line.goalId,
       name: line.name,
-      savedMinor: big(line.savedMinor, 'savedMinor'),
-      targetMinor: big(line.targetMinor, 'targetMinor'),
+      savedMinor: big(line.savedMinor),
+      targetMinor: big(line.targetMinor),
       progressBps: line.progressBps,
     })),
     largest: data.largest.map((line) => ({
@@ -361,33 +425,28 @@ function decodeSections(raw: JsonObject): ReportSections {
       date: line.date,
       description: line.description,
       merchant: line.merchant,
-      amountMinor: big(line.amountMinor, 'amountMinor'),
+      amountMinor: big(line.amountMinor),
       shareBps: line.shareBps,
     })),
     largestShareBps: data.largestShareBps,
     subscriptions: {
       active: data.subscriptions.active,
-      monthlyMinor: big(data.subscriptions.monthlyMinor, 'monthlyMinor'),
-      yearlyMinor: big(data.subscriptions.yearlyMinor, 'yearlyMinor'),
+      monthlyMinor: big(data.subscriptions.monthlyMinor),
+      yearlyMinor: big(data.subscriptions.yearlyMinor),
       shareBps: data.subscriptions.shareBps,
       unconverted: data.subscriptions.unconverted,
     },
-    days: data.days.map((day) => ({ date: day.date, outMinor: big(day.outMinor, 'outMinor') })),
-    averageDailyMinor: big(data.averageDailyMinor, 'averageDailyMinor'),
+    days: data.days.map((day) => ({ date: day.date, outMinor: big(day.outMinor) })),
+    averageDailyMinor: big(data.averageDailyMinor),
     busiestWeek:
       data.busiestWeek === null
         ? null
-        : { from: data.busiestWeek.from, to: data.busiestWeek.to, totalMinor: big(data.busiestWeek.totalMinor, 'totalMinor') },
-    netWorth:
-      data.netWorth === null
-        ? null
-        : {
-            valueMinor: big(data.netWorth.valueMinor, 'valueMinor'),
-            cashMinor: big(data.netWorth.cashMinor, 'cashMinor'),
-            investmentsMinor: big(data.netWorth.investmentsMinor, 'investmentsMinor'),
-            unvaluedCurrencies: data.netWorth.unvaluedCurrencies,
-            asOf: data.netWorth.asOf,
-          },
+        : { from: data.busiestWeek.from, to: data.busiestWeek.to, totalMinor: big(data.busiestWeek.totalMinor) },
+    netWorth: decodeNetWorth(data.netWorth),
+    netWorthHistory: data.netWorthHistory.map((point) => ({
+      date: point.date,
+      valuation: decodeNetWorth(point.valuation),
+    })),
   };
 }
 
@@ -403,10 +462,10 @@ function viewOf(row: typeof reports.$inferSelect): ReportView {
     row.previous === null
       ? null
       : reportTotals({
-          incomeMinor: big((row.previous as JsonObject)['incomeMinor'] as JsonValue, 'incomeMinor'),
-          expenseMinor: big((row.previous as JsonObject)['expenseMinor'] as JsonValue, 'expenseMinor'),
+          incomeMinor: big((row.previous as JsonObject)['incomeMinor'] as JsonValue),
+          expenseMinor: big((row.previous as JsonObject)['expenseMinor'] as JsonValue),
           txCount: Number((row.previous as JsonObject)['txCount'] as JsonValue),
-          netWorthMinor: optionalBig((row.previous as JsonObject)['netWorthMinor']),
+          netWorthMinor: nullableBig((row.previous as JsonObject)['netWorthMinor']),
         });
   return {
     id: row.id,
@@ -418,7 +477,7 @@ function viewOf(row: typeof reports.$inferSelect): ReportView {
     compare:
       row.compareStart === null || row.compareEnd === null
         ? null
-        : { label: row.compareLabel ?? `${row.compareStart}/${row.compareEnd}`, range: { from: row.compareStart, to: row.compareEnd } },
+        : { label: row.compareLabel as string, range: { from: row.compareStart, to: row.compareEnd } },
     totals,
     previous,
     delta: totalsDelta(totals, previous),
@@ -441,18 +500,6 @@ const summaryOf = (row: typeof reports.$inferSelect): ReportSummary => ({
   }),
 });
 
-/** The user's local date for `at` (periods are local; a monthly report's status is about its own time zone). */
-function localToday(at: Date, timeZone: string): LocalDate {
-  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
-    at,
-  ) as LocalDate;
-}
-
-/** The base-currency calendar date of `at`; ranges are not tied to a user's time zone. */
-function baseToday(at: Date): LocalDate {
-  return new Date(at.getTime() + 7 * 3_600_000).toISOString().slice(0, 10) as LocalDate;
-}
-
 export function createReports(
   db: Database,
   options: { readonly getDek: (userId: string) => Promise<Dek>; readonly now?: () => Date },
@@ -460,56 +507,79 @@ export function createReports(
   const now = options.now ?? (() => new Date());
   const goalsRepo = createGoals(db, { getDek: options.getDek, now });
 
-  return {
+  const repo: ReportsRepository = {
     generate: async (userId, request, at) => {
       const resolved = await resolve(userId, request, at);
+      if (resolved.kind === 'monthly') {
+        const cached = await withUser(db, userId, (tx) => findIn(tx, userId, resolved.kind, resolved.range));
+        if (cached !== null) return viewOf(cached);
+      }
+      if (resolved.kind !== 'monthly') {
+        const closed = await withUser(db, userId, (tx) =>
+          tx
+            .select({ id: periods.id })
+            .from(periods)
+            .where(
+              and(
+                eq(periods.status, 'closed'),
+                gte(periods.startDate, resolved.range.from),
+                lte(periods.endDate, resolved.range.to),
+              ),
+            )
+            .orderBy(asc(periods.startDate)),
+        );
+        for (const period of closed) await repo.generate(userId, { kind: 'monthly', periodId: period.id }, at);
+      }
       // Goal progress lives in the goals repository (accounts and asset shares); it is read once, before the report's
       // own transaction, so nothing nests a user transaction inside another.
       const goalValues = await goalsRepo.list(userId);
       const row = await withUser(db, userId, async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`report:${userId}:${resolved.kind}:${resolved.range.from}:${resolved.range.to}`}, 0))`,
+        );
         const existing = await findIn(tx, userId, resolved.kind, resolved.range);
-        if (existing !== null) return existing;
-        const totals = await totalsIn(tx, userId, resolved.range);
-        const sections = await sectionsIn(tx, userId, resolved.range, resolved.period, totals, at, goalValues);
-        const compare = await compareIn(tx, userId, resolved, at);
-        const [inserted] = await tx
-          .insert(reports)
-          .values({
-            userId,
-            kind: resolved.kind,
-            status: resolved.status,
-            periodId: resolved.period?.id ?? null,
-            label: resolved.label,
-            rangeStart: resolved.range.from,
-            rangeEnd: resolved.range.to,
-            compareStart: compare?.range.from ?? null,
-            compareEnd: compare?.range.to ?? null,
-            compareLabel: compare?.label ?? null,
-            txCount: totals.txCount,
-            incomeMinor: totals.incomeMinor,
-            expenseMinor: totals.expenseMinor,
-            savedMinor: totals.savedMinor,
-            savingRateBps: totals.savingRateBps,
-            netWorthMinor: totals.netWorthMinor,
-            previous:
-              compare === null
-                ? null
-                : (toJson({
-                    incomeMinor: compare.totals.incomeMinor.toString(),
-                    expenseMinor: compare.totals.expenseMinor.toString(),
-                    txCount: compare.totals.txCount,
-                    netWorthMinor: compare.totals.netWorthMinor === null ? null : compare.totals.netWorthMinor.toString(),
-                  }) as JsonObject),
-            sections: encodeSections(sections),
-            generatedAt: at,
-          })
-          // Two generations racing: the first row wins and stays (a stored report is immutable).
-          .onConflictDoNothing()
-          .returning();
-        if (inserted !== undefined) return inserted;
-        const winner = await findIn(tx, userId, resolved.kind, resolved.range);
-        if (winner === null) throw new LedgerError('NOT_FOUND', 'The report could not be stored');
-        return winner;
+        if (existing?.status === 'final') return existing;
+        const { totals, sections } =
+          resolved.kind === 'monthly'
+            ? await segmentIn(tx, userId, resolved.range, resolved.period, at, goalValues)
+            : await aggregateIn(tx, userId, resolved.range, at, goalValues);
+        const compare = await compareIn(tx, userId, resolved);
+        const values: typeof reports.$inferInsert = {
+          userId,
+          kind: resolved.kind,
+          status: resolved.status,
+          periodId: resolved.period?.id ?? null,
+          label: resolved.label,
+          rangeStart: resolved.range.from,
+          rangeEnd: resolved.range.to,
+          compareStart: compare?.range.from ?? null,
+          compareEnd: compare?.range.to ?? null,
+          compareLabel: compare?.label ?? null,
+          txCount: totals.txCount,
+          incomeMinor: totals.incomeMinor,
+          expenseMinor: totals.expenseMinor,
+          savedMinor: totals.savedMinor,
+          savingRateBps: totals.savingRateBps,
+          netWorthMinor: totals.netWorthMinor,
+          previous:
+            compare === null
+              ? null
+              : (toJson({
+                  incomeMinor: compare.totals.incomeMinor.toString(),
+                  expenseMinor: compare.totals.expenseMinor.toString(),
+                  txCount: compare.totals.txCount,
+                  netWorthMinor: compare.totals.netWorthMinor === null ? null : compare.totals.netWorthMinor.toString(),
+                }) as JsonObject),
+          sections: encodeSections(sections),
+          generatedAt: at,
+        };
+        if (existing !== null) {
+          return firstRow(
+            await tx.update(reports).set(values).where(eq(reports.id, existing.id)).returning(),
+            'reports',
+          );
+        }
+        return firstRow(await tx.insert(reports).values(values).returning(), 'reports');
       });
       return viewOf(row);
     },
@@ -557,6 +627,108 @@ export function createReports(
         return row === undefined ? null : viewOf(row);
       }),
   };
+  return repo;
+
+  /** Full closed periods come from their stored snapshots; only gaps and partial boundaries read the ledger. */
+  async function aggregateIn(
+    tx: Transaction,
+    userId: string,
+    range: { readonly from: LocalDate; readonly to: LocalDate },
+    at: Date,
+    goalValues: readonly GoalView[],
+  ): Promise<ReportSegment> {
+    const finals = await tx
+      .select()
+      .from(reports)
+      .where(
+        and(
+          eq(reports.kind, 'monthly'),
+          eq(reports.status, 'final'),
+          gte(reports.rangeStart, range.from),
+          lte(reports.rangeEnd, range.to),
+        ),
+      )
+      .orderBy(asc(reports.rangeStart));
+    const segments: ReportSegment[] = [];
+    let cursor = range.from;
+    for (const row of finals) {
+      if (cursor < row.rangeStart)
+        segments.push(
+          await segmentIn(tx, userId, { from: cursor, to: addDays(row.rangeStart, -1) }, null, at, goalValues),
+        );
+      segments.push(viewOf(row));
+      cursor = addDays(row.rangeEnd, 1);
+    }
+    if (cursor <= range.to)
+      segments.push(await segmentIn(tx, userId, { from: cursor, to: range.to }, null, at, goalValues));
+    return aggregateReports(segments, range);
+  }
+
+  async function segmentIn(
+    tx: Transaction,
+    userId: string,
+    range: { readonly from: LocalDate; readonly to: LocalDate },
+    period: PeriodView | null,
+    at: Date,
+    goalValues: readonly GoalView[],
+  ): Promise<ReportSegment> {
+    const { baseCurrency } = await userContextIn(tx, userId);
+    const sourceDays = await dayTotalsIn(tx, userId, range);
+    const netWorth = await netWorthIn(tx, userId, range.to, baseCurrency);
+    const totals = reportTotals({
+      incomeMinor: sourceDays.reduce((sum, day) => sum + day.inMinor, 0n),
+      expenseMinor: sourceDays.reduce((sum, day) => sum + day.outMinor, 0n),
+      txCount: sourceDays.reduce((sum, day) => sum + day.count, 0),
+      netWorthMinor: completeNetWorth(netWorth),
+    });
+    const days = sourceDays.map((day) => ({ date: day.date, outMinor: day.outMinor })).reverse();
+    const netWorthHistory = await netWorthHistoryIn(tx, userId, range.to, baseCurrency, netWorth);
+    const sections = await sectionsIn(
+      tx,
+      userId,
+      range,
+      period,
+      totals,
+      at,
+      goalValues,
+      baseCurrency,
+      days,
+      netWorth,
+      netWorthHistory,
+    );
+    return { range, totals, sections };
+  }
+
+  async function netWorthHistoryIn(
+    tx: Transaction,
+    userId: string,
+    to: LocalDate,
+    base: string,
+    current: ReportNetWorth | null,
+  ): Promise<ReportSections['netWorthHistory']> {
+    const monthStart = `${to.slice(0, 7)}-01` as LocalDate;
+    const dates: LocalDate[] = [];
+    for (let offset = 5; offset > 0; offset -= 1) dates.push(addDays(addMonths(monthStart, 1 - offset), -1));
+    dates.push(to);
+    const finals = await tx
+      .select()
+      .from(reports)
+      .where(and(eq(reports.kind, 'monthly'), gte(reports.rangeEnd, dates[0] as LocalDate), lte(reports.rangeEnd, to)));
+    const saved = new Map(finals.map((row) => [row.rangeEnd, viewOf(row).sections.netWorth]));
+    const history: { date: LocalDate; valuation: ReportNetWorth | null }[] = [];
+    for (const date of dates) {
+      history.push({
+        date,
+        valuation:
+          date === to
+            ? current
+            : saved.has(date)
+              ? (saved.get(date) as ReportNetWorth | null)
+              : await netWorthIn(tx, userId, date, base),
+      });
+    }
+    return history;
+  }
 
   /** The kind, range, label, and status of a request; a monthly report needs its closed period. */
   async function resolve(
@@ -570,26 +742,43 @@ export function createReports(
     readonly status: ReportStatus;
     readonly period: PeriodView | null;
   }> {
+    const today = await withUser(db, userId, async (tx) => localDateOf(at, (await userContextIn(tx, userId)).timezone));
     if (request.kind === 'monthly') {
       const period = await withUser(db, userId, (tx) => periodIn(tx, request.periodId));
       if (period.status !== 'closed') throw new LedgerError('INVALID_PERIOD', 'The period is still open');
       const range = { from: period.start, to: period.end };
-      return { kind: 'monthly', range, label: period.label, status: statusOf(range, baseToday(at)), period };
+      return { kind: 'monthly', range, label: period.label, status: 'final', period };
     }
+    const bounded = (range: { readonly from: LocalDate; readonly to: LocalDate }) => {
+      if (range.from > today) throw new LedgerError('INVALID_PERIOD', 'The range has not started');
+      return { from: range.from, to: range.to < today ? range.to : today };
+    };
     if (request.kind === 'quarterly') {
-      const range = quarterRange(request.year, request.quarter);
-      return { kind: 'quarterly', range, label: `${request.year}-Q${String(request.quarter)}`, status: statusOf(range, baseToday(at)), period: null };
+      const complete = quarterRange(request.year, request.quarter);
+      return {
+        kind: 'quarterly',
+        range: bounded(complete),
+        label: `${request.year}-Q${String(request.quarter)}`,
+        status: 'provisional',
+        period: null,
+      };
     }
     if (request.kind === 'yearly') {
-      const range = yearRange(request.year);
-      return { kind: 'yearly', range, label: String(request.year), status: statusOf(range, baseToday(at)), period: null };
+      const complete = yearRange(request.year);
+      return {
+        kind: 'yearly',
+        range: bounded(complete),
+        label: String(request.year),
+        status: 'provisional',
+        period: null,
+      };
     }
     if (request.from > request.to) throw new LedgerError('INVALID_PERIOD', 'The range starts after it ends');
     if (countDays(request.from, request.to) > MAX_CUSTOM_DAYS) {
       throw new LedgerError('INVALID_PERIOD', 'The range is longer than a year');
     }
-    const range = { from: request.from, to: request.to };
-    return { kind: 'custom', range, label: `${range.from}/${range.to}`, status: statusOf(range, baseToday(at)), period: null };
+    const range = bounded({ from: request.from, to: request.to });
+    return { kind: 'custom', range, label: `${range.from}/${range.to}`, status: 'provisional', period: null };
   }
 
   /** The stored row of the same kind and range, if any. */
@@ -602,7 +791,14 @@ export function createReports(
     const [row] = await tx
       .select()
       .from(reports)
-      .where(and(eq(reports.userId, userId), eq(reports.kind, kind), eq(reports.rangeStart, range.from), eq(reports.rangeEnd, range.to)))
+      .where(
+        and(
+          eq(reports.userId, userId),
+          eq(reports.kind, kind),
+          eq(reports.rangeStart, range.from),
+          eq(reports.rangeEnd, range.to),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
@@ -611,9 +807,15 @@ export function createReports(
   async function compareIn(
     tx: Transaction,
     userId: string,
-    resolved: { readonly range: { readonly from: LocalDate; readonly to: LocalDate }; readonly period: PeriodView | null },
-    at: Date,
-  ): Promise<{ readonly range: { readonly from: LocalDate; readonly to: LocalDate }; readonly label: string; readonly totals: ReportTotals } | null> {
+    resolved: {
+      readonly range: { readonly from: LocalDate; readonly to: LocalDate };
+      readonly period: PeriodView | null;
+    },
+  ): Promise<{
+    readonly range: { readonly from: LocalDate; readonly to: LocalDate };
+    readonly label: string;
+    readonly totals: ReportTotals;
+  } | null> {
     let range = previousRange(resolved.range);
     let label = `${range.from}/${range.to}`;
     if (resolved.period !== null) {
@@ -623,13 +825,14 @@ export function createReports(
         .where(and(eq(periods.userId, userId), lt(periods.endDate, resolved.period.start)))
         .orderBy(desc(periods.endDate))
         .limit(1);
-      if (previous !== undefined) {
-        range = { from: previous.start, to: previous.end };
-        label = previous.label;
-      }
+      if (previous === undefined) return null;
+      range = { from: previous.start, to: previous.end };
+      label = previous.label;
     }
     const totals = await totalsIn(tx, userId, range);
-    return totals.txCount === 0 && totals.incomeMinor === 0n && totals.expenseMinor === 0n ? null : { range, label, totals };
+    return totals.txCount === 0 && totals.incomeMinor === 0n && totals.expenseMinor === 0n
+      ? null
+      : { range, label, totals };
   }
 
   /** Flows, count, and net worth of a range. */
@@ -639,12 +842,13 @@ export function createReports(
     range: { readonly from: LocalDate; readonly to: LocalDate },
   ): Promise<ReportTotals> {
     const days = await dayTotalsIn(tx, userId, { from: range.from, to: range.to });
-    const netWorth = await netWorthIn(tx, userId, range.to);
+    const { baseCurrency: base } = await userContextIn(tx, userId);
+    const netWorth = await netWorthIn(tx, userId, range.to, base);
     return reportTotals({
       incomeMinor: days.reduce((total, day) => total + day.inMinor, 0n),
       expenseMinor: days.reduce((total, day) => total + day.outMinor, 0n),
       txCount: days.reduce((total, day) => total + day.count, 0),
-      netWorthMinor: netWorth?.valueMinor ?? null,
+      netWorthMinor: completeNetWorth(netWorth),
     });
   }
 
@@ -652,60 +856,114 @@ export function createReports(
    * Cash balances at `to` plus the portfolio's last value on or before it. A foreign balance without a reference rate
    * at that date is left out and named, never converted with a later rate.
    */
-  async function netWorthIn(tx: Transaction, userId: string, to: LocalDate): Promise<ReportNetWorth | null> {
-    const [user] = await tx.select({ base: users.baseCurrency }).from(users).where(eq(users.id, userId)).limit(1);
-    if (user === undefined) return null;
-    const rows = await tx
-      .select({ id: accounts.id, currency: accounts.currency, openingMinor: accounts.openingBalanceMinor })
+  async function netWorthIn(
+    tx: Transaction,
+    userId: string,
+    to: LocalDate,
+    base: string,
+  ): Promise<ReportNetWorth | null> {
+    const { timezone } = await userContextIn(tx, userId);
+    // A portfolio snapshot already includes platform cash. Counting investment accounts again would double it.
+    const accountRows = await tx
+      .select({
+        id: accounts.id,
+        type: accounts.type,
+        currency: accounts.currency,
+        opening: accounts.openingBalanceMinor,
+      })
       .from(accounts)
-      .orderBy(asc(accounts.sortOrder), asc(accounts.createdAt));
-    const balances = await tx
-      .select({ accountId: postings.accountId, amountMinor: sql<string>`sum(${postings.amountMinor})` })
+      .where(lte(accounts.openingDate, to));
+    const postRows = await tx
+      .select({ accountId: postings.accountId, total: sql<bigint>`sum(${postings.amountMinor})`.mapWith(BigInt) })
       .from(postings)
       .innerJoin(transactions, eq(transactions.id, postings.transactionId))
-      .where(and(isNull(transactions.deletedAt), lte(sql`${transactions.occurredAt}::date`, to)))
+      .where(and(isNull(transactions.deletedAt), lte(transactions.localDate, to)))
       .groupBy(postings.accountId);
-    const adjustments = await tx
-      .select({ accountId: balanceAdjustments.accountId, amountMinor: sql<string>`sum(${balanceAdjustments.amountMinor})` })
+    const adjustmentRows = await tx
+      .select({
+        accountId: balanceAdjustments.accountId,
+        total: sql<bigint>`sum(${balanceAdjustments.amountMinor})`.mapWith(BigInt),
+      })
       .from(balanceAdjustments)
+      .where(sql`(${balanceAdjustments.createdAt} at time zone ${timezone})::date <= ${to}::date`)
       .groupBy(balanceAdjustments.accountId);
-    const rates = await tx
-      .select({ base: fxRates.base, rate: fxRates.rate, asOf: fxRates.asOf })
-      .from(fxRates)
-      .where(and(eq(fxRates.quote, user.base), lte(fxRates.asOf, to)))
-      .orderBy(asc(fxRates.asOf));
-    const rateOf = new Map<string, bigint>();
-    for (const rate of rates) rateOf.set(rate.base, rateMinor(rate.rate));
-    const paidIn = new Map(balances.map((row) => [row.accountId, BigInt(row.amountMinor)]));
-    const adjusted = new Map(adjustments.map((row) => [row.accountId, BigInt(row.amountMinor)]));
-    let cashMinor = 0n;
-    const unvalued = new Set<string>();
-    for (const account of rows) {
-      const own = account.openingMinor + (paidIn.get(account.id) ?? 0n) + (adjusted.get(account.id) ?? 0n);
-      if (account.currency === user.base) {
-        cashMinor += own;
-        continue;
-      }
-      const rate = rateOf.get(account.currency);
-      if (rate === undefined) {
-        unvalued.add(account.currency);
-        continue;
-      }
-      cashMinor += (own * rate) / 100n;
+    const postingTotals = new Map(postRows.map((row) => [row.accountId, row.total]));
+    const adjustmentTotals = new Map(adjustmentRows.map((row) => [row.accountId, row.total]));
+    const currencyTotals = new Map<string, bigint>();
+    let hasPlatformCash = false;
+    for (const row of accountRows) {
+      const balance = row.opening + (postingTotals.get(row.id) ?? 0n) + (adjustmentTotals.get(row.id) ?? 0n);
+      if (row.type === 'investment') {
+        hasPlatformCash ||= balance !== 0n;
+      } else currencyTotals.set(row.currency, (currencyTotals.get(row.currency) ?? 0n) + balance);
     }
+    const unvalued = new Set<string>();
+    const rates = new Map<string, ReferenceRate | null>();
+    const valueIn = async (currency: string, minor: bigint): Promise<bigint> => {
+      if (minor === 0n || currency === base) return minor;
+      let rate = rates.get(currency);
+      if (rate === undefined) {
+        rate = await referenceRateIn(tx, currency, base, to);
+        rates.set(currency, rate);
+      }
+      if (rate === null) {
+        unvalued.add(currency);
+        return 0n;
+      }
+      return convert({ minor, currency }, base, rate);
+    };
+    let cash = 0n;
+    for (const [currency, minor] of currencyTotals) cash += await valueIn(currency, minor);
+
+    const payments = await tx
+      .select({
+        debtId: debtInstallments.debtId,
+        principal: sql<bigint>`sum(${debtInstallments.principalMinor})`.mapWith(BigInt),
+      })
+      .from(debtInstallments)
+      .innerJoin(transactions, eq(transactions.id, debtInstallments.transactionId))
+      .where(and(isNull(transactions.deletedAt), lte(transactions.localDate, to)))
+      .groupBy(debtInstallments.debtId);
+    const paid = new Map(payments.map((row) => [row.debtId, row.principal]));
+    const liabilities = await tx
+      .select({ id: debts.id, principal: debts.principalMinor, currency: debts.currency })
+      .from(debts)
+      .where(
+        sql`${debts.kind} <> 'card_installment' and (${debts.createdAt} at time zone ${timezone})::date <= ${to}::date`,
+      );
+    const owed = new Map<string, bigint>();
+    for (const row of liabilities) {
+      const remaining = row.principal - (paid.get(row.id) ?? 0n);
+      if (remaining > 0n) owed.set(row.currency, (owed.get(row.currency) ?? 0n) + remaining);
+    }
+    let debt = 0n;
+    for (const [currency, minor] of owed) debt += await valueIn(currency, minor);
     const [snapshot] = await tx
-      .select({ value: portfolioSnapshots.valueBaseMinor, date: portfolioSnapshots.snapshotDate })
+      .select({ date: portfolioSnapshots.snapshotDate, value: portfolioSnapshots.valueBaseMinor })
       .from(portfolioSnapshots)
       .where(lte(portfolioSnapshots.snapshotDate, to))
       .orderBy(desc(portfolioSnapshots.snapshotDate))
       .limit(1);
-    if (cashMinor === 0n && snapshot === undefined) return null;
+    let missingPortfolio = false;
+    if (snapshot === undefined) {
+      const held = await tx
+        .select({ assetId: investmentTrades.assetId })
+        .from(investmentTrades)
+        .where(and(eq(investmentTrades.status, 'settled'), lte(investmentTrades.localDate, to)))
+        .groupBy(investmentTrades.assetId)
+        .having(sql`sum(${investmentTrades.unitsDelta}) <> 0`)
+        .limit(1);
+      missingPortfolio = hasPlatformCash || held.length > 0;
+    }
+    if (accountRows.length === 0 && snapshot === undefined && liabilities.length === 0) return null;
     return {
-      valueMinor: cashMinor + (snapshot?.value ?? 0n),
-      cashMinor,
+      valueMinor: cash + (snapshot?.value ?? 0n) - debt,
+      cashMinor: cash,
       investmentsMinor: snapshot?.value ?? 0n,
-      unvaluedCurrencies: [...unvalued].sort(),
+      debtMinor: debt,
+      missingPortfolio,
       asOf: snapshot?.date ?? to,
+      unvaluedCurrencies: [...unvalued].sort(),
     };
   }
 
@@ -718,12 +976,32 @@ export function createReports(
     totals: ReportTotals,
     at: Date,
     goalValues: readonly GoalView[],
+    baseCurrency: string,
+    days: readonly ReportDayLine[],
+    netWorth: ReportNetWorth | null,
+    netWorthHistory: ReportSections['netWorthHistory'],
   ): Promise<ReportSections> {
     const categoryTotals = await categoryTotalsIn(tx, userId, { from: range.from, to: range.to });
     const expense = categoryTotals.filter((line) => line.kind === 'expense');
-    const names = new Map((await tx.select({ id: categories.id, name: categories.name }).from(categories)).map((row) => [row.id, row.name]));
+    const names = new Map(
+      (await tx.select({ id: categories.id, name: categories.name }).from(categories)).map((row) => [row.id, row.name]),
+    );
+    const income = categoryTotals.filter((line) => line.kind === 'income');
+    const incomeShares = shareLines(
+      income.map((line) => ({ key: line.categoryId, totalMinor: line.totalMinor })),
+      totals.incomeMinor,
+    );
+    const incomeSources = income.map((line, index) => ({
+      categoryId: line.categoryId,
+      name: line.categoryId === null ? null : (names.get(line.categoryId) as string),
+      totalMinor: line.totalMinor,
+      shareBps: (incomeShares[index] as ShareLine<string | null>).shareBps,
+    }));
     const limits = new Map(
-      (period === null ? [] : (await budgetStatusIn(tx, userId, period, at)).lines).map((line) => [line.categoryId, line]),
+      (period === null ? [] : (await budgetStatusIn(tx, userId, period, at)).lines).map((line) => [
+        line.categoryId,
+        line,
+      ]),
     );
     const shares = shareLines(
       expense.map((line) => ({ key: line.categoryId, totalMinor: line.totalMinor })),
@@ -733,45 +1011,51 @@ export function createReports(
       const limit = line.categoryId === null ? undefined : limits.get(line.categoryId);
       return {
         categoryId: line.categoryId,
-        name: line.categoryId === null ? null : (names.get(line.categoryId) ?? null),
+        name: line.categoryId === null ? null : (names.get(line.categoryId) as string),
         spentMinor: line.totalMinor,
-        shareBps: shares[index]?.shareBps ?? 0,
+        shareBps: (shares[index] as ShareLine<string | null>).shareBps,
         limitMinor: limit?.limitMinor ?? null,
         usedBps: limit?.usedBps ?? null,
-        overMinor: limit !== undefined && limit.spentMinor > limit.limitMinor ? limit.spentMinor - limit.limitMinor : 0n,
+        overMinor:
+          limit !== undefined && limit.spentMinor > limit.limitMinor ? limit.spentMinor - limit.limitMinor : 0n,
       };
     });
 
     const merchantRows = await tx
       .select({
         merchant: sql<string>`coalesce(nullif(btrim(${transactions.merchant}), ''), nullif(btrim(${transactions.description}), ''), '')`,
-        totalMinor: sql<string>`sum(abs(${postings.amountBaseMinor}))`,
+        totalMinor: sql<string>`sum(-${postings.amountBaseMinor})`,
         count: sql<number>`count(distinct ${transactions.id})::int`,
       })
       .from(postings)
       .innerJoin(transactions, eq(transactions.id, postings.transactionId))
       .where(
-        and(isNull(transactions.deletedAt), gte(sql`${transactions.occurredAt}::date`, range.from), lte(sql`${transactions.occurredAt}::date`, range.to), isOut),
+        and(
+          isNull(transactions.deletedAt),
+          gte(transactions.localDate, range.from),
+          lte(transactions.localDate, range.to),
+          isOut,
+        ),
       )
       .groupBy(sql`1`)
-      .orderBy(desc(sql`sum(abs(${postings.amountBaseMinor}))`))
-      .limit(MERCHANT_LIMIT);
+      .orderBy(desc(sql`sum(-${postings.amountBaseMinor})`), asc(sql`1`));
     const merchantShares = shareLines(
       merchantRows.map((row) => ({ key: row.merchant, totalMinor: BigInt(row.totalMinor) })),
       totals.expenseMinor,
     );
     const merchants: ReportMerchantLine[] = merchantRows.map((row, index) => ({
       merchant: row.merchant,
+      // The description falls back to the merchant and then to an empty string, as the SQL above does.
       totalMinor: BigInt(row.totalMinor),
       count: row.count,
-      shareBps: merchantShares[index]?.shareBps ?? 0,
+      shareBps: (merchantShares[index] as ShareLine<string>).shareBps,
     }));
 
     const tagRows = await tx
       .select({
         tagId: tags.id,
         name: tags.slug,
-        totalMinor: sql<string>`sum(abs(${postings.amountBaseMinor}))`,
+        totalMinor: sql<string>`sum(-${postings.amountBaseMinor})`,
         count: sql<number>`count(distinct ${transactions.id})::int`,
       })
       .from(transactionTags)
@@ -779,11 +1063,15 @@ export function createReports(
       .innerJoin(tags, eq(tags.id, transactionTags.tagId))
       .innerJoin(postings, eq(postings.transactionId, transactions.id))
       .where(
-        and(isNull(transactions.deletedAt), gte(sql`${transactions.occurredAt}::date`, range.from), lte(sql`${transactions.occurredAt}::date`, range.to), isOut),
+        and(
+          isNull(transactions.deletedAt),
+          gte(transactions.localDate, range.from),
+          lte(transactions.localDate, range.to),
+          isOut,
+        ),
       )
       .groupBy(tags.id, tags.slug)
-      .orderBy(desc(sql`sum(abs(${postings.amountBaseMinor}))`))
-      .limit(TAG_LIMIT);
+      .orderBy(desc(sql`sum(-${postings.amountBaseMinor})`), asc(tags.slug));
     const tagLines: ReportTagLine[] = tagRows.map((row) => ({
       tagId: row.tagId,
       name: row.name,
@@ -797,12 +1085,18 @@ export function createReports(
         name: accounts.displayName,
         type: accounts.type,
         inMinor: sql<string>`coalesce(sum(${postings.amountBaseMinor}) filter (where ${transactions.type} = 'income' and ${postings.role} = 'principal'), 0)`,
-        outMinor: sql<string>`coalesce(sum(abs(${postings.amountBaseMinor})) filter (where ${transactions.type} in ('expense', 'writeoff') and ${postings.role} = 'principal'), 0)`,
+        outMinor: sql<string>`coalesce(sum(-${postings.amountBaseMinor}) filter (where ${isOut}), 0)`,
       })
       .from(postings)
       .innerJoin(transactions, eq(transactions.id, postings.transactionId))
       .innerJoin(accounts, eq(accounts.id, postings.accountId))
-      .where(and(isNull(transactions.deletedAt), gte(sql`${transactions.occurredAt}::date`, range.from), lte(sql`${transactions.occurredAt}::date`, range.to)))
+      .where(
+        and(
+          isNull(transactions.deletedAt),
+          gte(transactions.localDate, range.from),
+          lte(transactions.localDate, range.to),
+        ),
+      )
       .groupBy(postings.accountId, accounts.displayName, accounts.type)
       .orderBy(asc(accounts.displayName));
     const accountLines: ReportAccountLine[] = accountRows.map((row) => ({
@@ -820,23 +1114,29 @@ export function createReports(
         name: goal.name,
         savedMinor: goal.savedMinor,
         targetMinor: goal.targetMinor,
-        progressBps: goal.targetMinor > 0n ? Number((goal.savedMinor * 10_000n) / goal.targetMinor) : 0,
+        progressBps: progressBps(goal.savedMinor, goal.targetMinor),
       }));
 
     const largestRows = await tx
       .select({
         id: transactions.id,
-        date: sql<LocalDate>`${transactions.occurredAt}::date`,
-        description: transactions.description,
+        date: transactions.localDate,
+        description: sql<string>`coalesce(nullif(btrim(${transactions.description}), ''), nullif(btrim(${transactions.merchant}), ''), '')`,
         merchant: transactions.merchant,
-        amountMinor: sql<string>`abs(${postings.amountBaseMinor})`,
+        amountMinor: sql<string>`sum(-${postings.amountBaseMinor})`,
       })
       .from(postings)
       .innerJoin(transactions, eq(transactions.id, postings.transactionId))
       .where(
-        and(isNull(transactions.deletedAt), gte(sql`${transactions.occurredAt}::date`, range.from), lte(sql`${transactions.occurredAt}::date`, range.to), isOut),
+        and(
+          isNull(transactions.deletedAt),
+          gte(transactions.localDate, range.from),
+          lte(transactions.localDate, range.to),
+          isOut,
+        ),
       )
-      .orderBy(desc(sql`abs(${postings.amountBaseMinor})`), asc(transactions.occurredAt))
+      .groupBy(transactions.id)
+      .orderBy(desc(sql`sum(-${postings.amountBaseMinor})`), asc(transactions.localDate), asc(transactions.id))
       .limit(LARGEST_LIMIT);
     const largestShares = shareLines(
       largestRows.map((row) => ({ key: row.id, totalMinor: BigInt(row.amountMinor) })),
@@ -845,41 +1145,64 @@ export function createReports(
     const largest: ReportLargestLine[] = largestRows.map((row, index) => ({
       transactionId: row.id,
       date: row.date,
-      description: row.description ?? row.merchant ?? '',
+      description: row.description,
       merchant: row.merchant,
+      // The description falls back to the merchant and then to an empty string, as the SQL above does.
       amountMinor: BigInt(row.amountMinor),
-      shareBps: largestShares[index]?.shareBps ?? 0,
+      shareBps: (largestShares[index] as ShareLine<string>).shareBps,
     }));
 
-    const baseCurrency = (await tx.select({ currency: users.baseCurrency }).from(users).where(eq(users.id, userId)))[0]?.currency;
-    const subscriptionRows = await tx
-      .select({ priceMinor: subscriptions.priceMinor, currency: subscriptions.currency, cycle: subscriptions.cycle })
-      .from(subscriptions)
-      .where(eq(subscriptions.status, 'active'));
-    let monthlyMinor = 0n;
+    const subscriptionRows = (
+      await tx
+        .select({
+          priceMinor: subscriptions.priceMinor,
+          currency: subscriptions.currency,
+          cycle: subscriptions.cycle,
+          startedOn: subscriptions.startedOn,
+          trialEndsOn: subscriptions.trialEndsOn,
+          pausedOn: subscriptions.pausedOn,
+          pausedUntil: subscriptions.pausedUntil,
+          endsOn: subscriptions.endsOn,
+          status: subscriptions.status,
+          cancelMode: subscriptions.cancelMode,
+        })
+        .from(subscriptions)
+        .where(lte(subscriptions.startedOn, range.to))
+    ).filter((row) => activeOn(row, range.to));
+    const priced: PricedSubscription[] = [];
+    const subscriptionRates = new Map<string, ReferenceRate | null>();
     let unconverted = 0;
     for (const row of subscriptionRows) {
+      let priceMinor = row.priceMinor;
       if (row.currency !== baseCurrency) {
-        unconverted += 1;
-        continue;
+        let rate = subscriptionRates.get(row.currency);
+        if (rate === undefined) {
+          rate = await referenceRateIn(tx, row.currency, baseCurrency, range.to);
+          subscriptionRates.set(row.currency, rate);
+        }
+        if (rate === null) {
+          unconverted += 1;
+          continue;
+        }
+        priceMinor = convert({ minor: row.priceMinor, currency: row.currency }, baseCurrency, rate);
       }
-      monthlyMinor += row.cycle === 'yearly' ? row.priceMinor / 12n : row.cycle === 'weekly' ? (row.priceMinor * 52n) / 12n : row.priceMinor;
+      priced.push({ priceMinor, cycle: row.cycle });
     }
+    const subscriptionCosts = subscriptionTotals(priced);
     const subscriptionSection: ReportSubscriptionLine = {
       active: subscriptionRows.length,
-      monthlyMinor,
-      yearlyMinor: monthlyMinor * 12n,
-      shareBps: totals.expenseMinor > 0n ? Number((monthlyMinor * 10_000n) / totals.expenseMinor) : null,
+      monthlyMinor: subscriptionCosts.monthlyMinor,
+      yearlyMinor: subscriptionCosts.yearlyMinor,
+      shareBps:
+        totals.expenseMinor > 0n && unconverted === 0
+          ? Number((subscriptionCosts.monthlyMinor * 10_000n) / totals.expenseMinor)
+          : null,
       unconverted,
     };
 
-    const days: ReportDayLine[] = (await dayTotalsIn(tx, userId, { from: range.from, to: range.to }))
-      .map((day) => ({ date: day.date, outMinor: day.outMinor }))
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    const netWorth = await netWorthIn(tx, userId, range.to);
-
     return {
       categories: categoriesLines,
+      incomeSources,
       merchants,
       tags: tagLines,
       accounts: accountLines,
@@ -889,13 +1212,9 @@ export function createReports(
       subscriptions: subscriptionSection,
       days,
       averageDailyMinor: dailyAverageMinor(totals.expenseMinor, range),
-      busiestWeek: busiestWeek(days),
+      busiestWeek: busiestWeek(days, range),
       netWorth,
+      netWorthHistory,
     };
   }
-}
-
-/** `16350.00000000` → 16350 (the rate's whole units; the reference rates have no more precision than that). */
-function rateMinor(rate: string): bigint {
-  return BigInt(rate.split('.')[0] as string);
 }
