@@ -43,6 +43,9 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  *   (21% → 22%, Okt 2027), "Tarik dana", a sinking fund joining the payday set-aside ("Sisihkan tiap gajian"), whose
  *   25 Okt transfer waits in the Review queue until confirmed, a new goal (keyboard only), STNK reached, completed and
  *   undone, paid from in the Record sheet (Terpakai), its remainder moved, 1440/1024/768.
+ * - `market-api`: Settings › API kurs & pasar (FR-ST4): prices in use with source and time and no key at all, an
+ *   EODHD key refused without 2FA, saved after turning 2FA on, tested against the fake provider (`e2e/market-fetch.ts`)
+ *   with per-symbol results, then deleted with its prices; the API log; 1440/1024/768.
  */
 const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   tablet: { testMatch: 'tablet.spec.ts', use: { viewport: { width: 1024, height: 768 } } },
@@ -62,6 +65,7 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse }> = {
   debts: { testMatch: 'debts.spec.ts' },
   goals: { testMatch: 'goals.spec.ts', use: { viewport: { width: 1440, height: 1198 } } },
   receivables: { testMatch: 'receivables.spec.ts' },
+  'market-api': { testMatch: 'market-api.spec.ts' },
 };
 
 /**
@@ -116,7 +120,9 @@ export default defineConfig({
     })),
   ],
   webServer: {
-    command: 'node e2e/prepare.ts && node --import ./e2e/clock.ts .output/server/index.mjs',
+    // The fake market data providers (`e2e/market-fetch.ts`) keep every run off the real APIs.
+    command:
+      'node e2e/prepare.ts && node --import ./e2e/clock.ts --import ./e2e/market-fetch.ts .output/server/index.mjs',
     url: `${BASE_URL}/healthz`,
     env: { ...e2eEnv(), WF_E2E_CLOCK_OFFSET_MS: clockOffset },
     // Never reuse a server: the run needs the fresh instance `prepare.ts` creates.

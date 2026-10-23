@@ -229,7 +229,13 @@ export async function skipOnboarding(page: Page): Promise<void> {
 }
 
 /** The admin invites `email` (registration "Dengan undangan", m0) and the invitee signs up at `width` px. */
-export async function signUpInvited(browser: Browser, email: string, name: string, width: number): Promise<Page> {
+export async function signUpInvited(
+  browser: Browser,
+  email: string,
+  name: string,
+  width: number,
+  password = freshPassword(),
+): Promise<Page> {
   const admin = loadAccount('admin');
   // Signed out, whatever the calling spec's `storageState`.
   const signedOut = { cookies: [], origins: [] };
@@ -260,7 +266,7 @@ export async function signUpInvited(browser: Browser, email: string, name: strin
   await page.goto(url);
   await page.getByLabel('Nama').fill(name);
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Kata sandi', { exact: true }).fill(freshPassword());
+  await page.getByLabel('Kata sandi', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Buat akun' }).click();
   return page;
 }
@@ -287,12 +293,12 @@ export function projectUser(project: string): ProjectUser {
 export async function setUpProjectUser(
   browser: Browser,
   user: ProjectUser,
-  { persona }: { persona: boolean },
+  { persona, password }: { persona: boolean; password?: string },
 ): Promise<void> {
   // Signing up and seeding while the other workers keep the server busy.
   test.setTimeout(120_000);
   if (!existsSync(user.state)) {
-    const page = await signUpInvited(browser, user.email, 'Pengguna E2E', 1440);
+    const page = await signUpInvited(browser, user.email, 'Pengguna E2E', 1440, password);
     await expect(page).toHaveURL(/\/onboarding\/profile$/);
     if (!persona) await skipOnboarding(page);
     await page.context().storageState({ path: user.state });
