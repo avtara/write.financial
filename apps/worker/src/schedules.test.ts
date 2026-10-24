@@ -9,6 +9,13 @@ describe('SCHEDULES', () => {
   it('runs maintenance daily at 03:30, FX at 17:00 with a 08:00 retry (WIB), and the dispatch every minute', () => {
     expect(SCHEDULES).toEqual([
       { id: 'maintenance-daily', queue: 'maintenance', pattern: '30 3 * * *', tz: 'Asia/Jakarta', data: {} },
+      {
+        id: 'account-deletion-daily',
+        queue: 'account-deletion',
+        pattern: '40 3 * * *',
+        tz: 'Asia/Jakarta',
+        data: {},
+      },
       { id: 'fx-daily', queue: 'fx', pattern: '0 17 * * *', tz: 'Asia/Jakarta', data: {} },
       { id: 'fx-retry', queue: 'fx', pattern: '0 8 * * *', tz: 'Asia/Jakarta', data: {} },
       { id: 'dispatch-minute', queue: 'dispatch', pattern: '* * * * *', tz: 'Asia/Jakarta', data: {} },
@@ -35,6 +42,7 @@ describe('registerSchedules', () => {
     const broker = fakeBroker();
     const queues = {
       maintenance: broker.createQueue('maintenance', () => undefined),
+      'account-deletion': broker.createQueue('account-deletion', () => undefined),
       fx: broker.createQueue('fx', () => undefined),
       dispatch: broker.createQueue('dispatch', () => undefined),
       'market-server': broker.createQueue('market-server', () => undefined),
@@ -59,6 +67,17 @@ describe('registerSchedules', () => {
           {
             repeat: { pattern: '30 3 * * *', tz: 'Asia/Jakarta' },
             template: { name: 'maintenance', data: {}, opts: DEFAULT_JOB_OPTIONS },
+          },
+        ],
+      ]),
+    );
+    expect(broker.queues.get('account-deletion')?.schedulers).toEqual(
+      new Map([
+        [
+          'account-deletion-daily',
+          {
+            repeat: { pattern: '40 3 * * *', tz: 'Asia/Jakarta' },
+            template: { name: 'account-deletion', data: {}, opts: DEFAULT_JOB_OPTIONS },
           },
         ],
       ]),
@@ -93,6 +112,7 @@ describe('registerSchedules', () => {
     );
     expect(log.lines.map((line) => line['scheduler'])).toEqual([
       'maintenance-daily',
+      'account-deletion-daily',
       'fx-daily',
       'fx-retry',
       'dispatch-minute',

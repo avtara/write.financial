@@ -148,16 +148,32 @@ export function createObjectStore(options: ObjectStoreOptions): ObjectStore {
     },
 
     async deletePrefix(userId) {
-      const prefix = prefixOf(userId);
-      let deleted = 0;
-      let token: string | undefined;
-      do {
-        const page = await client.listObjects(bucketName, prefix, token);
-        if (page.keys.length > 0) await client.deleteObjects(bucketName, page.keys);
-        deleted += page.keys.length;
-        token = page.nextToken;
-      } while (token !== undefined);
-      return deleted;
+      return deletePrefixIn(client, bucketName, userId);
     },
   };
+}
+
+async function deletePrefixIn(client: S3Port, bucketName: string, userId: string): Promise<number> {
+  const prefix = prefixOf(userId);
+  let deleted = 0;
+  let token: string | undefined;
+  do {
+    const page = await client.listObjects(bucketName, prefix, token);
+    if (page.keys.length > 0) await client.deleteObjects(bucketName, page.keys);
+    deleted += page.keys.length;
+    token = page.nextToken;
+  } while (token !== undefined);
+  return deleted;
+}
+
+/**
+ * The one operation account deletion needs (`deletePrefix`), without any decryption: purging a leaving user's
+ * blobs never reads them, so this port needs no keyring and no database (the worker's D14 rule).
+ */
+export function createObjectPurger(
+  options: Pick<ObjectStoreOptions, 's3' | 'bucket'>,
+): Pick<ObjectStore, 'deletePrefix'> {
+  const bucketName = options.s3.buckets[options.bucket];
+  const client = createS3Port(options.s3);
+  return { deletePrefix: (userId) => deletePrefixIn(client, bucketName, userId) };
 }

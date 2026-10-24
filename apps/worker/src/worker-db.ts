@@ -4,6 +4,7 @@ import type { Keyring } from '@wf/crypto/keyring';
 import { createBalanceChecks, type BalanceChecks } from '@wf/db/balance-checks';
 import { createBudgetAlerts, type BudgetAlerts } from '@wf/db/budget-alerts';
 import { createDb } from '@wf/db/db';
+import { createAccountDeletion, type AccountDeletion } from '@wf/db/account-deletion';
 import { createDetectRecurring, type DetectRecurring } from '@wf/db/detect-recurring';
 import { createDispatch, type Dispatch } from '@wf/db/dispatch';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
@@ -33,6 +34,8 @@ import { instanceSmtp, type SmtpConnection } from '@wf/integrations/instance-mai
 export interface WorkerDb {
   /** Auth purge and the 90-day notification retention. */
   readonly maintenance: Maintenance;
+  /** The daily account-deletion scan and the per-user purge (FR-A11); requesting and cancelling are the app's. */
+  readonly accountDeletion: Pick<AccountDeletion, 'due' | 'deleteUser'>;
   /** The built-in side of `fx_rates` only; a user's manual rates stay out of reach. */
   readonly fxRates: Pick<FxRatesRepository, 'currenciesInUse' | 'upsertGlobal'>;
   /** Instance-wide scans of the minute dispatch (ids and time zones only). */
@@ -109,6 +112,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { advance, remind } = createOccurrenceJobs(database, { getDek });
   const { endedPeriods, propose } = createPeriodClose(database, { getDek });
   const { purgeExpiredAuth, purgeNotifications } = createMaintenance(database);
+  const { due, deleteUser } = createAccountDeletion(database);
   const { users, dueReminders, pendingOutbox } = createDispatch(database);
   const { check: checkBudgets } = createBudgetAlerts(database);
   const { check: checkBalances } = createBalanceChecks(database);
@@ -140,6 +144,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   return {
     db: Object.freeze({
       maintenance: Object.freeze({ purgeExpiredAuth, purgeNotifications }),
+      accountDeletion: Object.freeze({ due, deleteUser }),
       fxRates: Object.freeze({ currenciesInUse, upsertGlobal }),
       dispatch: Object.freeze({ users, dueReminders, pendingOutbox }),
       occurrences: Object.freeze({ advance, remind }),

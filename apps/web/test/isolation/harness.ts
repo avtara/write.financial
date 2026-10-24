@@ -35,6 +35,12 @@ import * as budgetWrite from '../../src/server/fn/budget-write.ts';
 import * as budget from '../../src/server/fn/budget.ts';
 import { getCalendarRange, getCalendarYear } from '../../src/server/fn/calendar.ts';
 import * as categories from '../../src/server/fn/categories.ts';
+import {
+  cancelAccountDeletion,
+  exportMyData,
+  getDataSettings,
+  requestAccountDeletion,
+} from '../../src/server/fn/data.ts';
 import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
 import * as goals from '../../src/server/fn/goals.ts';
@@ -178,6 +184,10 @@ export const FUNCTIONS = {
   ...tags,
   getCalendarRange,
   getCalendarYear,
+  cancelAccountDeletion,
+  exportMyData,
+  getDataSettings,
+  requestAccountDeletion,
   recordTransaction,
   removeTransactions,
   restoreTransactions,

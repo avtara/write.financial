@@ -17,6 +17,7 @@ describe('PROCESSORS', () => {
     expect(
       Object.fromEntries(Object.entries(PROCESSORS).map(([queue, { concurrency }]) => [queue, concurrency])),
     ).toEqual({
+      'account-deletion': 1,
       maintenance: 1,
       fx: 1,
       dispatch: 1,

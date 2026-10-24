@@ -12,6 +12,7 @@ export const SETTINGS_SECTIONS = [
   'notifications',
   'categories',
   'tags',
+  'data',
   'security',
   'market',
   'instance',

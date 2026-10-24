@@ -12,6 +12,8 @@ import { createInviter, type Invitation, type Inviter, type InviteInput } from '
 import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring } from '@wf/crypto/keyring';
 import { createAccounts, type AccountsRepository } from '@wf/db/accounts';
+import { createAccountDeletion, type AccountDeletion } from '@wf/db/account-deletion';
+import { createExport, type DataExporter } from '@wf/db/export';
 import { createBudgets, type BudgetsRepository } from '@wf/db/budgets';
 import { createCategories, type CategoriesRepository } from '@wf/db/categories';
 import { createDashboard, type DashboardRepository } from '@wf/db/dashboard';
@@ -95,7 +97,11 @@ export interface Services extends BaseRuntime {
   /** On `wf_app`. */
   readonly profiles: ProfilesRepository;
   /** On `wf_app`. */
-  readonly securityEvents: Pick<SecurityEvents, 'list'>;
+  readonly securityEvents: Pick<SecurityEvents, 'list' | 'append'>;
+  /** FR-A11: request/cancel account deletion (the worker does the purge itself). */
+  readonly accountDeletion: Pick<AccountDeletion, 'request' | 'cancel'>;
+  /** FR-A11: the data export (JSON + CSV), inside the user's RLS scope. */
+  readonly export: DataExporter;
   /** Ledger repositories, on `wf_app`. */
   readonly accounts: AccountsRepository;
   readonly categories: CategoriesRepository;
@@ -186,6 +192,8 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     instance,
     profiles: createProfiles(appDb),
     securityEvents: createSecurityEvents(appDb),
+    accountDeletion: createAccountDeletion(appDb),
+    export: createExport(appDb),
     accounts: createAccounts(appDb, { now }),
     categories: createCategories(appDb, { getDek }),
     tags: createTags(appDb),

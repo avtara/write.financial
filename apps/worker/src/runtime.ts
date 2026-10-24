@@ -34,6 +34,8 @@ export interface RuntimeDeps {
   readonly render: ProcessorDeps['render'];
   /** Market quote adapters and the operator's CoinMarketCap key. */
   readonly market: ProcessorDeps['market'];
+  /** The encrypted object stores, for `account-deletion` to purge a leaving user's blobs from. */
+  readonly objects: ProcessorDeps['objects'];
   readonly logger: Logger;
   readonly now: () => number;
   readonly heartbeat: HeartbeatSettings & { readonly key: string };
@@ -54,6 +56,7 @@ export async function startWorker({
   publicUrl,
   render,
   market,
+  objects,
   logger,
   now,
   heartbeat,
@@ -70,7 +73,7 @@ export async function startWorker({
 
   const workers = QUEUES.map((name) => {
     const { concurrency, create } = PROCESSORS[name];
-    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl, render, market });
+    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl, render, market, objects });
     const run: Processor = async (job) => {
       const log = logger.child({ queue: name, jobId: job.id, attempt: job.attemptsMade + 1 });
       log.info('job started');

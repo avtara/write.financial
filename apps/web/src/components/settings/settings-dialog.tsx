@@ -23,6 +23,7 @@ import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import type { Result } from '../../server/access.ts';
 import type { SecurityOverview } from '../../server/account.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
+import { getDataSettings, type DataSettings } from '../../server/fn/data.ts';
 import { getPeriodSettings } from '../../server/fn/budget.ts';
 import { listCategories, listTags } from '../../server/fn/ledger.ts';
 import { getMarketSettings, type MarketSettings } from '../../server/fn/market.ts';
@@ -32,6 +33,7 @@ import type { Viewer } from '../../server/gate.ts';
 import { FormError } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { CategoriesSection } from './categories-section.tsx';
+import { DataSection } from './data-section.tsx';
 import { InstanceSection } from './instance-section.tsx';
 import { MarketSection } from './market-section.tsx';
 import { NotificationsSection } from './notifications-section.tsx';
@@ -52,6 +54,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
   notifications: { label: m.settings_nav_notifications, description: m.settings_notifications_description },
   categories: { label: m.settings_nav_categories, description: m.settings_categories_description },
   tags: { label: m.settings_nav_tags, description: m.settings_tags_description },
+  data: { label: m.settings_nav_data, description: m.settings_data_description },
   security: { label: m.settings_nav_security, description: m.settings_security_description },
   market: { label: m.settings_nav_market, description: m.settings_market_description },
   instance: { label: m.settings_nav_instance, description: m.settings_instance_description },
@@ -60,7 +63,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
 const GROUPS: readonly { readonly label: () => string; readonly sections: readonly SettingsSection[] }[] = [
   { label: m.settings_group_account, sections: ['profile'] },
   { label: m.settings_group_preferences, sections: ['period', 'notifications', 'categories', 'tags'] },
-  { label: m.settings_group_data, sections: ['security'] },
+  { label: m.settings_group_data, sections: ['data', 'security'] },
   { label: m.settings_group_integrations, sections: ['market'] },
   { label: m.settings_group_instance, sections: ['instance'] },
 ];
@@ -73,6 +76,7 @@ export type SettingsData =
   | { section: 'notifications'; notifications: Result<NotificationSettings> }
   | { section: 'categories'; categories: Result<CategoryView[]> }
   | { section: 'tags'; tags: Result<TagView[]>; similar: Result<TagPair[]> }
+  | { section: 'data'; data: Result<DataSettings> }
   | { section: 'market'; market: Result<MarketSettings> }
   | { section: 'instance' };
 
@@ -87,6 +91,7 @@ export async function loadSettingsSection(section: SettingsSection): Promise<Set
     return { section, profile, security };
   }
   if (section === 'security') return { section, security: await getSecurity() };
+  if (section === 'data') return { section, data: await getDataSettings() };
   if (section === 'period') return { section, period: await getPeriodSettings() };
   if (section === 'notifications') return { section, notifications: await getNotificationSettings() };
   if (section === 'market') return { section, market: await getMarketSettings() };
@@ -135,6 +140,13 @@ function SectionContent({ data, viewer }: { data: SettingsData; viewer: Viewer }
     if (!data.tags.ok) return <FormError>{ledgerErrorMessage(data.tags.code, locale)}</FormError>;
     if (!data.similar.ok) return <FormError>{ledgerErrorMessage(data.similar.code, locale)}</FormError>;
     return <TagsSection tags={data.tags.value} similar={data.similar.value} />;
+  }
+  if (data.section === 'data') {
+    return data.data.ok ? (
+      <DataSection email={viewer.email} settings={data.data.value} timeZone={viewer.timezone} />
+    ) : (
+      <FormError>{authErrorMessage({ code: data.data.code }, locale)}</FormError>
+    );
   }
   if (!data.security.ok) return <FormError>{authErrorMessage({ code: data.security.code }, locale)}</FormError>;
   if (data.section === 'security') return <SecuritySection viewer={viewer} overview={data.security.value} />;
