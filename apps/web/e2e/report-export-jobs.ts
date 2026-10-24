@@ -36,10 +36,7 @@ try {
   const view = await reports.get(user.id, report.id);
   const options = { ...DEFAULT_REPORT_EXPORT_OPTIONS, maskAccountNumbers: true };
   const html = buildReportHtml(view, options, 'id', 'IDR');
-  const bytes =
-    format === 'pdf'
-      ? await render(html, { paper: options.paper, theme: options.theme })
-      : new TextEncoder().encode('placeholder'); // Only PDF is exercised end to end here.
+  const bytes = format === 'pdf' ? await render(html, options.paper) : new TextEncoder().encode('placeholder'); // Only PDF is exercised end to end here.
 
   const config = loadConfig(process.env);
   const store = createObjectStore({
@@ -57,8 +54,6 @@ try {
     }),
   );
 } finally {
-  const close = render.close as (() => Promise<void>) | undefined;
-  if (close !== undefined) await close();
   await worker.$client.end();
   await superuser.end();
 }
