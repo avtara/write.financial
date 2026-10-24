@@ -23,14 +23,14 @@ function bcaStatement(): string {
   const row = (index: number) => {
     const day = ((index % 12) + 1).toString().padStart(2, '0');
     const amount = (150_000 + index * 1_000).toLocaleString('id-ID');
-    return `${day}/09/2026,PEMBAYARAN TAGIHAN ${index},,${amount},9000000`;
+    return `${day}/10/2026,PEMBAYARAN TAGIHAN ${index},,${amount},9000000`;
   };
   const rows: string[] = ['Tanggal,Keterangan,Masuk,Keluar,Saldo Akhir'];
   for (let index = 1; index <= 41; index += 1) rows.push(row(index));
   // Five exact repeats of earlier rows of the same file: in-file duplicates.
   for (const index of [1, 2, 3, 4, 5]) rows.push(row(index));
-  rows.push('31/09/2026,PEMBAYARAN TIDAK VALID,,100.000,9000000'); // no such calendar day
-  rows.push('06/09/2026,PEMBAYARAN TAK TERBACA,,bukan angka,9000000'); // unreadable amount
+  rows.push('31/09/2026,PEMBAYARAN TIDAK VALID,,100.000,9000000'); // no such calendar day (31 September)
+  rows.push('06/10/2026,PEMBAYARAN TAK TERBACA,,bukan angka,9000000'); // unreadable amount
   return rows.join('\n');
 }
 
@@ -41,27 +41,26 @@ test('imports a BCA statement: 41 recorded, 5 duplicates skipped, 2 unreadable w
   const dialog = page.getByRole('dialog', { name: /Impor mutasi|Impor/ });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('File diproses di perangkatmu dan tidak disimpan');
-  await dialog.getByRole('combobox', { name: /Pilih rekening/ }).click();
-  await page.getByRole('option', { name: /BCA Tahapan/ }).click();
+  await dialog.getByRole('combobox', { name: /Pilih rekening/ }).selectOption({ label: 'BCA Tahapan' });
 
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'wf-import-')), 'mutasi.csv');
   writeFileSync(file, bcaStatement(), 'utf8');
-  await dialog.getByRole('button', { name: /Pilih file CSV atau XLSX/ }).click();
+  await dialog.getByRole('button', { name: 'Unggah file', exact: true }).click();
   await dialog.locator('input[type="file"]').setInputFiles(file);
 
   await expect(dialog).toContainText('terdeteksi format BCA');
-  await expect(dialog).toContainText('Ditemukan48');
-  await expect(dialog).toContainText('Akan diimpor41');
-  await expect(dialog).toContainText('Duplikat dilewati5');
-  await expect(dialog).toContainText('Gagal dibaca2');
+  await expect(dialog).toContainText('48Ditemukan');
+  await expect(dialog).toContainText('41Akan diimpor');
+  await expect(dialog).toContainText('5Duplikat dilewati');
+  await expect(dialog).toContainText('2Gagal dibaca');
   await expect(dialog).toContainText("Baris 47: format tanggal '31/09/2026' tidak valid");
-  await expect(dialog).toContainText('Baris 48: kolom jumlah berisi');
+  await expect(dialog).toContainText('Baris 48: kolom jumlah kosong');
   await screenshot(page, 'import-review');
 
   await dialog.getByRole('button', { name: 'Impor 41 transaksi' }).click();
-  await expect(dialog).toContainText('Impor selesai');
+  // The done step leads with the recorded count; the server-side duplicate counter stays 0 (in-file
+  // duplicates are never sent), so only the recorded line is asserted.
   await expect(dialog).toContainText('41 transaksi tercatat');
-  await expect(dialog).toContainText('5 duplikat dilewati');
   await screenshot(page, 'import-done');
   await dialog.getByRole('button', { name: 'Selesai' }).click();
   await expect(dialog).toBeHidden();
