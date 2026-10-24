@@ -75,18 +75,18 @@ test('switches to the quarter and a custom range as provisional aggregates', asy
   await screenshot(page, 'reports-custom');
 });
 
-test('greet a new user with the timeline to the first report', async ({ page, browser }) => {
-  const context = await (browser as unknown as { newContext(o: object): Promise<unknown> }).newContext({
+test('greet a new user with the timeline to the first report', async ({ browser }) => {
+  const context = await browser.newContext({
     storageState: freshUser.state,
     viewport: { width: 1440, height: 1024 },
     locale: 'id-ID',
     timezoneId: 'Asia/Jakarta',
   });
-  const page2 = await (context as unknown as { newPage(): Promise<Page> }).newPage();
+  const page2 = await context.newPage();
   await page2.goto('/reports');
   await expect(page2.getByRole('heading', { level: 1, name: 'Laporan' })).toBeVisible();
   await expect(page2.getByText('Laporan pertamamu sedang menunggu periode pertama')).toBeVisible();
   await expect(page2.getByText('Mulai mencatat')).toBeVisible();
   await screenshot(page2, 'reports-empty');
-  await context.close?.();
+  await context.close();
 });
