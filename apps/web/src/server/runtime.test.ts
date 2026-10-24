@@ -70,7 +70,8 @@ describe('createServices', () => {
     const runtime = baseRuntime();
     const error = vi.spyOn(runtime.logger, 'error').mockImplementation(() => undefined);
     await createServices(runtime);
-    redis.listeners.at(-1)?.(new Error('ECONNREFUSED'));
+    // Several redis users subscribe an error listener (the logger, the export enqueue); fire them all.
+    for (const listener of redis.listeners) listener(new Error('ECONNREFUSED'));
     const err = expect.any(Error) as unknown;
     expect(error).toHaveBeenCalledWith({ err }, 'redis connection error');
   });
