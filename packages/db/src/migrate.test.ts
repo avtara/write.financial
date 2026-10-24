@@ -96,6 +96,7 @@ const GRANTS = {
   receivables: LEDGER,
   recent_items: { wf_app: ALL },
   // FR-LP1 / D10: app may refresh its provisional aggregates; RLS refuses final UPDATE. Worker only reads/inserts.
+  report_files: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
   reports: { wf_app: ALL, wf_worker: 'INSERT,SELECT' },
   recurrences: { wf_app: ALL, wf_worker: 'SELECT' },
   // D14: the worker creates review items but cannot resolve them (no UPDATE); only confirmReview (wf_app) does.

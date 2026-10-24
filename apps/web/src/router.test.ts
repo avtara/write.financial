@@ -64,6 +64,7 @@ describe('getRouter', () => {
       '/admin/queues/$',
       '/api/account-logo/$id',
       '/api/auth/$',
+      '/api/reports/$fileId',
       '/api/subscription-logo/$id',
       '/api/transactions/$id/attachments/$attachmentId',
       '/budget',
