@@ -39,6 +39,12 @@ import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
 import * as goals from '../../src/server/fn/goals.ts';
 import * as importFn from '../../src/server/fn/import.ts';
+import {
+  getReportAutoSend,
+  listReportFiles,
+  requestReportExport,
+  saveReportAutoSend,
+} from '../../src/server/fn/report-export.ts';
 import * as investments from '../../src/server/fn/investments.ts';
 import * as ledger from '../../src/server/fn/ledger.ts';
 import * as market from '../../src/server/fn/market.ts';
@@ -122,6 +128,8 @@ let workerDb: Database;
 /** `wf_app`, for the users' DEKs the worker's occurrences job needs. */
 let appDb: Database;
 export let services: Services;
+/** The Valkey container's URL, for cases that check what the web actually enqueued (`report-export`). */
+export let valkeyUrl: string;
 const smtp = new SMTPServer({
   authOptional: true,
   allowInsecureAuth: true,
@@ -159,6 +167,10 @@ export const FUNCTIONS = {
   ...notifications,
   ...receivables,
   ...reports,
+  getReportAutoSend,
+  listReportFiles,
+  requestReportExport,
+  saveReportAutoSend,
   ...review,
   ...schedules,
   ...search,
@@ -468,6 +480,7 @@ export async function setUp(running: { services: Promise<Services> | null }): Pr
     new ValkeyContainer('valkey/valkey:9.2').withPassword(secret('valkey')).start(),
   ]);
   superuser = postgres(pg.getConnectionUri(), { max: 2, onnotice: () => undefined });
+  valkeyUrl = valkey.getConnectionUrl();
   await bootstrapRoles(pg.getConnectionUri(), ROLE_PASSWORDS);
   await migrate(urlAs(ROLES.migrate, ROLE_PASSWORDS.migrate));
   await createKeyFile(KEK_FILE);

@@ -5,6 +5,7 @@ import { FINAL_VIEW, TODAY, summary } from '../../../test/report-fixtures.ts';
 import {
   comparisonLabel,
   emptySteps,
+  formatFileSize,
   formatPoints,
   isCustomRangeValid,
   monthEnd,
@@ -190,5 +191,15 @@ describe('comparisonLabel', () => {
   it('renders the compared period or nothing', () => {
     expect(comparisonLabel(FINAL_VIEW.compare, 'id', TODAY)).toBe('Agustus 2026');
     expect(comparisonLabel(null, 'id', TODAY)).toBeNull();
+  });
+});
+
+describe('formatFileSize', () => {
+  it('scales to the unit under 1000 and keeps one decimal from kB up', () => {
+    expect(formatFileSize(0, 'id')).toBe('0 B');
+    expect(formatFileSize(999, 'id')).toBe('999 B');
+    expect(formatFileSize(86_000, 'id')).toBe('86,0 kB');
+    expect(formatFileSize(1_240_000, 'id')).toBe('1,2 MB');
+    expect(formatFileSize(2_450_000_000, 'en')).toBe('2.5 GB');
   });
 });

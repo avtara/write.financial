@@ -19,6 +19,7 @@ describe('JOBS', () => {
       'balance-checks',
       'period-close',
       'reports',
+      'report-export',
       'notify',
       'detect-recurring',
       'market-server',
@@ -81,6 +82,8 @@ describe('jobIds', () => {
     expect(jobIds['budget-alerts'](USER, DAY, 23)).toBe(`bud.${USER}.2026-10-18.23`);
     expect(jobIds['balance-checks'](USER, DAY)).toBe(`bal.${USER}.2026-10-18`);
     expect(jobIds['period-close'](USER, DAY)).toBe(`close.${USER}.2026-10-18`);
+    expect(jobIds['report-export'](OTHER, 'pdf')).toBe(`rep.${OTHER}.pdf`);
+    expect(jobIds['report-export'](OTHER, 'xlsx', 'req-1')).toBe(`rep.${OTHER}.xlsx.req-1`);
     expect(jobIds.notify(OTHER)).toBe(`ntf.${OTHER}`);
     expect(jobIds['detect-recurring'](USER, DAY)).toBe(`det.${USER}.2026-10-18`);
     expect(jobIds.snapshots(USER, DAY)).toBe(`snap.${USER}.2026-10-18`);

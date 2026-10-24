@@ -37,6 +37,7 @@ const start = (db: WorkerDb = fakeDb()): Promise<Runtime> =>
     db,
     mailer: fakeMailer(),
     publicUrl: 'https://uang.example/',
+    render: async () => Promise.resolve(new Uint8Array()),
     market: { adapters: fakeAdapters(), cmcApiKey: null },
     logger: createLogger('info', log),
     now: Date.now,

@@ -6,7 +6,18 @@
  * work that no process would run.
  */
 import type { LocalDate } from '@wf/domain/period';
+import {
+  DEFAULT_REPORT_EXPORT_OPTIONS,
+  REPORT_EXPORT_SECTIONS,
+  REPORT_FORMATS,
+  type ReportExportOptions,
+  type ReportFormat,
+} from '@wf/domain/report';
 import * as z from 'zod';
+
+/** The auto-send export options (FR-LP4), re-exported so callers of the `report-export` queue have one import. */
+export { DEFAULT_REPORT_EXPORT_OPTIONS };
+export type { ReportExportOptions };
 
 /** Every queue of plan §6. Names outside {@link JobQueue} have no processor yet and cannot be enqueued. */
 export type QueueName =
@@ -17,6 +28,7 @@ export type QueueName =
   | 'balance-checks'
   | 'period-close'
   | 'reports'
+  | 'report-export'
   | 'fx'
   | 'market-server'
   | 'market-byok'
@@ -63,6 +75,23 @@ export const JOBS = {
   'period-close': userJob,
   /** FR-LP1: the monthly report of every closed period that has none yet (after `period-close`). */
   reports: userJob,
+  /**
+   * FR-LP4: exports one stored report to PDF, XLSX, or CSV and stores it in the `reports` bucket; with `email` it is
+   * attached to the notification email ("Kirim otomatis"). The options are the export dialog's choices (design yLlRY)
+   * — rendering preferences, not secrets or financial data; the figures come from the stored report row.
+   */
+  'report-export': z.strictObject({
+    userId: z.uuid(),
+    reportId: z.uuid(),
+    format: z.enum(REPORT_FORMATS),
+    email: z.boolean(),
+    options: z.strictObject({
+      sections: z.array(z.enum(REPORT_EXPORT_SECTIONS)).min(1),
+      theme: z.enum(['light', 'dark']),
+      paper: z.enum(['a4', 'letter']),
+      maskAccountNumbers: z.boolean(),
+    }),
+  }),
   /** Sends one outbox row (email). */
   notify: z.strictObject({ userId: z.uuid(), outboxId: z.uuid() }),
   /** FR-SUB4 subscription candidates (suggestions only). */
@@ -109,6 +138,13 @@ export const jobIds = {
   'balance-checks': (userId: string, date: LocalDate) => `bal.${userId}.${date}` as JobId<'balance-checks'>,
   'period-close': (userId: string, date: LocalDate) => `close.${userId}.${date}` as JobId<'period-close'>,
   reports: (userId: string, date: LocalDate) => `rep.${userId}.${date}` as JobId<'reports'>,
+  /**
+   * One export per stored report and format (`rep.{reportId}.{format}`, plan §6's logical `rep:{periodId}:{format}`
+   * keyed on the stored report so quarterly and custom ranges work too). A retry deduplicates; a re-export with
+   * different options (or the next month's auto-send of the same report) adds the optional `requestId` suffix.
+   */
+  'report-export': (reportId: string, format: ReportFormat, requestId?: string) =>
+    `rep.${reportId}.${format}${requestId === undefined ? '' : `.${requestId}`}` as JobId<'report-export'>,
   notify: (outboxId: string) => `ntf.${outboxId}` as JobId<'notify'>,
   'detect-recurring': (userId: string, date: LocalDate) => `det.${userId}.${date}` as JobId<'detect-recurring'>,
   /** One built-in run per source and UTC minute (`mks.crypto.2026-10-15T0940`). */

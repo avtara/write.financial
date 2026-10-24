@@ -10,11 +10,23 @@ import { renderEmail, type EmailContext, type EmailTemplate } from './mail-templ
 
 export type { EmailContext, EmailTemplate } from './mail-templates.ts';
 
+/**
+ * One file attached to a message (FR-LP4 auto-send: the report PDF). Passed through to nodemailer; `content` is the
+ * full file (the report's decrypted bytes never touch disk or a URL).
+ */
+export interface MailAttachment {
+  readonly filename: string;
+  readonly content: Buffer;
+  readonly contentType?: string;
+}
+
 export interface MailMessage {
   /** Recipient address. */
   readonly to: string;
   readonly template: EmailTemplate;
   readonly context: EmailContext;
+  /** Files to attach (default none). */
+  readonly attachments?: readonly MailAttachment[];
 }
 
 export interface Mailer {
@@ -47,9 +59,16 @@ export function createMailer(mail: Config['mail']): Mailer {
   const transport = createTransport(mail.smtpUrl);
   return {
     configured: true,
-    send: async ({ to, template, context }) => {
+    send: async ({ to, template, context, attachments }) => {
       const { subject, html, text } = await renderEmail(template, context);
-      await transport.sendMail({ from: mail.from, to, subject, html, text });
+      await transport.sendMail({
+        from: mail.from,
+        to,
+        subject,
+        html,
+        text,
+        ...(attachments === undefined ? {} : { attachments: [...attachments] }),
+      });
     },
     close: () => {
       transport.close();

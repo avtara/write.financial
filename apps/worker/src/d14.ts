@@ -32,6 +32,8 @@ export const WORKER_REPOSITORIES = [
   'portfolioSnapshots',
   'goalSnapshots',
   'reports',
+  'reportFiles',
+  'preferences',
 ] as const;
 
 export type WorkerRepository = (typeof WORKER_REPOSITORIES)[number];

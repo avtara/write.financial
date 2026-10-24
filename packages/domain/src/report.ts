@@ -19,6 +19,36 @@ export type ReportKind = (typeof REPORT_KINDS)[number];
 export const REPORT_STATUSES = ['final', 'provisional'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 
+/** Export formats of a stored report (FR-LP4, plan §6 `rep.{reportId}.{format}`): PDF to print, XLSX, CSV. */
+export const REPORT_FORMATS = ['pdf', 'xlsx', 'csv'] as const;
+export type ReportFormat = (typeof REPORT_FORMATS)[number];
+
+/**
+ * Sections of an exported report, in print order (design yLlRY: 4 A4 pages):
+ * `summary` "Ringkasan & Kekayaan Bersih" p. 1, `flow` "Arus Uang & Pemasukan" p. 2, `spending` "Pengeluaran" p. 3,
+ * `largest` "Transaksi Terbesar & Langganan" p. 4. The export dialog selects a subset; XLSX and CSV keep their
+ * sheets/blocks in the same order.
+ */
+export const REPORT_EXPORT_SECTIONS = ['summary', 'flow', 'spending', 'largest'] as const;
+export type ReportExportSection = (typeof REPORT_EXPORT_SECTIONS)[number];
+
+/** Appearance options of an export (design yLlRY): theme for ink/paper, `paper` A4 or Letter, account masking. */
+export interface ReportExportOptions {
+  readonly sections: readonly ReportExportSection[];
+  readonly theme: 'light' | 'dark';
+  readonly paper: 'a4' | 'letter';
+  /** "Samarkan nomor rekening": `BCA 1234` → `BCA •• 1234` keeps the last 4 digits, amounts stay visible. */
+  readonly maskAccountNumbers: boolean;
+}
+
+/** The auto-send defaults (FR-LP4): every section, light "hemat tinta", A4, unmasked — the owner's own copy. */
+export const DEFAULT_REPORT_EXPORT_OPTIONS: ReportExportOptions = {
+  sections: REPORT_EXPORT_SECTIONS,
+  theme: 'light',
+  paper: 'a4',
+  maskAccountNumbers: false,
+};
+
 /** The KPIs of a report ("Pemasukan · Pengeluaran · Ditabung · Tingkat tabungan · Kekayaan bersih"). */
 export interface ReportTotals {
   readonly incomeMinor: bigint;

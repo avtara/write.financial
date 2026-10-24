@@ -56,6 +56,28 @@ describe('createMailer with SMTP', () => {
     expect(mail?.text).toContain('This link is valid for 30 minutes.');
     expect(mail?.text).toContain('https://wf.example/reset/abc');
   });
+
+  it('attaches files (FR-LP4: the report PDF) with their name and media type', async () => {
+    const mailer = createMailer({ smtpUrl: `smtp://127.0.0.1:${port}`, from: 'write.financial <noreply@wf.test>' });
+    const content = Buffer.from('%PDF-1.7 fake report');
+    await mailer.send({
+      to: 'budi@example.test',
+      template: { kind: 'report_export', label: 'September 2026', url: 'https://wf.example/reports' },
+      context: { locale: 'id', instanceName: 'write.financial', recipientName: 'Budi' },
+      attachments: [{ filename: 'Laporan-September-2026.pdf', content, contentType: 'application/pdf' }],
+    });
+    mailer.close();
+
+    const mail = received.at(-1);
+    expect(mail?.subject).toBe('Laporan September 2026 siap');
+    const attachments = mail?.attachments ?? [];
+    expect(attachments).toHaveLength(1);
+    const attachment = attachments[0];
+    if (attachment === undefined) throw new Error('attachment missing');
+    expect(attachment.filename).toBe('Laporan-September-2026.pdf');
+    expect(attachment.contentType).toBe('application/pdf');
+    expect(attachment.content).toEqual(content);
+  });
 });
 
 describe('createMailer without SMTP', () => {

@@ -15,6 +15,8 @@ import { createMarketServerProcessor } from './processors/market-server.ts';
 import { createNotifyProcessor } from './processors/notify.ts';
 import { createOccurrencesProcessor } from './processors/occurrences.ts';
 import { createPeriodCloseProcessor } from './processors/period-close.ts';
+import type { ReportPdfRenderer } from './processors/report-export.ts';
+import { createReportExportProcessor } from './processors/report-export.ts';
 import { createRemindersProcessor } from './processors/reminders.ts';
 import { createSnapshotsProcessor } from './processors/snapshots.ts';
 import { createReportsProcessor } from './processors/reports.ts';
@@ -37,6 +39,8 @@ export interface ProcessorDeps {
   readonly mailer: Mailer;
   /** `PUBLIC_URL`: links in emails. */
   readonly publicUrl: string;
+  /** Prints the self-contained report HTML into PDF bytes (`report-export`; `createChromiumRenderer`). */
+  readonly render: ReportPdfRenderer;
   /** Market quote adapters (egress-allowlisted) and the operator's CoinMarketCap key (`CMC_API_KEY`, null: none). */
   readonly market: { readonly adapters: MarketAdapters; readonly cmcApiKey: string | null };
 }
@@ -63,6 +67,7 @@ export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
   'balance-checks': { concurrency: 2, create: createBalanceChecksProcessor },
   'period-close': { concurrency: 2, create: createPeriodCloseProcessor },
   reports: { concurrency: 2, create: createReportsProcessor },
+  'report-export': { concurrency: 2, create: createReportExportProcessor },
   notify: { concurrency: 2, create: createNotifyProcessor },
   'detect-recurring': { concurrency: 1, create: createDetectRecurringProcessor },
   'market-server': { concurrency: 1, create: createMarketServerProcessor },

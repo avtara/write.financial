@@ -39,6 +39,7 @@ const QUEUES = [
   'balance-checks',
   'period-close',
   'reports',
+  'report-export',
   'notify',
   'detect-recurring',
   'market-server',
