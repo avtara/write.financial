@@ -62,6 +62,13 @@ vi.mock('./market-section.tsx', () => ({
 }));
 const notifications = vi.hoisted(() => ({ getNotificationSettings: vi.fn() }));
 vi.mock('../../server/fn/notifications.ts', () => notifications);
+const data = vi.hoisted(() => ({
+  getDataSettings: vi.fn(),
+  requestAccountDeletion: vi.fn(),
+  cancelAccountDeletion: vi.fn(),
+  exportMyData: vi.fn(),
+}));
+vi.mock('../../server/fn/data.ts', () => data);
 vi.mock('./notifications-section.tsx', () => ({
   NotificationsSection: ({ email }: { email: string }) => <p>{`notifikasi ke ${email}`}</p>,
 }));
@@ -155,6 +162,7 @@ describe('loadSettingsSection', () => {
       period: { ok: true, value: { overview: {}, payday: {} } },
     });
     notifications.getNotificationSettings.mockResolvedValue({ ok: true, value: { email: true } });
+    data.getDataSettings.mockResolvedValue({ ok: true, value: { deletionRequestedAt: null, deleteAfter: null } });
     await expect(loadSettingsSection('notifications')).resolves.toEqual({
       section: 'notifications',
       notifications: { ok: true, value: { email: true } },
@@ -187,7 +195,7 @@ describe('SettingsDialog', () => {
       );
     const nav = dialog.getByRole('navigation', { name: 'Bagian pengaturan' });
     expect(nav.element().textContent).toBe(
-      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagDataKeamananIntegrasiAPI kurs & pasar',
+      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagPrivasiDataKeamananIntegrasiAPI kurs & pasar',
     );
     const profile = nav.getByRole('link', { name: 'Profil & akun' });
     await expect.element(profile).toHaveAttribute('href', '/?settings=profile');
