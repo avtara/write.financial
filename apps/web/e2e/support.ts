@@ -218,6 +218,16 @@ export function runExportJob(email: string, format: 'pdf' | 'xlsx' | 'csv'): { s
   return JSON.parse(output) as { stored: number };
 }
 
+/** Removes a user row (cascade) so a spec's sign-up always starts clean between attempts. */
+export async function purgeE2EUser(email: string): Promise<void> {
+  const sql = postgres(e2eEnv()['DATABASE_URL_SUPERUSER'] ?? '', { max: 1, onnotice: () => undefined });
+  try {
+    await sql`DELETE FROM users WHERE lower(email) = ${email.toLowerCase()}`;
+  } finally {
+    await sql.end();
+  }
+}
+
 /** The worker's `account-deletion` job, inline with a clock past the 7-day grace. */
 export function runDeletionJob(email: string): { users: number; deleted: number; objects: number } {
   const output = execFileSync('node', [path.resolve(import.meta.dirname, 'account-deletion-jobs.ts'), email], {

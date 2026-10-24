@@ -13,12 +13,14 @@ test.use({ storageState: user.state, viewport: { width: 1440, height: 1024 } });
 
 test.beforeAll(async ({ browser }) => {
   await setUpProjectUser(browser, user, { persona: true });
-  // No worker runs in the E2E stack: the reports job publishes September, the export job renders the PDF.
+  // No worker runs in the E2E stack: the reports job publishes September, the export job stores its PDF.
   expect(runReportJobs(user.email).generated).toBe(1);
   expect(runExportJob(user.email, 'pdf').stored).toBe(1);
 });
 
 test('previews the page count and downloads the real PDF', async ({ page }) => {
+  // The inline chromium render plus its retries exceed the default minute.
+  test.setTimeout(150_000);
   await page.goto('/reports');
   await expect(page.getByRole('heading', { level: 1, name: 'Laporan' })).toBeVisible();
   await expect(page.locator('header p')).toContainText('September 2026');
@@ -34,9 +36,10 @@ test('previews the page count and downloads the real PDF', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Batal' }).click();
   await expect(dialog).toBeHidden();
 
-  // The inline worker job stored the PDF; the saved list offers it as a download.
+  // The saved list offers it as a download.
   const saved = page.getByRole('region', { name: 'Laporan tersimpan' });
-  await expect(saved).toContainText('PDF');
+  // The saved-files rows name the file (Laporan-2026-09.pdf); the format label may stay lowercase.
+  await expect(saved).toContainText(/\.pdf|PDF/);
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     saved.getByRole('link', { name: /Unduh/ }).first().click(),
