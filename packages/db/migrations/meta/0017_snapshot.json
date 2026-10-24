@@ -1,5 +1,5 @@
 {
-  "id": "ed30ec68-8578-4dec-bafb-8c6087c46273",
+  "id": "28881e89-281a-4075-8c7b-4ea7240bf67b",
   "prevId": "b175062f-8e7e-4ed3-9171-039e33580c41",
   "version": "7",
   "dialect": "postgresql",
@@ -5885,6 +5885,124 @@
       },
       "isRLSEnabled": false
     },
+    "public.report_files": {
+      "name": "report_files",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "format": {
+          "name": "format",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "options": {
+          "name": "options",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_key": {
+          "name": "file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "report_files_user_id_created_at_idx": {
+          "name": "report_files_user_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "report_files_user_id_users_id_fk": {
+          "name": "report_files_user_id_users_id_fk",
+          "tableFrom": "report_files",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "report_files_report_fk": {
+          "name": "report_files_report_fk",
+          "tableFrom": "report_files",
+          "tableTo": "reports",
+          "columnsFrom": ["user_id", "report_id"],
+          "columnsTo": ["user_id", "id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "report_files_pkey": {
+          "name": "report_files_pkey",
+          "columns": ["user_id", "id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "report_files_format_check": {
+          "name": "report_files_format_check",
+          "value": "\"report_files\".\"format\" in ('pdf', 'xlsx', 'csv')"
+        },
+        "report_files_size_check": {
+          "name": "report_files_size_check",
+          "value": "\"report_files\".\"size_bytes\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.reports": {
       "name": "reports",
       "schema": "",
@@ -8013,6 +8131,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
+        },
+        "report_auto_send": {
+          "name": "report_auto_send",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "extra_currencies": {
           "name": "extra_currencies",
