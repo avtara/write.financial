@@ -41,6 +41,7 @@ import {
   goalSnapshots,
   passkeys,
   recentItems,
+  reportFiles,
   reports,
   sessions,
   tagAliases,
@@ -259,19 +260,31 @@ beforeAll(async () => {
       });
       await tx.insert(drafts).values({ userId, kind: 'transaction', payloadEnc: Uint8Array.of(1, 2, 3) });
       await tx.insert(recentItems).values({ userId, kind: 'transaction', ref: expenseId });
-      // FR-LP1: a stored report snapshot is tenant data (the worker writes it, the user reads it).
-      await tx.insert(reports).values({
+      // FR-LP1: a stored report snapshot is tenant data (the worker writes it, the user reads it); its exported
+      // file (M6.3) is too — the bytes live in the object store, the meta row here.
+      const [storedReport] = await tx
+        .insert(reports)
+        .values({
+          userId,
+          kind: 'custom',
+          status: 'provisional',
+          label: '2026-10-01/2026-10-15',
+          rangeStart: '2026-10-01' as LocalDate,
+          rangeEnd: '2026-10-15' as LocalDate,
+          txCount: 1,
+          incomeMinor: 0n,
+          expenseMinor: 1n,
+          savedMinor: -1n,
+          sections: {},
+        })
+        .returning({ id: reports.id });
+      await tx.insert(reportFiles).values({
         userId,
-        kind: 'custom',
-        status: 'provisional',
-        label: '2026-10-01/2026-10-15',
-        rangeStart: '2026-10-01' as LocalDate,
-        rangeEnd: '2026-10-15' as LocalDate,
-        txCount: 1,
-        incomeMinor: 0n,
-        expenseMinor: 1n,
-        savedMinor: -1n,
-        sections: {},
+        reportId: storedReport!.id,
+        format: 'csv',
+        options: { sections: ['summary'], theme: 'light', paper: 'a4', maskAccountNumbers: false },
+        fileKey: `u/${userId}/00000000-0000-7000-8000-00000000000a`,
+        sizeBytes: 3,
       });
       await tx
         .insert(goalSnapshots)
