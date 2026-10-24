@@ -24,6 +24,8 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 });
 // The real table module (loaded below) imports these; in the browser they must never reach the server.
 vi.mock('../../server/fn/transactions.ts', () => ({ listTransactionRows: vi.fn(), saveTablePrefs: vi.fn() }));
+// The import wizard is tested on its own; here it is a stub so its server functions stay off the browser.
+vi.mock('../import/import-dialog.tsx', () => ({ ImportDialog: () => null }));
 /**
  * The table, filters, detail, and actions are tested on their own; here they show what they were given. The table's
  * real module is still loaded: in browser mode a module mocked without loading it leaves its import statement
