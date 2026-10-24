@@ -67,6 +67,9 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependenci
   receivables: { testMatch: 'receivables.spec.ts' },
   'market-api': { testMatch: 'market-api.spec.ts' },
   reports: { testMatch: 'reports.spec.ts' },
+  import: { testMatch: 'import.spec.ts' },
+  'report-export': { testMatch: 'report-export.spec.ts' },
+  'account-deletion': { testMatch: 'account-deletion.spec.ts' },
   // After `market-api`: its sync writes the global built-in quotes and pauses the shared provider, so this page's
   // goldens (Rp61.420.000 / +Rp7.489.000) must not be read while those land.
   investments: {

@@ -208,6 +208,26 @@ export function runReportJobs(email: string): { generated: number } {
   return JSON.parse(output) as { generated: number };
 }
 
+/** The worker's `report-export` job, inline with the real chromium: the user's latest final report as a file. */
+export function runExportJob(email: string, format: 'pdf' | 'xlsx' | 'csv'): { stored: number } {
+  const output = execFileSync('node', [path.resolve(import.meta.dirname, 'report-export-jobs.ts'), email, format], {
+    cwd: path.resolve(import.meta.dirname, '..'),
+    env: { ...process.env, ...e2eEnv() },
+    encoding: 'utf8',
+  });
+  return JSON.parse(output) as { stored: number };
+}
+
+/** The worker's `account-deletion` job, inline with a clock past the 7-day grace. */
+export function runDeletionJob(email: string): { users: number; deleted: number; objects: number } {
+  const output = execFileSync('node', [path.resolve(import.meta.dirname, 'account-deletion-jobs.ts'), email], {
+    cwd: path.resolve(import.meta.dirname, '..'),
+    env: { ...process.env, ...e2eEnv() },
+    encoding: 'utf8',
+  });
+  return JSON.parse(output) as { users: number; deleted: number; objects: number };
+}
+
 /** The balance on an account card of the Transactions page, as a number ("Rp42.810.000" → 42810000). */
 export async function cardBalance(page: Page, account: string): Promise<number> {
   const card = page.getByRole('list', { name: 'Kartu rekening' }).getByRole('button', { name: new RegExp(account) });
