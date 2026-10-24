@@ -13,11 +13,13 @@ import { KbdHint } from '@wf/ui/kbd-hint';
 import { PageState } from '@wf/ui/page-state';
 import { Sheet } from '@wf/ui/sheet';
 import { Plus, ReceiptText } from 'lucide-react';
+import { useState } from 'react';
 import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import type { LedgerData } from '../ledger/use-transaction-form.ts';
 import { listValues, type TransactionsSearch } from '../../lib/transactions-search.ts';
 import { useMediaQuery } from '../../lib/use-media-query.ts';
 import type { TransactionsView } from '../../server/fn/transactions.ts';
+import { ImportDialog } from '../import/import-dialog.tsx';
 import { PageHeader } from '../page-header.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { AccountStrip } from './account-strip.tsx';
@@ -45,19 +47,34 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
   const wide = useMediaQuery(WIDE, true);
   const record = useRecordTransaction();
   const refreshing = useRouterState({ select: (state) => state.isLoading });
+  const [importing, setImporting] = useState(false);
   const header = <Header view={view} search={search} ledger={ledger} />;
-  const actions = (
+  const importButton = (
     <button
       type="button"
       onClick={() => {
-        record.open();
+        setImporting(true);
       }}
-      className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-fg px-3 text-[13px] font-medium text-primary-fg hover:bg-text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex h-8 items-center rounded-[6px] border border-border px-3 text-[13px] text-fg hover:bg-tint-06 focus-visible:outline-2 focus-visible:outline-ring"
     >
-      <Plus aria-hidden="true" className="size-3.5" />
-      {m.transactions_page_record()}
-      <KbdHint keys={['N']} platform={preferences.platform} />
+      {m.import_open()}
     </button>
+  );
+  const actions = (
+    <>
+      {importButton}
+      <button
+        type="button"
+        onClick={() => {
+          record.open();
+        }}
+        className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-fg px-3 text-[13px] font-medium text-primary-fg hover:bg-text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <Plus aria-hidden="true" className="size-3.5" />
+        {m.transactions_page_record()}
+        <KbdHint keys={['N']} platform={preferences.platform} />
+      </button>
+    </>
   );
 
   if (!view.hasTransactions) {
@@ -113,6 +130,12 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
         title={m.transactions_page_title()}
         description={header}
         actions={actions}
+      />
+      <ImportDialog
+        open={importing}
+        onOpenChange={setImporting}
+        accounts={ledger.accounts}
+        categories={ledger.categories}
       />
       <TransactionSummary view={view} currency={ledger.baseCurrency} />
       <AccountStrip

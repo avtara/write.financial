@@ -38,6 +38,7 @@ import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-ite
 import { createReceivables, type ReceivablesRepository } from '@wf/db/receivables';
 import { createReports, type ReportsRepository } from '@wf/db/reports';
 import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
+import { createImportReview, type ImportReviewRepository } from '@wf/db/import-review';
 import { createReview, type ReviewRepository } from '@wf/db/review';
 import { createSchedules, type SchedulesRepository } from '@wf/db/schedules';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
@@ -113,6 +114,8 @@ export interface Services extends BaseRuntime {
   readonly logoStore: ObjectStore;
   /** Review queue, notifications, recurrences, and subscriptions (M3), on `wf_app`. */
   readonly review: ReviewRepository;
+  /** Statement import (FR-L9): turns the browser's parsed rows into review items, on `wf_app`. */
+  readonly importReview: ImportReviewRepository;
   readonly notifications: NotificationsRepository;
   /** Settings › Notifikasi (FR-ST3). */
   readonly notificationSettings: NotificationSettingsRepository;
@@ -191,6 +194,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     attachmentStore: createObjectStore({ s3: config.s3, bucket: 'attachments', getDek }),
     logoStore: createObjectStore({ s3: config.s3, bucket: 'avatars', getDek }),
     review: createReview(appDb, { getDek, now }),
+    importReview: createImportReview(appDb, { getDek }),
     notifications: createNotifications(appDb, { now }),
     notificationSettings: createNotificationSettings(appDb, { now }),
     schedules: createSchedules(appDb, { now }),

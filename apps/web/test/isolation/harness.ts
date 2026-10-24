@@ -38,6 +38,7 @@ import * as categories from '../../src/server/fn/categories.ts';
 import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
 import * as goals from '../../src/server/fn/goals.ts';
+import * as importFn from '../../src/server/fn/import.ts';
 import * as investments from '../../src/server/fn/investments.ts';
 import * as ledger from '../../src/server/fn/ledger.ts';
 import * as market from '../../src/server/fn/market.ts';
@@ -143,6 +144,7 @@ let smtpPort = 0;
 /** The server functions the isolation test imports; its `MATRIX` must have a case for each. */
 export const FUNCTIONS = {
   ...account,
+  ...importFn,
   ...accounts,
   ...admin,
   ...budget,

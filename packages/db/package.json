@@ -40,6 +40,7 @@
     "./periods": "./src/periods.ts",
     "./budgets": "./src/budgets.ts",
     "./dashboard": "./src/dashboard.ts",
+    "./import-review": "./src/import-review.ts",
     "./review-items": "./src/review-items.ts",
     "./review": "./src/review.ts",
     "./notifications": "./src/notifications.ts",
