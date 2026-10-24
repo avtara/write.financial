@@ -13,9 +13,12 @@ import {
   GoalAssetNotices,
   type AssetSourceDraft,
 } from './goal-asset-sources.tsx';
+import { setLocale } from '@wf/i18n/runtime';
 
 describe('goal asset sources', () => {
-  it('enforces the share left by other goals, including whole-asset mode', () => {
+  it('enforces the share left by other goals, including whole-asset mode', async () => {
+    // The pure helpers read the ambient paraglide locale; pin it instead of the browser's default.
+    await setLocale('id', { reload: false });
     const draft = { key: 0, assetId: SPY.id, mode: 'percent' as const, percent: '60' };
     const assets = goalAssetOptions([SPY]);
     expect(draftProblem(draft, assets, DP_RUMAH.id, 'id')).toBeNull();
