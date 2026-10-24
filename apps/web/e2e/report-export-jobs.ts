@@ -41,7 +41,7 @@ try {
       ? await render(html, { paper: options.paper, theme: options.theme })
       : new TextEncoder().encode('placeholder'); // Only PDF is exercised end to end here.
 
-  const config = loadConfig(process.env as Record<string, string | undefined>);
+  const config = loadConfig(process.env);
   const store = createObjectStore({
     s3: config.s3,
     bucket: 'reports',
@@ -57,7 +57,8 @@ try {
     }),
   );
 } finally {
-  await render.close?.();
+  const close = render.close as (() => Promise<void>) | undefined;
+  if (close !== undefined) await close();
   await worker.$client.end();
   await superuser.end();
 }

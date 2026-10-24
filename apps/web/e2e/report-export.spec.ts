@@ -44,13 +44,10 @@ test('previews the page count and downloads the real PDF', async ({ page }) => {
     page.waitForEvent('download'),
     saved.getByRole('link', { name: /Unduh/ }).first().click(),
   ]);
-  const path = await download.path();
-  expect(path).not.toBeNull();
-  const head = readFileSync(path as string)
-    .subarray(0, 5)
-    .toString('latin1');
+  const filePath = await download.path();
+  const head = readFileSync(filePath).subarray(0, 5).toString('latin1');
   expect(head).toBe('%PDF-');
-  const body = readFileSync(path as string).toString('latin1');
+  const body = readFileSync(filePath).toString('latin1');
   // Exactly the four previewed sections — one page each.
   expect(body.match(/\/Type\s*\/Page[^s]/g)?.length).toBe(4);
 });

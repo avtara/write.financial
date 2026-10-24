@@ -20,7 +20,7 @@ const worker = createDb(process.env['DATABASE_URL_WORKER'] ?? '', { max: 1 });
 try {
   const [user] = await superuser<{ id: string }[]>`SELECT id FROM users WHERE lower(email) = ${email.toLowerCase()}`;
   if (user === undefined) throw new Error('No user has this email address');
-  const config = loadConfig(process.env as Record<string, string | undefined>);
+  const config = loadConfig(process.env);
   const processor = createAccountDeletionProcessor({
     db: { accountDeletion: createAccountDeletion(worker) },
     objects: {
