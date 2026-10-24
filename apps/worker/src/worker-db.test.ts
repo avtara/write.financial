@@ -2,6 +2,7 @@
 import { randomBytes } from 'node:crypto';
 import { parseKeyring } from '@wf/crypto/keyring';
 import { describe, expect, it } from 'vitest';
+import { FAKE_S3 } from '../test/fakes.ts';
 import { openWorkerDb } from './worker-db.ts';
 
 const keyring = parseKeyring(`v1:${randomBytes(32).toString('base64')}\n`);
@@ -10,7 +11,7 @@ const URL_ = 'postgres://wf_worker:unused@127.0.0.1:9/write_financial';
 describe('WorkerDb (D14)', () => {
   it('makes automation capabilities immutable at both object levels', async () => {
     // The pool connects lazily, so no database is needed to open and close it.
-    const connection = openWorkerDb(URL_, keyring);
+    const connection = openWorkerDb(URL_, keyring, { s3: FAKE_S3 });
     const { db } = connection;
     expect(Object.isFrozen(db)).toBe(true);
     expect(Reflect.set(db, 'transactions', {})).toBe(false);

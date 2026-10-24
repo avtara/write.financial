@@ -133,6 +133,22 @@ export function formatPoints(points: number, locale: Locale): string {
     .replace('-', MINUS);
 }
 
+/** A stored export's size ("86 kB", "1,2 MB"), as the saved files list shows it. */
+export function formatFileSize(sizeBytes: number, locale: Locale): string {
+  const units = ['B', 'kB', 'MB', 'GB'] as const;
+  let value = sizeBytes;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  const formatted = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: unit === 0 ? 0 : 1,
+    maximumFractionDigits: unit === 0 ? 0 : 1,
+  }).format(value);
+  return `${formatted} ${units[unit]}`;
+}
+
 /** One month-end of the net worth history; `valueMinor: null` is a gap (no observation), never zero. */
 export interface NetWorthPoint {
   readonly date: LocalDate;

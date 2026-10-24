@@ -31,6 +31,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fakeAdapters, fakeMailer, type FakeMailer } from '../test/fakes.ts';
 import { PROCESSORS, type ProcessorDeps } from './processors.ts';
+import { FAKE_S3 } from '../test/fakes.ts';
 import { openWorkerDb, type WorkerDbConnection } from './worker-db.ts';
 
 const password = (role: string) => `${role}-${randomBytes(6).toString('hex')}`;
@@ -100,7 +101,7 @@ function fakeBroker() {
 const broker = fakeBroker();
 
 function startWorker(): WorkerProcess {
-  const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring);
+  const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring, { s3: FAKE_S3 });
   const mailer = fakeMailer();
   let clock = new Date(0);
   const deps: ProcessorDeps = {
@@ -108,6 +109,7 @@ function startWorker(): WorkerProcess {
     now: () => clock,
     mailer,
     publicUrl: 'https://uang.example/',
+    render: async () => Promise.resolve(new Uint8Array()),
     market: { adapters: fakeAdapters(), cmcApiKey: null },
     enqueue: async (queue, payload, { jobId }) => {
       if (CHAIN.includes(queue)) broker.add({ queue, id: jobId, data: payload });
@@ -308,7 +310,7 @@ describe('restart safety (reminder → email → review)', () => {
     const available = async () => (await accounts.list(avtara)).availableMinor;
     const availableBefore = await available();
 
-    const worker = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring);
+    const worker = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring, { s3: FAKE_S3 });
     const closeAt = wib('2026-10-01', '00:05');
     const deps: ProcessorDeps = {
       db: worker.db,
@@ -316,6 +318,7 @@ describe('restart safety (reminder → email → review)', () => {
       mailer: fakeMailer(),
       publicUrl: 'https://uang.example/',
       market: { adapters: fakeAdapters(), cmcApiKey: null },
+      render: async () => Promise.resolve(new Uint8Array()),
       enqueue: () => Promise.resolve(),
     };
     const close = PROCESSORS['period-close'].create(deps);

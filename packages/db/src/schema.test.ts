@@ -93,6 +93,7 @@ describe('schema', () => {
       'receivables.user_id:cascade',
       'recent_items.user_id:cascade',
       'recurrences.user_id:cascade',
+      'report_files.user_id:cascade',
       'reports.user_id:cascade',
       'review_items.user_id:cascade',
       'scheduled_occurrences.user_id:cascade',

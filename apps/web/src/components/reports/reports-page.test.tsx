@@ -1,15 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import type { ReportSummary, ReportView } from '@wf/db/reports';
 import { CUSTOM_VIEW, FINAL_VIEW, PROVISIONAL_VIEW, TODAY, summary } from '../../../test/report-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { ReportsPage } from './reports-page.tsx';
 
-const fake = vi.hoisted(() => ({ viewReport: vi.fn() }));
+const fake = vi.hoisted(() => ({
+  viewReport: vi.fn(),
+  listReportFiles: vi.fn(),
+  requestReportExport: vi.fn(),
+  getReportAutoSend: vi.fn(),
+  saveReportAutoSend: vi.fn(),
+}));
 vi.mock('../../server/fn/reports.ts', () => ({
   viewReport: fake.viewReport,
   getReportsHome: vi.fn(),
+}));
+vi.mock('../../server/fn/report-export.ts', () => ({
+  listReportFiles: fake.listReportFiles,
+  requestReportExport: fake.requestReportExport,
+  getReportAutoSend: fake.getReportAutoSend,
+  saveReportAutoSend: fake.saveReportAutoSend,
 }));
 
 const YEARLY_VIEW = { ...PROVISIONAL_VIEW, id: 'report-2026', kind: 'yearly', label: '2026' } as const;
@@ -22,6 +34,68 @@ const deferred = () => {
 };
 
 describe('ReportsPage', () => {
+  beforeEach(() => {
+    fake.listReportFiles.mockReset();
+    fake.listReportFiles.mockResolvedValue({ ok: true, value: [] });
+    // The export dialog reads the auto-send preference while it opens; the page tests never open it.
+    fake.getReportAutoSend.mockReset();
+    fake.getReportAutoSend.mockResolvedValue({ ok: false, code: 'UNAUTHENTICATED' });
+  });
+
+  it('fetches the stored export files on mount and shows them in the saved section', async () => {
+    fake.viewReport.mockReset();
+    fake.listReportFiles.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          id: 'file-1',
+          reportId: 'report-2026-09',
+          format: 'pdf',
+          options: { sections: ['summary'], theme: 'light', paper: 'a4', maskAccountNumbers: false },
+          fileKey: 'u/u/0',
+          sizeBytes: 1240,
+          createdAt: new Date('2026-10-01T02:00:00Z'),
+        },
+      ],
+    });
+    const { screen } = await renderApp(
+      <ReportsPage
+        reports={[summary('2026-09')]}
+        latestFinal={FINAL_VIEW}
+        today={TODAY}
+        timeZone="Asia/Jakarta"
+        locale="id"
+      />,
+    );
+    await expect.poll(() => fake.listReportFiles.mock.calls.length).toBe(1);
+    await expect.element(screen.getByText('Laporan-2026-09.pdf')).toBeVisible();
+  });
+
+  it('opens the export dialog over the viewed report from the header button', async () => {
+    fake.viewReport.mockReset();
+    const { screen } = await renderApp(
+      <ReportsPage
+        reports={[summary('2026-09')]}
+        latestFinal={FINAL_VIEW}
+        today={TODAY}
+        timeZone="Asia/Jakarta"
+        locale="id"
+      />,
+    );
+    await screen.getByRole('button', { name: /Ekspor laporan/ }).click();
+    await expect.element(screen.getByRole('dialog', { name: 'Ekspor laporan' })).toBeVisible();
+    await expect.element(screen.getByText('4 halaman · A4')).toBeVisible();
+  });
+
+  it('offers no export button while nothing is viewed', async () => {
+    fake.viewReport.mockReset();
+    const { screen } = await renderApp(
+      <ReportsPage reports={[]} latestFinal={null} today={TODAY} timeZone="Asia/Jakarta" locale="id" />,
+    );
+    await expect.element(screen.getByText('Laporan pertamamu sedang menunggu periode pertama')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Ekspor laporan/ }).elements()).toHaveLength(0);
+  });
+
   it('opens the latest final report on the first render without a fetch', async () => {
     fake.viewReport.mockReset();
     const { screen } = await renderApp(

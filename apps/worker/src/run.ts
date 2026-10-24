@@ -8,6 +8,7 @@ import type { DestinationStream } from 'pino';
 import { HEARTBEAT, heartbeatKey, isHealthy, type HeartbeatSettings } from './heartbeat.ts';
 import { createLogger } from './logger.ts';
 import type { ConnectOptions } from './platform.ts';
+import { createChromiumRenderer } from './processors/report-export.ts';
 import { startWorker, type Broker, type Runtime } from './runtime.ts';
 import { openWorkerDb } from './worker-db.ts';
 
@@ -113,7 +114,7 @@ async function work(
       logger.error({ err: error }, 'redis connection error');
     },
   });
-  const database = openWorkerDb(config.db.workerUrl, keyring);
+  const database = openWorkerDb(config.db.workerUrl, keyring, { s3: config.s3 });
   // SMTP of the setup wizard when saved (looked up per email), else SMTP_URL/MAIL_FROM.
   const mailer = createInstanceMailer({ env: config.mail, smtp: database.smtp, send: sendWith });
   const closeConnections = async () => {
@@ -127,6 +128,8 @@ async function work(
     db: database.db,
     mailer,
     publicUrl: config.publicUrl,
+    // Chromium is resolved and launched per PDF, never at startup, so a host without a browser starts fine.
+    render: createChromiumRenderer(),
     // Every adapter checks the egress allowlist before a request.
     market: { adapters: createMarketAdapters(), cmcApiKey: config.market.cmcApiKey },
     logger,

@@ -16,6 +16,7 @@ const COLUMNS = {
   dashboardLayout: userPreferences.dashboardLayout,
   tablePrefs: userPreferences.tablePrefs,
   ccPaymentPriority: userPreferences.ccPaymentPriority,
+  reportAutoSend: userPreferences.reportAutoSend,
   extraCurrencies: userPreferences.extraCurrencies,
 };
 
@@ -35,6 +36,7 @@ export const DEFAULT_PREFERENCES: Preferences = Object.freeze({
   dashboardLayout: {},
   tablePrefs: {},
   ccPaymentPriority: [],
+  reportAutoSend: false,
   extraCurrencies: [],
 });
 

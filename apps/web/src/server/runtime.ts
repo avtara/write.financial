@@ -36,6 +36,7 @@ import { createOnboarding, type OnboardingRepository } from '@wf/db/onboarding';
 import { createProfiles, type ProfilesRepository } from '@wf/db/profiles';
 import { createRecentItems, type RecentItemsRepository } from '@wf/db/recent-items';
 import { createReceivables, type ReceivablesRepository } from '@wf/db/receivables';
+import { createReportFiles, type ReportFilesRepository } from '@wf/db/report-files';
 import { createReports, type ReportsRepository } from '@wf/db/reports';
 import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
 import { createImportReview, type ImportReviewRepository } from '@wf/db/import-review';
@@ -58,6 +59,7 @@ import { pino, type Logger } from 'pino';
 import { createInstanceStore, type InstanceStore } from './instance-store.ts';
 import { createLogger } from './logger.ts';
 import { createQueueBoard, type QueueBoard } from './queue-board.ts';
+import { createReportExportQueue, type ReportExportQueue } from './report-queue.ts';
 
 export interface LocaleStore {
   locale?: Locale;
@@ -112,6 +114,8 @@ export interface Services extends BaseRuntime {
   readonly attachmentStore: ObjectStore;
   /** Uploaded account logos (FR-R1), in the avatars bucket (encrypted per user). */
   readonly logoStore: ObjectStore;
+  /** Stored report exports ("Laporan tersimpan", FR-LP4), in the reports bucket (encrypted per user). */
+  readonly reportFiles: ReportFilesRepository;
   /** Review queue, notifications, recurrences, and subscriptions (M3), on `wf_app`. */
   readonly review: ReviewRepository;
   /** Statement import (FR-L9): turns the browser's parsed rows into review items, on `wf_app`. */
@@ -142,6 +146,8 @@ export interface Services extends BaseRuntime {
   /** Quote adapters (egress-allowlisted) for "Tes koneksi" and "Sinkronkan harga" with the user's key. */
   readonly marketAdapters: MarketAdapters;
   readonly mailer: Mailer;
+  /** BullMQ producer for `report-export` (FR-LP4): the web asks the worker to render a stored report. */
+  readonly reportExportQueue: ReportExportQueue;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
   readonly invite: (inviter: Inviter, input: InviteInput) => Promise<Invitation>;
@@ -193,6 +199,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     preferences: createPreferences(appDb),
     attachmentStore: createObjectStore({ s3: config.s3, bucket: 'attachments', getDek }),
     logoStore: createObjectStore({ s3: config.s3, bucket: 'avatars', getDek }),
+    reportFiles: createReportFiles(appDb, createObjectStore({ s3: config.s3, bucket: 'reports', getDek })),
     review: createReview(appDb, { getDek, now }),
     importReview: createImportReview(appDb, { getDek }),
     notifications: createNotifications(appDb, { now }),
@@ -210,6 +217,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     marketJobs: createMarketJobs(appDb, { getDek }),
     marketAdapters: createMarketAdapters(),
     mailer,
+    reportExportQueue: createReportExportQueue({ redis: config.redis.url, logger }),
     sendWith,
     invite: createInviter({
       invitations: createInvitations(appDb),

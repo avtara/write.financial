@@ -8,15 +8,19 @@
  * when nothing has been saved yet.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReportFileMeta } from '@wf/db/report-files';
 import type { ReportSummary, ReportView } from '@wf/db/reports';
 import type { LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { formatDateTime } from '@wf/i18n/format';
+import { Download } from 'lucide-react';
 import { PageState } from '@wf/ui/page-state';
 import { shortRange } from '../dashboard/dashboard-format.ts';
 import { PageHeader } from '../page-header.tsx';
+import { Button } from '../form.tsx';
 import { RichMessage } from '../rich-message.tsx';
+import { listReportFiles } from '../../server/fn/report-export.ts';
 import { viewReport } from '../../server/fn/reports.ts';
 import { FlowSection } from './reports-flow.tsx';
 import { GoalsSection } from './reports-goals.tsx';
@@ -24,6 +28,7 @@ import { LargestSection } from './reports-largest.tsx';
 import { monthlyOptions, neutralLabel, requestOf, selectionLabel, type ReportSelection } from './reports-model.ts';
 import { NetWorthSection } from './reports-networth.tsx';
 import { ReportsPicker } from './reports-picker.tsx';
+import { ReportsExportDialog } from './reports-export.tsx';
 import { SavedSection } from './reports-saved.tsx';
 import { ReportsKpis } from './reports-kpis.tsx';
 import { ImmutabilityBanner, ReportsEmpty, ReportsError, StatusBadge } from './reports-states.tsx';
@@ -56,7 +61,22 @@ export function ReportsPage({ reports, latestFinal, today, timeZone, locale }: R
   const [view, setView] = useState<ReportView | null>(latestFinal);
   const [phase, setPhase] = useState<'idle' | 'recalculating' | 'error'>('idle');
   const [failedLabel, setFailedLabel] = useState('');
+  const [exporting, setExporting] = useState(false);
+  /** The stored export files ("Laporan tersimpan"'s downloads), `null` until the first fetch answered. */
+  const [files, setFiles] = useState<ReportFileMeta[] | null>(null);
   const pending = useRef(0);
+
+  /** The saved files list, fetched on mount and after every queued export. */
+  const reloadFiles = () => {
+    void listReportFiles({ data: {} })
+      .then((result) => {
+        if (result.ok) setFiles(result.value);
+      })
+      .catch(() => undefined);
+  };
+  useEffect(() => {
+    reloadFiles();
+  }, []);
 
   const load = async (next: ReportSelection) => {
     const nextRequest = requestOf(next);
@@ -139,8 +159,25 @@ export function ReportsPage({ reports, latestFinal, today, timeZone, locale }: R
         breadcrumb={[m.breadcrumb_finance(), m.reports_title()]}
         title={m.reports_title()}
         description={header}
-        actions={recalc ? <PageState kind="refreshing" title={m.reports_recalculating()} /> : undefined}
+        actions={
+          recalc ? (
+            <PageState kind="refreshing" title={m.reports_recalculating()} />
+          ) : view === null ? undefined : (
+            <Button
+              size="sm"
+              onClick={() => {
+                setExporting(true);
+              }}
+            >
+              <Download aria-hidden="true" className="size-3.5" />
+              {m.report_export_title()}
+            </Button>
+          )
+        }
       />
+      {exporting && view !== null ? (
+        <ReportsExportDialog view={view} locale={locale} onOpenChange={setExporting} onExported={reloadFiles} />
+      ) : null}
       {view === null ? null : view.status === 'final' ? <ImmutabilityBanner /> : null}
       {empty ? (
         <ReportsEmpty today={today} locale={locale} />
@@ -178,6 +215,8 @@ export function ReportsPage({ reports, latestFinal, today, timeZone, locale }: R
                 selectable={selectable}
                 locale={locale}
                 today={today}
+                timeZone={timeZone}
+                files={files}
                 onSelect={(next) => void load(next)}
               />
             </div>

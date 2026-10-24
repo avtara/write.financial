@@ -60,7 +60,8 @@
     "./market-jobs": "./src/market-jobs.ts",
     "./portfolio-snapshots": "./src/portfolio-snapshots.ts",
     "./goal-snapshots": "./src/goal-snapshots.ts",
-    "./reports": "./src/reports.ts"
+    "./reports": "./src/reports.ts",
+    "./report-files": "./src/report-files.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

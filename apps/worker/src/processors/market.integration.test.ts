@@ -20,7 +20,7 @@ import type { MarketAdapters, QuoteProvider } from '@wf/integrations/market/adap
 import type { AdapterFailure, FetchQuotesInput, MarketAdapter } from '@wf/integrations/market/http';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fakeAdapters, fakeDeps, fakeMailer } from '../../test/fakes.ts';
+import { FAKE_S3, fakeAdapters, fakeDeps, fakeMailer } from '../../test/fakes.ts';
 import { PROCESSORS, type ProcessorDeps } from '../processors.ts';
 import { openWorkerDb, type WorkerDbConnection } from '../worker-db.ts';
 
@@ -136,7 +136,7 @@ describe('market-server (wf_worker → market_quotes)', () => {
   it('prices the union of every user’s crypto once per currency, idempotently across a restart', async () => {
     const inputs: FetchQuotesInput[] = [];
     const run = async (adapter: MarketAdapter, at = NOW) => {
-      const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring);
+      const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring, { s3: FAKE_S3 });
       try {
         return await PROCESSORS['market-server'].create(depsOf(connection, { coinmarketcap: adapter }, at))({
           id: 'mks',
@@ -175,7 +175,7 @@ describe('market-server (wf_worker → market_quotes)', () => {
 
 describe('market-byok (the user’s own key → that user’s user_quotes)', () => {
   it('is dispatched for users with a key only, prices only their symbols, and stays theirs', async () => {
-    const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring);
+    const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring, { s3: FAKE_S3 });
     try {
       const inputs: FetchQuotesInput[] = [];
       const deps = depsOf(connection, { eodhd: answering('eodhd', '8750', inputs) });
@@ -218,7 +218,7 @@ describe('market-byok (the user’s own key → that user’s user_quotes)', () 
       expect((await createMarketData(app).apiLog(budi)).filter((entry) => entry.own)).toEqual([]);
 
       // The same slot again (a retry, a restart): asked just now, so nothing is due and nothing is added.
-      const restarted = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring);
+      const restarted = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring, { s3: FAKE_S3 });
       try {
         expect(
           await PROCESSORS['market-byok'].create(depsOf(restarted, { eodhd: answering('eodhd', '8750', inputs) }))({
@@ -238,7 +238,7 @@ describe('market-byok (the user’s own key → that user’s user_quotes)', () 
   });
 
   it('pauses the key after a 429 until Retry-After and keeps the last prices', async () => {
-    const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring);
+    const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring, { s3: FAKE_S3 });
     try {
       const inputs: FetchQuotesInput[] = [];
       // 14.35 WIB: the 14.30 refresh is due.
@@ -265,7 +265,7 @@ describe('market-byok (the user’s own key → that user’s user_quotes)', () 
 
 describe('snapshots', () => {
   it('records one row per user and local date, also when run again', async () => {
-    const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring);
+    const connection = openWorkerDb(urlAs(ROLES.worker, PASSWORDS.worker), keyring, { s3: FAKE_S3 });
     try {
       const snapshots = PROCESSORS.snapshots.create(depsOf(connection, {}, new Date('2026-10-15T16:55:00Z')));
       expect(await snapshots({ id: 's', data: { userId: ayu }, attemptsMade: 0 })).toEqual({

@@ -37,6 +37,7 @@ import { Route as AppSettingsSectionRouteImport } from './../routes/_app/setting
 import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$.ts';
 import { Route as ApiAccountLogoIdRouteImport } from './../routes/api/account-logo.$id.ts';
 import { Route as ApiAuthSplatRouteImport } from './../routes/api/auth/$.ts';
+import { Route as ApiReportsFileIdRouteImport } from './../routes/api/reports.$fileId.ts';
 import { Route as ApiSubscriptionLogoIdRouteImport } from './../routes/api/subscription-logo.$id.ts';
 import { Route as ApiTransactionsIdAttachmentsAttachmentIdRouteImport } from './../routes/api/transactions.$id.attachments.$attachmentId.ts';
 
@@ -178,6 +179,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ApiReportsFileIdRoute = ApiReportsFileIdRouteImport.update({
+  id: '/api/reports/$fileId',
+  path: '/api/reports/$fileId',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ApiSubscriptionLogoIdRoute = ApiSubscriptionLogoIdRouteImport.update({
   id: '/api/subscription-logo/$id',
   path: '/api/subscription-logo/$id',
@@ -217,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
@@ -247,6 +254,7 @@ export interface FileRoutesByTo {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
@@ -280,6 +288,7 @@ export interface FileRoutesById {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
@@ -312,6 +321,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesByTo: FileRoutesByTo;
@@ -342,6 +352,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
   id:
@@ -374,6 +385,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesById: FileRoutesById;
@@ -388,6 +400,7 @@ export interface RootRouteChildren {
   OnboardingStepRoute: typeof OnboardingStepRoute;
   ApiAccountLogoIdRoute: typeof ApiAccountLogoIdRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
+  ApiReportsFileIdRoute: typeof ApiReportsFileIdRoute;
   ApiSubscriptionLogoIdRoute: typeof ApiSubscriptionLogoIdRoute;
   ApiTransactionsIdAttachmentsAttachmentIdRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
@@ -590,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/api/reports/$fileId': {
+      id: '/api/reports/$fileId';
+      path: '/api/reports/$fileId';
+      fullPath: '/api/reports/$fileId';
+      preLoaderRoute: typeof ApiReportsFileIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/api/subscription-logo/$id': {
       id: '/api/subscription-logo/$id';
       path: '/api/subscription-logo/$id';
@@ -681,6 +701,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingStepRoute: OnboardingStepRoute,
   ApiAccountLogoIdRoute: ApiAccountLogoIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiReportsFileIdRoute: ApiReportsFileIdRoute,
   ApiSubscriptionLogoIdRoute: ApiSubscriptionLogoIdRoute,
   ApiTransactionsIdAttachmentsAttachmentIdRoute:
     ApiTransactionsIdAttachmentsAttachmentIdRoute,

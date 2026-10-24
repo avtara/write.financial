@@ -61,6 +61,16 @@ export type EmailTemplate =
       readonly params: Readonly<Record<string, unknown>>;
       /** The notification's page. */
       readonly url: string;
+    }
+  /**
+   * FR-LP4 "Kirim otomatis": a stored report export (PDF) is attached to this message. The body names only the
+   * report's label — the figures are in the attachment, and the email itself carries no financial data.
+   */
+  | {
+      readonly kind: 'report_export';
+      /** The report's label ("September 2026", "2026-Q3"). */
+      readonly label: string;
+      readonly url: string;
     };
 
 export interface EmailContext {
@@ -194,6 +204,13 @@ function content(template: EmailTemplate, { locale, instanceName }: EmailContext
         hint: m.email_notification_hint({}, o),
       };
     }
+    case 'report_export':
+      return {
+        subject: m.email_report_subject({ label: template.label }, o),
+        paragraphs: [m.email_report_body({ label: template.label }, o), m.email_report_note({}, o)],
+        action: { label: m.email_report_action({}, o), url: template.url },
+        hint: m.email_ignore_hint({}, o),
+      };
   }
 }
 

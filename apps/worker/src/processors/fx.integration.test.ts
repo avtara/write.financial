@@ -17,6 +17,7 @@ import type { FxProvider, FxQuery } from '@wf/integrations/fx/provider';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fakeDeps } from '../../test/fakes.ts';
+import { FAKE_S3 } from '../../test/fakes.ts';
 import { openWorkerDb, type WorkerDbConnection } from '../worker-db.ts';
 import { createFxProcessor } from './fx.ts';
 
@@ -57,6 +58,7 @@ beforeAll(async () => {
   worker = openWorkerDb(
     urlAs(ROLES.worker, PASSWORDS.worker),
     parseKeyring(`v1:${randomBytes(32).toString('base64')}\n`),
+    { s3: FAKE_S3 },
   );
 });
 

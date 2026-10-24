@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { Config } from '@wf/config';
 import type { Keyring } from '@wf/crypto/keyring';
 import { createBalanceChecks, type BalanceChecks } from '@wf/db/balance-checks';
 import { createBudgetAlerts, type BudgetAlerts } from '@wf/db/budget-alerts';
@@ -17,8 +18,11 @@ import { createPeriodClose, type PeriodClose } from '@wf/db/period-close';
 import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
 import { createPortfolioSnapshots, type PortfolioSnapshots } from '@wf/db/portfolio-snapshots';
 import { createGoalSnapshots, type GoalSnapshots } from '@wf/db/goal-snapshots';
-import { createReports, type ReportsRepository } from '@wf/db/reports';
+import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
+import { createReportFiles, type ReportFilesRepository } from '@wf/db/report-files';
+import { createReports, type ReportsRepository, type ReportView } from '@wf/db/reports';
 import { createUserKeys } from '@wf/db/user-keys';
+import { createObjectStore } from '@wf/integrations/objectstore';
 import { instanceSmtp, type SmtpConnection } from '@wf/integrations/instance-mailer';
 
 /**
@@ -69,7 +73,13 @@ export interface WorkerDb {
   readonly reports: {
     readonly pendingMonthly: ReportsRepository['pendingMonthly'];
     readonly generate: (...args: Parameters<ReportsRepository['generate']>) => Promise<{ readonly id: string }>;
+    /** The full stored view for the export processor (in-process only; job payloads keep ids). */
+    readonly get: (userId: string, id: string) => Promise<ReportView>;
   };
+  /** FR-LP4: stores export bytes in the `reports` bucket and the meta row; resolves the email recipient. */
+  readonly reportFiles: Pick<ReportFilesRepository, 'save' | 'recipient'>;
+  /** The auto-send opt-in (FR-LP4) and nothing else of the preferences. */
+  readonly preferences: Pick<PreferencesRepository, 'get'>;
 }
 
 export interface WorkerDbConnection {
@@ -83,13 +93,15 @@ export interface WorkerDbConnection {
 export interface WorkerDbOptions {
   /** Clock of `periods.lock` (tests); the other repositories take the job's clock per call. */
   readonly now?: () => Date;
+  /** The S3 settings (the `reports` bucket) for the encrypted report export files (FR-LP4). */
+  readonly s3: Config['s3'];
 }
 
 /**
  * Opens a lazily connecting pool as `wf_worker` (`DATABASE_URL_WORKER`). The keyring unwraps users' DEKs (review item
  * payloads and market keys are encrypted) and the instance DEK (SMTP password).
  */
-export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOptions = {}): WorkerDbConnection {
+export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOptions): WorkerDbConnection {
   const database = createDb(url, { max: 4 });
   const { getOrCreateDek: getDek } = createUserKeys(database, keyring);
   const { currenciesInUse, upsertGlobal } = createFxRates(database);
@@ -102,8 +114,14 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { check: checkBalances } = createBalanceChecks(database);
   const { detect } = createDetectRecurring(database);
   const { get, markSent, markFailed } = createOutbox(database);
-  const { generate: generateReport, pendingMonthly } = createReports(database);
+  const { generate: generateReport, pendingMonthly, get: getReport } = createReports(database);
   const { record: recordGoals } = createGoalSnapshots(database);
+  // The export files are encrypted with the owner's DEK before they leave for object storage (PRD §9.1).
+  const { save: saveReportFile, recipient: reportRecipient } = createReportFiles(
+    database,
+    createObjectStore({ s3: options.s3, bucket: 'reports', getDek }),
+  );
+  const { get: getPreferences } = createPreferences(database);
   const { get: settings, smtpPassword } = createInstanceSettings(database, keyring);
   const { recordServerQuotes, recordUserQuotes, logRequest } = createMarketData(database);
   const { list: listKeys, setStatus } = createMarketCredentials(database, { getDek });
@@ -146,7 +164,9 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
       }),
       portfolioSnapshots: Object.freeze({ record: recordSnapshot }),
       goalSnapshots: Object.freeze({ record: recordGoals }),
-      reports: Object.freeze({ generate: generateReport, pendingMonthly }),
+      reports: Object.freeze({ generate: generateReport, pendingMonthly, get: getReport }),
+      reportFiles: Object.freeze({ save: saveReportFile, recipient: reportRecipient }),
+      preferences: Object.freeze({ get: getPreferences }),
     }),
     smtp: instanceSmtp({ get: settings, smtpPassword }),
     close: () => database.$client.end(),

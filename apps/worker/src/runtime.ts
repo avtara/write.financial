@@ -30,6 +30,8 @@ export interface RuntimeDeps {
   readonly mailer: Mailer;
   /** `PUBLIC_URL`, for links in emails. */
   readonly publicUrl: string;
+  /** Prints the self-contained report HTML into PDF bytes (`report-export`). */
+  readonly render: ProcessorDeps['render'];
   /** Market quote adapters and the operator's CoinMarketCap key. */
   readonly market: ProcessorDeps['market'];
   readonly logger: Logger;
@@ -50,6 +52,7 @@ export async function startWorker({
   db,
   mailer,
   publicUrl,
+  render,
   market,
   logger,
   now,
@@ -67,7 +70,7 @@ export async function startWorker({
 
   const workers = QUEUES.map((name) => {
     const { concurrency, create } = PROCESSORS[name];
-    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl, market });
+    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl, render, market });
     const run: Processor = async (job) => {
       const log = logger.child({ queue: name, jobId: job.id, attempt: job.attemptsMade + 1 });
       log.info('job started');

@@ -62,6 +62,8 @@ describe('createServices', () => {
     expect(created.receivables.list).toBeTypeOf('function');
     expect(created.investments.portfolio).toBeTypeOf('function');
     expect(created.marketData.benchmarks).toBeTypeOf('function');
+    expect(created.reportFiles.list).toBeTypeOf('function');
+    expect(created.reportExportQueue.enqueue).toBeTypeOf('function');
   });
 
   it('logs Valkey connection errors', async () => {

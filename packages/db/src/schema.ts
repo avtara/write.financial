@@ -19,6 +19,7 @@ import type { GoalValuation } from '@wf/domain/goals';
 import { DEBT_KINDS, INTEREST_METHODS, RECALC_MODES } from '@wf/domain/debt';
 import { RECEIVABLE_SOURCES, RECEIVABLE_STATUSES } from '@wf/domain/receivables';
 import { REPORT_KINDS, REPORT_STATUSES } from '@wf/domain/report';
+import type { ReportExportOptions, ReportFormat } from '@wf/domain/report';
 import { ASSET_CLASSES, DIVIDEND_MODES, PRICE_MODES, TRADE_KINDS, TRADE_STATUSES } from '@wf/domain/investments';
 import { CREDENTIAL_STATUSES, MARKET_PROVIDERS, MARKETS } from '@wf/domain/market';
 import { LOCALES } from '@wf/i18n/locale';
@@ -230,10 +231,11 @@ export const userPreferences = pgTable(
     tablePrefs: jsonb('table_prefs').$type<JsonObject>().notNull().default({}),
     /** FR-U4 card payment buckets in allocation order (`installments`, `spending`); overpayment is always last. */
     ccPaymentPriority: jsonb('cc_payment_priority').$type<readonly string[]>().notNull().default([]),
-    /**
+    /** FR-LP4 "Kirim otomatis tiap tanggal 1": the newest final monthly report is emailed as a PDF when it appears. */
+    reportAutoSend: boolean('report_auto_send').notNull().default(false) /**
      * FR-ST1 "Mata uang tambahan" (onboarding step 1): currencies besides the base one the user wants rates for,
      * even before an account uses them. ISO 4217 codes, at most 20.
-     */
+     */,
     extraCurrencies: char('extra_currencies', { length: 3 })
       .array()
       .notNull()
@@ -2455,5 +2457,41 @@ export const reports = pgTable(
       'reports_compare_check',
       sql`(${table.compareStart} is null) = (${table.compareEnd} is null) and (${table.compareStart} is null or ${table.compareStart} <= ${table.compareEnd})`,
     ),
+  ],
+);
+
+/**
+ * FR-LP4 / plan §4.6: one exported file of a report (PDF, XLSX, or CSV). The bytes are encrypted with the owner's DEK
+ * in object storage (`reports` bucket, `u/{userId}/{uuidv7}`); the row keeps only the key and the export options, so
+ * the saved list ("Laporan tersimpan") can re-download without regenerating. Re-exporting the same report and format
+ * adds another row; deleting the report deletes its files.
+ */
+export const reportFiles = pgTable(
+  'report_files',
+  {
+    id: uuid('id')
+      .notNull()
+      .default(sql`uuidv7()`),
+    userId: ownerId(),
+    reportId: uuid('report_id').notNull(),
+    format: text('format').$type<ReportFormat>().notNull(),
+    /** What the export dialog chose (design yLlRY): sections, theme, paper, account masking. */
+    options: jsonb('options').$type<ReportExportOptions>().notNull(),
+    /** The object-storage key the bytes were stored under. */
+    fileKey: text('file_key').notNull(),
+    /** Plaintext size in bytes (what the saved list shows as "1,2 MB"). */
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ name: 'report_files_pkey', columns: [table.userId, table.id] }),
+    index('report_files_user_id_created_at_idx').on(table.userId, table.createdAt.desc()),
+    foreignKey({
+      name: 'report_files_report_fk',
+      columns: [table.userId, table.reportId],
+      foreignColumns: [reports.userId, reports.id],
+    }).onDelete('cascade'),
+    check('report_files_format_check', sql`${table.format} in ('pdf', 'xlsx', 'csv')`),
+    check('report_files_size_check', sql`${table.sizeBytes} >= 0`),
   ],
 );
