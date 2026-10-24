@@ -278,9 +278,10 @@ beforeAll(async () => {
           sections: {},
         })
         .returning({ id: reports.id });
+      if (storedReport === undefined) throw new Error('the seeded report row is missing');
       await tx.insert(reportFiles).values({
         userId,
-        reportId: storedReport!.id,
+        reportId: storedReport.id,
         format: 'csv',
         options: { sections: ['summary'], theme: 'light', paper: 'a4', maskAccountNumbers: false },
         fileKey: `u/${userId}/00000000-0000-7000-8000-00000000000a`,
