@@ -81,10 +81,10 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M6 — Reports, export, import
 
-- [ ] Final monthly reports + quarterly/yearly/custom
-- [ ] PDF/Excel/CSV export, CSV/XLSX import
-- [ ] Full data export + account deletion
-- [ ] M6 unit tests: 100% per-file coverage gate green
+- [x] Final monthly reports + quarterly/yearly/custom
+- [x] PDF/Excel/CSV export, CSV/XLSX import
+- [x] Full data export + account deletion
+- [x] M6 unit tests: 100% per-file coverage gate green
 
 ## M7 — Automation & AI
 
