@@ -42,6 +42,7 @@ import { cases as setupCases } from '../../../test/isolation/cases/setup.ts';
 import { cases as tagsCases } from '../../../test/isolation/cases/tags.ts';
 import { cases as transactionsCases } from '../../../test/isolation/cases/transactions.ts';
 import { cases as transactionsWriteCases } from '../../../test/isolation/cases/transactions-write.ts';
+import { cases as dataCases } from '../../../test/isolation/cases/data.ts';
 import {
   aIdentifiers,
   as,
@@ -105,6 +106,8 @@ const MATRIX: Record<Name, Case> = {
   ...reportsCases,
   ...importCases,
   ...reportExportCases,
+  // Last: the deletion request here is cancelled again by its own case.
+  ...dataCases,
 };
 
 /**

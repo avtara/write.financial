@@ -7,6 +7,7 @@ import {
   fakeBroker,
   fakeDb,
   fakeMailer,
+  fakePurgePort,
   type FakeBroker,
   type LogCapture,
 } from '../test/fakes.ts';
@@ -39,6 +40,7 @@ const start = (db: WorkerDb = fakeDb()): Promise<Runtime> =>
     publicUrl: 'https://uang.example/',
     render: async () => Promise.resolve(new Uint8Array()),
     market: { adapters: fakeAdapters(), cmcApiKey: null },
+    objects: { attachments: fakePurgePort(), avatars: fakePurgePort() },
     logger: createLogger('info', log),
     now: Date.now,
     heartbeat: { key: KEY, intervalMs: 1_000, maxAgeMs: 4_000 },
@@ -49,13 +51,14 @@ describe('startWorker', () => {
     const runtime = await start();
     expect([...broker.queues.keys()]).toEqual(Object.keys(JOBS));
     expect([...(broker.queues.get('maintenance')?.schedulers.keys() ?? [])]).toEqual(['maintenance-daily']);
+    expect([...(broker.queues.get('account-deletion')?.schedulers.keys() ?? [])]).toEqual(['account-deletion-daily']);
     expect([...(broker.queues.get('fx')?.schedulers.keys() ?? [])]).toEqual(['fx-daily', 'fx-retry']);
     expect([...(broker.queues.get('dispatch')?.schedulers.keys() ?? [])]).toEqual(['dispatch-minute']);
     expect(broker.workers.get('maintenance')?.concurrency).toBe(1);
     expect(broker.workers.get('fx')?.concurrency).toBe(1);
     expect(broker.store.entries.get(KEY)?.value).toBe(String(NOW));
-    expect(log.messages()).toEqual([...Array<string>(6).fill('job scheduler registered'), 'worker started']);
-    expect(log.lines[6]).toMatchObject({ queues: Object.keys(JOBS) });
+    expect(log.messages()).toEqual([...Array<string>(7).fill('job scheduler registered'), 'worker started']);
+    expect(log.lines[7]).toMatchObject({ queues: Object.keys(JOBS) });
     await runtime.stop();
   });
 

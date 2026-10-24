@@ -10,6 +10,7 @@ const DAY = parseLocalDate('2026-10-18');
 describe('JOBS', () => {
   it('lists only the queues that have a processor', () => {
     expect(Object.keys(JOBS)).toEqual([
+      'account-deletion',
       'maintenance',
       'fx',
       'dispatch',

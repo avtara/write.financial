@@ -54,6 +54,13 @@ const userJob = z.strictObject({ userId: z.uuid() });
  * principles); the schemas are strict, so an unknown key is rejected rather than silently stored in Redis.
  */
 export const JOBS = {
+  /**
+   * The daily account-deletion run (plan §6 `account-deletion`, FR-A11): with no `userId` the processor scans for
+   * users whose 7-day grace period has passed and deletes each; with one it deletes just that user (the retry of a
+   * failed scan). Deleting is the worker's SECURITY DEFINER function's decision either way, so an early call is a
+   * harmless no-op.
+   */
+  'account-deletion': z.strictObject({ userId: z.uuid().optional() }),
   /** Daily purge of expired auth rows and of notifications older than 90 days (plan §6 `maintenance`). */
   maintenance: z.strictObject({}),
   /**
@@ -153,6 +160,8 @@ export const jobIds = {
   'market-byok': (userId: string, at: Date) =>
     `mkb.${userId}.${minuteOf(new Date(Math.floor(at.getTime() / 300_000) * 300_000))}` as JobId<'market-byok'>,
   snapshots: (userId: string, date: LocalDate) => `snap.${userId}.${date}` as JobId<'snapshots'>,
+  /** One deletion per user (`del.{userId}`); a second run finds no user and does nothing. */
+  'account-deletion': (userId: string) => `del.${userId}` as JobId<'account-deletion'>,
 } as const satisfies { readonly [Q in JobQueue]: (...args: never[]) => JobId<Q> };
 
 /** Redis key prefix of every queue. */

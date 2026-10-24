@@ -30,6 +30,7 @@ const ENV = {
 };
 
 const QUEUES = [
+  'account-deletion',
   'maintenance',
   'fx',
   'dispatch',
@@ -137,12 +138,12 @@ describe('worker', () => {
     signals.emit(signal);
     expect(await exit).toBe(0);
     expect(log.messages()).toEqual([
-      ...Array<string>(6).fill('job scheduler registered'),
+      ...Array<string>(7).fill('job scheduler registered'),
       'worker started',
       'shutting down',
       'worker stopped',
     ]);
-    expect(log.lines[7]).toMatchObject({ signal });
+    expect(log.lines[8]).toMatchObject({ signal });
     expect(broker.closed).toEqual([
       ...QUEUES.map((queue) => `worker:${queue}`),
       ...QUEUES.map((queue) => `queue:${queue}`),

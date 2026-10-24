@@ -30,6 +30,14 @@ type Schedule = {
 /** Plan §6 triggers with a fixed time. Scheduled jobs get BullMQ ids `repeat:{id}:{time}`: one job per slot. */
 export const SCHEDULES: readonly Schedule[] = [
   { id: 'maintenance-daily', queue: 'maintenance', pattern: '30 3 * * *', tz: 'Asia/Jakarta', data: {} },
+  // A little later than maintenance, so a leaving user's expired rows are purged before their ledger goes.
+  {
+    id: 'account-deletion-daily',
+    queue: 'account-deletion',
+    pattern: '40 3 * * *',
+    tz: 'Asia/Jakarta',
+    data: {},
+  },
   // After BI publishes its transaction rates, and a morning retry for a day the afternoon run missed (plan §6 `fx`).
   { id: 'fx-daily', queue: 'fx', pattern: '0 17 * * *', tz: 'Asia/Jakarta', data: {} },
   { id: 'fx-retry', queue: 'fx', pattern: '0 8 * * *', tz: 'Asia/Jakarta', data: {} },

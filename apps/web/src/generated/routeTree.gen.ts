@@ -37,6 +37,7 @@ import { Route as AppSettingsSectionRouteImport } from './../routes/_app/setting
 import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$.ts';
 import { Route as ApiAccountLogoIdRouteImport } from './../routes/api/account-logo.$id.ts';
 import { Route as ApiAuthSplatRouteImport } from './../routes/api/auth/$.ts';
+import { Route as ApiDataExportRouteImport } from './../routes/api/data.export.ts';
 import { Route as ApiReportsFileIdRouteImport } from './../routes/api/reports.$fileId.ts';
 import { Route as ApiSubscriptionLogoIdRouteImport } from './../routes/api/subscription-logo.$id.ts';
 import { Route as ApiTransactionsIdAttachmentsAttachmentIdRouteImport } from './../routes/api/transactions.$id.attachments.$attachmentId.ts';
@@ -179,6 +180,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ApiDataExportRoute = ApiDataExportRouteImport.update({
+  id: '/api/data/export',
+  path: '/api/data/export',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ApiReportsFileIdRoute = ApiReportsFileIdRouteImport.update({
   id: '/api/reports/$fileId',
   path: '/api/reports/$fileId',
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/data/export': typeof ApiDataExportRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -254,6 +261,7 @@ export interface FileRoutesByTo {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/data/export': typeof ApiDataExportRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -288,6 +296,7 @@ export interface FileRoutesById {
   '/admin/queues/$': typeof AdminQueuesSplatRoute;
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
+  '/api/data/export': typeof ApiDataExportRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -321,6 +330,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/data/export'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
@@ -352,6 +362,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/data/export'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/admin/queues/$'
     | '/api/account-logo/$id'
     | '/api/auth/$'
+    | '/api/data/export'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
@@ -400,6 +412,7 @@ export interface RootRouteChildren {
   OnboardingStepRoute: typeof OnboardingStepRoute;
   ApiAccountLogoIdRoute: typeof ApiAccountLogoIdRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
+  ApiDataExportRoute: typeof ApiDataExportRoute;
   ApiReportsFileIdRoute: typeof ApiReportsFileIdRoute;
   ApiSubscriptionLogoIdRoute: typeof ApiSubscriptionLogoIdRoute;
   ApiTransactionsIdAttachmentsAttachmentIdRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -603,6 +616,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/api/data/export': {
+      id: '/api/data/export';
+      path: '/api/data/export';
+      fullPath: '/api/data/export';
+      preLoaderRoute: typeof ApiDataExportRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/api/reports/$fileId': {
       id: '/api/reports/$fileId';
       path: '/api/reports/$fileId';
@@ -701,6 +721,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingStepRoute: OnboardingStepRoute,
   ApiAccountLogoIdRoute: ApiAccountLogoIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiDataExportRoute: ApiDataExportRoute,
   ApiReportsFileIdRoute: ApiReportsFileIdRoute,
   ApiSubscriptionLogoIdRoute: ApiSubscriptionLogoIdRoute,
   ApiTransactionsIdAttachmentsAttachmentIdRoute:

@@ -9,6 +9,7 @@ import type { ReportView } from '@wf/db/reports';
 import { DEFAULT_REPORT_EXPORT_OPTIONS } from '@wf/domain/report';
 import type { MailMessage, Mailer } from '@wf/integrations/mailer';
 import type { MarketAdapters, QuoteProvider } from '@wf/integrations/market/adapters';
+import type { ObjectPurgePort } from '../src/processors.ts';
 import type { FetchQuotesInput } from '@wf/integrations/market/http';
 import type { JobQueue } from '@wf/jobs/queues';
 import type { LocalDate } from '@wf/domain/period';
@@ -55,6 +56,18 @@ export function fakeStore(): FakeStore {
     del: async (key) => {
       entries.delete(key);
       return Promise.resolve();
+    },
+  };
+}
+
+/** An object store reduced to what the account-deletion processor uses, recording the prefixes purged. */
+export function fakePurgePort(): ObjectPurgePort & { readonly purged: string[] } {
+  const purged: string[] = [];
+  return {
+    purged,
+    deletePrefix: async (userId) => {
+      purged.push(userId);
+      return Promise.resolve(0);
     },
   };
 }
@@ -189,6 +202,10 @@ export function fakeDb(
         return Promise.resolve(counts);
       },
       purgeNotifications: method('maintenance.purgeNotifications', 5),
+    },
+    accountDeletion: {
+      due: method('accountDeletion.due', [] as string[]),
+      deleteUser: method('accountDeletion.deleteUser', true),
     },
     fxRates: {
       currenciesInUse: async () => Promise.resolve([...currenciesInUse]),
@@ -550,6 +567,7 @@ export function fakeDeps(overrides: Partial<ProcessorDeps> = {}, now = new Date(
     // A one-line PDF marker; the chromium renderer is the production port and stays out of unit tests.
     render: async (html) => Promise.resolve(new Uint8Array([0x25, 0x50, 0x44, 0x46, html.length % 256])),
     market: { adapters: fakeAdapters(), cmcApiKey: 'fake-cmc-operator-key' },
+    objects: { attachments: fakePurgePort(), avatars: fakePurgePort() },
     enqueue: async (queue, payload, { jobId }) => {
       enqueued.push({ queue, payload, jobId });
       return Promise.resolve();

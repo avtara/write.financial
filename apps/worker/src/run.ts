@@ -4,6 +4,7 @@ import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring, type Keyring } from '@wf/crypto/keyring';
 import { createInstanceMailer, sendWith } from '@wf/integrations/instance-mailer';
 import { createMarketAdapters } from '@wf/integrations/market/adapters';
+import { createObjectPurger } from '@wf/integrations/objectstore';
 import type { DestinationStream } from 'pino';
 import { HEARTBEAT, heartbeatKey, isHealthy, type HeartbeatSettings } from './heartbeat.ts';
 import { createLogger } from './logger.ts';
@@ -115,6 +116,11 @@ async function work(
     },
   });
   const database = openWorkerDb(config.db.workerUrl, keyring, { s3: config.s3 });
+  // Purging a leaving user's blobs never decrypts them, so the purger needs neither the keyring nor the database.
+  const objects = {
+    attachments: createObjectPurger({ s3: config.s3, bucket: 'attachments' }),
+    avatars: createObjectPurger({ s3: config.s3, bucket: 'avatars' }),
+  };
   // SMTP of the setup wizard when saved (looked up per email), else SMTP_URL/MAIL_FROM.
   const mailer = createInstanceMailer({ env: config.mail, smtp: database.smtp, send: sendWith });
   const closeConnections = async () => {
@@ -132,6 +138,7 @@ async function work(
     render: createChromiumRenderer(),
     // Every adapter checks the egress allowlist before a request.
     market: { adapters: createMarketAdapters(), cmcApiKey: config.market.cmcApiKey },
+    objects,
     logger,
     now,
     heartbeat,

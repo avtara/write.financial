@@ -2,8 +2,10 @@
 import { createBuiltInFxProviders } from '@wf/integrations/fx/rates';
 import type { Mailer } from '@wf/integrations/mailer';
 import type { MarketAdapters } from '@wf/integrations/market/adapters';
+import type { ObjectStore } from '@wf/integrations/objectstore';
 import type { Enqueue } from '@wf/jobs/enqueue';
 import type { JobQueue } from '@wf/jobs/queues';
+import { createAccountDeletionProcessor } from './processors/account-deletion.ts';
 import { createBalanceChecksProcessor } from './processors/balance-checks.ts';
 import { createBudgetAlertsProcessor } from './processors/budget-alerts.ts';
 import { createDetectRecurringProcessor } from './processors/detect-recurring.ts';
@@ -43,9 +45,17 @@ export interface ProcessorDeps {
   readonly render: ReportPdfRenderer;
   /** Market quote adapters (egress-allowlisted) and the operator's CoinMarketCap key (`CMC_API_KEY`, null: none). */
   readonly market: { readonly adapters: MarketAdapters; readonly cmcApiKey: string | null };
+  /**
+   * The encrypted object stores (`account-deletion` purges a leaving user's blobs from both buckets before the
+   * database deletes their rows and their DEK).
+   */
+  readonly objects: { readonly attachments: ObjectPurgePort; readonly avatars: ObjectPurgePort };
 }
 
 export type Processor = (job: ProcessorJob) => Promise<object>;
+
+/** The one store method deletion needs; keyed like `Config['s3'].buckets` uses it. */
+export type ObjectPurgePort = Pick<ObjectStore, 'deletePrefix'>;
 
 export interface ProcessorDefinition {
   /** Jobs of this queue that one worker process runs at once. */
@@ -58,6 +68,8 @@ export interface ProcessorDefinition {
  * a few at a time (each is one short transaction of one user); the instance-wide ones one at a time.
  */
 export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
+  // One deletion at a time: each is a large transaction, and they are rare.
+  'account-deletion': { concurrency: 1, create: createAccountDeletionProcessor },
   maintenance: { concurrency: 1, create: createMaintenanceProcessor },
   fx: { concurrency: 1, create: (deps) => createFxProcessor(deps, (onCall) => createBuiltInFxProviders({ onCall })) },
   dispatch: { concurrency: 1, create: createDispatchProcessor },

@@ -196,6 +196,8 @@ describe('migrate', () => {
     ).toEqual(
       [
         'fx_currencies_in_use',
+        'wf_account_delete_user',
+        'wf_due_deletions',
         'wf_due_reminders',
         'wf_maintenance_purge_auth',
         'wf_maintenance_purge_notifications',
