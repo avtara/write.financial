@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { RuleBackfillPreview, RuleBackfillProposal } from '@wf/db/rule-backfill';
 import type { LocalDate } from '@wf/domain/period';
+import { useState } from 'react';
 import { m } from '@wf/i18n/messages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -255,6 +256,57 @@ describe('RuleBackfillDialog', () => {
       page.getByRole('alertdialog').getByRole('button', { name: m.rules_backfill_apply({ count: 1 }) }),
     );
     await expect.element(page.getByText(m.rules_backfill_apply_failed())).toBeInTheDocument();
+  });
+
+  it('stops polling when unmounted', async () => {
+    const pending = Promise.withResolvers<unknown>();
+    server.requestRuleBackfill.mockReturnValueOnce(ok({ jobId: 'job' }));
+    server.getRuleBackfillResult.mockReturnValueOnce(pending.promise);
+    const result = await render();
+    await vi.waitFor(() => {
+      expect(server.getRuleBackfillResult).toHaveBeenCalledTimes(1);
+    });
+    await result.screen.unmount();
+    pending.resolve(ok({ status: 'pending' }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(server.getRuleBackfillResult).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a superseded request when the rule scope changes', async () => {
+    const oldRequest = Promise.withResolvers<unknown>();
+    server.requestRuleBackfill.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(ok({ jobId: 'new' }));
+    server.getRuleBackfillResult.mockReturnValueOnce(
+      ok({ status: 'completed', preview: preview([proposal({ description: 'Baru' })]) }),
+    );
+    function Scoped() {
+      const [scope, setScope] = useState<readonly string[]>(['r-1']);
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setScope(['r-2']);
+            }}
+          >
+            Ganti cakupan
+          </button>
+          <RuleBackfillDialog open onOpenChange={vi.fn()} ruleIds={scope} categories={CATEGORIES} accounts={ACCOUNTS} />
+        </>
+      );
+    }
+    const screen = await renderApp(<Scoped />);
+    screens.push(screen.screen);
+    // The modal makes the page behind it inert; this harness control is clicked directly.
+    const scopeSwitch = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Ganti cakupan',
+    );
+    if (scopeSwitch === undefined) throw new Error('no scope switch');
+    scopeSwitch.click();
+    await expect.element(page.getByText('Baru')).toBeInTheDocument();
+    oldRequest.resolve(ok({ jobId: 'old' }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(server.getRuleBackfillResult).toHaveBeenCalledTimes(1);
+    expect(server.getRuleBackfillResult).toHaveBeenCalledWith({ data: { jobId: 'new' } });
   });
 
   it('loads only while open and passes the editor’s rule ids', async () => {

@@ -13,7 +13,7 @@ import { m } from '@wf/i18n/messages';
 import { formatDate } from '@wf/ui/dates';
 import { ConfirmDialog } from '@wf/ui/confirm-dialog';
 import { toast } from '@wf/ui/toast';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { applyRuleBackfill, getRuleBackfillResult, requestRuleBackfill } from '../../server/fn/rules.ts';
 import { Button, FormError } from '../form.tsx';
@@ -68,8 +68,12 @@ export function RuleBackfillDialog({ open, onOpenChange, ruleIds, categories, ac
   const [confirming, setConfirming] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState<RuleBackfillResult | null>(null);
+  // Every load gets a generation; closing or changing the scope invalidates the old poll loop and its state writes.
+  const generation = useRef(0);
 
-  const load = async (reset = false) => {
+  const load = async (reset = false, signal?: AbortSignal) => {
+    const run = ++generation.current;
+    const live = () => generation.current === run && signal?.aborted !== true;
     if (reset) {
       setItems(null);
       setTotals(null);
@@ -82,6 +86,7 @@ export function RuleBackfillDialog({ open, onOpenChange, ruleIds, categories, ac
     const requested = await requestRuleBackfill({
       data: ruleIds === undefined ? {} : { ruleIds: [...ruleIds] },
     }).catch(() => null);
+    if (!live()) return;
     if (requested === null || !requested.ok) {
       setError(requested === null ? m.rules_backfill_failed() : ledgerErrorMessage(requested.code, locale));
       return;
@@ -96,7 +101,9 @@ export function RuleBackfillDialog({ open, onOpenChange, ruleIds, categories, ac
           : { ok: true, value: { status: polled.value.status } };
       },
       wait: waitForJob,
+      ...(signal === undefined ? {} : { signal }),
     });
+    if (!live() || outcome.status === 'cancelled') return;
     if (outcome.status !== 'completed') {
       setError(
         outcome.status === 'error' && outcome.code !== undefined
@@ -116,9 +123,14 @@ export function RuleBackfillDialog({ open, onOpenChange, ruleIds, categories, ac
 
   useEffect(() => {
     if (!open) return;
+    const controller = new AbortController();
     queueMicrotask(() => {
-      void load(true);
+      void load(true, controller.signal);
     });
+    return () => {
+      controller.abort();
+      generation.current += 1;
+    };
     // `load` only starts a request and sets state; it re-runs when the dialog opens or its rules change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ruleIds?.join(','), locale]);
