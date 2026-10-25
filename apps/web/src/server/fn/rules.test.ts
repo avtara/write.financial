@@ -40,16 +40,28 @@ const trial = {
 };
 
 vi.mock('@tanstack/react-start', async () => (await import('../../../test/server-fn.ts')).serverFnModule());
-vi.mock('../runtime.ts', () => ({
-  services: () => Promise.reject(new Error('the signed-out path must not load services')),
-}));
+vi.mock('../runtime.ts', () => {
+  // Any repository method reached on the signed-out path rejects, so this test fails instead of forwarding a call.
+  const untouched = new Proxy(
+    {},
+    { get: () => () => Promise.reject(new Error('the signed-out path must not touch a repository')) },
+  );
+  return {
+    services: () =>
+      Promise.resolve({
+        autoRules: untouched,
+        rulesBackfillQueue: untouched,
+        now: () => new Date('2026-10-18T09:00:00Z'),
+      }),
+  };
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('rules server functions', () => {
-  it('refuses every signed-out request before touching services', async () => {
+  it('refuses every signed-out request before touching a repository', async () => {
     const anonymous = requestContext(null);
     const calls: [unknown, unknown][] = [
       [listAutoRules, {}],
