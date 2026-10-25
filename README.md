@@ -7,7 +7,7 @@ An open-source web app for **tracking personal finances and assets**, available 
 ## Principles
 
 - **Manual entry, no bank login.** No connections to banks, brokers, or open banking.
-- **Nothing changes your financial data automatically without confirmation.** Due subscriptions, recurring contributions, AI results, Gmail emails, statement imports, and period-close proposals all land in a **Review queue** first.
+- **Nothing changes your financial data automatically without confirmation.** Due subscriptions, recurring contributions, AI results, Gmail emails, statement imports, rule-based backfills, and period-close proposals all land in a **Review queue** (or an explicit confirmation) first.
 - **Your data is yours.** Each user's financial data is isolated (Row-Level Security), secrets and files are encrypted per user, and there is no telemetry.
 - **One codebase for everyone.** No features are locked to the cloud version.
 
@@ -20,6 +20,7 @@ An open-source web app for **tracking personal finances and assets**, available 
 - **Savings goals:** goals linked to account balances and shares of investment units.
 - **Debts, installments, receivables:** credit cards, installment splits, payment priority, receivables from split bills.
 - **Investments:** multi-platform IDR/USD holdings, gains/losses, allocation vs target. Prices from free sources, your own API keys (BYOK), or manual entry.
+- **Auto rules:** your own ordered conditions (description, weekday, local time, account, direction, subscription) suggest categories and tags in new, imported, and review drafts; a current-period preview explains every condition, and past transactions change only after you select and confirm them.
 - **Reports:** PDF/Excel/CSV, CSV/XLSX statement import.
 - **Optional:** AI Assistant and receipt reading (BYOK: OpenRouter/OpenAI-compatible), reading transaction emails from Gmail.
 - **Security:** two-step verification (TOTP, passkey, backup codes), privacy mode to hide amounts.
