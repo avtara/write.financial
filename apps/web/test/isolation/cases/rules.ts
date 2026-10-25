@@ -179,7 +179,9 @@ export const cases = {
       expect(requested.ok).toBe(true);
       if (!requested.ok) throw new Error('the worker job was not queued');
       // B owns the job; A reading the same id gets a generic failure, never B's proposal data.
-      expect(await as('A', 'getRuleBackfillResult', { jobId: requested.value.jobId })).toEqual(ok({ status: 'failed' }));
+      expect(await as('A', 'getRuleBackfillResult', { jobId: requested.value.jobId })).toEqual(
+        ok({ status: 'failed' }),
+      );
       expect(await as('B', 'getRuleBackfillResult', { jobId: requested.value.jobId })).toEqual(
         ok({ status: 'pending' }),
       );
