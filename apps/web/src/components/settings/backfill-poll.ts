@@ -10,6 +10,7 @@ export type RuleBackfillPoll =
   | { readonly status: 'completed'; readonly preview: RuleBackfillPreview }
   | { readonly status: 'failed' }
   | { readonly status: 'timeout' }
+  | { readonly status: 'cancelled' }
   | { readonly status: 'error'; readonly code?: string };
 
 type Polled =
@@ -24,24 +25,29 @@ export interface RuleBackfillPollOptions {
   readonly wait: () => Promise<unknown>;
   readonly now?: () => number;
   readonly timeoutMs?: number;
+  /** Aborted when the dialog closes or its rule scope changes; no further polls then update the UI. */
+  readonly signal?: AbortSignal;
 }
 
 export async function pollRuleBackfill(
   jobId: string,
-  { get, wait, now = Date.now, timeoutMs = 30_000 }: RuleBackfillPollOptions,
+  { get, wait, now = Date.now, timeoutMs = 30_000, signal }: RuleBackfillPollOptions,
 ): Promise<RuleBackfillPoll> {
+  const isAborted = () => signal?.aborted ?? false;
   const deadline = now() + timeoutMs;
   while (now() < deadline) {
+    if (isAborted()) return { status: 'cancelled' };
     let polled: Polled;
     try {
       polled = await get(jobId);
     } catch {
       return { status: 'error' };
     }
+    if (isAborted()) return { status: 'cancelled' };
     if (!polled.ok) return { status: 'error', ...(polled.code === undefined ? {} : { code: polled.code }) };
     if (polled.value.status === 'failed') return { status: 'failed' };
     if (polled.value.status === 'completed') return { status: 'completed', preview: polled.value.preview };
     await wait();
   }
-  return { status: 'timeout' };
+  return isAborted() ? { status: 'cancelled' } : { status: 'timeout' };
 }

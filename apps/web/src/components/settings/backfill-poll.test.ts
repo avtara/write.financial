@@ -32,6 +32,58 @@ describe('pollRuleBackfill', () => {
     expect(await pollRuleBackfill('job', { get: () => Promise.resolve({ ok: false as const }), wait })).toEqual({
       status: 'error',
     });
+    expect(
+      await pollRuleBackfill('job', {
+        get: () => Promise.resolve({ ok: false as const, code: 'NOT_FOUND' }),
+        wait,
+      }),
+    ).toEqual({ status: 'error', code: 'NOT_FOUND' });
+  });
+
+  it('stops before polling, after a result, and after the interval when aborted', async () => {
+    const before = new AbortController();
+    before.abort();
+    const get = vi.fn(() => Promise.resolve(pending));
+    expect(await pollRuleBackfill('job', { get, wait, signal: before.signal })).toEqual({ status: 'cancelled' });
+    expect(get).not.toHaveBeenCalled();
+
+    const during = new AbortController();
+    expect(
+      await pollRuleBackfill('job', {
+        get: () => {
+          during.abort();
+          return Promise.resolve(pending);
+        },
+        wait,
+        signal: during.signal,
+      }),
+    ).toEqual({ status: 'cancelled' });
+
+    const afterWait = new AbortController();
+    const waits = vi.fn(() => {
+      afterWait.abort();
+      return Promise.resolve();
+    });
+    expect(await pollRuleBackfill('job', { get, wait: waits, signal: afterWait.signal })).toEqual({
+      status: 'cancelled',
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+
+    const atDeadline = new AbortController();
+    let clock = 0;
+    expect(
+      await pollRuleBackfill('job', {
+        get,
+        wait: () => {
+          clock = 100;
+          atDeadline.abort();
+          return Promise.resolve();
+        },
+        now: () => clock,
+        timeoutMs: 100,
+        signal: atDeadline.signal,
+      }),
+    ).toEqual({ status: 'cancelled' });
   });
 
   it('gives up at the deadline instead of polling forever', async () => {

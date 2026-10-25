@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { setLocale } from '@wf/i18n/runtime';
 import * as XLSX from 'xlsx';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   detectBank,
   fileSize,
@@ -17,6 +18,11 @@ import {
   TEMPLATE_CSV,
   type ColumnMapping,
 } from './import-parse.ts';
+
+// The browser runtime is shared by the file; pin the catalog this file asserts instead of inheriting another's switch.
+beforeEach(async () => {
+  await setLocale('id', { reload: false });
+});
 
 const csv = (content: string, name = 'mutasi-bca-okt-2026.csv') => new File([content], name, { type: 'text/csv' });
 
