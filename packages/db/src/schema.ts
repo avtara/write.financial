@@ -20,6 +20,7 @@ import { DEBT_KINDS, INTEREST_METHODS, RECALC_MODES } from '@wf/domain/debt';
 import { RECEIVABLE_SOURCES, RECEIVABLE_STATUSES } from '@wf/domain/receivables';
 import { REPORT_KINDS, REPORT_STATUSES } from '@wf/domain/report';
 import type { ReportExportOptions, ReportFormat } from '@wf/domain/report';
+import type { RuleAction, RuleCondition } from '@wf/domain/rules';
 import { ASSET_CLASSES, DIVIDEND_MODES, PRICE_MODES, TRADE_KINDS, TRADE_STATUSES } from '@wf/domain/investments';
 import { CREDENTIAL_STATUSES, MARKET_PROVIDERS, MARKETS } from '@wf/domain/market';
 import { LOCALES } from '@wf/i18n/locale';
@@ -2493,5 +2494,106 @@ export const reportFiles = pgTable(
     }).onDelete('cascade'),
     check('report_files_format_check', sql`${table.format} in ('pdf', 'xlsx', 'csv')`),
     check('report_files_size_check', sql`${table.sizeBytes} >= 0`),
+  ],
+);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Auto rules (M7.1, FR-AI1). Rules only suggest (D14): they never write a transaction, posting, budget, or goal.
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * A user-owned ordered rule: conditions (AND) and actions (a category and/or tags), stored as JSON arrays typed by
+ * `@wf/domain/rules`. The position is explicit, so the topmost matching rule's category is reproducible.
+ */
+export const autoRules = pgTable(
+  'auto_rules',
+  {
+    id: id(),
+    userId: ownerId(),
+    name: text('name').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    position: integer('position').notNull(),
+    conditions: jsonb('conditions').$type<readonly RuleCondition[]>().notNull(),
+    actions: jsonb('actions').$type<readonly RuleAction[]>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('auto_rules_user_id_id_key').on(table.userId, table.id),
+    index('auto_rules_user_id_position_idx').on(table.userId, table.position, table.id),
+    check('auto_rules_name_check', sql`length(btrim(${table.name})) between 1 and 60`),
+    check(
+      'auto_rules_conditions_check',
+      sql`jsonb_typeof(${table.conditions}) = 'array' and jsonb_array_length(${table.conditions}) between 1 and 8`,
+    ),
+    check(
+      'auto_rules_actions_check',
+      sql`jsonb_typeof(${table.actions}) = 'array' and jsonb_array_length(${table.actions}) between 1 and 8`,
+    ),
+    check('auto_rules_position_check', sql`${table.position} >= 0`),
+  ],
+);
+
+/**
+ * Minimal, auditable evidence of a manual category correction: the transaction, its normalized description/merchant
+ * pattern, and the category it was changed from and to. Four distinct corrected transactions of one pattern suggest a
+ * rule (FR-AI1). Only the manual edit path writes this table; rule backfill and seed creation never do.
+ */
+export const autoRuleCorrections = pgTable(
+  'auto_rule_corrections',
+  {
+    id: id(),
+    userId: ownerId(),
+    transactionId: uuid('transaction_id').notNull(),
+    /** Grouping key from `correctionPattern` (`kopi kenangan`). */
+    pattern: text('pattern').notNull(),
+    /** What the suggestion quotes (`Kopi Kenangan`). */
+    label: text('label').notNull(),
+    fromCategoryId: uuid('from_category_id').notNull(),
+    toCategoryId: uuid('to_category_id').notNull(),
+    recordedAt: timestamptz('recorded_at').notNull().defaultNow(),
+  },
+  (table) => [
+    unique('auto_rule_corrections_transaction_key').on(
+      table.userId,
+      table.transactionId,
+      table.fromCategoryId,
+      table.toCategoryId,
+    ),
+    index('auto_rule_corrections_user_id_pattern_idx').on(table.userId, table.pattern, table.toCategoryId),
+    foreignKey({
+      name: 'auto_rule_corrections_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'auto_rule_corrections_from_category_fk',
+      columns: [table.userId, table.fromCategoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'auto_rule_corrections_to_category_fk',
+      columns: [table.userId, table.toCategoryId],
+      foreignColumns: [categories.userId, categories.id],
+    }).onDelete('cascade'),
+    check('auto_rule_corrections_pattern_check', sql`length(btrim(${table.pattern})) between 3 and 120`),
+    check('auto_rule_corrections_label_check', sql`length(btrim(${table.label})) between 1 and 60`),
+    check('auto_rule_corrections_categories_check', sql`${table.fromCategoryId} <> ${table.toCategoryId}`),
+  ],
+);
+
+/** "Abaikan" on a correction suggestion (FR-AI1): durable per user, so the same pattern is not offered again. */
+export const autoRuleSuggestionDismissals = pgTable(
+  'auto_rule_suggestion_dismissals',
+  {
+    id: id(),
+    userId: ownerId(),
+    /** `ruleSuggestionKey(pattern, fromCategoryId, toCategoryId)`; opaque to the UI. */
+    key: text('key').notNull(),
+    dismissedAt: timestamptz('dismissed_at').notNull().defaultNow(),
+  },
+  (table) => [
+    unique('auto_rule_suggestion_dismissals_key').on(table.userId, table.key),
+    check('auto_rule_suggestion_dismissals_key_check', sql`length(${table.key}) between 1 and 200`),
   ],
 );

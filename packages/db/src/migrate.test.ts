@@ -45,6 +45,10 @@ const GRANTS = {
   asset_categories: LEDGER,
   assets: LEDGER,
   attachments: LEDGER,
+  // M7.1: rules and their evidence are user-owned; the worker only reads them to build proposals.
+  auto_rule_corrections: { wf_app: ALL, wf_worker: 'SELECT' },
+  auto_rule_suggestion_dismissals: { wf_app: ALL, wf_worker: 'SELECT' },
+  auto_rules: { wf_app: ALL, wf_worker: 'SELECT' },
   balance_adjustments: LEDGER,
   budget_alert_dismissals: LEDGER,
   budget_lines: LEDGER,

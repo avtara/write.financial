@@ -10,6 +10,7 @@
 import { createHash } from 'node:crypto';
 import type { Dek } from '@wf/crypto/envelope';
 import { parseLocalDate, type LocalDate } from '@wf/domain/period';
+import { normalizeTagSlug } from '@wf/domain/tags';
 import { zonedInstant } from '@wf/domain/recurrence';
 import { eq, inArray } from 'drizzle-orm';
 import { withUser, type Database } from './db.ts';
@@ -33,6 +34,8 @@ export interface ImportRowInput {
   readonly categoryId: string | null;
   /** The other own account when the description names one (transfer between own accounts); `null` for an entry. */
   readonly transferAccountId: string | null;
+  /** Tag slugs the matching rules suggested (FR-AI1); the user still confirms the row. */
+  readonly tags: readonly string[];
 }
 
 export interface ImportProposalResult {
@@ -67,7 +70,8 @@ function rowValid(row: ImportRowInput): boolean {
   } catch {
     return false;
   }
-  return row.amountMinor > 0n;
+  if (row.amountMinor <= 0n || row.tags.length > 5) return false;
+  return row.tags.every((tag) => normalizeTagSlug(tag) === tag);
 }
 
 export interface ImportReviewRepository {
@@ -137,6 +141,7 @@ export function createImportReview(
                   source: 'import',
                   categoryId: row.categoryId,
                   description: row.description,
+                  tags: row.tags,
                 }
               : {
                   type: 'transfer' as const,
@@ -149,6 +154,7 @@ export function createImportReview(
                   occurredAt,
                   source: 'import',
                   description: row.description,
+                  tags: row.tags,
                 };
           const result = await insertReviewItemIn(tx, userId, dek, {
             reason: 'import_row',

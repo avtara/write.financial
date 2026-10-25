@@ -21,12 +21,14 @@ import {
   type TransactionSource,
   type TransactionType,
 } from '@wf/domain/transactions';
-import { and, asc, eq, exists, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity, type ActivityEntry } from './activity.ts';
+import { recordCategoryCorrectionIn } from './auto-rules.ts';
 import {
   assertOpenDatesIn,
   assertOpenTransactionsIn,
+  assertUnmanagedTransactionsIn,
   checkCategoryIn,
   NOTE_PURPOSE,
   planTransactionIn,
@@ -42,10 +44,6 @@ import {
   accounts,
   activityLog,
   attachments,
-  cardPaymentAllocations,
-  debtInstallments,
-  debts,
-  investmentTrades,
   postings,
   tags,
   transactions,
@@ -286,58 +284,6 @@ async function liveHeaderIn(tx: Transaction, id: string) {
   return row;
 }
 
-/** Transaction types only their receivable (FR-U7) or investment trade (FR-I2) writes. */
-const MANAGED_TYPES: TransactionType[] = ['receivable_out', 'receivable_in', 'writeoff', 'investment', 'dividend'];
-
-/**
- * Refuses transactions another repository manages, which change only through it: a receivable's lending,
- * repayments, and write-off (FR-U7), a debt installment's payment, a card expense turned into an installment plan
- * (FR-U2), a card payment allocated to its buckets (FR-U4), and an investment trade's cash leg, sale withdrawal, or
- * cash top-up (FR-I2). Soft-deleted rows among `ids` count too.
- * @throws {LedgerError} `INVALID_TRANSACTION`
- */
-export async function assertUnmanagedTransactionsIn(tx: Transaction, ids: readonly string[]): Promise<void> {
-  const [managed] = await tx
-    .select({ id: transactions.id })
-    .from(transactions)
-    .where(
-      and(
-        inArray(transactions.id, [...ids]),
-        or(
-          inArray(transactions.type, MANAGED_TYPES),
-          exists(
-            tx
-              .select({ id: investmentTrades.id })
-              .from(investmentTrades)
-              .where(
-                or(
-                  eq(investmentTrades.transactionId, transactions.id),
-                  eq(investmentTrades.transferTransactionId, transactions.id),
-                ),
-              ),
-          ),
-          exists(
-            tx
-              .select({ id: debtInstallments.id })
-              .from(debtInstallments)
-              .where(eq(debtInstallments.transactionId, transactions.id)),
-          ),
-          exists(tx.select({ id: debts.id }).from(debts).where(eq(debts.sourceTransactionId, transactions.id))),
-          exists(
-            tx
-              .select({ id: cardPaymentAllocations.id })
-              .from(cardPaymentAllocations)
-              .where(eq(cardPaymentAllocations.transactionId, transactions.id)),
-          ),
-        ),
-      ),
-    )
-    .limit(1);
-  if (managed !== undefined) {
-    throw new LedgerError('INVALID_TRANSACTION', 'The transaction is managed by its receivable, debt, or trade');
-  }
-}
-
 async function tagSlugsIn(tx: Transaction, transactionId: string): Promise<string[]> {
   const rows = await tx
     .select({ slug: tags.slug })
@@ -558,6 +504,17 @@ export function createTransactions(
           .filter(([, [old, next]]) => old !== next)
           .map(([field]) => field);
         await logActivity(tx, userId, 'transaction', [id], 'updated', { fields });
+        // FR-AI1: four distinct manual corrections of one pattern suggest a rule. Backfill and seed creation never reach
+        // this path, so automated category changes are never learned from.
+        if (before.categoryId !== header.categoryId) {
+          await recordCategoryCorrectionIn(tx, userId, {
+            transactionId: id,
+            description: header.description,
+            merchant: header.merchant,
+            fromCategoryId: before.categoryId,
+            toCategoryId: header.categoryId,
+          });
+        }
         return loadIn(tx, id);
       });
       return reveal(userId, stored, dek);

@@ -25,6 +25,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import { referenceRateIn } from './fx-rates.ts';
+import { managedTransactionIdsIn } from './rule-backfill.ts';
 import { LedgerError } from './ledger-errors.ts';
 import {
   accounts,
@@ -95,6 +96,18 @@ export async function assertOpenTransactionsIn(tx: Transaction, ids: readonly st
     tx,
     rows.map((row) => row.localDate),
   );
+}
+
+/**
+ * Refuses transactions another repository manages (see {@link managedTransactionIdsIn}); soft-deleted rows among
+ * `ids` count too.
+ * @throws {LedgerError} `INVALID_TRANSACTION`
+ */
+export async function assertUnmanagedTransactionsIn(tx: Transaction, ids: readonly string[]): Promise<void> {
+  const managed = await managedTransactionIdsIn(tx, ids);
+  if (managed.size > 0) {
+    throw new LedgerError('INVALID_TRANSACTION', 'The transaction is managed by its receivable, debt, or trade');
+  }
 }
 
 /**

@@ -28,6 +28,9 @@ import {
   assetCategories,
   assets,
   attachments,
+  autoRuleCorrections,
+  autoRules,
+  autoRuleSuggestionDismissals,
   balanceAdjustments,
   budgetAlertDismissals,
   budgetLines,
@@ -131,6 +134,9 @@ export interface DataExport {
   readonly attachments: object[];
   readonly activityLog: object[];
   readonly reports: object[];
+  readonly autoRules: object[];
+  readonly autoRuleCorrections: object[];
+  readonly autoRuleSuggestionDismissals: object[];
 }
 
 type ExportTables = Omit<DataExport, 'exportedAt' | 'user' | 'truncated'>;
@@ -213,6 +219,9 @@ const TABLES: readonly TableSpec[] = [
   { name: 'attachments', table: attachments, order: attachments.id },
   { name: 'activityLog', table: activityLog, order: activityLog.id },
   { name: 'reports', table: reports, order: reports.id },
+  { name: 'autoRules', table: autoRules, order: autoRules.id },
+  { name: 'autoRuleCorrections', table: autoRuleCorrections, order: autoRuleCorrections.id },
+  { name: 'autoRuleSuggestionDismissals', table: autoRuleSuggestionDismissals, order: autoRuleSuggestionDismissals.id },
 ];
 
 const PROFILE_COLUMNS = {

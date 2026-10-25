@@ -72,6 +72,8 @@ export const LEDGER_ERROR_CODES = [
   /** FR-LP1–LP5: invalid report input (a range that starts after it ends or is longer than a year, a stored row that
    * cannot be read back). */
   'INVALID_REPORT',
+  /** FR-AI1: invalid auto rule (name, condition fields or values, action, or a category that does not fit). */
+  'INVALID_RULE',
 ] as const;
 
 export type LedgerErrorCode = (typeof LEDGER_ERROR_CODES)[number];
