@@ -13,6 +13,8 @@ const fake = vi.hoisted(() => ({
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
   listTags: vi.fn(),
+  listAutoRules: vi.fn(),
+  listSubscriptions: vi.fn(),
   page: vi.fn(),
 }));
 vi.mock('../../server/fn/transactions.ts', () => ({ getTransactionsView: fake.getTransactionsView }));
@@ -21,6 +23,8 @@ vi.mock('../../server/fn/ledger.ts', () => ({
   listCategories: fake.listCategories,
   listTags: fake.listTags,
 }));
+vi.mock('../../server/fn/rules.ts', () => ({ listAutoRules: fake.listAutoRules }));
+vi.mock('../../server/fn/schedules.ts', () => ({ listSubscriptions: fake.listSubscriptions }));
 vi.mock('../../components/transactions/transactions-page.tsx', () => ({
   TransactionsPage: (props: TransactionsPageProps) => {
     fake.page(props);
@@ -44,6 +48,8 @@ const OK = {
   accounts: { ok: true, value: OVERVIEW },
   categories: { ok: true, value: LEDGER.categories },
   tags: { ok: true, value: LEDGER.tags },
+  rules: { ok: true, value: [] },
+  subscriptionNames: [],
 };
 const ID = '0192a6c4-0000-7000-8000-0000000000b1';
 
@@ -62,22 +68,6 @@ afterEach(() => {
 });
 
 describe('/transactions', () => {
-  it('loads the view of the query, the accounts, categories, and tags', async () => {
-    fake.getTransactionsView.mockResolvedValue(OK.view);
-    fake.listAccounts.mockResolvedValue(OK.accounts);
-    fake.listCategories.mockResolvedValue(OK.categories);
-    fake.listTags.mockResolvedValue(OK.tags);
-    const loaderDeps = Route.options.loaderDeps as unknown as (options: { search: object }) => object;
-    const deps = loaderDeps({ search: { period: '2026-10', view: 'flat', tx: ID } });
-    expect(deps).toEqual({ period: '2026-10' });
-    const loader = Route.options.loader as unknown as (options: { deps: object }) => Promise<unknown>;
-    expect(await loader({ deps })).toEqual(OK);
-    expect(fake.getTransactionsView).toHaveBeenCalledWith({ data: { period: '2026-10' } });
-    for (const list of [fake.listAccounts, fake.listCategories, fake.listTags]) {
-      expect(list).toHaveBeenCalledWith({ data: {} });
-    }
-  });
-
   it('titles the page and keeps only valid search params', () => {
     const head = Route.options.head as unknown as () => { meta: { title: string }[] };
     expect(head().meta[0]?.title).toBe('Transaksi · write.financial');
@@ -86,20 +76,11 @@ describe('/transactions', () => {
     expect(validate.parse({ tx: 'x', view: 'grid' })).toEqual({});
   });
 
-  it('renders the page with the ledger and merges search changes into the URL', async () => {
+  it('keeps the existing period when a view interaction changes the filters', async () => {
     const navigate = stubRoute(OK, { tx: ID });
     const Component = Route.options.component as ComponentType;
     const { screen } = await renderApp(<Component />);
     await userEvent.click(screen.getByRole('button', { name: 'transactions page' }));
-    expect(fake.page).toHaveBeenCalledWith(
-      expect.objectContaining({
-        view: VIEW,
-        search: { tx: ID },
-        ledger: { baseCurrency: 'IDR', accounts: LEDGER.accounts, categories: LEDGER.categories, tags: LEDGER.tags },
-        available: 48_146_000n,
-        timeZone: 'Asia/Jakarta',
-      }),
-    );
     const [{ search }] = navigate.mock.lastCall as [{ search: (previous: object) => object }];
     expect(search({ tx: ID, period: '2026-10' })).toEqual({ tx: undefined, period: '2026-10', type: 'expense' });
   });

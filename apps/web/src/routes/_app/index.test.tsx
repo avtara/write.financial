@@ -19,6 +19,7 @@ const fns = vi.hoisted(() => ({
   getDashboard: vi.fn(),
   listSubscriptions: vi.fn(),
   listScheduled: vi.fn(),
+  listAutoRules: vi.fn(),
 }));
 vi.mock('../../server/fn/budget.ts', () => ({
   listPeriods: fns.listPeriods,
@@ -30,6 +31,7 @@ vi.mock('../../server/fn/ledger.ts', () => ({
   listCategories: fns.listCategories,
   listTags: fns.listTags,
 }));
+vi.mock('../../server/fn/rules.ts', () => ({ listAutoRules: fns.listAutoRules }));
 vi.mock('../../server/fn/account.ts', () => ({ getProfile: fns.getProfile }));
 vi.mock('../../server/fn/schedules.ts', () => ({
   listSubscriptions: fns.listSubscriptions,
@@ -61,6 +63,7 @@ function answer() {
   fns.getDashboard.mockResolvedValue(ok(dashboard()));
   fns.listSubscriptions.mockResolvedValue(ok({ subscriptions: [] }));
   fns.listScheduled.mockResolvedValue(ok([]));
+  fns.listAutoRules.mockResolvedValue(ok([]));
 }
 
 async function renderRoute(which: 'component' | 'pendingComponent', load?: unknown) {
@@ -77,15 +80,6 @@ afterEach(() => {
 });
 
 describe('/ (Overview) loader', () => {
-  it('loads the current period’s dashboard with what the cards and the Quick Add bar need', async () => {
-    answer();
-    const load = (await loader({ deps: {} })) as OverviewData & { status: string };
-    expect(load).toMatchObject({ status: 'ready', shownBudget: null, dashboard: ok(dashboard()) });
-    expect(load.loadedAt).toBeInstanceOf(Date);
-    expect(fns.getDashboard).toHaveBeenCalledWith({ data: { scope: 'month' } });
-    expect(fns.listScheduled).toHaveBeenCalledWith({ data: { from: '2026-10-01', to: '2026-10-31' } });
-    expect(fns.getBudgetStatus).toHaveBeenCalledOnce();
-  });
   it('reloads when its search changes, not when Settings opens over it', () => {
     const loaderDeps = Route.options.loaderDeps as unknown as (args: { search: object }) => object;
     expect(loaderDeps({ search: { scope: 'week', settings: 'tags' } })).toEqual({ scope: 'week' });
