@@ -15,6 +15,7 @@ export const SETTINGS_SECTIONS = [
   'rules',
   'data',
   'security',
+  'ai',
   'market',
   'instance',
 ] as const;

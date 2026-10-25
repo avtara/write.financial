@@ -11,6 +11,7 @@
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import type { AccountsOverview } from '@wf/db/accounts';
 import type { RuleSuggestion } from '@wf/db/auto-rules';
+import type { AiSettingsView } from '@wf/domain/ai';
 import type { AutoRuleView } from '@wf/domain/rules';
 import type { CategoryView } from '@wf/db/categories';
 import type { NotificationSettings } from '@wf/db/notification-settings';
@@ -21,11 +22,13 @@ import { m } from '@wf/i18n/messages';
 import { Settings, X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
 import { useRef } from 'react';
+import { aiErrorMessage } from '../../lib/ai-errors.ts';
 import { authErrorMessage } from '../../lib/auth-errors.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import type { Result } from '../../server/access.ts';
 import type { SecurityOverview } from '../../server/account.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
+import { getAiSettings } from '../../server/fn/ai.ts';
 import { getDataSettings, type DataSettings } from '../../server/fn/data.ts';
 import { getPeriodSettings } from '../../server/fn/budget.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
@@ -36,6 +39,7 @@ import { listSimilarTags } from '../../server/fn/tags.ts';
 import type { Viewer } from '../../server/gate.ts';
 import { FormError } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
+import { AiSection } from './ai-section.tsx';
 import { CategoriesSection } from './categories-section.tsx';
 import { DataSection } from './data-section.tsx';
 import { InstanceSection } from './instance-section.tsx';
@@ -62,6 +66,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
   rules: { label: m.settings_nav_rules, description: m.settings_rules_description },
   data: { label: m.settings_nav_data, description: m.settings_data_description },
   security: { label: m.settings_nav_security, description: m.settings_security_description },
+  ai: { label: m.settings_nav_ai, description: m.settings_ai_description },
   market: { label: m.settings_nav_market, description: m.settings_market_description },
   instance: { label: m.settings_nav_instance, description: m.settings_instance_description },
 };
@@ -70,7 +75,7 @@ const GROUPS: readonly { readonly label: () => string; readonly sections: readon
   { label: m.settings_group_account, sections: ['profile'] },
   { label: m.settings_group_preferences, sections: ['period', 'notifications', 'categories', 'tags', 'rules'] },
   { label: m.settings_group_data, sections: ['data', 'security'] },
-  { label: m.settings_group_integrations, sections: ['market'] },
+  { label: m.settings_group_integrations, sections: ['ai', 'market'] },
   { label: m.settings_group_instance, sections: ['instance'] },
 ];
 
@@ -92,6 +97,7 @@ export type SettingsData =
     }
   | { section: 'data'; data: Result<DataSettings> }
   | { section: 'market'; market: Result<MarketSettings> }
+  | { section: 'ai'; ai: Result<AiSettingsView> }
   | { section: 'instance' };
 
 /**
@@ -109,6 +115,7 @@ export async function loadSettingsSection(section: SettingsSection): Promise<Set
   if (section === 'period') return { section, period: await getPeriodSettings() };
   if (section === 'notifications') return { section, notifications: await getNotificationSettings() };
   if (section === 'market') return { section, market: await getMarketSettings() };
+  if (section === 'ai') return { section, ai: await getAiSettings() };
   if (section === 'categories')
     return { section, categories: await listCategories({ data: { includeArchived: true } }) };
   if (section === 'tags') {
@@ -151,6 +158,13 @@ function SectionContent({ data, viewer }: { data: SettingsData; viewer: Viewer }
       <MarketSection settings={data.market.value} timeZone={viewer.timezone} />
     ) : (
       <FormError>{ledgerErrorMessage(data.market.code, locale)}</FormError>
+    );
+  }
+  if (data.section === 'ai') {
+    return data.ai.ok ? (
+      <AiSection settings={data.ai.value} viewer={viewer} timeZone={viewer.timezone} />
+    ) : (
+      <FormError>{aiErrorMessage(data.ai.code, locale)}</FormError>
     );
   }
   if (data.section === 'categories') {

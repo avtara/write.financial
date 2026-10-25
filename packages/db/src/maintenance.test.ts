@@ -160,3 +160,35 @@ describe('purgeNotifications', () => {
     await expect(asWorker(() => test.query('DELETE FROM notifications'))).rejects.toThrow(/permission denied/);
   });
 });
+
+describe('purgeAiLogs', () => {
+  it('physically removes only expired metadata and retains every monthly spend/reservation bucket', async () => {
+    await test.query(
+      `INSERT INTO ai_usage_months (user_id, month, requests, spent_usd, reserved_usd)
+      VALUES ($1, to_char(now() - interval '31 days', 'YYYY-MM'), 1, 1.2, 0),
+             ($1, to_char(now(), 'YYYY-MM'), 2, 2, 0.3)`,
+      [admin],
+    );
+    await test.query(
+      `INSERT INTO ai_logs (user_id, id, month, revision, provider, feature, model_id, status, reserved_usd, created_at)
+      VALUES ($1, gen_random_uuid(), to_char(now() - interval '31 days', 'YYYY-MM'), gen_random_uuid(), 'openrouter', 'test', 'old', 'ok', 0, now() - interval '31 days'),
+             ($1, gen_random_uuid(), to_char(now(), 'YYYY-MM'), gen_random_uuid(), 'openrouter', 'test', 'recent', 'ok', 0, now() - interval '1 day'),
+             ($1, gen_random_uuid(), to_char(now(), 'YYYY-MM'), gen_random_uuid(), 'openrouter', 'test', 'in-flight', 'pending', 0.3, now())`,
+      [admin],
+    );
+    const before = await test.query('SELECT * FROM ai_usage_months ORDER BY month');
+    expect(await asWorker(() => maintenance.purgeAiLogs(new Date(Date.now() + 365 * DAY)))).toBe(1);
+    expect(await test.query('SELECT model_id FROM ai_logs ORDER BY model_id')).toEqual([
+      { model_id: 'in-flight' },
+      { model_id: 'recent' },
+    ]);
+    expect(await test.query('SELECT * FROM ai_usage_months ORDER BY month')).toEqual(before);
+    expect(await asWorker(() => maintenance.purgeAiLogs(new Date()))).toBe(0);
+  });
+
+  it.each(['wf_app', 'wf_auth', 'wf_readonly_ops'] as const)('denies global activity purging to %s', async (role) => {
+    await expect(test.as(role, () => maintenance.purgeAiLogs(new Date()))).rejects.toMatchObject(
+      pgError(/permission denied for function wf_maintenance_purge_ai_logs/),
+    );
+  });
+});

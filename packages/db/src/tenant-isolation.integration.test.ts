@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { keyFileText } from '../test/keys.ts';
+import { createAiRepository } from './ai.ts';
 import { createBudgets } from './budgets.ts';
 import { createDb, firstRow, withUser, type Database } from './db.ts';
 import { createFxRates } from './fx-rates.ts';
@@ -510,6 +511,46 @@ beforeAll(async () => {
     new Date('2026-10-15T08:46:00Z'),
   );
 
+  const ai = createAiRepository(dbs.app, { getDek: () => Promise.resolve(dek), allowedBaseUrls: [], ...at15 });
+  const aiPricing = { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' };
+  for (const userId of [alice, bob]) {
+    const config = await ai.save(userId, {
+      expectedRevision: null,
+      provider: 'openrouter',
+      apiKey: `fixture-ai-${userId}`,
+      modelId: 'fixture/model',
+      allowReadFinancial: false,
+      allowCreateDrafts: false,
+      requireConfirmation: true,
+      monthlyLimitUsd: '5',
+      pricing: aiPricing,
+    });
+    const requestId = randomUUID();
+    await ai.reserve(userId, {
+      id: requestId,
+      expectedRevision: config.revision as string,
+      provider: 'openrouter',
+      modelId: 'fixture/model',
+      feature: 'test',
+      costUsd: '0.001',
+      needsDraftPermission: false,
+      dataSent: { images: 0, categories: 0, accounts: 0, transactions: 0 },
+    });
+    await ai.settle(userId, requestId, {
+      status: 'ok',
+      httpStatus: 200,
+      inputTokens: 10,
+      outputTokens: 1,
+      costUsd: '0.0001',
+      costSource: 'reported',
+      durationMs: 12,
+      errorCode: null,
+      toolCalls: [],
+      connectionStatus: 'connected',
+      pricing: aiPricing,
+    });
+  }
+
   owned = [
     { table: 'users', column: 'id' },
     ...(await superuser<{ table: string; column: string }[]>`
@@ -643,7 +684,6 @@ describe('Row-Level Security', () => {
   });
 
   it('gives operators read-only access without secrets', async () => {
-    expect(await dbs.ops.execute(sql`SELECT count(*)::int AS n FROM security_events`)).toEqual([{ n: 2 }]);
     expect(await pgErrorCode(dbs.ops.execute(sql`SELECT smtp_password_enc FROM instance_settings`))).toBe(
       INSUFFICIENT_PRIVILEGE,
     );

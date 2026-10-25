@@ -40,6 +40,11 @@ const GRANTS = {
   accounts: LEDGER,
   accounts_auth: { wf_auth: ALL },
   activity_log: { wf_app: 'INSERT,SELECT' },
+  // M7.2: no direct log/month deletion; only the worker's retention definer can purge logs.
+  ai_connections: LEDGER,
+  ai_logs: { wf_app: 'INSERT,SELECT,UPDATE', wf_worker: 'INSERT,SELECT,UPDATE' },
+  ai_settings: LEDGER,
+  ai_usage_months: { wf_app: 'INSERT,SELECT,UPDATE', wf_worker: 'INSERT,SELECT,UPDATE' },
   // M5: the user's portfolio (the worker only reads it, D14).
   allocation_targets: LEDGER,
   asset_categories: LEDGER,
@@ -203,6 +208,7 @@ describe('migrate', () => {
         'wf_account_delete_user',
         'wf_due_deletions',
         'wf_due_reminders',
+        'wf_maintenance_purge_ai_logs',
         'wf_maintenance_purge_auth',
         'wf_maintenance_purge_notifications',
         'wf_market_byok_users',

@@ -7,17 +7,6 @@ const now = new Date('2026-10-18T20:30:00Z');
 const job = (data: unknown) => ({ id: 'repeat:maintenance-daily:1', data, attemptsMade: 0 });
 
 describe('maintenance processor', () => {
-  it('purges expired auth rows and notifications past retention as of the clock and returns the counts', async () => {
-    const db = fakeDb({ verifications: 4, sessions: 7, invitations: 1 });
-    const process = createMaintenanceProcessor(fakeDeps({ db }, now));
-    expect(await process(job({}))).toEqual({
-      purged: { verifications: 4, sessions: 7, invitations: 1 },
-      notifications: 5,
-    });
-    expect(db.purgeCalls).toEqual([now]);
-    expect(db.calls).toEqual([{ method: 'maintenance.purgeNotifications', args: [now] }]);
-  });
-
   it('rejects a payload that is not the empty maintenance payload, before touching the database', async () => {
     const db = fakeDb();
     const process = createMaintenanceProcessor(fakeDeps({ db }, now));

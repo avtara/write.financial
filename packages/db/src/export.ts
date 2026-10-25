@@ -23,6 +23,9 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import {
   accounts,
+  aiSettings,
+  aiConnections,
+  aiUsageMonths,
   activityLog,
   allocationTargets,
   assetCategories,
@@ -137,6 +140,9 @@ export interface DataExport {
   readonly autoRules: object[];
   readonly autoRuleCorrections: object[];
   readonly autoRuleSuggestionDismissals: object[];
+  readonly aiSettings: object[];
+  readonly aiConnections: object[];
+  readonly aiUsageMonths: object[];
 }
 
 type ExportTables = Omit<DataExport, 'exportedAt' | 'user' | 'truncated'>;
@@ -178,6 +184,9 @@ interface TableSpec {
 
 const TABLES: readonly TableSpec[] = [
   { name: 'preferences', table: userPreferences, order: userPreferences.userId },
+  { name: 'aiSettings', table: aiSettings, order: aiSettings.userId },
+  { name: 'aiConnections', table: aiConnections, order: aiConnections.provider },
+  { name: 'aiUsageMonths', table: aiUsageMonths, order: aiUsageMonths.month },
   { name: 'accounts', table: accounts, order: accounts.id },
   { name: 'categories', table: categories, order: categories.id },
   { name: 'tags', table: tags, order: tags.id },
@@ -241,7 +250,7 @@ const columnsOf = (table: PgTable) => getTableColumns(table) as Record<string, P
 
 /** Column objects of `table` without the ciphertext ones: no `bytea` column leaves the database in an export. */
 function exportedColumns(table: PgTable): Record<string, PgColumn> {
-  return Object.fromEntries(Object.entries(columnsOf(table)).filter(([, column]) => column.columnType !== 'PgBytea'));
+  return Object.fromEntries(Object.entries(columnsOf(table)).filter(([, column]) => column.getSQLType() !== 'bytea'));
 }
 
 export function createExport(db: Database): DataExporter {
@@ -366,7 +375,8 @@ const CSV_COLUMNS = [
 ] as const;
 
 /** RFC 4180: a field with a quote, comma, or newline is wrapped in quotes and its quotes are doubled. */
-const csvField = (value: string): string => (/["\r\n,]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
+export const csvField = (value: string): string =>
+  /["\r\n,]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 
 const csvCell = (row: LedgerRow, property: (typeof CSV_COLUMNS)[number]): string => {
   const value = row[property];

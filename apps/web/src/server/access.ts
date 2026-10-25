@@ -7,6 +7,7 @@
 import type { AuthSession } from '@wf/auth/auth';
 import { assertFreshSession, assertTwoFactorEnrolled, UnauthenticatedError } from '@wf/auth/session';
 import { LEDGER_ERROR_CODES } from '@wf/db/ledger-errors';
+import { AI_ERROR_CODES } from '@wf/domain/ai';
 
 export type Result<T> =
   | { readonly ok: true; readonly value: T }
@@ -94,6 +95,7 @@ export const EXPECTED_CODES: readonly string[] = [
     'MARKET_TEST_LIMIT',
     // Ledger repositories (`LedgerError`).
     ...LEDGER_ERROR_CODES,
+    ...AI_ERROR_CODES,
   ]),
 ];
 

@@ -79,6 +79,8 @@ export interface Config {
     readonly gmail: { readonly cloudProject: string; readonly pubsubTopic: string } | null;
   } | null;
   readonly market: { readonly cmcApiKey: string | null };
+  /** Exact operator-trusted OpenAI-compatible API bases, including the path; empty disables custom egress. */
+  readonly ai: { readonly allowedBaseUrls: readonly string[] };
   readonly log: { readonly level: LogLevel };
 }
 
@@ -155,6 +157,24 @@ const schema = z.object({
     .regex(/^projects\/[^/]+\/topics\/[^/]+$/, { error: 'must look like projects/<project>/topics/<topic>' })
     .optional(),
   CMC_API_KEY: required().optional(),
+  AI_ALLOWED_BASE_URLS: required()
+    .default('')
+    .refine(
+      (value) =>
+        value === '' ||
+        value.split(',').every((item) => {
+          const parsed = URL.parse(item.trim());
+          return (
+            parsed !== null &&
+            HTTP.includes(parsed.protocol) &&
+            !parsed.username &&
+            !parsed.password &&
+            !parsed.search &&
+            !parsed.hash
+          );
+        }),
+      { error: 'must be comma-separated HTTP(S) API base URLs without credentials, queries or fragments' },
+    ),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'], {
       error: 'must be fatal, error, warn, info, debug, trace, or silent',
@@ -249,6 +269,9 @@ function crossFieldIssues(raw: Partial<Record<Key, string>>, isSet: (key: Key) =
     if (URL.parse(raw.PUBLIC_URL ?? '')?.protocol === 'http:') {
       issues.push({ key: 'PUBLIC_URL', message: 'must use https: when DEPLOYMENT_MODE is cloud' });
     }
+    if ((raw.AI_ALLOWED_BASE_URLS ?? '').split(',').some((value) => URL.parse(value.trim())?.protocol === 'http:')) {
+      issues.push({ key: 'AI_ALLOWED_BASE_URLS', message: 'must use https: when DEPLOYMENT_MODE is cloud' });
+    }
   }
   return issues;
 }
@@ -297,6 +320,16 @@ function toConfig(env: Env): Config {
                 : { cloudProject: env.GOOGLE_CLOUD_PROJECT, pubsubTopic: env.GOOGLE_GMAIL_PUBSUB_TOPIC as string },
           },
     market: { cmcApiKey: env.CMC_API_KEY ?? null },
+    ai: {
+      allowedBaseUrls:
+        env.AI_ALLOWED_BASE_URLS === ''
+          ? []
+          : [
+              ...new Set(
+                env.AI_ALLOWED_BASE_URLS.split(',').map((value) => new URL(value.trim()).href.replace(/\/+$/, '')),
+              ),
+            ],
+    },
     log: { level: env.LOG_LEVEL },
   };
 }

@@ -21,6 +21,8 @@ export interface Maintenance {
    * clock), with their outbox rows, through `wf_maintenance_purge_notifications`. Returns how many. Idempotent.
    */
   purgeNotifications: (now: Date) => Promise<number>;
+  /** FR-AI2: activity metadata older than 30 days; monthly budget accounting is retained. */
+  purgeAiLogs: (now: Date) => Promise<number>;
 }
 
 /** Maintenance operations of the `maintenance` job; connect as `wf_worker`, the only role allowed to run them. */
@@ -38,6 +40,13 @@ export function createMaintenance(db: Database): Maintenance {
         sql`select wf_maintenance_purge_notifications(${now.toISOString()}::timestamptz) as deleted`,
       );
       return Number(firstRow(rows, 'maintenance result').deleted);
+    },
+
+    purgeAiLogs: async (now) => {
+      const rows = await db.execute<{ deleted: string }>(
+        sql`select wf_maintenance_purge_ai_logs(${now.toISOString()}::timestamptz) as deleted`,
+      );
+      return Number(firstRow(rows, 'AI retention result').deleted);
     },
   };
 }

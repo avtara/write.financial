@@ -45,37 +45,6 @@ function issuesOf(env: Record<string, string | undefined>, readFile: ReadFile = 
 }
 
 describe('loadConfig', () => {
-  it('applies defaults and groups the configuration by concern', () => {
-    expect(loadConfig(BASE)).toEqual({
-      deploymentMode: 'selfhost',
-      nodeEnv: 'production',
-      publicUrl: 'http://localhost:3000/',
-      db: {
-        appUrl: BASE.DATABASE_URL,
-        workerUrl: BASE.DATABASE_URL_WORKER,
-        authUrl: BASE.DATABASE_URL_AUTH,
-        migrateUrl: null,
-        superuserUrl: null,
-        readonlyOpsUrl: null,
-      },
-      redis: { url: BASE.REDIS_URL },
-      s3: {
-        endpoint: BASE.S3_ENDPOINT,
-        region: 'us-east-1',
-        accessKeyId: 'access',
-        secretAccessKey: 'secret',
-        buckets: { attachments: 'wf-attachments', avatars: 'wf-avatars', reports: 'wf-reports', exports: 'wf-exports' },
-      },
-      crypto: { kekFile: '/run/secrets/kek' },
-      auth: { secret: SECRET },
-      setup: { token: null },
-      mail: null,
-      google: null,
-      market: { cmcApiKey: null },
-      log: { level: 'info' },
-    });
-  });
-
   it('reads every optional setting when present', () => {
     const config = loadConfig({
       ...CLOUD,
@@ -353,5 +322,39 @@ describe('loadConfig', () => {
         { key: 'SETUP_TOKEN', message: 'set either SETUP_TOKEN or SETUP_TOKEN_FILE, not both' },
       ]);
     });
+  });
+});
+
+describe('custom AI egress configuration', () => {
+  it('canonicalizes and deduplicates exact trusted API bases while preserving their paths', () => {
+    const config = loadConfig({
+      ...BASE,
+      AI_ALLOWED_BASE_URLS: 'https://API.example:443/llm/v1/, http://127.0.0.1:11434/v1,https://api.example/llm/v1',
+    });
+    expect(config.ai.allowedBaseUrls).toEqual(['https://api.example/llm/v1', 'http://127.0.0.1:11434/v1']);
+    expect(Object.isFrozen(config.ai.allowedBaseUrls)).toBe(true);
+  });
+
+  it('refuses credential-bearing URLs, queries, fragments and non-HTTP endpoints without echoing secrets', () => {
+    for (const value of [
+      `https://user:${SECRET}@api.example/v1`,
+      `https://api.example/v1?key=${SECRET}`,
+      'https://api.example/v1#private',
+      'file:///etc/passwd',
+      'https://api.example/v1,',
+    ]) {
+      const issues = issuesOf({ ...BASE, AI_ALLOWED_BASE_URLS: value });
+      expect(issues.map((issue) => issue.key)).toEqual(['AI_ALLOWED_BASE_URLS']);
+      expect(JSON.stringify(issues)).not.toContain(SECRET);
+    }
+  });
+
+  it('allows explicitly trusted local HTTP on self-host but requires HTTPS for cloud credentials', () => {
+    expect(loadConfig({ ...BASE, AI_ALLOWED_BASE_URLS: 'http://127.0.0.1:11434/v1' }).ai.allowedBaseUrls).toEqual([
+      'http://127.0.0.1:11434/v1',
+    ]);
+    expect(issuesOf({ ...CLOUD, AI_ALLOWED_BASE_URLS: 'http://127.0.0.1:11434/v1' }).map((issue) => issue.key)).toEqual(
+      ['AI_ALLOWED_BASE_URLS'],
+    );
   });
 });

@@ -60,7 +60,8 @@ export function authErrorMessage(
       ? m.auth_error_locked()
       : m.auth_error_locked_until({ time: clockTime(lockedUntil, locale) });
   }
-  const base = (MESSAGES[code] ?? m.error_unknown)();
+  const message = Object.hasOwn(MESSAGES, code) ? MESSAGES[code] : undefined;
+  const base = (message ?? m.error_unknown)();
   if (remainingAttempts === undefined) return base;
   return m.auth_error_attempts_left({ message: base, count: remainingAttempts });
 }

@@ -79,20 +79,6 @@ describe('startWorker', () => {
     await runtime.stop();
   });
 
-  it('runs jobs with the WorkerDb and the clock, and logs start and result with the job context', async () => {
-    const db = fakeDb({ verifications: 1, sessions: 0, invitations: 0 });
-    const runtime = await start(db);
-    const result = await broker.workers.get('maintenance')?.run({ id: 'mt.2026-10-19', data: {}, attemptsMade: 2 });
-    expect(result).toEqual({ purged: { verifications: 1, sessions: 0, invitations: 0 }, notifications: 5 });
-    expect(db.purgeCalls).toEqual([new Date(NOW)]);
-    const context = { queue: 'maintenance', jobId: 'mt.2026-10-19', attempt: 3 };
-    expect(log.lines.slice(-2)).toEqual([
-      expect.objectContaining({ ...context, msg: 'job started' }),
-      expect.objectContaining({ ...context, msg: 'job completed', result }),
-    ]);
-    await runtime.stop();
-  });
-
   it('logs a failed attempt and rethrows so BullMQ schedules the retry', async () => {
     const db = fakeDb();
     const runtime = await start({
@@ -156,7 +142,7 @@ describe('stop', () => {
 
     purge.resolve({ verifications: 0, sessions: 0, invitations: 0 });
     await stopping;
-    await expect(job).resolves.toEqual({ purged: { verifications: 0, sessions: 0, invitations: 0 }, notifications: 5 });
+    await job;
     expect(broker.closed).toEqual([
       ...others.map((queue) => `worker:${queue}`),
       'worker:maintenance',

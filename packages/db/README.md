@@ -57,11 +57,12 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./investments` | `createInvestments(db)` → assets on platforms, "Daftar saya" categories, allocation targets, trades (FR-I2: buy/pending buy, sell to cash or a bank, dividends, cash top-up, adjust holdings, settle, remove) with their cash legs in the ledger (managed `investment`/`dividend` transactions), `portfolio` (holdings derived from the trades, valuation, allocation), snapshots |
 | `./market-data` | `createMarketData(db)` → the effective quote per asset with source, time, and stale flag (`@wf/domain/market` `resolveQuote`), manual prices, the API log; worker writes of built-in quotes (global) and BYOK results (per user) |
 | `./market-credentials` | `createMarketCredentials(db, { getDek })` → BYOK market keys encrypted with the user's DEK (last 4 only; 2FA required), status/quota/retry-after, `apiKey` for the worker, `remove` (also the provider's BYOK results) |
+| `./ai` | `createAiRepository(db, { getDek, allowedBaseUrls, now? })` → masked settings, encrypted provider/destination-bound keys, atomic monthly USD reservations/settlement, and metadata-only logs (FR-AI2); credentials require current 2FA; no ledger writes |
 | `./portfolio` | In-transaction valuation of every asset now (`assetValuesIn`, `holdingsValueByAccount`) for accounts, goals, and investments |
 | `./goal-snapshots` | `createGoalSnapshots(db)` → daily observed goal positions (native currency, frozen names/targets and explicit cash/market/cost/unavailable valuation); `goalSnapshotIn(tx, userId, cutoff)` reads the latest actual observation |
 | `./reports` | `createReports(db)` → immutable closed-period monthly snapshots, refreshable provisional Quarterly/Yearly/Custom aggregates, `list`, `get`, `latestFinal`, `pendingMonthly`; worker `reports` runs after 00:10 local |
 | `./seed` | `seedLedger(db, userId, { getDek })`: the design persona (`DESIGN_SEED`, closed September + October, budget, goals with their account and asset sources, the investments (assets, opening holdings, DCA buys, the pending RDPU buy, targets, a snapshot), 11 subscriptions, 4 recurring transfers with their paid bills and goal shares, 5 receivables recorded without ledger transactions) through the repositories; `seedAutomation(workerDb, userId, { getDek })` (as `wf_worker`): what the jobs would have created by now (overdue bills, September close proposal) |
-| `./maintenance`                                 | `createMaintenance(db)` → `purgeExpiredAuth(now)`, `purgeNotifications(now)` (90 days) (worker only, via `wf_maintenance_purge_auth` / `wf_maintenance_purge_notifications`) |
+| `./maintenance` | `createMaintenance(db)` → `purgeExpiredAuth(now)`, `purgeNotifications(now)` (90 days), `purgeAiLogs(now)` (30 days, monthly accounting retained); worker-only security-definer functions |
 | `./dispatch` | Worker: `createDispatch(db)` → `users()`, `dueReminders(now, limit)`, `pendingOutbox(now, limit)` (SECURITY DEFINER `wf_worker_users`, `wf_due_reminders`, `wf_pending_outbox`: ids and time zones only) |
 | `./occurrence-jobs` | Worker: `createOccurrenceJobs(db, { getDek })` → `advance(userId, now)` (materialize, due → Review queue, overdue → unconfirmed, trial/pause reminders), `remind(userId, occurrenceId, now)` (notification + email outbox, once) |
 | `./period-close` | Worker: `createPeriodClose(db, { getDek })` → `endedPeriods`, `propose` (FR-P4 rollover + leftover proposals as review items, `period_closed` notification); the lock is `periods.lock` |
@@ -126,6 +127,9 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `market_quotes` (view `market_quotes_latest`: S for `wf_app`, `wf_worker`) | – | S I U | – | – | built-in sources only, global; `wf_migrate` reads it for the view |
 | `market_api_logs` | S I | S I | – | – | own rows + built-in fetches (`user_id` null) |
 | `market_provider_state` | S | S I U | – | – | global (built-in sources' pause and credits, no user data) |
+| `ai_settings` | S I U D | S | – | – | own rows; per-user permissions and revision |
+| `ai_connections` | S I U D | S | – | – | own rows; non-null encrypted keys require current `users.two_factor_enabled` on INSERT/UPDATE |
+| `ai_logs`, `ai_usage_months` | S I U | S I U | – | – | own rows; no direct DELETE grants |
 | `portfolio_snapshots` | S I U | S I U | – | – | own rows |
 | `goal_snapshots` | S I U D | S I U | – | – | own dated observations, including empty days; no worker writes to live goals |
 | `reports` | S I U D | S I | – | – | own rows; UPDATE only for non-monthly provisional aggregates; final monthly snapshots immutable |
@@ -166,6 +170,10 @@ DELETE on `notifications`) for them.
 M5 adds two for the market jobs: `wf_market_server_targets() → (market, symbol, quote_currency)` (the union of
 every user's crypto and gold symbols the built-in sources price) and `wf_market_byok_users() → (user_id, time_zone)`
 (users with an active BYOK key); `wf_migrate` has SELECT policies on `assets` and `market_credentials` for them.
+M7.2 adds `wf_maintenance_purge_ai_logs(now) → bigint`, with the same owner, pinned search path, and worker-only
+EXECUTE grant. Its clock is capped at the server's `now()`; it deletes metadata logs older than 30 days without
+resetting monthly usage or releasing reserved costs. `wf_migrate` has SELECT/DELETE policies on `ai_logs` for it.
+Deleting a user cascades to all four AI tables; deleting only a provider key preserves logs and monthly accounting.
 
 Ledger rows reference their parents with composite `(user_id, id)` foreign keys, so a row can never point at another
 user's account, category, transaction, or tag (foreign-key checks bypass RLS). A trigger limits a transaction to five
