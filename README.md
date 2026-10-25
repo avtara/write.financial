@@ -20,7 +20,7 @@ An open-source web app for **tracking personal finances and assets**, available 
 - **Savings goals:** goals linked to account balances and shares of investment units.
 - **Debts, installments, receivables:** credit cards, installment splits, payment priority, receivables from split bills.
 - **Investments:** multi-platform IDR/USD holdings, gains/losses, allocation vs target. Prices from free sources, your own API keys (BYOK), or manual entry.
-- **Auto rules:** your own ordered conditions (description, weekday, local time, account, direction, subscription) suggest categories and tags in new, imported, and review drafts; a current-period preview explains every condition, and past transactions change only after you select and confirm them.
+- **Auto rules:** your own ordered conditions (description, weekday, local time, account, direction, subscription) suggest categories and tags in new, imported, and review drafts; manage and preview them in the Settings popup, with trial controls stacked at tablet widths. The current-period preview explains every condition, and past transactions change only after you select and confirm them.
 - **Reports:** PDF/Excel/CSV, CSV/XLSX statement import.
 - **Optional:** AI Assistant and receipt reading (BYOK: OpenRouter/OpenAI-compatible), reading transaction emails from Gmail.
 - **Security:** two-step verification (TOTP, passkey, backup codes), privacy mode to hide amounts.

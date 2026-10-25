@@ -729,7 +729,7 @@ export function RuleEditor({
             </div>
           </div>
           {draft.enabled ? null : <p className="text-[11.5px] text-amber-fg">{m.rules_preview_inactive_note()}</p>}
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 lg:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label htmlFor="trial-description" className="text-[11.5px] text-muted-fg">
                 {m.rules_preview_description()}
