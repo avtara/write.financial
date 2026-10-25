@@ -114,7 +114,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { lock } = createPeriods(database, options);
   const { advance, remind } = createOccurrenceJobs(database, { getDek });
   const { endedPeriods, propose } = createPeriodClose(database, { getDek });
-  const { purgeExpiredAuth, purgeNotifications } = createMaintenance(database);
+  const { purgeExpiredAuth, purgeNotifications, purgeAiLogs } = createMaintenance(database);
   const { due, deleteUser } = createAccountDeletion(database);
   const { users, dueReminders, pendingOutbox } = createDispatch(database);
   const { check: checkBudgets } = createBudgetAlerts(database);
@@ -147,7 +147,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { record: recordSnapshot } = createPortfolioSnapshots(database);
   return {
     db: Object.freeze({
-      maintenance: Object.freeze({ purgeExpiredAuth, purgeNotifications }),
+      maintenance: Object.freeze({ purgeExpiredAuth, purgeNotifications, purgeAiLogs }),
       accountDeletion: Object.freeze({ due, deleteUser }),
       fxRates: Object.freeze({ currenciesInUse, upsertGlobal }),
       dispatch: Object.freeze({ users, dueReminders, pendingOutbox }),

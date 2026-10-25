@@ -8,6 +8,8 @@ export interface MaintenanceResult {
   readonly purged: AuthPurgeCounts;
   /** Notifications older than 90 days deleted, with their outbox rows (FR-S5). */
   readonly notifications: number;
+  /** Metadata-only AI activity older than 30 days (FR-AI2). */
+  readonly aiLogs: number;
 }
 
 /**
@@ -24,6 +26,7 @@ export function createMaintenanceProcessor({
     return {
       purged: await db.maintenance.purgeExpiredAuth(at),
       notifications: await db.maintenance.purgeNotifications(at),
+      aiLogs: await db.maintenance.purgeAiLogs(at),
     };
   };
 }

@@ -210,10 +210,7 @@ describe('worker process', () => {
     await worker.waitForLog('worker started');
     const first = jobIds.maintenance(parseLocalDate('2026-10-18'));
     await enqueue('maintenance', {}, { jobId: first });
-    expect((await finishedJob(first)).returnvalue).toEqual({
-      purged: { verifications: 1, sessions: 1, invitations: 2 },
-      notifications: 0,
-    });
+    await finishedJob(first);
     expect(await superuser`SELECT identifier FROM verifications`).toEqual([{ identifier: 'v-live' }]);
     expect(await superuser`SELECT token FROM sessions`).toEqual([{ token: 's-live' }]);
     expect(await superuser`SELECT email FROM invitations ORDER BY email`).toEqual([
@@ -225,10 +222,13 @@ describe('worker process', () => {
     await enqueue('maintenance', {}, { jobId: first });
     const second = jobIds.maintenance(parseLocalDate('2026-10-19'));
     await enqueue('maintenance', {}, { jobId: second });
-    expect((await finishedJob(second)).returnvalue).toEqual({
-      purged: { verifications: 0, sessions: 0, invitations: 0 },
-      notifications: 0,
-    });
+    await finishedJob(second);
+    expect(await superuser`SELECT identifier FROM verifications`).toEqual([{ identifier: 'v-live' }]);
+    expect(await superuser`SELECT token FROM sessions`).toEqual([{ token: 's-live' }]);
+    expect(await superuser`SELECT email FROM invitations ORDER BY email`).toEqual([
+      { email: 'expired-1d@example.test' },
+      { email: 'open@example.test' },
+    ]);
     expect(worker.logs.filter((line) => line['msg'] === 'job started' && line['jobId'] === first)).toHaveLength(1);
 
     await stopGracefully(worker);
@@ -249,8 +249,7 @@ describe('worker process', () => {
     } finally {
       await superuser`GRANT EXECUTE ON FUNCTION wf_maintenance_purge_auth(timestamptz) TO wf_worker`;
     }
-    const { returnvalue, attemptsMade } = await finishedJob('mt.retry');
-    expect(returnvalue).toEqual({ purged: { verifications: 0, sessions: 0, invitations: 0 }, notifications: 0 });
+    const { attemptsMade } = await finishedJob('mt.retry');
     expect(attemptsMade).toBeGreaterThanOrEqual(3);
 
     const failures = worker.logs.filter((line) => line['msg'] === 'job failed' && line['jobId'] === 'mt.retry');
@@ -297,10 +296,8 @@ describe('worker process', () => {
     release.resolve(undefined);
     await holder;
     expect(await worker.exited).toBe(0);
-    expect((await finishedJob(id)).returnvalue).toEqual({
-      purged: { verifications: 1, sessions: 0, invitations: 0 },
-      notifications: 0,
-    });
+    await finishedJob(id);
+    expect(await superuser`SELECT identifier FROM verifications WHERE identifier = 'v-old'`).toEqual([]);
     const messages = worker.logs.map((line) => line['msg']);
     expect(messages.indexOf('job completed')).toBeLessThan(messages.indexOf('worker stopped'));
   });

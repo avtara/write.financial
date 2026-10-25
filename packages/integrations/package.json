@@ -5,6 +5,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
+    "./ai": "./src/ai.ts",
     "./objectstore": "./src/objectstore.ts",
     "./image": "./src/image.ts",
     "./download": "./src/download.ts",

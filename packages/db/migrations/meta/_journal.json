@@ -134,6 +134,13 @@
       "when": 1792914857982,
       "tag": "0018_auto_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792935289375,
+      "tag": "0019_ai_settings",
+      "breakpoints": true
     }
   ]
 }

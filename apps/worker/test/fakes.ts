@@ -202,6 +202,7 @@ export function fakeDb(
         return Promise.resolve(counts);
       },
       purgeNotifications: method('maintenance.purgeNotifications', 5),
+      purgeAiLogs: method('maintenance.purgeAiLogs', 0),
     },
     accountDeletion: {
       due: method('accountDeletion.due', [] as string[]),

@@ -9,6 +9,8 @@
  * ids default to `uuidv7()` (PostgreSQL 18) instead of `gen_random_uuid()`, timestamps are `timestamptz`, and
  * `users` has the app's own columns, which the auth module declares as Better Auth `additionalFields`.
  */
+import { AI_FEATURES, AI_LOG_STATUSES, AI_PROVIDERS } from '@wf/domain/ai';
+import type { AiConnectionStatus, AiCostSource, AiPricing } from '@wf/domain/ai';
 import { ACCOUNT_TYPES } from '@wf/domain/ledger';
 import { CATEGORY_GROUPS, CATEGORY_KINDS } from '@wf/domain/categories';
 import { POSTING_ROLES, TRANSACTION_SOURCES, TRANSACTION_TYPES } from '@wf/domain/transactions';
@@ -2595,5 +2597,119 @@ export const autoRuleSuggestionDismissals = pgTable(
   (table) => [
     unique('auto_rule_suggestion_dismissals_key').on(table.userId, table.key),
     check('auto_rule_suggestion_dismissals_key_check', sql`length(${table.key}) between 1 and 200`),
+  ],
+);
+
+/** FR-AI2. No plaintext credential or financial prompt is stored in these tables. */
+export const aiSettings = pgTable(
+  'ai_settings',
+  {
+    userId: ownerId().primaryKey(),
+    revision: uuid('revision').notNull().defaultRandom(),
+    provider: varchar('provider', { length: 16, enum: AI_PROVIDERS }).notNull().default('openrouter'),
+    allowReadFinancial: boolean('allow_read_financial').notNull().default(false),
+    allowCreateDrafts: boolean('allow_create_drafts').notNull().default(false),
+    requireConfirmation: boolean('require_confirmation').notNull().default(true),
+    monthlyLimitUsd: numeric('monthly_limit_usd', { precision: 38, scale: 18 }).notNull().default('5'),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    check('ai_settings_provider_check', sql`${table.provider} in ('openrouter','zenmux','custom')`),
+    check('ai_settings_confirmation_check', sql`${table.requireConfirmation}`),
+    check('ai_settings_limit_check', sql`${table.monthlyLimitUsd} >= 0`),
+  ],
+);
+
+export const aiConnections = pgTable(
+  'ai_connections',
+  {
+    userId: ownerId(),
+    provider: varchar('provider', { length: 16, enum: AI_PROVIDERS }).notNull(),
+    baseUrl: text('base_url').notNull(),
+    apiKeyEnc: bytea('api_key_enc'),
+    last4: varchar('last4', { length: 4 }),
+    modelId: varchar('model_id', { length: 200 }),
+    pricing: jsonb('pricing').$type<AiPricing>(),
+    pricingSource: varchar('pricing_source', { length: 8, enum: ['catalog', 'manual'] }),
+    status: varchar('status', { length: 16 }).$type<AiConnectionStatus>().notNull().default('not_connected'),
+    addedAt: timestamptz('added_at'),
+    testedAt: timestamptz('tested_at'),
+    errorCode: varchar('error_code', { length: 64 }),
+    httpStatus: smallint('http_status'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.provider] }),
+    check('ai_connections_provider_check', sql`${table.provider} in ('openrouter','zenmux','custom')`),
+    check('ai_connections_secret_check', sql`(${table.apiKeyEnc} is null) = (${table.last4} is null)`),
+    check(
+      'ai_connections_status_check',
+      sql`${table.status} in ('not_connected','untested','connected','invalid_key','error')`,
+    ),
+    check('ai_connections_pricing_check', sql`${table.pricingSource} in ('catalog','manual')`),
+  ],
+);
+
+/** Outlives the 30-day activity log: purging logs must never restore this month's cost allowance. */
+export const aiUsageMonths = pgTable(
+  'ai_usage_months',
+  {
+    userId: ownerId(),
+    month: char('month', { length: 7 }).notNull(),
+    requests: integer('requests').notNull().default(0),
+    spentUsd: numeric('spent_usd', { precision: 38, scale: 18 }).notNull().default('0'),
+    estimatedUsd: numeric('estimated_usd', { precision: 38, scale: 18 }).notNull().default('0'),
+    reservedUsd: numeric('reserved_usd', { precision: 38, scale: 18 }).notNull().default('0'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.month] }),
+    check('ai_usage_months_month_check', sql`${table.month} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+    check(
+      'ai_usage_months_cost_check',
+      sql`${table.requests} >= 0 and ${table.spentUsd} >= 0 and ${table.estimatedUsd} >= 0 and ${table.estimatedUsd} <= ${table.spentUsd} and ${table.reservedUsd} >= 0`,
+    ),
+  ],
+);
+
+/** Only metadata; prompts, responses, raw errors and tool arguments have no storage column. */
+export const aiLogs = pgTable(
+  'ai_logs',
+  {
+    userId: ownerId(),
+    id: uuid('id').notNull(),
+    createdAt: createdAt(),
+    month: char('month', { length: 7 }).notNull(),
+    revision: uuid('revision').notNull(),
+    provider: varchar('provider', { length: 16, enum: AI_PROVIDERS }).notNull(),
+    feature: varchar('feature', { length: 16, enum: AI_FEATURES }).notNull(),
+    modelId: varchar('model_id', { length: 200 }),
+    status: varchar('status', { length: 8, enum: AI_LOG_STATUSES }).notNull(),
+    httpStatus: smallint('http_status'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    costUsd: numeric('cost_usd', { precision: 38, scale: 18 }),
+    reservedUsd: numeric('reserved_usd', { precision: 38, scale: 18 }).notNull(),
+    costSource: varchar('cost_source', { length: 16 }).$type<AiCostSource>().notNull().default('unknown'),
+    durationMs: integer('duration_ms').notNull().default(0),
+    images: integer('images').notNull().default(0),
+    categories: integer('categories').notNull().default(0),
+    accounts: integer('accounts').notNull().default(0),
+    transactions: integer('transactions').notNull().default(0),
+    toolCalls: text('tool_calls')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    errorCode: varchar('error_code', { length: 64 }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index('ai_logs_user_created_idx').on(table.userId, table.createdAt.desc(), table.id),
+    check('ai_logs_provider_check', sql`${table.provider} in ('openrouter','zenmux','custom')`),
+    check('ai_logs_feature_check', sql`${table.feature} in ('test','chat','receipt','categorize','gmail')`),
+    check('ai_logs_status_check', sql`${table.status} in ('pending','ok','error','timeout','blocked')`),
+    check('ai_logs_cost_source_check', sql`${table.costSource} in ('reported','estimated','free','unknown')`),
+    check(
+      'ai_logs_values_check',
+      sql`${table.reservedUsd} >= 0 and (${table.costUsd} is null or ${table.costUsd} >= 0) and ${table.durationMs} >= 0 and ${table.images} >= 0 and ${table.categories} >= 0 and ${table.accounts} >= 0 and ${table.transactions} >= 0 and (${table.inputTokens} is null or ${table.inputTokens} >= 0) and (${table.outputTokens} is null or ${table.outputTokens} >= 0)`,
+    ),
   ],
 );

@@ -8,6 +8,7 @@ import {
   RouterProvider,
   useNavigate,
 } from '@tanstack/react-router';
+import type { AiSettingsView } from '@wf/domain/ai';
 import { setLocale } from '@wf/i18n/runtime';
 import { describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -71,6 +72,16 @@ vi.mock('./tags-section.tsx', () => ({
 vi.mock('./instance-section.tsx', () => ({
   InstanceSection: () => <p>instance form</p>,
 }));
+const ai = vi.hoisted(() => ({
+  getAiSettings: vi.fn(),
+  saveAiSettings: vi.fn(),
+  removeAiKey: vi.fn(),
+  listAiModels: vi.fn(),
+  testAiConnection: vi.fn(),
+  listAiLogs: vi.fn(),
+  exportAiLogs: vi.fn(),
+}));
+vi.mock('../../server/fn/ai.ts', () => ai);
 const market = vi.hoisted(() => ({ getMarketSettings: vi.fn() }));
 vi.mock('../../server/fn/market.ts', () => market);
 vi.mock('./market-section.tsx', () => ({
@@ -97,6 +108,18 @@ const OVERVIEW: SecurityOverview = {
   passkeys: [],
   devices: [],
   history: { events: [], nextBefore: null },
+};
+const AI_SETTINGS: AiSettingsView = {
+  revision: null,
+  twoFactorEnabled: false,
+  provider: 'openrouter',
+  connections: [],
+  allowReadFinancial: false,
+  allowCreateDrafts: false,
+  requireConfirmation: true,
+  monthlyLimitUsd: '5',
+  usage: { month: '2026-10', requests: 0, spentUsd: '0', estimatedUsd: '0', reservedUsd: '0', limitUsd: '5' },
+  allowedCustomBaseUrls: [],
 };
 
 /**
@@ -232,7 +255,7 @@ describe('SettingsDialog', () => {
       );
     const nav = dialog.getByRole('navigation', { name: 'Bagian pengaturan' });
     expect(nav.element().textContent).toBe(
-      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagAturan otomatisPrivasiDataKeamananIntegrasiAPI kurs & pasar',
+      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagAturan otomatisPrivasiDataKeamananIntegrasiAI agent (BYOK)API kurs & pasar',
     );
     const profile = nav.getByRole('link', { name: 'Profil & akun' });
     await expect.element(profile).toHaveAttribute('href', '/?settings=profile');
@@ -364,6 +387,20 @@ describe('SettingsDialog', () => {
     await expect
       .element(page.getByRole('alert').last())
       .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
+  });
+
+  it('closes to the underlying page after following the AI security prerequisite', async () => {
+    ai.getAiSettings.mockResolvedValue({ ok: true, value: AI_SETTINGS });
+    server.getSecurity.mockResolvedValue({ ok: true, value: { ...OVERVIEW, twoFactorEnabled: false } });
+    const router = await renderSettings('/?settings=ai');
+    await page.getByRole('button', { name: 'Buka Keamanan' }).click();
+    await expect.element(page.getByRole('region', { name: 'Verifikasi dua langkah' })).toBeVisible();
+    await page.getByRole('button', { name: 'Tutup pengaturan' }).click();
+    await vi.waitFor(() => {
+      expect(router.state.location.href).toBe('/');
+    });
+    expect(page.getByRole('dialog').elements()).toHaveLength(0);
+    await expect.element(page.getByRole('heading', { name: 'Ringkasan' })).toBeVisible();
   });
 
   it('explains when the security overview or the profile could not be loaded', async () => {

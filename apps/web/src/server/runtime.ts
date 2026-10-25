@@ -11,6 +11,7 @@ import { createAuth, type WfAuth } from '@wf/auth/auth';
 import { createInviter, type Invitation, type Inviter, type InviteInput } from '@wf/auth/invitations';
 import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring } from '@wf/crypto/keyring';
+import { createAiRepository, type AiRepository } from '@wf/db/ai';
 import { createAccounts, type AccountsRepository } from '@wf/db/accounts';
 import { createAutoRules, type AutoRulesRepository } from '@wf/db/auto-rules';
 import { createAccountDeletion, type AccountDeletion } from '@wf/db/account-deletion';
@@ -53,6 +54,7 @@ import { createTransactions, type TransactionsRepository } from '@wf/db/transact
 import { createUserKeys } from '@wf/db/user-keys';
 import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
+import { createAiClient, type AiClient } from '@wf/integrations/ai';
 import { createInstanceMailer, instanceSmtp, sendWith } from '@wf/integrations/instance-mailer';
 import type { Mailer } from '@wf/integrations/mailer';
 import { createMarketAdapters, type MarketAdapters } from '@wf/integrations/market/adapters';
@@ -110,6 +112,9 @@ export interface Services extends BaseRuntime {
   readonly tags: TagsRepository;
   /** FR-AI1: the user's ordered rules, correction suggestions, preview, and confirmed backfill. */
   readonly autoRules: AutoRulesRepository;
+  /** FR-AI2: encrypted configuration, exact budget reservations and metadata-only activity. */
+  readonly ai: AiRepository;
+  readonly aiClient: AiClient;
   readonly fxRates: FxRatesRepository;
   /** Periods, budgets, and the dashboard (M2), on `wf_app`. */
   readonly periods: PeriodsRepository;
@@ -204,6 +209,8 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     categories: createCategories(appDb, { getDek }),
     tags: createTags(appDb),
     autoRules: createAutoRules(appDb, { now }),
+    ai: createAiRepository(appDb, { getDek, now, allowedBaseUrls: config.ai.allowedBaseUrls }),
+    aiClient: createAiClient({ now, allowedBaseUrls: config.ai.allowedBaseUrls }),
     fxRates: createFxRates(appDb),
     periods: createPeriods(appDb, { now }),
     budgets: createBudgets(appDb, { now }),
