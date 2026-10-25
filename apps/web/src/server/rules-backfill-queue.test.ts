@@ -49,7 +49,7 @@ describe('createRulesBackfillQueue', () => {
       'rules backfill redis connection error',
     );
     const payload = { userId: USER, requestId: REQUEST };
-    expect(await queue.enqueue(payload, 'request-1')).toBe(`rb.${USER}.request-1`);
+    expect(await queue.enqueue(payload)).toBe(`rb.${USER}.${REQUEST}`);
     const [name, sent, options] = queueMock.add.mock.calls[0] as unknown as [
       string,
       unknown,
@@ -57,11 +57,11 @@ describe('createRulesBackfillQueue', () => {
     ];
     expect(name).toBe('rules-backfill');
     expect(sent).toEqual(payload);
-    expect(options.jobId).toBe(`rb.${USER}.request-1`);
+    expect(options.jobId).toBe(`rb.${USER}.${REQUEST}`);
     queueMock.getJob.mockResolvedValueOnce(undefined);
     expect(await queue.status('missing', USER)).toEqual({ status: 'failed' });
     queueMock.getJob.mockResolvedValueOnce(job('completed'));
-    expect(await queue.status(`rb.${USER}.request-1`, USER)).toEqual({ status: 'completed', preview: PREVIEW });
+    expect(await queue.status(`rb.${USER}.${REQUEST}`, USER)).toEqual({ status: 'completed', preview: PREVIEW });
   });
 });
 
