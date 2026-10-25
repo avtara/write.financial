@@ -61,6 +61,13 @@ describe('requestImport', () => {
     const rows = Array.from({ length: 500 }, () => row);
     const parsed = validator.parse({ accountId: ACCOUNT, rows }) as { rows: unknown[] };
     expect(parsed.rows).toHaveLength(500);
+    expect((parsed.rows[0] as { tags: string[] }).tags).toEqual([]);
+    expect(validator.safeParse({ accountId: ACCOUNT, rows: [{ ...row, tags: ['kopi', 'kantor'] }] }).success).toBe(
+      true,
+    );
+    expect(
+      validator.safeParse({ accountId: ACCOUNT, rows: [{ ...row, tags: ['a', 'b', 'c', 'd', 'e', 'f'] }] }).success,
+    ).toBe(false);
     expect(validator.safeParse({ accountId: ACCOUNT, rows: [...rows, row] }).success).toBe(false);
     expect(validator.safeParse({ accountId: ACCOUNT, rows: [{ ...row, amountMinor: 0n }] }).success).toBe(false);
     expect(validator.safeParse({ accountId: ACCOUNT, rows: [{ ...row, date: '31/09/2026' }] }).success).toBe(false);

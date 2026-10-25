@@ -25,6 +25,7 @@ const IMPORT_ROW = z.object({
   description: z.string().max(200).nullable(),
   categoryId: z.uuid().nullable(),
   transferAccountId: z.uuid().nullable(),
+  tags: z.array(z.string().min(1).max(32)).max(5).default([]),
 });
 
 /** Module-local: the isolation matrix only tracks `createServerFn` exports (see `import.test.ts` for the schema). */

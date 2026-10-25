@@ -20,6 +20,7 @@ import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
 import { createPortfolioSnapshots, type PortfolioSnapshots } from '@wf/db/portfolio-snapshots';
 import { createGoalSnapshots, type GoalSnapshots } from '@wf/db/goal-snapshots';
 import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
+import { createRuleBackfillProposals, type RuleBackfillProposalsRepository } from '@wf/db/rule-backfill';
 import { createReportFiles, type ReportFilesRepository } from '@wf/db/report-files';
 import { createReports, type ReportsRepository, type ReportView } from '@wf/db/reports';
 import { createUserKeys } from '@wf/db/user-keys';
@@ -49,6 +50,8 @@ export interface WorkerDb {
   readonly budgetAlerts: BudgetAlerts;
   readonly balanceChecks: BalanceChecks;
   readonly detectRecurring: DetectRecurring;
+  /** FR-AI1: read-only backfill proposals; applying them stays the user's confirmation in the web app. */
+  readonly ruleBackfill: RuleBackfillProposalsRepository;
   /** Email delivery of notifications. */
   readonly outbox: Outbox;
   /** Market data writes: built-in quotes (global), the user's own-key quotes, the request log. */
@@ -117,6 +120,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   const { check: checkBudgets } = createBudgetAlerts(database);
   const { check: checkBalances } = createBalanceChecks(database);
   const { detect } = createDetectRecurring(database);
+  const { preview: previewRuleBackfill } = createRuleBackfillProposals(database);
   const { get, markSent, markFailed } = createOutbox(database);
   const { generate: generateReport, pendingMonthly, get: getReport } = createReports(database);
   const { record: recordGoals } = createGoalSnapshots(database);
@@ -153,6 +157,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
       budgetAlerts: Object.freeze({ check: checkBudgets }),
       balanceChecks: Object.freeze({ check: checkBalances }),
       detectRecurring: Object.freeze({ detect }),
+      ruleBackfill: Object.freeze({ preview: previewRuleBackfill }),
       outbox: Object.freeze({ get, markSent, markFailed }),
       marketData: Object.freeze({ recordServerQuotes, recordUserQuotes, logRequest }),
       marketCredentials: Object.freeze({ list: listKeys, setStatus }),

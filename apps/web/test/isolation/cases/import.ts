@@ -28,6 +28,7 @@ const row = {
   description: 'QRIS KOPI B',
   categoryId: null,
   transferAccountId: null,
+  tags: [],
 };
 
 export const cases = {

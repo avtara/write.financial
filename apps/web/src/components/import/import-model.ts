@@ -7,7 +7,10 @@
  * keyword — simple and explainable). The server re-checks everything (see `server/fn/import.ts`).
  */
 import type { AccountView } from '@wf/db/accounts';
+import type { AutoRuleView } from '@wf/domain/rules';
+import type { CategoryView } from '@wf/db/categories';
 import type { TransactionRow } from '@wf/db/transaction-query';
+import { evaluateRules, type RuleDirection } from '@wf/domain/rules';
 import type { LocalDate } from '@wf/domain/period';
 import type { ParsedStatement } from './import-parse.ts';
 
@@ -40,6 +43,10 @@ export interface ErrorCandidate {
   readonly transfer: null;
   readonly status: 'error';
   readonly guessedFrom: null;
+  /** FR-AI1: rules never apply to an unreadable row. */
+  readonly ruleName: null;
+  readonly tags: readonly string[];
+  readonly ruleTagOverflow: false;
   /** The per-row reasons of an unreadable row (always non-empty; they are what the row shows). */
   readonly errors: readonly string[];
 }
@@ -59,6 +66,12 @@ export interface ReadableCandidate {
   readonly status: 'new' | 'duplicate';
   /** The keyword the category guess matched on, for the "✦ …" hint; `null` without a guess. */
   readonly guessedFrom: string | null;
+  /** The rule whose suggestion filled the category, for the "aturan" hint; `null` without a rule. */
+  readonly ruleName: string | null;
+  /** Tag slugs the matching rules add to the draft (never more than five; see {@link ruleTagOverflow}). */
+  readonly tags: readonly string[];
+  /** More than five rule tags would be needed: none are kept and the row says so instead of dropping some. */
+  readonly ruleTagOverflow: boolean;
   readonly errors: readonly [];
 }
 
@@ -180,6 +193,11 @@ export interface ImportContext {
   readonly currency: string;
   /** The user's own accounts (for transfer detection). */
   readonly accounts: readonly AccountView[];
+  /** The enabled auto rules (FR-AI1): their category wins over the history guess; their tags join the draft. */
+  readonly rules: readonly AutoRuleView[];
+  readonly categories: readonly CategoryView[];
+  /** The user's own registered subscription names, for the subscription condition (statement time stays unknown). */
+  readonly subscriptionNames: readonly string[];
   /** The account's existing transactions in the statement's window (newest first is fine). */
   readonly existing: readonly TransactionRow[];
   /** The account's history for category guesses, newest first (the newest match wins). */
@@ -212,6 +230,9 @@ export function buildCandidates(parsed: readonly ParsedRow[], context: ImportCon
         transfer: null,
         status: 'error',
         guessedFrom: null,
+        ruleName: null,
+        tags: [],
+        ruleTagOverflow: false,
         errors: row.errors,
       });
       continue;
@@ -229,16 +250,43 @@ export function buildCandidates(parsed: readonly ParsedRow[], context: ImportCon
     const guess = transfer === null ? guessCategory(description, context.history) : null;
     const isDup = duplicateOf || duplicateInFile;
     if (isDup) duplicates += 1;
+    const direction: RuleDirection = row.direction === 'in' ? 'income' : 'expense';
+    const normalized = description?.trim().toLowerCase() ?? '';
+    const subscription =
+      normalized !== '' && context.subscriptionNames.some((name) => normalized.includes(name.trim().toLowerCase()));
+    const evaluation = evaluateRules(context.rules, {
+      description,
+      date,
+      // A statement row has a date, not a time: a "before 10:00" condition cannot be proved and does not match.
+      minuteOfDay: null,
+      accountIds: [context.accountId],
+      direction,
+      subscription,
+    });
+    const matching = evaluation.winningRule ?? evaluation.rules.find((match) => match.matched) ?? null;
+    const ruleCategory =
+      evaluation.categoryId === null
+        ? null
+        : (context.categories.find(
+            (category) =>
+              category.id === evaluation.categoryId &&
+              category.archivedAt === null &&
+              (direction === 'income' ? category.kind === 'income' : category.kind !== 'income'),
+          )?.id ?? null);
+    const ruleTags = evaluation.tagOverflow ? [] : evaluation.tags;
     candidates.push({
       row: row.row,
       date,
       amountMinor,
       direction: row.direction,
       description,
-      categoryId: isDup ? null : (guess?.categoryId ?? null),
+      categoryId: isDup ? null : (ruleCategory ?? guess?.categoryId ?? null),
       transfer: isDup ? null : transfer,
       status: isDup ? 'duplicate' : 'new',
-      guessedFrom: guess?.keyword ?? null,
+      guessedFrom: ruleCategory === null ? (guess?.keyword ?? null) : null,
+      ruleName: matching?.name ?? null,
+      tags: isDup ? [] : ruleTags,
+      ruleTagOverflow: evaluation.tagOverflow,
       errors: [],
     });
   }

@@ -33,11 +33,27 @@ const server = vi.hoisted(() => ({
 }));
 vi.mock('../../server/fn/account.ts', () => server);
 const ledger = vi.hoisted(() => ({
+  listAccounts: vi.fn(),
   listCategories: vi.fn(),
   listTags: vi.fn(),
   listSimilarTags: vi.fn(),
 }));
 vi.mock('../../server/fn/ledger.ts', () => ledger);
+const rulesServer = vi.hoisted(() => ({
+  listAutoRules: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+  listRuleSuggestions: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+  createAutoRule: vi.fn(),
+  updateAutoRule: vi.fn(),
+  deleteAutoRule: vi.fn(),
+  setAutoRuleEnabled: vi.fn(),
+  reorderAutoRules: vi.fn(),
+  dismissRuleSuggestion: vi.fn(),
+  previewAutoRule: vi.fn(),
+  requestRuleBackfill: vi.fn(),
+  getRuleBackfillResult: vi.fn(),
+  applyRuleBackfill: vi.fn(),
+}));
+vi.mock('../../server/fn/rules.ts', () => rulesServer);
 vi.mock('../../server/fn/tags.ts', () => ({ listSimilarTags: ledger.listSimilarTags }));
 const budget = vi.hoisted(() => ({ getPeriodSettings: vi.fn() }));
 vi.mock('../../server/fn/budget.ts', () => budget);
@@ -155,6 +171,27 @@ describe('loadSettingsSection', () => {
     });
   });
 
+  it('loads the rules with their suggestions, categories, tags, and accounts', async () => {
+    ledger.listCategories.mockResolvedValue({ ok: true, value: [] });
+    ledger.listTags.mockResolvedValue({ ok: true, value: [] });
+    rulesServer.listAutoRules.mockResolvedValue({ ok: true, value: [] });
+    rulesServer.listRuleSuggestions.mockResolvedValue({ ok: true, value: [] });
+    ledger.listAccounts.mockResolvedValue({
+      ok: true,
+      value: { baseCurrency: 'IDR', accounts: [], availableMinor: 0n },
+    });
+    await expect(loadSettingsSection('rules')).resolves.toEqual({
+      section: 'rules',
+      rules: { ok: true, value: [] },
+      suggestions: { ok: true, value: [] },
+      categories: { ok: true, value: [] },
+      tags: { ok: true, value: [] },
+      accounts: { ok: true, value: { baseCurrency: 'IDR', accounts: [], availableMinor: 0n } },
+    });
+    expect(ledger.listCategories).toHaveBeenCalledWith({ data: { includeArchived: true } });
+    expect(ledger.listAccounts).toHaveBeenCalledWith({ data: { status: 'all' } });
+  });
+
   it('loads the period and the notification settings', async () => {
     budget.getPeriodSettings.mockResolvedValue({ ok: true, value: { overview: {}, payday: {} } });
     await expect(loadSettingsSection('period')).resolves.toEqual({
@@ -195,7 +232,7 @@ describe('SettingsDialog', () => {
       );
     const nav = dialog.getByRole('navigation', { name: 'Bagian pengaturan' });
     expect(nav.element().textContent).toBe(
-      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagPrivasiDataKeamananIntegrasiAPI kurs & pasar',
+      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagAturan otomatisPrivasiDataKeamananIntegrasiAPI kurs & pasar',
     );
     const profile = nav.getByRole('link', { name: 'Profil & akun' });
     await expect.element(profile).toHaveAttribute('href', '/?settings=profile');
@@ -204,6 +241,23 @@ describe('SettingsDialog', () => {
     await expect.element(nav.getByRole('link', { name: 'Tag' })).toHaveAttribute('href', '/?settings=tags');
     await expect.element(dialog.getByRole('region', { name: 'Profil & akun' })).toBeVisible();
     await expect.element(dialog.getByRole('textbox', { name: 'Nama lengkap' })).toHaveValue('Avtara K.');
+  });
+
+  it('shows Settings › Aturan otomatis', async () => {
+    ledger.listCategories.mockResolvedValue({ ok: true, value: [] });
+    ledger.listTags.mockResolvedValue({ ok: true, value: [] });
+    rulesServer.listAutoRules.mockResolvedValue({ ok: true, value: [] });
+    rulesServer.listRuleSuggestions.mockResolvedValue({ ok: true, value: [] });
+    ledger.listAccounts.mockResolvedValue({
+      ok: true,
+      value: { baseCurrency: 'IDR', accounts: [], availableMinor: 0n },
+    });
+    await renderSettings('/?settings=rules');
+    const dialog = page.getByRole('dialog', { name: 'Pengaturan' });
+    await expect.element(dialog.getByRole('heading', { name: 'Aturan otomatis' })).toBeVisible();
+    await expect
+      .element(dialog.getByText('Belum ada aturan. Tambahkan satu, atau mulai dari saran koreksimu.'))
+      .toBeVisible();
   });
 
   it('lists "Instans" for admins and shows the instance settings', async () => {

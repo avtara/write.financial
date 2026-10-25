@@ -40,6 +40,7 @@ const MESSAGES: Readonly<Record<LedgerErrorCode, () => string>> = {
   INVALID_TRADE: m.ledger_error_invalid_trade,
   INVALID_MARKET_CREDENTIAL: m.ledger_error_invalid_market_credential,
   INVALID_REPORT: m.ledger_error_invalid_report,
+  INVALID_RULE: m.ledger_error_invalid_rule,
   TWO_FACTOR_REQUIRED: m.auth_error_two_factor_required,
 };
 

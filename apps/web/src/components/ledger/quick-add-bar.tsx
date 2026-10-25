@@ -24,6 +24,7 @@ import { budgetNotes } from '../budget/budget-note.tsx';
 import { CategorySelect } from './category-picker.tsx';
 import { DateTimeField } from './date-time-field.tsx';
 import { announceSaved } from './record-transaction.tsx';
+import { RuleSuggestion } from './rule-suggestion.tsx';
 import {
   defaultAccountId,
   emptyValues,
@@ -286,6 +287,16 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
           {m.record_save()}
           <CornerDownLeft aria-hidden="true" className="size-3.5" />
         </Button>
+      </div>
+      <div className="px-0.5">
+        <RuleSuggestion
+          rules={data.rules}
+          subscriptionNames={data.subscriptionNames}
+          categories={data.categories}
+          values={values}
+          categoryIsGuess={!picked}
+          onApply={update}
+        />
       </div>
       {message === null ? null : (
         <p role="alert" className="flex items-center gap-1.5 px-1 text-[12px] text-red-fg">

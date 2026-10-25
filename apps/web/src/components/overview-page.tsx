@@ -7,6 +7,7 @@
  * says so.
  */
 import type { AccountsOverview } from '@wf/db/accounts';
+import type { AutoRuleView } from '@wf/domain/rules';
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { CategoryView } from '@wf/db/categories';
 import type { Dashboard } from '@wf/db/dashboard';
@@ -49,6 +50,7 @@ export interface OverviewData {
   readonly accounts: Result<AccountsOverview>;
   readonly categories: Result<CategoryView[]>;
   readonly tags: Result<TagView[]>;
+  readonly rules: Result<AutoRuleView[]>;
   readonly periods: Result<PeriodsOverview>;
   readonly profile: Result<Profile>;
   readonly dashboard: Result<Dashboard>;
@@ -80,6 +82,8 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
   const accounts = valueOf(data.accounts);
   const categories = valueOf(data.categories);
   const tags = valueOf(data.tags);
+  const rules = valueOf(data.rules);
+  const subscriptions = valueOf(data.subscriptions);
   const periods = valueOf(data.periods);
   const profile = valueOf(data.profile);
   const dashboard = valueOf(data.dashboard);
@@ -87,12 +91,14 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
   const active = accounts?.accounts.filter((account) => account.status === 'active') ?? [];
   const hasTransactions = active.some((account) => account.transactionCount > 0);
   const ledger: LedgerData | null =
-    accounts !== null && categories !== null && tags !== null && active.length > 0
+    accounts !== null && categories !== null && tags !== null && rules !== null && active.length > 0
       ? {
           baseCurrency: accounts.baseCurrency,
           accounts: accounts.accounts,
           categories,
           tags,
+          rules,
+          subscriptionNames: subscriptions?.subscriptions.map((subscription) => subscription.name) ?? [],
           ...(budget === null ? {} : { budget: { lines: budget.lines, currency: budget.baseCurrency } }),
         }
       : null;

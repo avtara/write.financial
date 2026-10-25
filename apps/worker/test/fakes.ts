@@ -231,6 +231,15 @@ export function fakeDb(
     budgetAlerts: { check: method('budgetAlerts.check', { created: 2 }) },
     balanceChecks: { check: method('balanceChecks.check', { lowBalance: 1, unchecked: 0, insufficient: 0 }) },
     detectRecurring: { detect: method('detectRecurring.detect', { created: 1, updated: 0 }) },
+    ruleBackfill: {
+      preview: method('ruleBackfill.preview', {
+        proposals: [],
+        totals: { matched: 0, changes: 0, noops: 0, blocked: 0 },
+        ruleIds: [],
+        version: 'rules-version',
+        truncated: false,
+      }),
+    },
     outbox: {
       get: method('outbox.get', null),
       markSent: method('outbox.markSent', true),

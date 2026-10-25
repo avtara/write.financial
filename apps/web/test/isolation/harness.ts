@@ -67,6 +67,7 @@ import {
 import * as receivables from '../../src/server/fn/receivables.ts';
 import * as reports from '../../src/server/fn/reports.ts';
 import * as review from '../../src/server/fn/review.ts';
+import * as rules from '../../src/server/fn/rules.ts';
 import * as schedules from '../../src/server/fn/schedules.ts';
 import * as search from '../../src/server/fn/search.ts';
 import * as setup from '../../src/server/fn/setup.ts';
@@ -178,6 +179,7 @@ export const FUNCTIONS = {
   requestReportExport,
   saveReportAutoSend,
   ...review,
+  ...rules,
   ...schedules,
   ...search,
   ...setup,

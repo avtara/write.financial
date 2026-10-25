@@ -252,6 +252,9 @@ export function AiCard({ item, lookup, locale, timeZone, pending, onRecord, onIg
   const signed = draft.type === 'income' ? amountMinor : -amountMinor;
   const title = item.label ?? m.review_untitled();
   const day = toLocalDate(draft.occurredAt, timeZone);
+  const category =
+    draft.type === 'transfer' ? undefined : lookup.categories.find((entry) => entry.id === draft.categoryId);
+  const tags = draft.tags ?? [];
   return (
     <article aria-label={title} data-review-item={item.id} className={CARD}>
       <CardHead
@@ -278,6 +281,26 @@ export function AiCard({ item, lookup, locale, timeZone, pending, onRecord, onIg
         </dd>
         <dt className="text-muted-fg">{m.review_ai_account()}</dt>
         <dd className="text-fg">{accountOf(lookup, accountId)?.displayName ?? m.review_ai_unknown()}</dd>
+        {draft.type === 'transfer' ? null : (
+          <>
+            <dt className="text-muted-fg">{m.review_category_label()}</dt>
+            <dd className={category === undefined ? 'text-subtle' : 'text-fg'}>
+              {category === undefined ? m.review_ai_unknown() : categoryName(category)}
+            </dd>
+          </>
+        )}
+        {tags.length === 0 ? null : (
+          <>
+            <dt className="text-muted-fg">{m.review_ai_tags()}</dt>
+            <dd className="flex flex-wrap gap-1 text-fg">
+              {tags.map((tag) => (
+                <span key={tag} className="font-mono text-[11.5px]">
+                  #{tag}
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
       </dl>
       <div className="grid grid-cols-2 gap-2">
         <Button variant="secondary" size="sm" disabled={pending} onClick={onIgnore}>

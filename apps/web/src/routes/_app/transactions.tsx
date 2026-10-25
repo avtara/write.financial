@@ -8,6 +8,8 @@ import { TransactionsPage } from '../../components/transactions/transactions-pag
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { queryOf, TRANSACTIONS_SEARCH, type TransactionsSearch } from '../../lib/transactions-search.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
+import { listAutoRules } from '../../server/fn/rules.ts';
+import { listSubscriptions } from '../../server/fn/schedules.ts';
 import { getTransactionsView } from '../../server/fn/transactions.ts';
 
 /**
@@ -19,20 +21,24 @@ export const Route = createFileRoute('/_app/transactions')({
   validateSearch: TRANSACTIONS_SEARCH,
   loaderDeps: ({ search }) => queryOf(search),
   loader: async ({ deps }) => {
-    const [view, accounts, categories, tags] = await Promise.all([
+    const [view, accounts, categories, tags, rules, subscriptionNames] = await Promise.all([
       getTransactionsView({ data: deps }),
       listAccounts({ data: {} }),
       listCategories({ data: {} }),
       listTags({ data: {} }),
+      listAutoRules({ data: { enabledOnly: true } }),
+      listSubscriptions({ data: {} }).then((result) =>
+        result.ok ? result.value.subscriptions.map((subscription) => subscription.name) : [],
+      ),
     ]);
-    return { view, accounts, categories, tags };
+    return { view, accounts, categories, tags, rules, subscriptionNames };
   },
   head: () => ({ meta: [{ title: `${m.transactions_page_title()} · ${m.app_name()}` }] }),
   component: TransactionsRoute,
 });
 
 function TransactionsRoute() {
-  const { view, accounts, categories, tags } = Route.useLoaderData();
+  const { view, accounts, categories, tags, rules, subscriptionNames } = Route.useLoaderData();
   const { viewer } = Route.useRouteContext();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -40,6 +46,7 @@ function TransactionsRoute() {
   if (!accounts.ok) return <LoadFailed code={accounts.code} />;
   if (!categories.ok) return <LoadFailed code={categories.code} />;
   if (!tags.ok) return <LoadFailed code={tags.code} />;
+  if (!rules.ok) return <LoadFailed code={rules.code} />;
   const { baseCurrency, accounts: accountViews, availableMinor: available } = accounts.value;
   return (
     <TransactionsPage
@@ -50,6 +57,8 @@ function TransactionsRoute() {
         accounts: accountViews,
         categories: categories.value,
         tags: tags.value,
+        rules: rules.value,
+        subscriptionNames,
       }}
       available={available}
       timeZone={viewer.timezone}

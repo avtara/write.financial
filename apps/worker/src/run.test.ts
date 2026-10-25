@@ -43,6 +43,7 @@ const QUEUES = [
   'report-export',
   'notify',
   'detect-recurring',
+  'rules-backfill',
   'market-server',
   'market-byok',
   'snapshots',

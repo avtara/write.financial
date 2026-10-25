@@ -20,6 +20,7 @@ import { createPeriodCloseProcessor } from './processors/period-close.ts';
 import type { ReportPdfRenderer } from './processors/report-export.ts';
 import { createReportExportProcessor } from './processors/report-export.ts';
 import { createRemindersProcessor } from './processors/reminders.ts';
+import { createRulesBackfillProcessor } from './processors/rules-backfill.ts';
 import { createSnapshotsProcessor } from './processors/snapshots.ts';
 import { createReportsProcessor } from './processors/reports.ts';
 import type { WorkerDb } from './worker-db.ts';
@@ -82,6 +83,7 @@ export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
   'report-export': { concurrency: 2, create: createReportExportProcessor },
   notify: { concurrency: 2, create: createNotifyProcessor },
   'detect-recurring': { concurrency: 1, create: createDetectRecurringProcessor },
+  'rules-backfill': { concurrency: 2, create: createRulesBackfillProcessor },
   'market-server': { concurrency: 1, create: createMarketServerProcessor },
   'market-byok': { concurrency: 2, create: createMarketByokProcessor },
   snapshots: { concurrency: 2, create: createSnapshotsProcessor },

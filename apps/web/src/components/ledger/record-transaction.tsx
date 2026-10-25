@@ -28,7 +28,8 @@ import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { getBudgetStatus } from '../../server/fn/budget.ts';
 import { listGoals, spendFromGoal } from '../../server/fn/goals.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
-import { createRecurrence } from '../../server/fn/schedules.ts';
+import { listAutoRules } from '../../server/fn/rules.ts';
+import { createRecurrence, listSubscriptions } from '../../server/fn/schedules.ts';
 import {
   listDrafts,
   recordTransaction,
@@ -66,6 +67,7 @@ import {
 } from './card-extras.tsx';
 import { recurrenceRequest, type RepeatValues } from './recurrence-draft.ts';
 import { RepeatField } from './repeat-field.tsx';
+import { RuleSuggestion } from './rule-suggestion.tsx';
 import { SplitBillSheet, type BillInput } from './split-bill.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
@@ -177,13 +179,15 @@ export function RecordTransactionProvider({
       listAccounts({ data: {} }),
       listCategories({ data: {} }),
       listTags({ data: {} }),
+      listAutoRules({ data: { enabledOnly: true } }).catch(() => null),
+      listSubscriptions({ data: {} }).catch(() => null),
       listDrafts({ data: { kind: 'transaction' } }),
       // The budget only adds notes (FR-T2/T3): recording works without it.
       getBudgetStatus({ data: {} }).catch(() => null),
       // Goals only offer "Bayar dari tujuan": recording works without them.
       listGoals({ data: { status: 'active' } }).catch(() => null),
     ]).then(
-      ([accounts, categories, tags, drafts, budget, goals]) => {
+      ([accounts, categories, tags, rules, subscriptions, drafts, budget, goals]) => {
         const fail = (code: string) => {
           setLoaded({ status: 'failed', message: ledgerErrorMessage(code, preferences.locale) });
         };
@@ -199,6 +203,11 @@ export function RecordTransactionProvider({
               accounts: accounts.value.accounts,
               categories: categories.value,
               tags: tags.value,
+              rules: rules?.ok === true ? rules.value : [],
+              subscriptionNames:
+                subscriptions?.ok === true
+                  ? subscriptions.value.subscriptions.map((subscription) => subscription.name)
+                  : [],
               ...(budget?.ok === true
                 ? { budget: { lines: budget.value.lines, currency: budget.value.baseCurrency } }
                 : {}),
@@ -659,6 +668,13 @@ function RecordSheet({
             </ul>
           </section>
         )}
+        <RuleSuggestion
+          rules={data.rules}
+          subscriptionNames={data.subscriptionNames}
+          categories={data.categories}
+          values={values}
+          onApply={form.update}
+        />
         <TransactionFormFields
           key={session.key}
           form={form}
