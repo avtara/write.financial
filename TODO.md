@@ -88,7 +88,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M7 — Automation & AI
 
-- [ ] Auto rules (suggestions)
+- [x] Auto rules (suggestions) — M7.1: pure ordered evaluator, Settings editor/preview, form/import/review suggestions, confirmed version-pinned backfill, and a proposal-only `rules-backfill` worker job
 - [ ] AI Assistant + receipt reading (BYOK)
 - [ ] Gmail (feature flag) + Gmail log
 - [ ] M7 unit tests: 100% per-file coverage gate green
