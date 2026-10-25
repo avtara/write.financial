@@ -23,6 +23,7 @@ describe('JOBS', () => {
       'report-export',
       'notify',
       'detect-recurring',
+      'rules-backfill',
       'market-server',
       'market-byok',
       'snapshots',
@@ -50,6 +51,21 @@ describe('JOBS', () => {
     expect(JOBS[queue].safeParse({}).success).toBe(false);
     expect(JOBS[queue].safeParse({ userId: 'u1' }).success).toBe(false);
     expect(JOBS[queue].safeParse({ userId: USER, amountMinor: '1' }).success).toBe(false);
+  });
+
+  it('keeps the rules-backfill user, request, and optional rule scope', () => {
+    expect(JOBS['rules-backfill'].parse({ userId: USER, requestId: OTHER })).toEqual({
+      userId: USER,
+      requestId: OTHER,
+    });
+    expect(JOBS['rules-backfill'].parse({ userId: USER, requestId: OTHER, ruleIds: [USER] })).toEqual({
+      userId: USER,
+      requestId: OTHER,
+      ruleIds: [USER],
+    });
+    expect(JOBS['rules-backfill'].safeParse({ userId: USER }).success).toBe(false);
+    expect(JOBS['rules-backfill'].safeParse({ userId: USER, requestId: OTHER, ruleIds: [] }).success).toBe(false);
+    expect(JOBS['rules-backfill'].safeParse({ userId: USER, requestId: OTHER, amountMinor: '1' }).success).toBe(false);
   });
 
   it('names the built-in market source and nothing else', () => {
@@ -87,6 +103,9 @@ describe('jobIds', () => {
     expect(jobIds['report-export'](OTHER, 'xlsx', 'req-1')).toBe(`rep.${OTHER}.xlsx.req-1`);
     expect(jobIds.notify(OTHER)).toBe(`ntf.${OTHER}`);
     expect(jobIds['detect-recurring'](USER, DAY)).toBe(`det.${USER}.2026-10-18`);
+    expect(jobIds['rules-backfill'](USER, OTHER)).toBe(`rb.${USER}.${OTHER}`);
+    expect(jobIds.reports(USER, DAY)).toBe(`rep.${USER}.2026-10-18`);
+    expect(jobIds['account-deletion'](USER)).toBe(`del.${USER}`);
     expect(jobIds.snapshots(USER, DAY)).toBe(`snap.${USER}.2026-10-18`);
     expect(jobIds['market-server']('crypto', new Date('2026-10-15T09:40:59Z'))).toBe('mks.crypto.2026-10-15T0940');
     // One own-key run per 5-minute slot.

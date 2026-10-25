@@ -35,6 +35,9 @@ import {
   accounts,
   accountsAuth,
   attachments,
+  autoRuleCorrections,
+  autoRules,
+  autoRuleSuggestionDismissals,
   balanceAdjustments,
   drafts,
   goals,
@@ -290,6 +293,23 @@ beforeAll(async () => {
       await tx
         .insert(goalSnapshots)
         .values({ userId, snapshotDate: TODAY, recordedAt: new Date('2026-10-15T10:00:00Z'), goals: [] });
+      // Auto rules (M7.1): a rule, the manual-correction evidence behind a suggestion, and its dismissal.
+      await tx.insert(autoRules).values({
+        userId,
+        name: 'Kopi',
+        position: 0,
+        conditions: [{ field: 'description', op: 'containsAny', values: ['kopi'] }],
+        actions: [{ type: 'setCategory', categoryId: food }],
+      });
+      await tx.insert(autoRuleCorrections).values({
+        userId,
+        transactionId: expenseId,
+        pattern: 'kopi kenangan',
+        label: 'Kopi Kenangan',
+        fromCategoryId: fee,
+        toCategoryId: food,
+      });
+      await tx.insert(autoRuleSuggestionDismissals).values({ userId, key: `dismissed-${userId}` });
       await tx.insert(goals).values({
         userId,
         name: 'Dana Darurat',

@@ -23,6 +23,7 @@
     "./receivables": "./src/receivables.ts",
     "./recurrence": "./src/recurrence.ts",
     "./report": "./src/report.ts",
+    "./rules": "./src/rules.ts",
     "./seed": "./src/seed.ts",
     "./subscriptions": "./src/subscriptions.ts",
     "./tags": "./src/tags.ts",

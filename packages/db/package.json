@@ -21,6 +21,8 @@
     "./backup": "./src/backup.ts",
     "./accounts": "./src/accounts.ts",
     "./account-deletion": "./src/account-deletion.ts",
+    "./auto-rules": "./src/auto-rules.ts",
+    "./rule-backfill": "./src/rule-backfill.ts",
     "./activity": "./src/activity.ts",
     "./export": "./src/export.ts",
     "./categories": "./src/categories.ts",

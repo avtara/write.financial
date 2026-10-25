@@ -127,6 +127,13 @@
       "when": 1792796800000,
       "tag": "0017_account_deletion",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792914857982,
+      "tag": "0018_auto_rules",
+      "breakpoints": true
     }
   ]
 }

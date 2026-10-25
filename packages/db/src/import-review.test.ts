@@ -17,6 +17,7 @@ const row = (patch: Partial<ImportRowInput> = {}): ImportRowInput => ({
   description: 'QRIS KOPI',
   categoryId: null,
   transferAccountId: null,
+  tags: [],
   ...patch,
 });
 
@@ -127,6 +128,20 @@ describe('propose', () => {
     expect(items.map((item) => item.dedupe_key)).toContain(
       importDedupeKey(ledger.bca, { ...row({ description: 'TRSF KE JAGO', transferAccountId: ledger.jago }) }),
     );
+  });
+
+  it('rejects tags that are not slugs or more than five of them', async () => {
+    const result = await asApp(() =>
+      repo.propose(ledger.userId, {
+        accountId: ledger.bca,
+        rows: [
+          row({ tags: ['Kopi Susu'] }),
+          row({ date: '2026-10-06' as LocalDate, tags: ['a', 'b', 'c', 'd', 'e', 'f'] }),
+          row({ date: '2026-10-07' as LocalDate, tags: ['kopi', 'kantor'] }),
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ created: 1, rejected: 2 });
   });
 
   it('answers NOT_FOUND for another user’s account', async () => {

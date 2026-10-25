@@ -104,6 +104,16 @@ export const JOBS = {
   /** FR-SUB4 subscription candidates (suggestions only). */
   'detect-recurring': userJob,
   /**
+   * FR-AI1 "Terapkan ke transaksi lama": builds the proposal list only (no transaction, posting, budget, or goal write).
+   * `requestId` keeps a repeated request distinct; `ruleIds` keeps the confirmation's rule scope. The web dialog applies
+   * selected proposals through the app role after the user confirms.
+   */
+  'rules-backfill': z.strictObject({
+    userId: z.uuid(),
+    requestId: z.uuid(),
+    ruleIds: z.array(z.uuid()).min(1).max(100).optional(),
+  }),
+  /**
    * Built-in market prices (FR-I6, plan §6 `market-server`): `crypto` every 5 minutes (CoinMarketCap, one call for the
    * union of every user's symbols), `gold` twice a day (fawazahmed0 XAU spot). The symbols come from the database.
    */
@@ -154,6 +164,8 @@ export const jobIds = {
     `rep.${reportId}.${format}${requestId === undefined ? '' : `.${requestId}`}` as JobId<'report-export'>,
   notify: (outboxId: string) => `ntf.${outboxId}` as JobId<'notify'>,
   'detect-recurring': (userId: string, date: LocalDate) => `det.${userId}.${date}` as JobId<'detect-recurring'>,
+  /** One proposal build per request (`rb.{userId}.{requestId}`, plan §6's `{kind}:{requestId}`). */
+  'rules-backfill': (userId: string, requestId: string) => `rb.${userId}.${requestId}` as JobId<'rules-backfill'>,
   /** One built-in run per source and UTC minute (`mks.crypto.2026-10-15T0940`). */
   'market-server': (source: 'crypto' | 'gold', at: Date) => `mks.${source}.${minuteOf(at)}` as JobId<'market-server'>,
   /** One own-key run per user and 5-minute slot (`mkb.{userId}.2026-10-15T0940`). */
