@@ -5,6 +5,7 @@
  * needs (FR-T4). While a rate refreshes, or when refreshing fails, the last one loaded stays in use.
  */
 import type { AccountView } from '@wf/db/accounts';
+import type { AutoRuleView } from '@wf/domain/rules';
 import type { CategoryView } from '@wf/db/categories';
 import type { ReferenceRate } from '@wf/db/fx-rates';
 import type { TagView } from '@wf/db/tags';
@@ -34,6 +35,10 @@ export interface LedgerData {
   readonly accounts: readonly AccountView[];
   readonly categories: readonly CategoryView[];
   readonly tags: readonly TagView[];
+  /** FR-AI1: the user's enabled rules, in order, for the form's suggestion. */
+  readonly rules: readonly AutoRuleView[];
+  /** The user's registered subscription names, so a rule's subscription condition sees real own data. */
+  readonly subscriptionNames: readonly string[];
   /** The current period's budget (FR-T2/T3 notes); absent when it could not be loaded. */
   readonly budget?: BudgetLookup;
 }

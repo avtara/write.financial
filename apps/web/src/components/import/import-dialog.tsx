@@ -8,6 +8,7 @@
  */
 import { addDays, countDays, type LocalDate } from '@wf/domain/period';
 import type { AccountView } from '@wf/db/accounts';
+import type { AutoRuleView } from '@wf/domain/rules';
 import type { CategoryView } from '@wf/db/categories';
 import type { TransactionRow } from '@wf/db/transaction-query';
 import { m } from '@wf/i18n/messages';
@@ -52,6 +53,10 @@ export interface ImportDialogProps {
   /** The user's own accounts: the destination choice, and the transfer detection's name list. */
   readonly accounts: readonly AccountView[];
   readonly categories: readonly CategoryView[];
+  /** FR-AI1: enabled rules whose category and tags fill the unsaved import draft. */
+  readonly rules: readonly AutoRuleView[];
+  /** The user's registered subscription names, so its condition sees real own data. */
+  readonly subscriptionNames: readonly string[];
 }
 
 class HistoryError extends Error {
@@ -168,7 +173,24 @@ function CandidateRow({
               {m.import_guessed()}
             </>
           )}
+          {candidate.ruleName === null ? null : (
+            <>
+              {' · '}
+              {m.rules_import_suggestion({ name: candidate.ruleName })}
+            </>
+          )}
+          {candidate.tags.length === 0 ? null : (
+            <>
+              {' · '}
+              <span className="font-mono">{candidate.tags.map((tag) => `#${tag}`).join(' ')}</span>
+            </>
+          )}
         </div>
+        {candidate.ruleTagOverflow ? (
+          <p role="alert" className="text-[11px] text-amber-fg">
+            {m.rules_import_tag_overflow()}
+          </p>
+        ) : null}
       </div>
       {candidate.status === 'duplicate' || transfer !== null ? (
         <span className="w-[120px]" />
@@ -199,7 +221,14 @@ function CandidateRow({
   );
 }
 
-export function ImportDialog({ open, onOpenChange, accounts, categories }: ImportDialogProps) {
+export function ImportDialog({
+  open,
+  onOpenChange,
+  accounts,
+  categories,
+  rules,
+  subscriptionNames,
+}: ImportDialogProps) {
   const { preferences } = usePreferences();
   const locale = preferences.locale;
   const [stage, setStage] = useState<ImportStage>({ step: 'upload' });
@@ -256,6 +285,9 @@ export function ImportDialog({ open, onOpenChange, accounts, categories }: Impor
           accountId: account.id,
           currency: account.currency,
           accounts,
+          categories,
+          rules,
+          subscriptionNames,
           existing: rows,
           history: [...rows].reverse(),
         }),
@@ -283,6 +315,7 @@ export function ImportDialog({ open, onOpenChange, accounts, categories }: Impor
       description: candidate.description,
       categoryId: candidate.categoryId,
       transferAccountId: candidate.transfer === null ? null : candidate.transfer.id,
+      tags: [...candidate.tags],
     }));
     setBusy(true);
     setError(null);

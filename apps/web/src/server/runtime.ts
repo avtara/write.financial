@@ -12,6 +12,7 @@ import { createInviter, type Invitation, type Inviter, type InviteInput } from '
 import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring } from '@wf/crypto/keyring';
 import { createAccounts, type AccountsRepository } from '@wf/db/accounts';
+import { createAutoRules, type AutoRulesRepository } from '@wf/db/auto-rules';
 import { createAccountDeletion, type AccountDeletion } from '@wf/db/account-deletion';
 import { createExport, type DataExporter } from '@wf/db/export';
 import { createBudgets, type BudgetsRepository } from '@wf/db/budgets';
@@ -62,6 +63,7 @@ import { createInstanceStore, type InstanceStore } from './instance-store.ts';
 import { createLogger } from './logger.ts';
 import { createQueueBoard, type QueueBoard } from './queue-board.ts';
 import { createReportExportQueue, type ReportExportQueue } from './report-queue.ts';
+import { createRulesBackfillQueue, type RulesBackfillQueue } from './rules-backfill-queue.ts';
 
 export interface LocaleStore {
   locale?: Locale;
@@ -106,6 +108,8 @@ export interface Services extends BaseRuntime {
   readonly accounts: AccountsRepository;
   readonly categories: CategoriesRepository;
   readonly tags: TagsRepository;
+  /** FR-AI1: the user's ordered rules, correction suggestions, preview, and confirmed backfill. */
+  readonly autoRules: AutoRulesRepository;
   readonly fxRates: FxRatesRepository;
   /** Periods, budgets, and the dashboard (M2), on `wf_app`. */
   readonly periods: PeriodsRepository;
@@ -154,6 +158,8 @@ export interface Services extends BaseRuntime {
   readonly mailer: Mailer;
   /** BullMQ producer for `report-export` (FR-LP4): the web asks the worker to render a stored report. */
   readonly reportExportQueue: ReportExportQueue;
+  /** BullMQ producer/reader for `rules-backfill` (FR-AI1): proposal-only work in the worker. */
+  readonly rulesBackfillQueue: RulesBackfillQueue;
   /** Sends one message through SMTP settings that are not saved yet ("Kirim email uji"). */
   readonly sendWith: typeof sendWith;
   readonly invite: (inviter: Inviter, input: InviteInput) => Promise<Invitation>;
@@ -197,6 +203,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     accounts: createAccounts(appDb, { now }),
     categories: createCategories(appDb, { getDek }),
     tags: createTags(appDb),
+    autoRules: createAutoRules(appDb, { now }),
     fxRates: createFxRates(appDb),
     periods: createPeriods(appDb, { now }),
     budgets: createBudgets(appDb, { now }),
@@ -226,6 +233,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     marketAdapters: createMarketAdapters(),
     mailer,
     reportExportQueue: createReportExportQueue({ redis: config.redis.url, logger }),
+    rulesBackfillQueue: createRulesBackfillQueue({ redis: config.redis.url, logger }),
     sendWith,
     invite: createInviter({
       invitations: createInvitations(appDb),

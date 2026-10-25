@@ -11,6 +11,7 @@ import { DASHBOARD_SEARCH, dashboardRequestOf, type DashboardSearch } from '../.
 import { getProfile } from '../../server/fn/account.ts';
 import { getBudgetStatus, getDashboard, listPeriods } from '../../server/fn/budget.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
+import { listAutoRules } from '../../server/fn/rules.ts';
 import { listScheduled, listSubscriptions } from '../../server/fn/schedules.ts';
 
 type OverviewLoad = ({ readonly status: 'ready' } & OverviewData) | { readonly status: 'offline' };
@@ -18,11 +19,12 @@ type OverviewLoad = ({ readonly status: 'ready' } & OverviewData) | { readonly s
 /** Everything `/` shows for `search`; a failed request (no connection) is `offline`, never an error page. */
 async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
   try {
-    const [periods, accounts, categories, tags, profile, budget, subscriptions] = await Promise.all([
+    const [periods, accounts, categories, tags, rules, profile, budget, subscriptions] = await Promise.all([
       listPeriods(),
       listAccounts({ data: {} }),
       listCategories({ data: {} }),
       listTags({ data: {} }),
+      listAutoRules({ data: { enabledOnly: true } }),
       getProfile(),
       getBudgetStatus({ data: {} }),
       listSubscriptions({ data: {} }),
@@ -43,6 +45,7 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
       accounts,
       categories,
       tags,
+      rules,
       periods,
       profile,
       dashboard,

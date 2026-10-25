@@ -30,6 +30,7 @@ describe('PROCESSORS', () => {
       'report-export': 2,
       notify: 2,
       'detect-recurring': 1,
+      'rules-backfill': 2,
       'market-server': 1,
       'market-byok': 2,
       snapshots: 2,
@@ -53,6 +54,17 @@ describe('PROCESSORS', () => {
     }
   });
 
+  it('builds rules-backfill proposals for the scoped rules only', async () => {
+    const deps = fakeDeps();
+    const result = await PROCESSORS['rules-backfill'].create(deps)({
+      id: 'x',
+      data: { userId: USER, requestId: ROW, ruleIds: [ROW] },
+      attemptsMade: 0,
+    });
+    expect(result).toMatchObject({ proposals: [], version: 'rules-version' });
+    expect(deps.db.calls).toContainEqual({ method: 'ruleBackfill.preview', args: [USER, [ROW]] });
+  });
+
   it.each([
     ['maintenance', {}],
     ['dispatch', {}],
@@ -63,6 +75,7 @@ describe('PROCESSORS', () => {
     ['period-close', { userId: USER }],
     ['notify', { userId: USER, outboxId: ROW }],
     ['detect-recurring', { userId: USER }],
+    ['rules-backfill', { userId: USER, requestId: ROW }],
     ['market-server', { source: 'crypto' }],
     ['market-byok', { userId: USER }],
     ['snapshots', { userId: USER }],

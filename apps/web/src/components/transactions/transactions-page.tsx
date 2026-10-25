@@ -136,6 +136,8 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
         onOpenChange={setImporting}
         accounts={ledger.accounts}
         categories={ledger.categories}
+        rules={ledger.rules}
+        subscriptionNames={ledger.subscriptionNames}
       />
       <TransactionSummary view={view} currency={ledger.baseCurrency} />
       <AccountStrip

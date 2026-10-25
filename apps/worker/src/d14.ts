@@ -25,6 +25,7 @@ export const WORKER_REPOSITORIES = [
   'budgetAlerts',
   'balanceChecks',
   'detectRecurring',
+  'ruleBackfill',
   'outbox',
   'marketData',
   'marketCredentials',

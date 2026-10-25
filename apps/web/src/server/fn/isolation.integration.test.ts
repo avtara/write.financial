@@ -36,6 +36,7 @@ import { cases as receivablesCases } from '../../../test/isolation/cases/receiva
 import { cases as reportExportCases } from '../../../test/isolation/cases/report-export.ts';
 import { cases as reportsCases } from '../../../test/isolation/cases/reports.ts';
 import { cases as reviewCases } from '../../../test/isolation/cases/review.ts';
+import { cases as rulesCases } from '../../../test/isolation/cases/rules.ts';
 import { cases as schedulesCases } from '../../../test/isolation/cases/schedules.ts';
 import { cases as searchCases } from '../../../test/isolation/cases/search.ts';
 import { cases as setupCases } from '../../../test/isolation/cases/setup.ts';
@@ -93,6 +94,7 @@ const MATRIX: Record<Name, Case> = {
   ...notificationsCases,
   ...marketCases,
   ...reviewCases,
+  ...rulesCases,
   ...schedulesCases,
   ...calendarCases,
   ...budgetWriteCases,

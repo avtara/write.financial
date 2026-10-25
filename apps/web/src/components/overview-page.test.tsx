@@ -40,6 +40,7 @@ function data(patch: Partial<OverviewData> = {}): OverviewData {
     accounts: ok({ baseCurrency: 'IDR', accounts: WITH_ACTIVITY, availableMinor: 55_023_000n, missingRates: [] }),
     categories: ok([...CATEGORIES]),
     tags: ok([...TAGS]),
+    rules: ok([]),
     periods: ok(periodsOverview()),
     profile: ok({ name: 'Avtara K.', nickname: 'Avtara', locale: 'id', timezone: 'Asia/Jakarta' }),
     dashboard: ok(dashboard()),

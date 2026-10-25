@@ -190,4 +190,11 @@ export const TAGS: readonly TagView[] = [
 ];
 
 /** `LedgerData` of the ledger forms: base currency IDR, every fixture above. */
-export const LEDGER = { baseCurrency: 'IDR', accounts: ACCOUNTS, categories: CATEGORIES, tags: TAGS } as const;
+export const LEDGER = {
+  baseCurrency: 'IDR',
+  accounts: ACCOUNTS,
+  categories: CATEGORIES,
+  tags: TAGS,
+  rules: [],
+  subscriptionNames: [],
+} as const;

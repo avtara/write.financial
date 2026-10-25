@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { AutoRuleView } from '@wf/domain/rules';
 import type { TransactionRow } from '@wf/db/transaction-query';
 import type { LocalDate } from '@wf/domain/period';
-import { account } from '../../../test/ledger-fixtures.ts';
+import { account, userCategory } from '../../../test/ledger-fixtures.ts';
 import { describe, expect, it } from 'vitest';
 import {
   buildCandidates,
@@ -13,6 +14,7 @@ import {
   similarity,
   windowOf,
   withCategory,
+  type ImportContext,
   type ImportStage,
   type ParsedRow,
 } from './import-model.ts';
@@ -56,10 +58,13 @@ const existing = (patch: Partial<TransactionRow> = {}): TransactionRow => ({
   ...patch,
 });
 
-const context = (patch: Partial<Parameters<typeof buildCandidates>[1]> = {}) => ({
+const context = (patch: Partial<ImportContext> = {}): ImportContext => ({
   accountId: BCA.id,
   currency: 'IDR',
   accounts: [BCA, JAGO, USD],
+  categories: [],
+  rules: [],
+  subscriptionNames: [],
   existing: [],
   history: [],
   ...patch,
@@ -238,5 +243,116 @@ describe('windowOf', () => {
       to: '2026-10-09',
     });
     expect(windowOf([row({ date: null }), row({ row: 2, errors: ['x'], date: null })])).toBeNull();
+  });
+});
+
+describe('rule suggestions', () => {
+  const RULE_CATEGORY = userCategory({ id: 'c-kopi', name: 'Kopi' });
+  const ARCHIVED = userCategory({ id: 'c-archived', name: 'Lama', archivedAt: new Date('2026-09-01T00:00:00Z') });
+  const rule = (patch: Partial<AutoRuleView> = {}): AutoRuleView => ({
+    id: crypto.randomUUID(),
+    name: 'Kopi',
+    enabled: true,
+    position: 0,
+    conditions: [{ field: 'description', op: 'containsAny', values: ['kopi'] }],
+    actions: [
+      { type: 'setCategory', categoryId: RULE_CATEGORY.id },
+      { type: 'addTag', tag: 'kopi' },
+    ],
+    createdAt: new Date('2026-10-01T00:00:00Z'),
+    updatedAt: new Date('2026-10-01T00:00:00Z'),
+    ...patch,
+  });
+
+  it('names a matching tag-only rule when no rule sets a category', () => {
+    const tagOnly = rule({ actions: [{ type: 'addTag', tag: 'kopi' }] });
+    const { candidates } = buildCandidates(
+      [row({ description: 'KOPI KENANGAN', amountMinor: 25_000 })],
+      context({ rules: [tagOnly], categories: [RULE_CATEGORY] }),
+    );
+    expect(candidates[0]).toMatchObject({ ruleName: 'Kopi', tags: ['kopi'], categoryId: null });
+  });
+
+  it('prefers the top matching rule’s category over the history guess and adds its tags', () => {
+    const { candidates } = buildCandidates(
+      [row({ description: 'KOPI KENANGAN', amountMinor: 25_000 })],
+      context({
+        rules: [rule()],
+        categories: [RULE_CATEGORY],
+        history: [{ description: 'kopi lama', categoryId: 'cat-history' }],
+      }),
+    );
+    expect(candidates[0]).toMatchObject({
+      status: 'new',
+      categoryId: RULE_CATEGORY.id,
+      ruleName: 'Kopi',
+      tags: ['kopi'],
+      ruleTagOverflow: false,
+      guessedFrom: null,
+    });
+  });
+
+  it('falls back to the history guess when the rule category is archived or the other direction', () => {
+    const archived = buildCandidates(
+      [row({ description: 'KOPI KENANGAN', amountMinor: 25_000, direction: 'out' })],
+      context({
+        rules: [rule({ actions: [{ type: 'setCategory', categoryId: ARCHIVED.id }] })],
+        categories: [ARCHIVED],
+        history: [{ description: 'kopi lama', categoryId: 'cat-history' }],
+      }),
+    );
+    expect(archived.candidates[0]).toMatchObject({
+      categoryId: 'cat-history',
+      ruleName: 'Kopi',
+      guessedFrom: 'kopi',
+    });
+    const income = buildCandidates(
+      [row({ description: 'KOPI KENANGAN', amountMinor: 25_000, direction: 'in' })],
+      context({ rules: [rule()], categories: [RULE_CATEGORY], history: [] }),
+    );
+    expect(income.candidates[0]).toMatchObject({ categoryId: null, ruleName: 'Kopi' });
+  });
+
+  it('uses the own registered subscription names for the subscription condition', () => {
+    const candidateRule = rule({
+      conditions: [{ field: 'subscription', op: 'isRegistered' }],
+      actions: [{ type: 'setCategory', categoryId: RULE_CATEGORY.id }],
+    });
+    const { candidates } = buildCandidates(
+      [row({ description: 'NETFLIX BULANAN', amountMinor: 54_990 })],
+      context({ rules: [candidateRule], categories: [RULE_CATEGORY], subscriptionNames: ['Netflix'] }),
+    );
+    expect(candidates[0]).toMatchObject({ categoryId: RULE_CATEGORY.id, ruleName: 'Kopi' });
+  });
+
+  it('keeps no tags when the matching rules add more than five, and says so', () => {
+    const many = [
+      rule({ position: 0 }),
+      rule({ position: 1, actions: ['a', 'b', 'c', 'd', 'e'].map((tag) => ({ type: 'addTag' as const, tag })) }),
+    ];
+    const { candidates } = buildCandidates(
+      [row({ description: 'KOPI KENANGAN', amountMinor: 25_000 })],
+      context({ rules: many, categories: [RULE_CATEGORY] }),
+    );
+    expect(candidates[0]).toMatchObject({ tags: [], ruleTagOverflow: true });
+  });
+
+  it('keeps the rule name and tags but drops the guess hint after the user picks a category', () => {
+    const start: ImportStage = {
+      step: 'review',
+      account: BCA,
+      statement: { name: 'mutasi.csv', size: 1, bank: null, headers: [], rows: [] },
+      candidates: buildCandidates(
+        [row({ description: 'KOPI KENANGAN', amountMinor: 25_000 })],
+        context({ rules: [rule()], categories: [RULE_CATEGORY] }),
+      ),
+    };
+    const changed = withCategory(start, 1, 'c-other');
+    expect(changed.step !== 'review' ? null : changed.candidates.candidates[0]).toMatchObject({
+      categoryId: 'c-other',
+      ruleName: 'Kopi',
+      tags: ['kopi'],
+      guessedFrom: null,
+    });
   });
 });

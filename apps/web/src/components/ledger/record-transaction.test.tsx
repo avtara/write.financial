@@ -25,6 +25,9 @@ const ledger = vi.hoisted(() => ({
   getReferenceRate: vi.fn(),
 }));
 vi.mock('../../server/fn/ledger.ts', () => ledger);
+vi.mock('../../server/fn/rules.ts', () => ({
+  listAutoRules: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+}));
 const writes = vi.hoisted(() => ({
   recordTransaction: vi.fn(),
   removeTransactions: vi.fn(),
@@ -39,7 +42,10 @@ const reconcile = vi.hoisted(() => ({ openReconcile: vi.fn() }));
 vi.mock('../accounts/reconcile.tsx', () => ({ useReconcile: () => reconcile }));
 const budget = vi.hoisted(() => ({ getBudgetStatus: vi.fn() }));
 vi.mock('../../server/fn/budget.ts', () => budget);
-const schedules = vi.hoisted(() => ({ createRecurrence: vi.fn() }));
+const schedules = vi.hoisted(() => ({
+  createRecurrence: vi.fn(),
+  listSubscriptions: vi.fn(() => Promise.resolve({ ok: true, value: { subscriptions: [] } })),
+}));
 vi.mock('../../server/fn/schedules.ts', () => schedules);
 const debts = vi.hoisted(() => ({
   getCardPaymentContext: vi.fn(),

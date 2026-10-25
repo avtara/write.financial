@@ -16,6 +16,9 @@ const ledger = vi.hoisted(() => ({
   getReferenceRate: vi.fn(),
 }));
 vi.mock('../../server/fn/ledger.ts', () => ledger);
+vi.mock('../../server/fn/rules.ts', () => ({
+  listAutoRules: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+}));
 const writes = vi.hoisted(() => ({
   recordTransaction: vi.fn(),
   removeTransactions: vi.fn(),
@@ -28,7 +31,10 @@ const writes = vi.hoisted(() => ({
 vi.mock('../../server/fn/transactions-write.ts', () => writes);
 // The Record sheet loads the budget for its notes; the bar gets it through `data`.
 vi.mock('../../server/fn/budget.ts', () => ({ getBudgetStatus: vi.fn() }));
-vi.mock('../../server/fn/schedules.ts', () => ({ createRecurrence: vi.fn() }));
+vi.mock('../../server/fn/schedules.ts', () => ({
+  createRecurrence: vi.fn(),
+  listSubscriptions: vi.fn(() => Promise.resolve({ ok: true, value: { subscriptions: [] } })),
+}));
 vi.mock('../../server/fn/debts.ts', () => ({
   getCardPaymentContext: vi.fn(),
   recordCardInstallment: vi.fn(),

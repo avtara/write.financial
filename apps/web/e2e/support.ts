@@ -198,6 +198,16 @@ export function runScheduleJobs(email: string, at: string): Record<string, numbe
   return JSON.parse(output) as Record<string, number>;
 }
 
+/** Runs the real queued `rules-backfill` job(s) for the E2E instance; returns how many proposals it built. */
+export function runRulesBackfillJob(): { proposals: number } {
+  const output = execFileSync('node', [path.resolve(import.meta.dirname, 'rules-backfill-jobs.ts')], {
+    cwd: path.resolve(import.meta.dirname, '..'),
+    env: { ...process.env, ...e2eEnv() },
+    encoding: 'utf8',
+  });
+  return JSON.parse(output) as { proposals: number };
+}
+
 /** The worker's `reports` job for one user: every closed period without a monthly report gets one. */
 export function runReportJobs(email: string): { generated: number } {
   const output = execFileSync('node', [path.resolve(import.meta.dirname, 'report-jobs.ts'), email], {

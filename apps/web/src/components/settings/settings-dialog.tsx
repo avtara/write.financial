@@ -9,6 +9,9 @@
  * "Instans" only for admins. Radix traps the focus and hides the page from assistive technology.
  */
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
+import type { AccountsOverview } from '@wf/db/accounts';
+import type { RuleSuggestion } from '@wf/db/auto-rules';
+import type { AutoRuleView } from '@wf/domain/rules';
 import type { CategoryView } from '@wf/db/categories';
 import type { NotificationSettings } from '@wf/db/notification-settings';
 import type { Payday, PeriodsOverview } from '@wf/db/periods';
@@ -25,7 +28,8 @@ import type { SecurityOverview } from '../../server/account.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
 import { getDataSettings, type DataSettings } from '../../server/fn/data.ts';
 import { getPeriodSettings } from '../../server/fn/budget.ts';
-import { listCategories, listTags } from '../../server/fn/ledger.ts';
+import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
+import { listAutoRules, listRuleSuggestions } from '../../server/fn/rules.ts';
 import { getMarketSettings, type MarketSettings } from '../../server/fn/market.ts';
 import { getNotificationSettings } from '../../server/fn/notifications.ts';
 import { listSimilarTags } from '../../server/fn/tags.ts';
@@ -39,6 +43,7 @@ import { MarketSection } from './market-section.tsx';
 import { NotificationsSection } from './notifications-section.tsx';
 import { PeriodSection } from './period-section.tsx';
 import { ProfileSection } from './profile-section.tsx';
+import { RulesSection } from './rules-section.tsx';
 import { SecuritySection } from './security-section.tsx';
 import { canOpenSection, OPENED_OVER_PAGE, type SettingsSection } from './settings-sections.ts';
 import { TagsSection } from './tags-section.tsx';
@@ -54,6 +59,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
   notifications: { label: m.settings_nav_notifications, description: m.settings_notifications_description },
   categories: { label: m.settings_nav_categories, description: m.settings_categories_description },
   tags: { label: m.settings_nav_tags, description: m.settings_tags_description },
+  rules: { label: m.settings_nav_rules, description: m.settings_rules_description },
   data: { label: m.settings_nav_data, description: m.settings_data_description },
   security: { label: m.settings_nav_security, description: m.settings_security_description },
   market: { label: m.settings_nav_market, description: m.settings_market_description },
@@ -62,7 +68,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
 
 const GROUPS: readonly { readonly label: () => string; readonly sections: readonly SettingsSection[] }[] = [
   { label: m.settings_group_account, sections: ['profile'] },
-  { label: m.settings_group_preferences, sections: ['period', 'notifications', 'categories', 'tags'] },
+  { label: m.settings_group_preferences, sections: ['period', 'notifications', 'categories', 'tags', 'rules'] },
   { label: m.settings_group_data, sections: ['data', 'security'] },
   { label: m.settings_group_integrations, sections: ['market'] },
   { label: m.settings_group_instance, sections: ['instance'] },
@@ -76,6 +82,14 @@ export type SettingsData =
   | { section: 'notifications'; notifications: Result<NotificationSettings> }
   | { section: 'categories'; categories: Result<CategoryView[]> }
   | { section: 'tags'; tags: Result<TagView[]>; similar: Result<TagPair[]> }
+  | {
+      section: 'rules';
+      rules: Result<AutoRuleView[]>;
+      suggestions: Result<RuleSuggestion[]>;
+      categories: Result<CategoryView[]>;
+      tags: Result<TagView[]>;
+      accounts: Result<AccountsOverview>;
+    }
   | { section: 'data'; data: Result<DataSettings> }
   | { section: 'market'; market: Result<MarketSettings> }
   | { section: 'instance' };
@@ -100,6 +114,16 @@ export async function loadSettingsSection(section: SettingsSection): Promise<Set
   if (section === 'tags') {
     const [tags, similar] = await Promise.all([listTags({ data: {} }), listSimilarTags({ data: {} })]);
     return { section, tags, similar };
+  }
+  if (section === 'rules') {
+    const [rules, suggestions, categories, tags, accounts] = await Promise.all([
+      listAutoRules({ data: {} }),
+      listRuleSuggestions(),
+      listCategories({ data: { includeArchived: true } }),
+      listTags({ data: {} }),
+      listAccounts({ data: { status: 'all' } }),
+    ]);
+    return { section, rules, suggestions, categories, tags, accounts };
   }
   return { section };
 }
@@ -140,6 +164,23 @@ function SectionContent({ data, viewer }: { data: SettingsData; viewer: Viewer }
     if (!data.tags.ok) return <FormError>{ledgerErrorMessage(data.tags.code, locale)}</FormError>;
     if (!data.similar.ok) return <FormError>{ledgerErrorMessage(data.similar.code, locale)}</FormError>;
     return <TagsSection tags={data.tags.value} similar={data.similar.value} />;
+  }
+  if (data.section === 'rules') {
+    if (!data.rules.ok) return <FormError>{ledgerErrorMessage(data.rules.code, locale)}</FormError>;
+    if (!data.suggestions.ok) return <FormError>{ledgerErrorMessage(data.suggestions.code, locale)}</FormError>;
+    if (!data.categories.ok) return <FormError>{ledgerErrorMessage(data.categories.code, locale)}</FormError>;
+    if (!data.tags.ok) return <FormError>{ledgerErrorMessage(data.tags.code, locale)}</FormError>;
+    if (!data.accounts.ok) return <FormError>{ledgerErrorMessage(data.accounts.code, locale)}</FormError>;
+    return (
+      <RulesSection
+        rules={data.rules.value}
+        suggestions={data.suggestions.value}
+        categories={data.categories.value}
+        tags={data.tags.value}
+        accounts={data.accounts.value.accounts}
+        timeZone={viewer.timezone}
+      />
+    );
   }
   if (data.section === 'data') {
     return data.data.ok ? (

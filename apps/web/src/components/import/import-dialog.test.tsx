@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { addDays, type LocalDate } from '@wf/domain/period';
+import type { AutoRuleView } from '@wf/domain/rules';
+import { m } from '@wf/i18n/messages';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -48,10 +50,17 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-async function renderDialog() {
+async function renderDialog(rules: readonly AutoRuleView[] = []) {
   const onOpenChange = vi.fn();
   const result = await renderApp(
-    <ImportDialog open onOpenChange={onOpenChange} accounts={accounts} categories={categories} />,
+    <ImportDialog
+      open
+      onOpenChange={onOpenChange}
+      accounts={accounts}
+      categories={categories}
+      rules={rules}
+      subscriptionNames={[]}
+    />,
   );
   return { ...result, onOpenChange };
 }
@@ -73,6 +82,30 @@ async function review(content: string) {
   });
 }
 
+const OVERFLOW_RULE: AutoRuleView = {
+  ...({
+    id: 'r-many',
+    name: 'Banyak tag',
+    position: 0,
+    enabled: true,
+    conditions: [{ field: 'description', op: 'containsAny', values: ['kopi'] }],
+    actions: ['a', 'b', 'c', 'd', 'e', 'f'].map((tag) => ({ type: 'addTag' as const, tag })),
+    createdAt: new Date('2026-10-01T00:00:00Z'),
+    updatedAt: new Date('2026-10-01T00:00:00Z'),
+  } satisfies AutoRuleView),
+};
+
+const TAG_RULE: AutoRuleView = {
+  id: 'r-kopi',
+  name: 'Kopi',
+  position: 0,
+  enabled: true,
+  conditions: [{ field: 'description', op: 'containsAny', values: ['kopi'] }],
+  actions: [{ type: 'addTag', tag: 'kopi' }],
+  createdAt: new Date('2026-10-01T00:00:00Z'),
+  updatedAt: new Date('2026-10-01T00:00:00Z'),
+};
+
 describe('upload step', () => {
   it('offers the account, the dropzone, the template, and the privacy note', async () => {
     await renderDialog();
@@ -85,8 +118,34 @@ describe('upload step', () => {
     await expect.element(page.getByText(/File diproses di perangkatmu/)).toBeInTheDocument();
   });
 
+  it('shows the rule suggestion and its tag on an imported row', async () => {
+    server.listTransactionRows.mockResolvedValue(rowsPage([]));
+    await renderDialog([TAG_RULE]);
+    await pickFile(
+      csvFile(`${HEADER}
+05/10/2026;QRIS KOPI;-25.000;2.475.000
+`),
+    );
+    await vi.waitFor(async () => {
+      await expect.element(page.getByText('Ditemukan')).toBeInTheDocument();
+    });
+    await expect.element(page.getByText(/aturan Kopi/).first()).toBeInTheDocument();
+    await expect.element(page.getByText('#kopi')).toBeInTheDocument();
+  });
+
+  it('warns when matched rules offered more than five tags', async () => {
+    server.listTransactionRows.mockResolvedValue(rowsPage([]));
+    await renderDialog([OVERFLOW_RULE]);
+    await pickFile(csvFile(`${HEADER}\n05/10/2026;QRIS KOPI;-25.000;2.475.000\n`));
+    await vi.waitFor(async () => {
+      await expect.element(page.getByText(m.rules_import_tag_overflow())).toBeInTheDocument();
+    });
+  });
+
   it('disables the picker without an account', async () => {
-    await renderApp(<ImportDialog open onOpenChange={vi.fn()} accounts={[]} categories={[]} />);
+    await renderApp(
+      <ImportDialog open onOpenChange={vi.fn()} accounts={[]} categories={[]} rules={[]} subscriptionNames={[]} />,
+    );
     await expect.element(page.getByRole('button', { name: 'Unggah file' })).toBeDisabled();
   });
 
@@ -193,7 +252,9 @@ describe('upload step', () => {
   });
 
   it('asks for the account first when there is none', async () => {
-    await renderApp(<ImportDialog open onOpenChange={vi.fn()} accounts={[]} categories={[]} />);
+    await renderApp(
+      <ImportDialog open onOpenChange={vi.fn()} accounts={[]} categories={[]} rules={[]} subscriptionNames={[]} />,
+    );
     await pickFile(csvFile(STATEMENT));
     await vi.waitFor(async () => {
       await expect.element(page.getByRole('alert')).toBeInTheDocument();
@@ -431,6 +492,7 @@ describe('submitting', () => {
             description: 'QRIS KOPI',
             categoryId: null,
             transferAccountId: null,
+            tags: [],
           },
           {
             date: '2026-10-06',
@@ -439,6 +501,7 @@ describe('submitting', () => {
             description: 'TRSF KE BANK JAGO',
             categoryId: null,
             transferAccountId: 'acc-jago',
+            tags: [],
           },
           {
             date: '2026-10-07',
@@ -447,6 +510,7 @@ describe('submitting', () => {
             description: 'GAJI',
             categoryId: null,
             transferAccountId: null,
+            tags: [],
           },
         ],
       },
@@ -506,7 +570,14 @@ function Toggle() {
       >
         open
       </button>
-      <ImportDialog open={open} onOpenChange={setOpen} accounts={accounts} categories={categories} />
+      <ImportDialog
+        open={open}
+        onOpenChange={setOpen}
+        accounts={accounts}
+        categories={categories}
+        rules={[]}
+        subscriptionNames={[]}
+      />
     </>
   );
 }
