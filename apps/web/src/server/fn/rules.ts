@@ -188,14 +188,12 @@ export const requestRuleBackfill = createServerFn({ method: 'POST' })
     const { rulesBackfillQueue, now } = await services();
     return attempt(async () => {
       const { user } = await requireSession(context.session, {}, now());
-      const jobId = await rulesBackfillQueue.enqueue(
-        {
-          userId: user.id,
-          requestId: crypto.randomUUID(),
-          ...(data.ruleIds === undefined ? {} : { ruleIds: [...data.ruleIds] }),
-        },
-        crypto.randomUUID(),
-      );
+      const requestId = crypto.randomUUID();
+      const jobId = await rulesBackfillQueue.enqueue({
+        userId: user.id,
+        requestId,
+        ...(data.ruleIds === undefined ? {} : { ruleIds: [...data.ruleIds] }),
+      });
       return { jobId };
     });
   });

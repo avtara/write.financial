@@ -820,14 +820,42 @@ describe('review regressions', () => {
     expect(await categoryOf(id)).toBe(food);
   });
 
-  it('keeps PostgreSQL microseconds in the row version and refuses an intervening edit', async () => {
+  it('does not overwrite a manual change that shares the previewed stored millisecond', async () => {
+    await asApp(() => rules.create(alice, { input: definition() }));
+    const id = await record(alice, draft(aliceAccount, { categoryId: null }));
+    // Two genuine edits and the preview all use the same injected millisecond, as a real request burst can.
+    clock = new Date('2026-10-15T02:00:00.123Z');
+    await asApp(() => transactions.bulkSetCategory(alice, [id], food));
+    const [firstEdit] = await test.query<{ updated_at: string }>(
+      'SELECT updated_at::text AS updated_at FROM transactions WHERE id = $1',
+      [id],
+    );
+    const preview = await asApp(() => previewOf(alice));
+    const proposal = preview.proposals.find((entry) => entry.transactionId === id);
+    if (proposal === undefined) throw new Error('no proposal');
+    expect(proposal.version).toMatch(/^[a-f0-9]{64}$/);
+    await asApp(() => transactions.bulkSetCategory(alice, [id], null));
+    const [secondEdit] = await test.query<{ updated_at: string }>(
+      'SELECT updated_at::text AS updated_at FROM transactions WHERE id = $1',
+      [id],
+    );
+    expect(secondEdit?.updated_at).toBe(firstEdit?.updated_at);
+    expect(await applyItems(preview, [proposal])).toEqual({
+      applied: [],
+      skipped: [{ transactionId: id, reason: 'stale' }],
+      rulesChanged: false,
+    });
+    expect(await categoryOf(id)).toBeNull();
+  });
+
+  it('keeps PostgreSQL microseconds in the snapshot token and refuses an intervening edit', async () => {
     await asApp(() => rules.create(alice, { input: definition() }));
     const id = await record(alice, draft(aliceAccount));
     await test.query(`UPDATE transactions SET updated_at = '2026-10-15 09:00:00.123456+07' WHERE id = $1`, [id]);
     const preview = await asApp(() => previewOf(alice));
     const proposal = preview.proposals.find((entry) => entry.transactionId === id);
     if (proposal === undefined) throw new Error('no proposal');
-    expect(proposal.version).toContain('.123456');
+    expect(proposal.version).toMatch(/^[a-f0-9]{64}$/);
     await asApp(() => transactions.bulkSetCategory(alice, [id], null));
     expect(await applyItems(preview, [proposal])).toEqual({
       applied: [],
@@ -1027,7 +1055,7 @@ describe('repository edges', () => {
     expect(await categoryOf(id)).toBe(food);
   });
 
-  it('treats an unmatched or no-op selection as a no-op and applies a category without touching tags', async () => {
+  it('treats an unmatched selection as stale and applies a category without touching tags', async () => {
     await asApp(() =>
       rules.create(alice, {
         input: definition({ conditions: [{ field: 'description', op: 'containsAny', values: ['tidak ada'] }] }),
@@ -1041,7 +1069,7 @@ describe('repository edges', () => {
     const unmatched = await asApp(() => previewOf(alice));
     expect(await applyItems(unmatched, [{ transactionId: id, version: rowVersion?.v ?? '' }])).toEqual({
       applied: [],
-      skipped: [{ transactionId: id, reason: 'noop' }],
+      skipped: [{ transactionId: id, reason: 'stale' }],
       rulesChanged: false,
     });
     expect(await tagsOf(id)).toEqual(['kopi']);

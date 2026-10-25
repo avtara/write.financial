@@ -4,11 +4,13 @@
  * `rules-backfill` job. Nothing here writes a transaction, posting, budget, or goal — the worker only builds the
  * proposal list, and the web applies selected rows after an explicit confirmation.
  *
- * Two version tokens make a confirmation exact:
+ * Two opaque tokens make a confirmation exact:
  * - the ordered rule set's version (sha256 of the effective rules in scope), so a rule edited, reordered, enabled, or
  *   disabled between preview and confirm cannot produce an output the user never saw;
- * - each transaction's `updated_at::text`, so PostgreSQL's microseconds survive the round trip (a JS `Date` would
- *   round to milliseconds and let an intervening edit through).
+ * - each proposal's snapshot token: the stored `updated_at::text` (PostgreSQL microseconds included) plus the approved
+ *   current/proposed category and tags and the evaluation inputs (description, local date/time, account links,
+ *   subscription, timezone). A timestamp alone is not a revision: two genuine edits can share one millisecond, so the
+ *   confirmation is skipped whenever the re-evaluated snapshot differs at all.
  */
 import { createHash } from 'node:crypto';
 import type { AutoRuleView, RuleAction, RuleCondition, RulesEvaluation } from '@wf/domain/rules';
@@ -59,7 +61,7 @@ export interface RuleBackfillProposal {
   readonly ruleName: string;
   readonly noop: boolean;
   readonly blocked: RuleBackfillBlock | null;
-  /** `transactions.updated_at::text` as the preview saw it (PostgreSQL microseconds included). */
+  /** Opaque sha256 of the row version, approved category/tags, and the evaluation inputs this proposal used. */
   readonly version: string;
 }
 
@@ -86,7 +88,7 @@ export interface RuleBackfillResult {
   readonly rulesChanged: boolean;
 }
 
-/** One selected proposal, pinned to the transaction version the preview showed. */
+/** One selected proposal, pinned to the opaque snapshot token the preview showed. */
 export interface RuleBackfillSelection {
   readonly transactionId: string;
   readonly version: string;
@@ -359,7 +361,7 @@ export function proposalOf(
   const sameCategory = proposedCategoryId === transaction.categoryId;
   const sameTags =
     proposedTags.length === currentTags.length && proposedTags.every((slug) => currentTags.includes(slug));
-  return {
+  const proposal: Omit<RuleBackfillProposal, 'version'> = {
     transactionId: transaction.id,
     localDate: transaction.localDate,
     description: subjectDescription(transaction.description, transaction.merchant),
@@ -371,8 +373,41 @@ export function proposalOf(
     ruleName: matchedRule.name,
     noop: blocked === null && sameCategory && sameTags,
     blocked,
-    version: transaction.version,
   };
+  return { ...proposal, version: proposalTokenOf(transaction, currentTags, context, proposal) };
+}
+
+/** Every input whose change can alter the approved output or its evaluation, in a stable order. */
+function proposalTokenOf(
+  transaction: BackfillTransaction,
+  currentTags: readonly string[],
+  context: BackfillContext,
+  proposal: Omit<RuleBackfillProposal, 'version'>,
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        transactionId: transaction.id,
+        storedVersion: transaction.version,
+        type: transaction.type,
+        localDate: transaction.localDate,
+        occurredAt: transaction.occurredAt.toISOString(),
+        source: transaction.source,
+        description: transaction.description,
+        merchant: transaction.merchant,
+        timezone: context.timezone,
+        accountIds: [...(context.accounts.get(transaction.id) ?? [])].sort(),
+        subscription: context.subscriptions.has(transaction.id),
+        currentCategoryId: transaction.categoryId,
+        currentTags: [...currentTags].sort(),
+        proposedCategoryId: proposal.proposedCategoryId,
+        proposedTags: [...proposal.proposedTags].sort(),
+        ruleId: proposal.ruleId,
+        noop: proposal.noop,
+        blocked: proposal.blocked,
+      }),
+    )
+    .digest('hex');
 }
 
 /** The proposal totals of a list. */

@@ -18,7 +18,7 @@ export type RuleBackfillJobStatus =
 
 export interface RulesBackfillQueue {
   /** Adds one proposal build; returns the deterministic job id the dialog polls. */
-  readonly enqueue: (payload: JobPayload<'rules-backfill'>, requestId: string) => Promise<string>;
+  readonly enqueue: (payload: JobPayload<'rules-backfill'>) => Promise<string>;
   /** The job's state, only for the job's owner; another user's job is reported as `failed` (no leak). */
   readonly status: (jobId: string, userId: string) => Promise<RuleBackfillJobStatus>;
 }
@@ -55,8 +55,8 @@ export function createRulesBackfillQueue({ redis: url, logger }: RulesBackfillQu
   const port: Enqueue = createEnqueue((name) => (queue ??= new Queue(name, { connection, prefix: QUEUE_PREFIX })));
   const getQueue = () => (queue ??= new Queue('rules-backfill', { connection, prefix: QUEUE_PREFIX }));
   return {
-    enqueue: async (payload, requestId) => {
-      const id = jobIds['rules-backfill'](payload.userId, requestId);
+    enqueue: async (payload) => {
+      const id = jobIds['rules-backfill'](payload.userId, payload.requestId);
       await port('rules-backfill', payload, { jobId: id });
       return id;
     },

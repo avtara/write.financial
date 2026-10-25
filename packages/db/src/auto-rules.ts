@@ -484,10 +484,6 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
             skipped.push({ transactionId: item.transactionId, reason: 'blocked' });
             continue;
           }
-          if (row.version !== item.version) {
-            skipped.push({ transactionId: item.transactionId, reason: 'stale' });
-            continue;
-          }
           const currentTags = (await tagsIn(tx, [row.id])).get(row.id) ?? [];
           const context: BackfillContext = {
             rules: scope.rules,
@@ -499,7 +495,13 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
             timezone,
           };
           const proposal = proposalOf({ ...row, type: row.type }, currentTags, context);
-          if (proposal === null || proposal.noop) {
+          // The locked re-evaluation must be byte-for-byte the snapshot the user approved. A later manual edit can
+          // share the stored millisecond, so compare the opaque token, not only `updated_at`.
+          if (proposal === null || proposal.version !== item.version) {
+            skipped.push({ transactionId: item.transactionId, reason: 'stale' });
+            continue;
+          }
+          if (proposal.noop) {
             skipped.push({ transactionId: item.transactionId, reason: 'noop' });
             continue;
           }
@@ -518,8 +520,8 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
             proposal.proposedTags.some((slug) => !currentTags.includes(slug));
           const proposedTagIds = tagsChanged ? await resolveTagsIn(tx, userId, proposal.proposedTags) : [];
           const at = now();
-          // The row is locked and its exact version matched above, so this cannot miss; the version predicate stays as
-          // defence in depth without adding an unreachable branch.
+          // The row is locked and its snapshot token matched above; the raw version predicate stays as defence in
+          // depth without adding an unreachable branch.
           await tx
             .update(transactions)
             .set({ categoryId: proposal.proposedCategoryId, updatedAt: at })
@@ -527,7 +529,7 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
               and(
                 eq(transactions.id, row.id),
                 isNull(transactions.deletedAt),
-                sql`${transactions.updatedAt}::text = ${item.version}`,
+                sql`${transactions.updatedAt}::text = ${row.version}`,
               ),
             );
           if (tagsChanged) await setTransactionTagsIn(tx, userId, row.id, proposedTagIds);
