@@ -23,7 +23,7 @@ import { AccountPicker, AccountTrigger } from './account-picker.tsx';
 import { budgetNotes } from '../budget/budget-note.tsx';
 import { CategorySelect } from './category-picker.tsx';
 import { DateTimeField } from './date-time-field.tsx';
-import { announceSaved } from './record-transaction.tsx';
+import { announceSaved } from './announce-saved.tsx';
 import { RuleSuggestion } from './rule-suggestion.tsx';
 import {
   defaultAccountId,

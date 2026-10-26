@@ -119,6 +119,16 @@ export interface Services extends BaseRuntime {
   readonly aiClient: AiClient;
   readonly receipts: ReceiptsRepository;
   readonly receiptQueue: ReceiptQueue;
+  /** PDF/image rasterization for receipt uploads (FR-T7): lazily imported so `sharp` stays out of the browser graph. */
+  readonly receiptPrepare: (
+    bytes: Uint8Array,
+    mime: string,
+  ) => Promise<{
+    /** The original bytes (a PDF) or the rasterized WebP page images. */
+    readonly bytes: Uint8Array;
+    readonly mime: string;
+    readonly images: readonly { readonly bytes: Uint8Array; readonly mime: string }[];
+  }>;
   readonly fxRates: FxRatesRepository;
   /** Periods, budgets, and the dashboard (M2), on `wf_app`. */
   readonly periods: PeriodsRepository;
@@ -217,6 +227,10 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     aiClient: createAiClient({ now, allowedBaseUrls: config.ai.allowedBaseUrls }),
     receipts: createReceipts(appDb, { getDek, now }),
     receiptQueue: createReceiptQueue({ redis: config.redis.url, logger }),
+    receiptPrepare: async (bytes: Uint8Array, mime: string) => {
+      const { prepareReceipt } = await import('@wf/integrations/receipt');
+      return prepareReceipt(bytes, mime);
+    },
     fxRates: createFxRates(appDb),
     periods: createPeriods(appDb, { now }),
     budgets: createBudgets(appDb, { now }),
