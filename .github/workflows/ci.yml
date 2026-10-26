@@ -89,6 +89,10 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Receipt OCR (FR-T7) rasterizes PDFs with poppler's pdftoppm/pdfinfo — a runtime dependency
+      # (the image ships it), so the unit tests prove the real pipeline and need it too.
+      - name: Install poppler-utils
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends poppler-utils
       # Component tests (*.test.tsx) run in Vitest browser mode on headless Chromium.
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
