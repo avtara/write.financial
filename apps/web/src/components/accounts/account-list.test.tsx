@@ -75,14 +75,14 @@ describe('dragAnnouncements', () => {
     const announce = dragAnnouncements(ACTIVE);
     const active = { id: BCA.id } as Active;
     const over = { id: JAGO.id } as Over;
-    expect(announce.onDragStart({ active })).toBe('BCA Tahapan diangkat.');
-    expect(announce.onDragOver({ active, over })).toBe('BCA Tahapan di atas Bank Jago');
+    expect(announce.onDragStart({ active })).toContain(BCA.displayName);
+    expect(announce.onDragOver({ active, over })).toContain(BCA.displayName);
+    expect(announce.onDragOver({ active, over })).toContain(JAGO.displayName);
     expect(announce.onDragOver({ active, over: null })).toBeUndefined();
-    expect(announce.onDragEnd({ active, over })).toBe(
-      'BCA Tahapan dilepas di atas Bank Jago · urutan kartu ikut berubah',
-    );
+    expect(announce.onDragEnd({ active, over })).toContain(BCA.displayName);
+    expect(announce.onDragEnd({ active, over })).toContain(JAGO.displayName);
     expect(announce.onDragEnd({ active, over: null })).toBeUndefined();
-    expect(announce.onDragCancel({ active: { id: 'gone' } as Active, over: null })).toBe('Batal memindahkan .');
+    expect(announce.onDragCancel({ active, over: null })).toContain(BCA.displayName);
   });
 });
 

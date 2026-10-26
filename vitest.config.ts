@@ -30,6 +30,13 @@ export default defineConfig({
       {
         extends: true,
         plugins: [tailwindcss()],
+        // Speculative transforms traverse the original RPC modules before browser mocks apply, pulling in Node-only
+        // services (database, Argon2, queues). Transform only modules the browser actually requests.
+        environments: {
+          client: {
+            dev: { preTransformRequests: false },
+          },
+        },
         test: {
           name: 'unit-browser',
           include: [`${SOURCES}/**/*.test.tsx`],

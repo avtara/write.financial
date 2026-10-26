@@ -67,23 +67,24 @@ describe('MoneyFlowCard on a desktop', () => {
     const { screen, router } = await renderFlow();
     const food = node(/^Makan & Dapur/);
     await expect.element(food).toBeInTheDocument();
-    pointer(food.element(), 'mouseover');
+    const foodRect = food.element().querySelector('rect') as SVGRectElement;
+    const heading = screen.getByRole('heading', { name: /Arus Uang/ });
+    await userEvent.hover(foodRect);
     const tip = screen.getByRole('tooltip');
     await expect.element(tip).toMatchTextContent('Kebutuhan → Makan & Dapur');
     await expect.element(tip).toMatchTextContent('Porsi Kebutuhan42%');
     await expect.element(tip).toMatchTextContent('Transaksi18× · rata² Rp177.777');
     await expect.element(tip).toMatchTextContent('AnggaranRp3.200.000 / 3.500.000');
     await expect.element(tip).toMatchTextContent('Klik untuk lihat 18 transaksi');
-    pointer(food.element(), 'mouseout');
+    await userEvent.hover(heading);
     await expect.element(screen.getByRole('tooltip')).not.toBeInTheDocument();
     // The band into Gaji's node: the total's links carry the source's tone.
     const band = document.querySelector('path[d]') as SVGPathElement;
-    pointer(band, 'mouseover');
+    await userEvent.hover(band);
     await expect.element(screen.getByRole('tooltip')).toBeVisible();
-    pointer(band, 'mouseout');
-    pointer(food.element(), 'click');
+    await userEvent.hover(heading);
+    await userEvent.click(foodRect);
     expect(router.state.location.search).toEqual({ period: '2026-10', category: FOOD_ID });
-    pointer(band, 'click');
   });
 
   it('focuses a group from its chip or its node, then opens its categories', async () => {
