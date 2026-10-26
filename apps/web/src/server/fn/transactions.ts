@@ -22,7 +22,6 @@ import { rangeSummary, type RangeSummary } from '@wf/domain/dashboard';
 import type { LocalDate } from '@wf/domain/period';
 import type { TransactionSource } from '@wf/domain/transactions';
 import { ImageRejectedError, MAX_IMAGE_BYTES, prepareImageUpload } from '@wf/integrations/image';
-import { prepareReceipt } from '@wf/integrations/receipt';
 import * as z from 'zod';
 import { TABLE_PREFS, tablePrefsOf, type TablePrefs } from '../../lib/transaction-columns.ts';
 import {
@@ -307,7 +306,7 @@ const UPLOAD = z.object({
 export const addAttachment = createServerFn({ method: 'POST' })
   .validator(z.instanceof(FormData))
   .handler(({ context, data }): Promise<Result<{ id: string }>> =>
-    forUser(context, async (userId, { transactions, attachmentStore }) => {
+    forUser(context, async (userId, { transactions, attachmentStore, receiptPrepare }) => {
       const { transactionId, kind, file } = UPLOAD.parse(Object.fromEntries(data));
       const detail = await transactions.get(userId, transactionId);
       if (detail.deletedAt !== null) throw new LedgerError('NOT_FOUND', 'No such transaction');
@@ -319,7 +318,7 @@ export const addAttachment = createServerFn({ method: 'POST' })
       if (kind === 'receipt') {
         let prepared;
         try {
-          prepared = await prepareReceipt(bytes, file.type);
+          prepared = await receiptPrepare(bytes, file.type);
         } catch (error) {
           if (error instanceof ImageRejectedError) throw new UploadRejectedError(error.reason);
           throw error;

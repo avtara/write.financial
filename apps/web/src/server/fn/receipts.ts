@@ -5,7 +5,6 @@ import type { ReceiptView } from '@wf/db/receipts';
 import { AiError, calculateAiCost, canReserveAiCost } from '@wf/domain/ai';
 import { RECEIPT_INPUT_TOKENS, RECEIPT_MAX_TOKENS } from '@wf/domain/receipt';
 import { ImageRejectedError } from '@wf/integrations/image';
-import { prepareReceipt } from '@wf/integrations/receipt';
 import * as z from 'zod';
 import { attempt, requireSession, UploadRejectedError, type Result } from '../access.ts';
 import { services } from '../runtime.ts';
@@ -33,12 +32,12 @@ export const uploadReceipt = createServerFn({ method: 'POST' })
       if (data.getAll('file').length !== 1) throw new UploadRejectedError('unsupported-type');
       const file = z.instanceof(File).parse(data.get('file'));
       if (file.size === 0 || file.size > 2 * 1024 * 1024) throw new UploadRejectedError('too-large');
-      const prepared = await prepareReceipt(new Uint8Array(await file.arrayBuffer()), file.type).catch(
-        (error: unknown) => {
+      const prepared = await s
+        .receiptPrepare(new Uint8Array(await file.arrayBuffer()), file.type)
+        .catch((error: unknown) => {
           if (error instanceof ImageRejectedError) throw new UploadRejectedError(error.reason);
           throw error;
-        },
-      );
+        });
       const estimated = calculateAiCost(credential.pricing, {
         inputTokens: RECEIPT_INPUT_TOKENS,
         outputTokens: RECEIPT_MAX_TOKENS,

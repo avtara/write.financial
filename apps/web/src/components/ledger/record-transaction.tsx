@@ -30,13 +30,7 @@ import { listGoals, spendFromGoal } from '../../server/fn/goals.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
 import { listAutoRules } from '../../server/fn/rules.ts';
 import { createRecurrence, listSubscriptions } from '../../server/fn/schedules.ts';
-import {
-  listDrafts,
-  recordTransaction,
-  removeDraft,
-  removeTransactions,
-  saveDraft,
-} from '../../server/fn/transactions-write.ts';
+import { listDrafts, recordTransaction, removeDraft, saveDraft } from '../../server/fn/transactions-write.ts';
 import { recordCardInstallment, recordCardPayment } from '../../server/fn/debts.ts';
 import { INSTALLMENT_MIN_MINOR } from '@wf/domain/creditcard';
 import { Button, FormError } from '../form.tsx';
@@ -72,6 +66,7 @@ import { SplitBillSheet, type BillInput } from './split-bill.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 import { ReceiptEntry } from './receipt-entry.tsx';
+import { announceSaved } from './announce-saved.tsx';
 
 /** What another screen fills in: ⌘K's typed text, the calendar's day ("Catat di tanggal ini", 12.00), a top-up. */
 export interface RecordPrefill {
@@ -109,39 +104,6 @@ export function useRecordTransaction(): RecordTransactionApi {
 }
 
 /** Says what was saved, with "Urungkan" (soft delete, FR-T9); also used by the Quick Add bar. */
-export function announceSaved(saved: {
-  readonly id: string;
-  readonly label: string;
-  readonly amountMinor: bigint;
-  readonly currency: string;
-  readonly accountName: string | undefined;
-  readonly locale: Locale;
-  readonly onChange: () => void;
-}): void {
-  toast.undo({
-    title: m.record_saved_title(),
-    description: (
-      <>
-        {saved.label}
-        {' · '}
-        <Money minor={saved.amountMinor} currency={saved.currency} context="amount" locale={saved.locale} />
-        {' · '}
-        {saved.accountName}
-      </>
-    ),
-    undoLabel: m.record_undo(),
-    onUndo: () => {
-      void removeTransactions({ data: { ids: [saved.id] } }).then((result) => {
-        if (result.ok) {
-          toast({ tone: 'info', title: m.record_undone() });
-          saved.onChange();
-        } else {
-          toast({ tone: 'error', title: ledgerErrorMessage(result.code, saved.locale) });
-        }
-      });
-    },
-  });
-}
 
 type Loaded =
   | { readonly status: 'loading' }

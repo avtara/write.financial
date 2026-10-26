@@ -31,7 +31,7 @@ vi.mock('../../server/fn/transactions-write.ts', () => ({
   removeTransactions: server.removeTransactions,
 }));
 const saved = vi.hoisted(() => ({ announceSaved: vi.fn() }));
-vi.mock('./record-transaction.tsx', () => saved);
+vi.mock('./announce-saved.tsx', () => saved);
 const ready = (): ReceiptView => ({
   id: 'receipt-a',
   status: 'ready',

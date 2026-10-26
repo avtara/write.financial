@@ -20,7 +20,7 @@ import { confirmReview } from '../../server/fn/review.ts';
 import { removeTransactions } from '../../server/fn/transactions-write.ts';
 import { Button, Field, FormError, TextInput } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
-import { announceSaved } from './record-transaction.tsx';
+import { announceSaved } from './announce-saved.tsx';
 import { defaultAccountId, emptyValues, wallTime, type TransactionFormValues } from './transaction-draft.ts';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
