@@ -55,7 +55,8 @@ const fake = vi.hoisted(() => ({
 // vi.mock factories run before imports; they load the shared helper themselves.
 vi.mock('@tanstack/react-start', async () => (await import('../../../test/server-fn.ts')).serverFnModule());
 vi.mock('../runtime.ts', () => ({
-  services: () => Promise.resolve({ ...fake, now: () => new Date('2026-10-15T12:40:00Z') }),
+  services: () =>
+    Promise.resolve({ ...fake, receiptPrepare: fake.prepareReceipt, now: () => new Date('2026-10-15T12:40:00Z') }),
 }));
 vi.mock('@wf/integrations/image', async (importOriginal) => ({
   ...(await importOriginal<typeof ImageModule>()),

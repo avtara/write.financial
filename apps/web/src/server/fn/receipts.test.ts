@@ -11,10 +11,14 @@ const fake = vi.hoisted(() => ({
   receipts: { get: vi.fn(), stage: vi.fn(), cancel: vi.fn(), manual: vi.fn() },
   attachmentStore: { put: vi.fn(), delete: vi.fn() },
   receiptQueue: { enqueue: vi.fn() },
+  prepareReceipt: vi.fn(),
 }));
 vi.mock('@tanstack/react-start', async () => (await import('../../../test/server-fn.ts')).serverFnModule());
-vi.mock('../runtime.ts', () => ({ services: () => Promise.resolve({ ...fake, now: () => NOW }) }));
+vi.mock('../runtime.ts', () => ({
+  services: () => Promise.resolve({ ...fake, receiptPrepare: fake.prepareReceipt, now: () => NOW }),
+}));
 const USER = fakeSession().user.id;
+const realPrepareReceipt = (await import('@wf/integrations/receipt')).prepareReceipt;
 const ID = randomUUID();
 const revision = randomUUID();
 const context = (twoFactor = true) => requestContext(fakeSession({ twoFactorEnabled: twoFactor }));
@@ -26,6 +30,8 @@ const form = (file = new File([new Uint8Array([137, 80, 78, 71])], 'receipt.png'
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  // The default is the real pipeline (node has sharp); the UI-facing refusals come from its own validation.
+  fake.prepareReceipt.mockImplementation((bytes: Uint8Array, mime: string) => realPrepareReceipt(bytes, mime));
   fake.ai.settings.mockResolvedValue({
     revision,
     provider: 'openrouter',
