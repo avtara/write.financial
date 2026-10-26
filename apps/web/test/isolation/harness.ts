@@ -32,6 +32,7 @@ import * as account from '../../src/server/fn/account.ts';
 import * as accounts from '../../src/server/fn/accounts.ts';
 import * as admin from '../../src/server/fn/admin.ts';
 import * as ai from '../../src/server/fn/ai.ts';
+import * as assistant from '../../src/server/fn/assistant.ts';
 import * as budgetWrite from '../../src/server/fn/budget-write.ts';
 import * as budget from '../../src/server/fn/budget.ts';
 import { getCalendarRange, getCalendarYear } from '../../src/server/fn/calendar.ts';
@@ -173,6 +174,7 @@ export const FUNCTIONS = {
   ...ledger,
   ...market,
   ...ai,
+  ...assistant,
   ...notifications,
   ...receivables,
   ...reports,

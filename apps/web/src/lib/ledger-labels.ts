@@ -6,9 +6,12 @@
  */
 import type { BuiltInCategoryKey, CategoryGroup } from '@wf/domain/categories';
 import type { AccountType } from '@wf/domain/ledger';
+import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 
-const BUILT_IN_NAMES: Readonly<Record<BuiltInCategoryKey, () => string>> = {
+type CategoryLabel = (inputs?: undefined, options?: { readonly locale?: Locale }) => string;
+
+const BUILT_IN_NAMES: Readonly<Record<BuiltInCategoryKey, CategoryLabel>> = {
   'system:rent': m.category_builtin_rent,
   'system:food': m.category_builtin_food,
   'system:transport': m.category_builtin_transport,
@@ -62,6 +65,18 @@ const ACCOUNT_TYPE_LABELS: Readonly<Record<AccountType, () => string>> = {
 export function categoryName(category: { readonly name: string; readonly builtInKey: string | null }): string {
   const label = category.builtInKey === null ? undefined : BUILT_IN_NAMES[category.builtInKey as BuiltInCategoryKey];
   return label === undefined ? category.name : label();
+}
+
+/**
+ * The same name in an explicit locale, for text that leaves the browser (the assistant prompt and its answer). The
+ * Paraglide message takes the locale as an option, so this needs no runtime switch.
+ */
+export function categoryNameIn(
+  category: { readonly name: string; readonly builtInKey: string | null },
+  locale: Locale,
+): string {
+  const label = category.builtInKey === null ? undefined : BUILT_IN_NAMES[category.builtInKey as BuiltInCategoryKey];
+  return label === undefined ? category.name : label(undefined, { locale });
 }
 
 export function categoryGroupLabel(group: CategoryGroup): string {

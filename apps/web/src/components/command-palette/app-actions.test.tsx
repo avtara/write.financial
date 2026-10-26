@@ -7,6 +7,8 @@ import { CommandPaletteProvider } from './command-palette.tsx';
 
 const record = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock('../ledger/record-transaction.tsx', () => ({ useRecordTransaction: () => record }));
+const assistant = vi.hoisted(() => ({ open: vi.fn() }));
+vi.mock('../assistant/assistant.tsx', () => ({ useAssistant: () => assistant }));
 vi.mock('../../server/fn/search.ts', () => ({
   listRecent: () => Promise.resolve({ ok: true, value: [] }),
   searchEverything: () =>
@@ -76,10 +78,19 @@ describe('AppCommandActions', () => {
   it('records an unmatched query as a transaction description', async () => {
     await openPalette();
     await userEvent.type(dialog().getByRole('combobox'), 'cicilan motor');
+    // The Assistant is offered first (design "COBA · Tanya Asisten"), so the record action is one step down.
     const option = dialog().getByRole('option', { name: 'Catat “cicilan motor” sebagai transaksi' });
     await expect.element(option).toBeVisible();
-    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
     expect(record.open).toHaveBeenCalledWith({ description: 'cicilan motor' });
+    await expect.element(dialog()).not.toBeInTheDocument();
+  });
+
+  it('offers the Assistant for an unmatched query (FR-S4)', async () => {
+    await openPalette();
+    await userEvent.type(dialog().getByRole('combobox'), 'cicilan motor');
+    await userEvent.click(dialog().getByRole('option', { name: 'Tanya Asisten' }));
+    expect(assistant.open).toHaveBeenCalledWith();
     await expect.element(dialog()).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { isRedirect } from '@tanstack/react-router';
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
@@ -70,6 +70,11 @@ const settings = vi.hoisted(() => ({
   ),
 }));
 vi.mock('../components/settings/settings-dialog.tsx', () => settings);
+// The Assistant has its own suite; this layout only needs it to be installable.
+vi.mock('../components/assistant/assistant.tsx', () => ({
+  AssistantProvider: ({ children }: { children: ReactNode }) => children,
+  useAssistant: () => ({ open: () => undefined, close: () => undefined, isOpen: false }),
+}));
 
 const VIEWER: Viewer = {
   id: 'u1',

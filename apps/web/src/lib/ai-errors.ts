@@ -21,6 +21,8 @@ const MESSAGES: Readonly<Record<AiErrorCode, AiMessage>> = {
   AI_EGRESS_DENIED: m.ai_error_egress_denied,
   AI_PROVIDER_FAILED: m.ai_error_provider_failed,
   AI_REQUEST_EXISTS: m.ai_error_request_exists,
+  AI_TIMEOUT: m.ai_error_timeout,
+  AI_ASSISTANT_FAILED: m.ai_error_assistant_failed,
 };
 
 /** The sentence for `code` in `locale`; other expected refusals fall through to the auth messages. */

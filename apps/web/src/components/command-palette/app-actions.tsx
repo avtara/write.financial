@@ -6,13 +6,15 @@
  */
 import { useNavigate } from '@tanstack/react-router';
 import { m } from '@wf/i18n/messages';
-import { ArrowLeftRight, Plus, Repeat, Wallet } from 'lucide-react';
+import { ArrowLeftRight, Plus, Repeat, Sparkles, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
+import { useAssistant } from '../assistant/assistant.tsx';
 import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { useCommandActions, type CommandActions } from './command-palette.tsx';
 
 export function AppCommandActions() {
   const { open } = useRecordTransaction();
+  const assistant = useAssistant();
   const navigate = useNavigate();
   const actions = useMemo<CommandActions>(
     () => ({
@@ -55,6 +57,14 @@ export function AppCommandActions() {
       ],
       create: [
         {
+          id: 'ask-assistant',
+          icon: Sparkles,
+          label: () => m.assistant_open(),
+          run: () => {
+            assistant.open();
+          },
+        },
+        {
           id: 'record-as',
           icon: Plus,
           label: (query) => m.cmdk_create_transaction({ query }),
@@ -64,7 +74,7 @@ export function AppCommandActions() {
         },
       ],
     }),
-    [open, navigate],
+    [open, navigate, assistant],
   );
   useCommandActions(actions);
   return null;

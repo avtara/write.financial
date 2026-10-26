@@ -24,7 +24,7 @@ import type {
   AiUsageSummary,
 } from '@wf/domain/ai';
 import { AI_FEATURES, AI_LOG_STATUSES, AI_PROVIDERS, normalizeAiPricing, parseAiUsd } from '@wf/domain/ai';
-import { parseDecimal } from '@wf/domain/decimal';
+import { formatUsd } from '../../lib/ai-usd.ts';
 import { formatDate, formatPercent } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
@@ -133,23 +133,6 @@ interface Draft {
 }
 
 /** `0.0004` (subcent) must not become `$0.00`; whole dollars are grouped per locale. */
-function formatUsd(value: string, locale: Locale, hidden = false): string {
-  if (hidden) return '••••••';
-  let scaled: bigint;
-  try {
-    scaled = parseDecimal(value);
-  } catch {
-    return m.ai_log_detail_none();
-  }
-  if (scaled < 0n) return m.ai_log_detail_none();
-  const scale = 10n ** 18n;
-  const whole = scaled / scale;
-  const fraction = (scaled % scale).toString().padStart(18, '0').replace(/0+$/, '');
-  const digits = fraction.length > 2 ? fraction : fraction.padEnd(2, '0');
-  const wholeText = new Intl.NumberFormat(INTL_LOCALE[locale]).format(whole);
-  return `$${wholeText}${locale === 'id' ? ',' : '.'}${digits}`;
-}
-
 function formatCount(value: number, locale: Locale): string {
   return new Intl.NumberFormat(INTL_LOCALE[locale]).format(value);
 }

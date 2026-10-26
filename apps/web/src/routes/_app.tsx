@@ -4,6 +4,7 @@ import { m } from '@wf/i18n/messages';
 import { Toaster } from '@wf/ui/toast';
 import * as z from 'zod';
 import { ReconcileProvider } from '../components/accounts/reconcile.tsx';
+import { AssistantProvider } from '../components/assistant/assistant.tsx';
 import { AppShell } from '../components/app-shell.tsx';
 import { AppCommandActions } from '../components/command-palette/app-actions.tsx';
 import { CommandPaletteProvider } from '../components/command-palette/command-palette.tsx';
@@ -76,13 +77,15 @@ function AppLayout() {
     <>
       <ReconcileProvider timeZone={viewer.timezone}>
         <RecordTransactionProvider timeZone={viewer.timezone}>
-          <CommandPaletteProvider>
-            <AppCommandActions />
-            <AppShell>
-              <Outlet />
-            </AppShell>
-            <SettingsDialog viewer={viewer} data={settings} />
-          </CommandPaletteProvider>
+          <AssistantProvider timeZone={viewer.timezone}>
+            <CommandPaletteProvider>
+              <AppCommandActions />
+              <AppShell>
+                <Outlet />
+              </AppShell>
+              <SettingsDialog viewer={viewer} data={settings} />
+            </CommandPaletteProvider>
+          </AssistantProvider>
         </RecordTransactionProvider>
       </ReconcileProvider>
       <Toaster label={m.toast_region_label()} />
