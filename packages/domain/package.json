@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./ai": "./src/ai.ts",
+    "./receipt": "./src/receipt.ts",
     "./assistant": "./src/assistant.ts",
     "./budget": "./src/budget.ts",
     "./categories": "./src/categories.ts",

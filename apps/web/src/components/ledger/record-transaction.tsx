@@ -71,6 +71,7 @@ import { RuleSuggestion } from './rule-suggestion.tsx';
 import { SplitBillSheet, type BillInput } from './split-bill.tsx';
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
+import { ReceiptEntry } from './receipt-entry.tsx';
 
 /** What another screen fills in: ⌘K's typed text, the calendar's day ("Catat di tanggal ini", 12.00), a top-up. */
 export interface RecordPrefill {
@@ -671,6 +672,7 @@ function RecordSheet({
             </ul>
           </section>
         )}
+        <ReceiptEntry timeZone={timeZone} />
         <RuleSuggestion
           rules={data.rules}
           subscriptionNames={data.subscriptionNames}

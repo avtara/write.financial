@@ -202,6 +202,55 @@ describe('bounded tool calling', () => {
 });
 
 describe('bounded authenticated completions', () => {
+  it('sends bounded inline WebP vision parts and refuses PDFs or assistant-attached images before egress', async () => {
+    const fetcher = vi.fn<typeof fetch>((_url, init) => {
+      const body = z
+        .object({
+          messages: z.array(
+            z.object({
+              role: z.literal('user'),
+              content: z.array(
+                z.union([
+                  z.object({ type: z.literal('text'), text: z.string() }),
+                  z.object({
+                    type: z.literal('image_url'),
+                    image_url: z.object({ url: z.literal('data:image/webp;base64,AQID') }),
+                  }),
+                ]),
+              ),
+            }),
+          ),
+        })
+        .safeParse(JSON.parse(typeof init?.body === 'string' ? init.body : 'null'));
+      return Promise.resolve(
+        body.success
+          ? Response.json({ choices: [{ message: { content: '{"amountMinor":"96500"}' } }] })
+          : new Response('', { status: 400 }),
+      );
+    });
+    const client = createAiClient({ allowedBaseUrls: [], fetch: fetcher });
+    const images = [{ mime: 'image/webp' as const, bytes: new Uint8Array([1, 2, 3]) }];
+    expect(
+      await client.complete(completion({ messages: [{ role: 'user', content: 'Read receipt', images }] })),
+    ).toMatchObject({ status: 'ok', content: '{"amountMinor":"96500"}' });
+    await expect(
+      client.complete(completion({ messages: [{ role: 'assistant', content: '', images }] })),
+    ).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+    await expect(
+      client.complete(
+        completion({
+          messages: [
+            {
+              role: 'user',
+              content: '',
+              images: Array.from({ length: 5 }, () => images[0] as (typeof images)[number]),
+            },
+          ],
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('preserves a numeric 18-place USD charge and sends numeric provider price ceilings', async () => {
     const fetcher = vi.fn<typeof fetch>((_url, init) => {
       if (typeof init?.body !== 'string') return Promise.resolve(new Response('', { status: 400 }));

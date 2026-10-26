@@ -27,6 +27,7 @@ const writes = vi.hoisted(() => ({
   listTransactionDays: vi.fn(),
 }));
 vi.mock('../server/fn/transactions-write.ts', () => writes);
+vi.mock('../components/ledger/receipt-entry.tsx', () => ({ ReceiptEntry: () => null }));
 vi.mock('../server/fn/budget.ts', () => ({
   getBudgetStatus: () => Promise.resolve({ ok: false, code: 'NOT_FOUND' }),
 }));

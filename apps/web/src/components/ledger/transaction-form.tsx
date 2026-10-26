@@ -50,6 +50,8 @@ export interface TransactionFormFieldsProps {
   readonly schedule?: { readonly repeat: ReactNode };
   /** FR-G4 (Record sheet): "Bayar dari tujuan …" under "Ulangi". */
   readonly goalUse?: ReactNode;
+  /** Receipt proposals have one fixed direction; amount/account/category remain editable. */
+  readonly hideKind?: boolean;
 }
 
 const KIND_ICON_CLASS: Readonly<Record<EntryKind, string>> = {
@@ -68,6 +70,7 @@ export function TransactionFormFields({
   onAdjustBalance,
   schedule,
   goalUse,
+  hideKind = false,
 }: TransactionFormFieldsProps) {
   const id = useId();
   const ids = {
@@ -148,20 +151,22 @@ export function TransactionFormFields({
 
   return (
     <>
-      <SegmentedControl<EntryKind>
-        label={m.record_type_label()}
-        fill
-        value={values.type}
-        onValueChange={(type) => {
-          update({ type, categoryId: null, toAccountId: null, receivedMinor: null });
-        }}
-        options={[
-          { value: 'expense', label: m.record_type_expense(), icon: ArrowUpRight },
-          { value: 'income', label: m.record_type_income(), icon: ArrowDownLeft },
-          { value: 'transfer', label: m.record_type_transfer(), icon: ArrowLeftRight },
-        ]}
-        className={KIND_ICON_CLASS[values.type]}
-      />
+      {hideKind ? null : (
+        <SegmentedControl<EntryKind>
+          label={m.record_type_label()}
+          fill
+          value={values.type}
+          onValueChange={(type) => {
+            update({ type, categoryId: null, toAccountId: null, receivedMinor: null });
+          }}
+          options={[
+            { value: 'expense', label: m.record_type_expense(), icon: ArrowUpRight },
+            { value: 'income', label: m.record_type_income(), icon: ArrowDownLeft },
+            { value: 'transfer', label: m.record_type_transfer(), icon: ArrowLeftRight },
+          ]}
+          className={KIND_ICON_CLASS[values.type]}
+        />
+      )}
 
       <div
         className={`flex flex-col gap-2 rounded-[12px] border bg-input p-4 ${error('amount') === undefined ? 'border-border' : 'border-red'}`}

@@ -27,6 +27,7 @@ export interface Broker extends Closable {
 export interface RuntimeDeps {
   readonly broker: Broker;
   readonly db: WorkerDb;
+  readonly receipt?: ProcessorDeps['receipt'];
   readonly mailer: Mailer;
   /** `PUBLIC_URL`, for links in emails. */
   readonly publicUrl: string;
@@ -52,6 +53,7 @@ const QUEUES = Object.keys(PROCESSORS) as JobQueue[];
 export async function startWorker({
   broker,
   db,
+  receipt,
   mailer,
   publicUrl,
   render,
@@ -73,7 +75,17 @@ export async function startWorker({
 
   const workers = QUEUES.map((name) => {
     const { concurrency, create } = PROCESSORS[name];
-    const handle = create({ db, now: () => new Date(now()), enqueue, mailer, publicUrl, render, market, objects });
+    const handle = create({
+      db,
+      now: () => new Date(now()),
+      enqueue,
+      mailer,
+      publicUrl,
+      render,
+      market,
+      objects,
+      ...(receipt === undefined ? {} : { receipt }),
+    });
     const run: Processor = async (job) => {
       const log = logger.child({ queue: name, jobId: job.id, attempt: job.attemptsMade + 1 });
       log.info('job started');

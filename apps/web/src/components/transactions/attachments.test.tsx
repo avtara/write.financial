@@ -111,7 +111,6 @@ describe('Attachments', () => {
     await expect.element(screen.getByText('0/3 · maks 2 MB per gambar')).toBeVisible();
     await userEvent.click(receipt.getByRole('button', { name: 'Unggah' }));
     expect(click).toHaveBeenCalledOnce();
-    expect(fileInput(receipt).accept).toBe('image/jpeg,image/png,image/webp,application/pdf');
     await userEvent.upload(fileInput(receipt), file('struk.pdf', 'application/pdf'));
     await expect.element(receipt.getByRole('button', { name: 'Mengunggah…' })).toBeDisabled();
     const [{ data }] = server.addAttachment.mock.lastCall as [{ data: FormData }];

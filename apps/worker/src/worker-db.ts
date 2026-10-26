@@ -2,6 +2,8 @@
 import type { Config } from '@wf/config';
 import type { Keyring } from '@wf/crypto/keyring';
 import { createBalanceChecks, type BalanceChecks } from '@wf/db/balance-checks';
+import { createAiRepository, type AiRepository } from '@wf/db/ai';
+import { createReceiptJobs, type ReceiptJobs } from '@wf/db/receipt-jobs';
 import { createBudgetAlerts, type BudgetAlerts } from '@wf/db/budget-alerts';
 import { createDb } from '@wf/db/db';
 import { createAccountDeletion, type AccountDeletion } from '@wf/db/account-deletion';
@@ -24,7 +26,7 @@ import { createRuleBackfillProposals, type RuleBackfillProposalsRepository } fro
 import { createReportFiles, type ReportFilesRepository } from '@wf/db/report-files';
 import { createReports, type ReportsRepository, type ReportView } from '@wf/db/reports';
 import { createUserKeys } from '@wf/db/user-keys';
-import { createObjectStore } from '@wf/integrations/objectstore';
+import { createObjectStore, type ObjectStore } from '@wf/integrations/objectstore';
 import { instanceSmtp, type SmtpConnection } from '@wf/integrations/instance-mailer';
 
 /**
@@ -33,6 +35,8 @@ import { instanceSmtp, type SmtpConnection } from '@wf/integrations/instance-mai
  * none of these repositories writes transactions, postings, budgets, or goals (wf_worker has no grant either).
  */
 export interface WorkerDb {
+  readonly receipts: ReceiptJobs;
+  readonly ai: Pick<AiRepository, 'credential' | 'reserve' | 'settle'>;
   /** Auth purge and the 90-day notification retention. */
   readonly maintenance: Maintenance;
   /** The daily account-deletion scan and the per-user purge (FR-A11); requesting and cancelling are the app's. */
@@ -92,6 +96,7 @@ export interface WorkerDbConnection {
   readonly db: WorkerDb;
   /** The SMTP settings saved in the setup wizard with the decrypted password, for the mailer; `null` when none. */
   readonly smtp: () => Promise<SmtpConnection | null>;
+  readonly receiptObjects: Pick<ObjectStore, 'get' | 'delete'>;
   /** Ends the pool; waits for running queries. */
   close(): Promise<void>;
 }
@@ -101,6 +106,7 @@ export interface WorkerDbOptions {
   readonly now?: () => Date;
   /** The S3 settings (the `reports` bucket) for the encrypted report export files (FR-LP4). */
   readonly s3: Config['s3'];
+  readonly aiAllowedBaseUrls?: readonly string[];
 }
 
 /**
@@ -148,6 +154,15 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
   return {
     db: Object.freeze({
       maintenance: Object.freeze({ purgeExpiredAuth, purgeNotifications, purgeAiLogs }),
+      receipts: Object.freeze(createReceiptJobs(database, { getDek })),
+      ai: (() => {
+        const {
+          credential: aiCredential,
+          reserve,
+          settle,
+        } = createAiRepository(database, { getDek, allowedBaseUrls: options.aiAllowedBaseUrls ?? [] });
+        return Object.freeze({ credential: aiCredential, reserve, settle });
+      })(),
       accountDeletion: Object.freeze({ due, deleteUser }),
       fxRates: Object.freeze({ currenciesInUse, upsertGlobal }),
       dispatch: Object.freeze({ users, dueReminders, pendingOutbox }),
@@ -179,6 +194,7 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
       preferences: Object.freeze({ get: getPreferences }),
     }),
     smtp: instanceSmtp({ get: settings, smtpPassword }),
+    receiptObjects: createObjectStore({ s3: options.s3, bucket: 'attachments', getDek }),
     close: () => database.$client.end(),
   };
 }

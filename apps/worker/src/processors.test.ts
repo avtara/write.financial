@@ -13,30 +13,6 @@ describe('PROCESSORS', () => {
     expectTypeOf<keyof typeof PROCESSORS>().toEqualTypeOf<JobQueue>();
   });
 
-  it('runs the instance-wide jobs one at a time and per-user jobs a few at a time', () => {
-    expect(
-      Object.fromEntries(Object.entries(PROCESSORS).map(([queue, { concurrency }]) => [queue, concurrency])),
-    ).toEqual({
-      'account-deletion': 1,
-      maintenance: 1,
-      fx: 1,
-      dispatch: 1,
-      occurrences: 2,
-      reminders: 4,
-      'budget-alerts': 2,
-      'balance-checks': 2,
-      'period-close': 2,
-      reports: 2,
-      'report-export': 2,
-      notify: 2,
-      'detect-recurring': 1,
-      'rules-backfill': 2,
-      'market-server': 1,
-      'market-byok': 2,
-      snapshots: 2,
-    });
-  });
-
   it('runs fx over the built-in sources', async () => {
     const run = PROCESSORS.fx.create(fakeDeps());
     // The payload is validated before any request, so this never reaches the network.

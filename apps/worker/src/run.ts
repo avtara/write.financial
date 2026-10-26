@@ -5,6 +5,7 @@ import { loadKeyring, type Keyring } from '@wf/crypto/keyring';
 import { createInstanceMailer, sendWith } from '@wf/integrations/instance-mailer';
 import { createMarketAdapters } from '@wf/integrations/market/adapters';
 import { createObjectPurger } from '@wf/integrations/objectstore';
+import { createAiClient } from '@wf/integrations/ai';
 import type { DestinationStream } from 'pino';
 import { HEARTBEAT, heartbeatKey, isHealthy, type HeartbeatSettings } from './heartbeat.ts';
 import { createLogger } from './logger.ts';
@@ -115,7 +116,10 @@ async function work(
       logger.error({ err: error }, 'redis connection error');
     },
   });
-  const database = openWorkerDb(config.db.workerUrl, keyring, { s3: config.s3 });
+  const database = openWorkerDb(config.db.workerUrl, keyring, {
+    s3: config.s3,
+    aiAllowedBaseUrls: config.ai.allowedBaseUrls,
+  });
   // Purging a leaving user's blobs never decrypts them, so the purger needs neither the keyring nor the database.
   const objects = {
     attachments: createObjectPurger({ s3: config.s3, bucket: 'attachments' }),
@@ -132,6 +136,10 @@ async function work(
   const starting = startWorker({
     broker,
     db: database.db,
+    receipt: {
+      client: createAiClient({ allowedBaseUrls: config.ai.allowedBaseUrls }),
+      objects: database.receiptObjects,
+    },
     mailer,
     publicUrl: config.publicUrl,
     // Chromium is resolved and launched per PDF, never at startup, so a host without a browser starts fine.

@@ -196,6 +196,17 @@ export function fakeDb(
     purgeCalls,
     fxUpserts,
     calls,
+    receipts: {
+      claim: method('receipts.claim', null),
+      complete: method('receipts.complete', undefined),
+      fail: method('receipts.fail', undefined),
+      cleanup: method('receipts.cleanup', []),
+    },
+    ai: {
+      credential: () => Promise.reject(new Error('AI credential not configured in fixture')),
+      reserve: () => Promise.reject(new Error('AI reservation not configured in fixture')),
+      settle: () => Promise.reject(new Error('AI settlement not configured in fixture')),
+    },
     maintenance: {
       purgeExpiredAuth: async (now) => {
         purgeCalls.push(now);

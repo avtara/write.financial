@@ -54,6 +54,8 @@ const userJob = z.strictObject({ userId: z.uuid() });
  * principles); the schemas are strict, so an unknown key is rejected rather than silently stored in Redis.
  */
 export const JOBS = {
+  /** Receipt inference: IDs only; images, credentials and OCR evidence stay encrypted outside Redis. */
+  ocr: z.strictObject({ userId: z.uuid(), receiptId: z.uuid() }),
   /**
    * The daily account-deletion run (plan §6 `account-deletion`, FR-A11): with no `userId` the processor scans for
    * users whose 7-day grace period has passed and deletes each; with one it deletes just that user (the retry of a
@@ -144,6 +146,7 @@ const minuteOf = (at: Date): string => at.toISOString().slice(0, 16).replace(':'
  * date; budget alerts hourly): the minute dispatch enqueues them again and again, and the id makes that one job.
  */
 export const jobIds = {
+  ocr: (userId: string, receiptId: string) => `ocr.${userId}.${receiptId}` as JobId<'ocr'>,
   maintenance: (date: LocalDate) => `mt.${date}` as JobId<'maintenance'>,
   fx: (date: LocalDate) => `fx.${date}` as JobId<'fx'>,
   /** One dispatch per UTC minute (`dsp.2026-10-18T2030`). */

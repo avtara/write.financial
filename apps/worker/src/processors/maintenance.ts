@@ -19,10 +19,16 @@ export interface MaintenanceResult {
 export function createMaintenanceProcessor({
   db,
   now,
+  receipt,
 }: ProcessorDeps): (job: ProcessorJob) => Promise<MaintenanceResult> {
   return async (job) => {
     JOBS.maintenance.parse(job.data);
     const at = now();
+    if (receipt !== undefined) {
+      for (const { userId } of await db.dispatch.users()) {
+        for (const key of await db.receipts.cleanup(userId)) await receipt.objects.delete(userId, key);
+      }
+    }
     return {
       purged: await db.maintenance.purgeExpiredAuth(at),
       notifications: await db.maintenance.purgeNotifications(at),

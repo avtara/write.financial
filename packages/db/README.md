@@ -58,6 +58,8 @@ RLS, policies, grants, triggers, seed rows) goes into a hand-written migration c
 | `./market-data` | `createMarketData(db)` → the effective quote per asset with source, time, and stale flag (`@wf/domain/market` `resolveQuote`), manual prices, the API log; worker writes of built-in quotes (global) and BYOK results (per user) |
 | `./market-credentials` | `createMarketCredentials(db, { getDek })` → BYOK market keys encrypted with the user's DEK (last 4 only; 2FA required), status/quota/retry-after, `apiKey` for the worker, `remove` (also the provider's BYOK results) |
 | `./ai` | `createAiRepository(db, { getDek, allowedBaseUrls, now? })` → masked settings, encrypted provider/destination-bound keys, atomic monthly USD reservations/settlement, and metadata-only logs (FR-AI2); credentials require current 2FA; no ledger writes |
+| `./receipts` | `createReceipts(db, { getDek })` → tenant-owned encrypted staging, status, cross-account same-currency duplicate candidates, cancellation and manual proposals; only `confirmReview` records or attaches a receipt |
+| `./receipt-jobs` | Worker-only `createReceiptJobs(db, { getDek })` → claim once, preserve encrypted extraction, publish a rules-assisted Review proposal, fail safely and identify unreferenced objects for cleanup; no ledger mutations |
 | `./portfolio` | In-transaction valuation of every asset now (`assetValuesIn`, `holdingsValueByAccount`) for accounts, goals, and investments |
 | `./goal-snapshots` | `createGoalSnapshots(db)` → daily observed goal positions (native currency, frozen names/targets and explicit cash/market/cost/unavailable valuation); `goalSnapshotIn(tx, userId, cutoff)` reads the latest actual observation |
 | `./reports` | `createReports(db)` → immutable closed-period monthly snapshots, refreshable provisional Quarterly/Yearly/Custom aggregates, `list`, `get`, `latestFinal`, `pendingMonthly`; worker `reports` runs after 00:10 local |
@@ -136,6 +138,7 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `scheduled_occurrences`                                    | S I U D                        | S I, U(`status`, `remind_at`, `reminded_at`, `expected_minor`, `updated_at`) | – | – | own rows; `wf_migrate`: dispatch scan (S)        |
 | `detected_recurring`                                       | S I U D                        | S I U        | –                 | –                        | own rows                                                 |
 | `review_items`                                             | S I U D                        | S I (D14: no UPDATE) | –         | –                        | own rows                                                 |
+| `receipt_uploads` | S I U D | S, U(`status`, `payload_enc`, `review_item_id`, `error_code`, `updated_at`) | – | – | own rows; encrypted name, pages and OCR; worker cannot attach a receipt or assign a transaction |
 | `notifications`                                            | S, U(`read_at`), D             | S I          | –                 | –                        | own rows; `wf_migrate`: retention purge                  |
 | `notification_outbox`                                      | –                              | S I, U(`sent_at`, `attempts`, `last_error`) | – | –               | own rows                                                 |
 

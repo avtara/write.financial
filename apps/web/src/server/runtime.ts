@@ -45,6 +45,7 @@ import { createReports, type ReportsRepository } from '@wf/db/reports';
 import { createPreferences, type PreferencesRepository } from '@wf/db/preferences';
 import { createImportReview, type ImportReviewRepository } from '@wf/db/import-review';
 import { createReview, type ReviewRepository } from '@wf/db/review';
+import { createReceipts, type ReceiptsRepository } from '@wf/db/receipts';
 import { createSchedules, type SchedulesRepository } from '@wf/db/schedules';
 import { createSecurityEvents, type SecurityEvents } from '@wf/db/security-events';
 import { createPeriods, type PeriodsRepository } from '@wf/db/periods';
@@ -66,6 +67,7 @@ import { createLogger } from './logger.ts';
 import { createQueueBoard, type QueueBoard } from './queue-board.ts';
 import { createReportExportQueue, type ReportExportQueue } from './report-queue.ts';
 import { createRulesBackfillQueue, type RulesBackfillQueue } from './rules-backfill-queue.ts';
+import { createReceiptQueue, type ReceiptQueue } from './receipt-queue.ts';
 
 export interface LocaleStore {
   locale?: Locale;
@@ -115,6 +117,8 @@ export interface Services extends BaseRuntime {
   /** FR-AI2: encrypted configuration, exact budget reservations and metadata-only activity. */
   readonly ai: AiRepository;
   readonly aiClient: AiClient;
+  readonly receipts: ReceiptsRepository;
+  readonly receiptQueue: ReceiptQueue;
   readonly fxRates: FxRatesRepository;
   /** Periods, budgets, and the dashboard (M2), on `wf_app`. */
   readonly periods: PeriodsRepository;
@@ -211,6 +215,8 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     autoRules: createAutoRules(appDb, { now }),
     ai: createAiRepository(appDb, { getDek, now, allowedBaseUrls: config.ai.allowedBaseUrls }),
     aiClient: createAiClient({ now, allowedBaseUrls: config.ai.allowedBaseUrls }),
+    receipts: createReceipts(appDb, { getDek, now }),
+    receiptQueue: createReceiptQueue({ redis: config.redis.url, logger }),
     fxRates: createFxRates(appDb),
     periods: createPeriods(appDb, { now }),
     budgets: createBudgets(appDb, { now }),

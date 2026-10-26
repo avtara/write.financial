@@ -19,6 +19,8 @@ export interface AiMessage {
   toolCallId?: string;
   /** `role: 'assistant'`: the calls the model made in that turn. */
   toolCalls?: readonly AiToolCall[];
+  /** Receipt vision only: bounded, sanitized image bytes; never a remote URL or raw PDF. */
+  images?: readonly { readonly mime: 'image/webp'; readonly bytes: Uint8Array }[];
 }
 /** One function the model may call; `parameters` is a JSON Schema object. */
 export interface AiToolDefinition {
@@ -118,7 +120,19 @@ function wireMessages(messages: readonly AiMessage[]): unknown[] {
         })),
       };
     }
-    return { role: message.role, content: message.content };
+    return {
+      role: message.role,
+      content:
+        message.images === undefined || message.images.length === 0
+          ? message.content
+          : [
+              { type: 'text', text: message.content },
+              ...message.images.map((image) => ({
+                type: 'image_url',
+                image_url: { url: `data:${image.mime};base64,${Buffer.from(image.bytes).toString('base64')}` },
+              })),
+            ],
+    };
   });
 }
 
@@ -313,6 +327,19 @@ export function createAiClient(options: {
       if (
         input.tools !== undefined &&
         (input.tools.length > MAX_TOOLS || input.tools.some((tool) => !TOOL_NAME.test(tool.name)))
+      )
+        throw new AiError('AI_INVALID_CONFIG');
+      if (
+        input.messages.some(
+          (message) =>
+            message.images !== undefined &&
+            (message.role !== 'user' ||
+              message.images.length > 4 ||
+              message.images.some(
+                (image: { mime: string; bytes: Uint8Array }) =>
+                  image.mime !== 'image/webp' || image.bytes.byteLength > 8 * 1024 * 1024,
+              )),
+        )
       )
         throw new AiError('AI_INVALID_CONFIG');
       const pricing = normalizeAiPricing(input.pricing);

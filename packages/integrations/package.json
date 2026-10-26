@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./ai": "./src/ai.ts",
+    "./receipt": "./src/receipt.ts",
     "./objectstore": "./src/objectstore.ts",
     "./image": "./src/image.ts",
     "./download": "./src/download.ts",
