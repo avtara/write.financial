@@ -21,7 +21,7 @@ vi.mock('@wf/ui/toast', () => toasts);
 
 const TZ = 'Asia/Jakarta';
 const now = new Date();
-const later = new Date(now.getTime() + 60 * 60_000);
+const later = new Date(now.getTime() + 60 * 1_000); // stays within today, so the pause label keeps clock-only form
 const lastWeek = new Date(now.getTime() - 7 * 86_400_000);
 
 const key = (
