@@ -112,6 +112,95 @@ describe('provider model catalogs', () => {
   });
 });
 
+describe('bounded tool calling', () => {
+  const tools = [
+    {
+      name: 'ringkasan_anggaran',
+      description: 'Budget lines.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  ];
+
+  it('sends the tool definitions, round-trips a tool result, and parses the calls', async () => {
+    let sent: unknown;
+    const fetcher = vi.fn<typeof fetch>((_url, init) => {
+      sent = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
+      return Promise.resolve(
+        Response.json({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [
+                  { id: 'call_1', type: 'function', function: { name: 'ringkasan_anggaran', arguments: '{}' } },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+          usage: { prompt_tokens: 40, completion_tokens: 8, cost: '0.0002' },
+        }),
+      );
+    });
+    const messages = [
+      { role: 'user' as const, content: 'Berapa sisa anggaran Makan?' },
+      { role: 'assistant' as const, content: '', toolCalls: [{ id: 'call_0', name: 'pengeluaran', arguments: '{}' }] },
+      { role: 'tool' as const, content: '{"total":1}', toolCallId: 'call_0' },
+    ];
+    const result = await createAiClient({ allowedBaseUrls: [], fetch: fetcher }).complete(
+      completion({ messages, tools, maxTokens: 256 }),
+    );
+    expect(sent).toMatchObject({
+      tools: [{ type: 'function', function: { name: 'ringkasan_anggaran', parameters: { type: 'object' } } }],
+      tool_choice: 'auto',
+      messages: [
+        { role: 'user', content: 'Berapa sisa anggaran Makan?' },
+        { role: 'assistant', content: null, tool_calls: [{ id: 'call_0', type: 'function' }] },
+        { role: 'tool', tool_call_id: 'call_0', content: '{"total":1}' },
+      ],
+    });
+    expect(result).toMatchObject({
+      status: 'ok',
+      content: null,
+      finishReason: 'tool_calls',
+      costUsd: '0.0002',
+      toolCalls: [{ id: 'call_1', name: 'ringkasan_anggaran', arguments: '{}' }],
+    });
+  });
+
+  it('drops malformed and oversized calls instead of executing them', async () => {
+    const call = (entry: unknown) => ({ choices: [{ message: { content: 'ok', tool_calls: [entry] } }] });
+    const names = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(JSON.stringify(call({ id: 'x', function: { name: 'Drop-Table', arguments: '{}' } }))),
+    }).complete(completion({ tools }));
+    expect(names.toolCalls).toEqual([]);
+    const oversized = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(JSON.stringify(call({ id: 'x', function: { name: 'pengeluaran', arguments: 'x'.repeat(8_193) } }))),
+    }).complete(completion({ tools }));
+    expect(oversized.toolCalls).toEqual([]);
+    const notAnArray = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply('{"choices":[{"message":{"content":"ok","tool_calls":"nope"}}]}'),
+    }).complete(completion({ tools }));
+    expect(notAnArray).toMatchObject({ status: 'ok', toolCalls: [] });
+  });
+
+  it('refuses a tool surface that is too large or badly named', async () => {
+    const client = createAiClient({ allowedBaseUrls: [], fetch: reply('{}') });
+    const tooMany = Array.from({ length: 9 }, (_unused, index) => ({
+      name: `tool_${index}`,
+      description: '',
+      parameters: {},
+    }));
+    await expect(client.complete(completion({ tools: tooMany }))).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+    await expect(
+      client.complete(completion({ tools: [{ name: 'Bad Name', description: '', parameters: {} }] })),
+    ).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+  });
+});
+
 describe('bounded authenticated completions', () => {
   it('preserves a numeric 18-place USD charge and sends numeric provider price ceilings', async () => {
     const fetcher = vi.fn<typeof fetch>((_url, init) => {

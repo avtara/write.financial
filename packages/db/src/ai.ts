@@ -66,6 +66,8 @@ export interface AiSettlementInput {
   toolCalls: readonly string[];
   connectionStatus: AiConnectionStatus;
   pricing: AiPricing;
+  /** What the request actually sent, when that is only known after the tool loop. Replaces the reserved counts. */
+  dataSent?: AiDataCounts;
 }
 
 export interface AiRepository {
@@ -446,6 +448,14 @@ export function createAiRepository(
             durationMs: input.durationMs,
             errorCode: input.errorCode,
             toolCalls: [...input.toolCalls],
+            ...(input.dataSent === undefined
+              ? {}
+              : {
+                  images: input.dataSent.images,
+                  categories: input.dataSent.categories,
+                  accounts: input.dataSent.accounts,
+                  transactions: input.dataSent.transactions,
+                }),
           })
           .where(eq(aiLogs.id, id));
         // A completed old-key/model test must not mark a newly saved configuration connected or invalid.

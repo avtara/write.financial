@@ -13,8 +13,24 @@ import { formatDecimal } from '@wf/domain/decimal';
 import * as z from 'zod';
 
 export interface AiMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  /** `role: 'tool'`: the call this result answers. */
+  toolCallId?: string;
+  /** `role: 'assistant'`: the calls the model made in that turn. */
+  toolCalls?: readonly AiToolCall[];
+}
+/** One function the model may call; `parameters` is a JSON Schema object. */
+export interface AiToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+export interface AiToolCall {
+  id: string;
+  name: string;
+  /** Raw JSON arguments as the provider sent them; the caller validates before use. */
+  arguments: string;
 }
 export interface AiCompletionInput {
   provider: AiProvider;
@@ -24,6 +40,11 @@ export interface AiCompletionInput {
   messages: readonly AiMessage[];
   maxTokens: number;
   pricing: AiPricing;
+  /** At most {@link MAX_TOOLS}; omitted for a plain completion. */
+  tools?: readonly AiToolDefinition[];
+  toolChoice?: 'auto' | 'none' | 'required';
+  /** Shorter deadline for one call inside a bounded multi-step loop; never above the adapter's own limit. */
+  timeoutMs?: number;
 }
 export interface AiCompletionResult {
   status: 'ok' | 'error' | 'timeout';
@@ -35,6 +56,9 @@ export interface AiCompletionResult {
   costUsd: string | null;
   /** Ephemeral answer, never passed to an application logger or persisted by this adapter. */
   content: string | null;
+  /** Allowlisted by the caller before execution; an unknown name is not called. */
+  toolCalls: readonly AiToolCall[];
+  finishReason: string | null;
 }
 export interface AiClient {
   models: (provider: AiProvider, baseUrl?: string, apiKey?: string) => Promise<AiModelCatalog>;
@@ -43,6 +67,11 @@ export interface AiClient {
 
 const BODY_LIMIT = 8 * 1024 * 1024;
 const TIMEOUT_MS = 30_000;
+/** One turn never needs more; anything above is a provider bug or a loop. */
+const MAX_TOOLS = 8;
+const MAX_TOOL_CALLS = 8;
+const MAX_TOOL_ARGUMENTS = 8_192;
+const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 const recordSchema = z.record(z.string(), z.unknown());
 const catalogSchema = z.object({ data: z.array(recordSchema) });
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -54,6 +83,43 @@ function integer(value: unknown): number | null {
   return typeof parsed === 'number' && Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 2_147_483_647
     ? parsed
     : null;
+}
+
+/** Bounded, well-named calls only; an unknown or malformed entry is dropped rather than executed. */
+function parseToolCalls(value: unknown): AiToolCall[] {
+  if (!Array.isArray(value)) return [];
+  const calls: AiToolCall[] = [];
+  for (const entry of value.slice(0, MAX_TOOL_CALLS)) {
+    const id = text(field(entry, 'id'));
+    const call = field(entry, 'function');
+    const name = text(field(call, 'name'));
+    const raw = field(call, 'arguments');
+    if (id === null || id === '' || name === null || !TOOL_NAME.test(name)) continue;
+    const args = typeof raw === 'string' ? raw : raw === undefined || raw === null ? '{}' : JSON.stringify(raw);
+    if (args.length > MAX_TOOL_ARGUMENTS) continue;
+    calls.push({ id: id.slice(0, 128), name, arguments: args });
+  }
+  return calls;
+}
+
+/** OpenAI-compatible wire shape; an assistant turn that only calls tools has no content. */
+function wireMessages(messages: readonly AiMessage[]): unknown[] {
+  return messages.map((message) => {
+    if (message.role === 'tool')
+      return { role: 'tool', tool_call_id: message.toolCallId ?? '', content: message.content };
+    if (message.toolCalls !== undefined && message.toolCalls.length > 0) {
+      return {
+        role: 'assistant',
+        content: message.content === '' ? null : message.content,
+        tool_calls: message.toolCalls.map((call) => ({
+          id: call.id,
+          type: 'function',
+          function: { name: call.name, arguments: call.arguments },
+        })),
+      };
+    }
+    return { role: message.role, content: message.content };
+  });
 }
 
 /** Preserve JSON number lexemes before they can lose subcent precision in a binary float. Node 24 supplies source. */
@@ -244,6 +310,11 @@ export function createAiClient(options: {
       const base = resolveAiBaseUrl(input.provider, input.baseUrl, options.allowedBaseUrls);
       if (!Number.isSafeInteger(input.maxTokens) || input.maxTokens < 1 || input.maxTokens > 32_768)
         throw new AiError('AI_INVALID_CONFIG');
+      if (
+        input.tools !== undefined &&
+        (input.tools.length > MAX_TOOLS || input.tools.some((tool) => !TOOL_NAME.test(tool.name)))
+      )
+        throw new AiError('AI_INVALID_CONFIG');
       const pricing = normalizeAiPricing(input.pricing);
       const start = now().getTime();
       let httpStatus: number | null = null;
@@ -258,8 +329,15 @@ export function createAiClient(options: {
         outputTokens: null,
         costUsd: null,
         content: null,
+        toolCalls: [],
+        finishReason: null,
       });
-      const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS);
+      const requested = input.timeoutMs ?? options.timeoutMs;
+      const deadline =
+        requested !== undefined && Number.isSafeInteger(requested) && requested > 0
+          ? Math.min(requested, TIMEOUT_MS)
+          : TIMEOUT_MS;
+      const signal = AbortSignal.timeout(deadline);
       try {
         // JSON.rawJSON is provided by the required Node 24 runtime: numeric provider ceilings stay exact.
         const nativeJson = JSON as typeof JSON & { rawJSON: (value: string) => unknown };
@@ -275,9 +353,18 @@ export function createAiClient(options: {
           },
           body: JSON.stringify({
             model: input.modelId,
-            messages: input.messages,
+            messages: wireMessages(input.messages),
             max_tokens: input.maxTokens,
             stream: false,
+            ...(input.tools === undefined || input.tools.length === 0
+              ? {}
+              : {
+                  tools: input.tools.map((tool) => ({
+                    type: 'function',
+                    function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+                  })),
+                  tool_choice: input.toolChoice ?? 'auto',
+                }),
             ...(input.provider === 'openrouter'
               ? {
                   provider: {
@@ -302,7 +389,8 @@ export function createAiClient(options: {
         }
         const body = recordSchema.parse(await readJson(response));
         const choices = field(body, 'choices');
-        const message = Array.isArray(choices) ? field(choices[0], 'message') : null;
+        const choice = Array.isArray(choices) ? (choices as unknown[])[0] : undefined;
+        const message = field(choice, 'message');
         const usage = field(body, 'usage');
         const metering = {
           inputTokens: integer(field(usage, 'prompt_tokens')),
@@ -314,7 +402,13 @@ export function createAiClient(options: {
           return { ...empty(), ...metering };
         }
         status = 'ok';
-        return { ...empty(), ...metering, content: text(field(message, 'content')) };
+        return {
+          ...empty(),
+          ...metering,
+          content: text(field(message, 'content')),
+          toolCalls: parseToolCalls(field(message, 'tool_calls')),
+          finishReason: text(field(choice, 'finish_reason')),
+        };
       } catch {
         status = signal.aborted ? 'timeout' : 'error';
         errorCode = signal.aborted ? 'timeout' : httpStatus === null ? 'network' : 'invalid_response';

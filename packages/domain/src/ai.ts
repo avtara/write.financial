@@ -20,6 +20,8 @@ export const AI_ERROR_CODES = [
   'AI_EGRESS_DENIED',
   'AI_PROVIDER_FAILED',
   'AI_REQUEST_EXISTS',
+  'AI_TIMEOUT',
+  'AI_ASSISTANT_FAILED',
 ] as const;
 export type AiErrorCode = (typeof AI_ERROR_CODES)[number];
 

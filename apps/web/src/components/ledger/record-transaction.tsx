@@ -83,6 +83,8 @@ export interface RecordPrefill {
   readonly accountId?: string;
   readonly toAccountId?: string;
   readonly amountMinor?: bigint;
+  /** The category of the prefilled expense or income (the Assistant's "Ubah"). */
+  readonly categoryId?: string;
   /** FR-G4 "Pakai dana" of a goal: the expense is paid from it ("Bayar dari tujuan" on). */
   readonly goalId?: string;
 }
@@ -336,6 +338,7 @@ function RecordSheet({
       ...(prefill.time === undefined ? {} : { time: prefill.time }),
       ...(prefill.toAccountId === undefined ? {} : { toAccountId: prefill.toAccountId }),
       ...(prefill.amountMinor === undefined ? {} : { amountMinor: prefill.amountMinor }),
+      ...(prefill.categoryId === undefined ? {} : { categoryId: prefill.categoryId }),
     },
     draftId: null,
   }));

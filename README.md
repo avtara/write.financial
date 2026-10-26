@@ -23,7 +23,8 @@ An open-source web app for **tracking personal finances and assets**, available 
 - **Auto rules:** your own ordered conditions (description, weekday, local time, account, direction, subscription) suggest categories and tags in new, imported, and review drafts; manage and preview them in the Settings popup, with trial controls stacked at tablet widths. The current-period preview explains every condition, and past transactions change only after you select and confirm them.
 - **Reports:** PDF/Excel/CSV, CSV/XLSX statement import.
 - **AI provider settings (implemented):** the Settings popup supports encrypted BYOK credentials for OpenRouter, ZenMux, and operator-approved OpenAI-compatible endpoints; explicit inference tests, per-user monthly USD accounting, and 30-day metadata logs/CSV. Unknown charges stay estimated, never falsely free. Assistant drafts, receipt reading, and Gmail are separate milestones below.
-- **Optional:** AI Assistant and receipt reading (BYOK: OpenRouter/OpenAI-compatible), reading transaction emails from Gmail.
+- **AI Assistant (implemented):** `⌘J` answers from your own data (budget, spending, largest transactions, balances) with the cards behind every number, and proposes transaction drafts that stay unsaved until you confirm them. The assistant never writes the ledger itself.
+- **Optional:** receipt reading (BYOK: OpenRouter/OpenAI-compatible), reading transaction emails from Gmail.
 - **Security:** two-step verification (TOTP, passkey, backup codes), privacy mode to hide amounts.
 - **Devices:** desktop and tablet. Phones come later.
 
