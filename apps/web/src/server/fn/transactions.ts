@@ -22,6 +22,7 @@ import { rangeSummary, type RangeSummary } from '@wf/domain/dashboard';
 import type { LocalDate } from '@wf/domain/period';
 import type { TransactionSource } from '@wf/domain/transactions';
 import { ImageRejectedError, MAX_IMAGE_BYTES, prepareImageUpload } from '@wf/integrations/image';
+import { prepareReceipt } from '@wf/integrations/receipt';
 import * as z from 'zod';
 import { TABLE_PREFS, tablePrefsOf, type TablePrefs } from '../../lib/transaction-columns.ts';
 import {
@@ -38,7 +39,6 @@ import { defined, RECORD_TRANSACTION_INPUT } from './transactions-write.ts';
 import { MAX_IMAGES, MAX_SPLIT_PARTS, PAGE_SIZE } from '../../lib/transaction-limits.ts';
 
 const IDS = z.array(z.uuid()).min(1).max(200);
-const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
 
 /** Rows plus, when exactly one account is filtered, its balance right after each row ("Saldo berjalan"). */
 export interface TransactionRowsPage {
@@ -316,15 +316,16 @@ export const addAttachment = createServerFn({ method: 'POST' })
       if (file.size > MAX_IMAGE_BYTES) throw new UploadRejectedError('too-large');
       const bytes = new Uint8Array(await file.arrayBuffer());
       let stored: { objectKey: string; thumbnailKey: string | null; mime: string; size: number; sha256: string };
-      if (kind === 'receipt' && PDF_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
-        const put = await attachmentStore.put(userId, bytes, 'application/pdf');
-        stored = {
-          objectKey: put.key,
-          thumbnailKey: null,
-          mime: 'application/pdf',
-          size: put.size,
-          sha256: put.sha256,
-        };
+      if (kind === 'receipt') {
+        let prepared;
+        try {
+          prepared = await prepareReceipt(bytes, file.type);
+        } catch (error) {
+          if (error instanceof ImageRejectedError) throw new UploadRejectedError(error.reason);
+          throw error;
+        }
+        const put = await attachmentStore.put(userId, prepared.bytes, prepared.mime);
+        stored = { objectKey: put.key, thumbnailKey: null, mime: prepared.mime, size: put.size, sha256: put.sha256 };
       } else {
         let prepared;
         try {

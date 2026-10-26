@@ -26,6 +26,7 @@ import { usePreferences } from '../preferences.tsx';
 import { openSettings } from '../settings/settings-sections.ts';
 import { AssistantCards, AssistantDraftCard, AssistantSources, type DraftStatus } from './assistant-cards.tsx';
 import { assistantText, draftPrefill, historyOf, nextTurns, type AssistantTurn } from './assistant-model.ts';
+import { ReceiptEntry } from '../ledger/receipt-entry.tsx';
 
 const PROVIDER_LABEL: Readonly<Record<AiProvider, () => string>> = {
   openrouter: m.ai_provider_openrouter,
@@ -271,6 +272,7 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
         ) : undefined
       }
     >
+      <ReceiptEntry timeZone={timeZone} />
       {config.status === 'loading' ? (
         <PageState kind="loading" title={m.assistant_loading()} />
       ) : config.status === 'failed' ? (

@@ -25,6 +25,7 @@ const ledger = vi.hoisted(() => ({
   getReferenceRate: vi.fn(),
 }));
 vi.mock('../../server/fn/ledger.ts', () => ledger);
+vi.mock('./receipt-entry.tsx', () => ({ ReceiptEntry: () => null }));
 vi.mock('../../server/fn/rules.ts', () => ({
   listAutoRules: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
 }));

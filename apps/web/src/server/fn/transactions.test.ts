@@ -49,6 +49,7 @@ const fake = vi.hoisted(() => ({
   preferences: { get: vi.fn(), update: vi.fn() },
   attachmentStore: { put: vi.fn(), delete: vi.fn() },
   prepareImageUpload: vi.fn(),
+  prepareReceipt: vi.fn(),
 }));
 
 // vi.mock factories run before imports; they load the shared helper themselves.
@@ -60,6 +61,7 @@ vi.mock('@wf/integrations/image', async (importOriginal) => ({
   ...(await importOriginal<typeof ImageModule>()),
   prepareImageUpload: fake.prepareImageUpload,
 }));
+vi.mock('@wf/integrations/receipt', () => ({ prepareReceipt: fake.prepareReceipt }));
 
 const USER_ID = fakeSession().user.id;
 const ID = '0192a6c4-0000-7000-8000-0000000000b1';
@@ -408,6 +410,7 @@ describe('addAttachment', () => {
 
   beforeEach(() => {
     fake.prepareImageUpload.mockResolvedValue(prepared);
+    fake.prepareReceipt.mockResolvedValue({ bytes: new Uint8Array(PDF), mime: 'application/pdf', images: [] });
     fake.transactions.addAttachment.mockResolvedValue({ id: 'new' });
     fake.transactions.removeAttachment.mockResolvedValue({ objectKeys: [KEY(8), KEY(9)] });
   });
@@ -433,7 +436,7 @@ describe('addAttachment', () => {
     expect(fake.transactions.removeAttachment).not.toHaveBeenCalled();
   });
 
-  it('stores a PDF receipt as is and then removes the old receipt and its objects', async () => {
+  it('retains the old receipt until replacement storage and row insertion have succeeded', async () => {
     fake.transactions.get.mockResolvedValue(detail({ attachments: [receipt, { id: 'i', kind: 'image' }] }));
     expect(await add('receipt', file(PDF, '   '))).toEqual({ ok: true, value: { id: 'new' } });
     expect(fake.prepareImageUpload).not.toHaveBeenCalled();
@@ -456,6 +459,14 @@ describe('addAttachment', () => {
       [USER_ID, KEY(8)],
       [USER_ID, KEY(9)],
     ]);
+  });
+
+  it('keeps the old receipt when safe PDF or strict receipt format validation refuses the replacement', async () => {
+    fake.transactions.get.mockResolvedValue(detail({ attachments: [receipt] }));
+    fake.prepareReceipt.mockRejectedValueOnce(new ImageRejectedError('unsupported-type', 'webp'));
+    expect(await add('receipt', file([1]))).toMatchObject({ ok: false, code: 'IMAGE_REJECTED' });
+    expect(fake.transactions.removeAttachment).not.toHaveBeenCalled();
+    expect(fake.attachmentStore.put).not.toHaveBeenCalled();
   });
 
   it('sends a PDF given as an image through the image pipeline', async () => {

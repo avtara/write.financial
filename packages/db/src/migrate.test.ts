@@ -101,6 +101,10 @@ const GRANTS = {
   portfolio_snapshots: { wf_app: 'INSERT,SELECT,UPDATE', wf_worker: 'INSERT,SELECT,UPDATE' },
   goal_snapshots: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
   postings: LEDGER,
+  receipt_uploads: {
+    wf_app: ALL,
+    wf_worker: 'SELECT,UPDATE(error_code,payload_enc,review_item_id,status,updated_at)',
+  },
   receivable_payments: LEDGER,
   receivables: LEDGER,
   recent_items: { wf_app: ALL },

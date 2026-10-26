@@ -16,6 +16,8 @@
  * the market data (quotes, request log, key status, built-in source state) and the daily portfolio snapshot.
  */
 export const WORKER_REPOSITORIES = [
+  'receipts',
+  'ai',
   'maintenance',
   'fxRates',
   'dispatch',

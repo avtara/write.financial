@@ -15,6 +15,7 @@ const server = vi.hoisted(() => ({
 vi.mock('../../server/fn/assistant.ts', () => ({ askAssistant: server.askAssistant }));
 vi.mock('../../server/fn/ai.ts', () => ({ getAiSettings: server.getAiSettings }));
 vi.mock('../../server/fn/transactions-write.ts', () => ({ recordTransaction: server.recordTransaction }));
+vi.mock('../ledger/receipt-entry.tsx', () => ({ ReceiptEntry: () => null }));
 const record = vi.hoisted(() => ({ open: vi.fn(), announceSaved: vi.fn() }));
 vi.mock('../ledger/record-transaction.tsx', () => ({
   useRecordTransaction: () => ({ open: record.open }),

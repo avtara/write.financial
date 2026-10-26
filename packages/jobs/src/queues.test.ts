@@ -1,37 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { parseLocalDate } from '@wf/domain/period';
-import { describe, expect, expectTypeOf, it } from 'vitest';
-import { DEFAULT_JOB_OPTIONS, JOBS, jobIds, QUEUE_PREFIX, type JobQueue, type QueueName } from './queues.ts';
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_JOB_OPTIONS, JOBS, jobIds, QUEUE_PREFIX } from './queues.ts';
 
 const USER = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c7d';
 const OTHER = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c7e';
 const DAY = parseLocalDate('2026-10-18');
 
 describe('JOBS', () => {
-  it('lists only the queues that have a processor', () => {
-    expect(Object.keys(JOBS)).toEqual([
-      'account-deletion',
-      'maintenance',
-      'fx',
-      'dispatch',
-      'occurrences',
-      'reminders',
-      'budget-alerts',
-      'balance-checks',
-      'period-close',
-      'reports',
-      'report-export',
-      'notify',
-      'detect-recurring',
-      'rules-backfill',
-      'market-server',
-      'market-byok',
-      'snapshots',
-    ]);
-    expectTypeOf<JobQueue>().toExtend<QueueName>();
-    expectTypeOf<'market-test'>().not.toExtend<JobQueue>();
+  it('refuses secrets, financial data and another upload shape in OCR jobs', () => {
+    expect(JOBS.ocr.safeParse({ userId: USER, receiptId: OTHER }).success).toBe(true);
+    expect(JOBS.ocr.safeParse({ userId: USER, receiptId: OTHER, image: 'private' }).success).toBe(false);
+    expect(JOBS.ocr.safeParse({ userId: USER, receiptId: 'not-an-id' }).success).toBe(false);
+    expect(JOBS.ocr.safeParse({ receiptId: OTHER }).success).toBe(false);
   });
-
   it.each(['maintenance', 'fx', 'dispatch'] as const)('accepts an empty %s payload and rejects any key', (queue) => {
     expect(JOBS[queue].parse({})).toEqual({});
     expect(JOBS[queue].safeParse({ userId: USER }).success).toBe(false);

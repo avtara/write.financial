@@ -30,6 +30,18 @@ const edits = z
     note: z.string().max(2000).nullable().optional(),
     tags: z.array(z.string().min(1).max(64)).max(5).optional(),
     goalId: id.nullable().optional(),
+    receiptDuplicateId: id.optional(),
+    receiptItems: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(120),
+          quantity: z.string().max(20),
+          amountMinor: z.bigint().nonnegative().nullable(),
+          uncertain: z.boolean(),
+        }),
+      )
+      .max(60)
+      .optional(),
   })
   .optional();
 

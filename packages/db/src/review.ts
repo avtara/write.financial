@@ -11,6 +11,7 @@ import type { Dek } from '@wf/crypto/envelope';
 import { occurrenceShares, planRunsIn } from '@wf/domain/goals';
 import { addDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import type { TransactionType } from '@wf/domain/transactions';
+import type { ReceiptItem } from '@wf/domain/receipt';
 import { and, asc, count, eq, gt, inArray, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
@@ -30,6 +31,7 @@ import {
   type ReviewStatus,
 } from './review-items.ts';
 import { activePlansIn } from './schedules.ts';
+import { attachReceiptIn, receiptDuplicateIn } from './receipts.ts';
 import {
   budgetPeriodOverrides,
   goals,
@@ -62,6 +64,9 @@ export interface ReviewEdits {
   readonly tags?: readonly string[];
   /** Leftover target goal (its tag is put on the transfer); `null` = no goal. */
   readonly goalId?: string | null;
+  /** Explicitly attach a receipt proposal to this matching existing transaction instead of recording a new one. */
+  readonly receiptDuplicateId?: string;
+  readonly receiptItems?: readonly ReceiptItem[];
 }
 
 export interface ReviewOccurrenceView {
@@ -363,6 +368,9 @@ async function confirmIn(
   edits: ReviewEdits,
   now: Date,
 ): Promise<ConfirmResult> {
+  const [existing] = await tx.select().from(reviewItems).where(eq(reviewItems.id, itemId)).for('update');
+  if (existing?.source === 'receipt' && existing.status === 'confirmed')
+    return { transactionId: existing.resultingTransactionId, overrideIds: [] };
   const item = await lockedItemIn(tx, itemId);
   const payload = readReviewPayload(dek, userId, item.payloadEnc);
   let transactionId: string | null = null;
@@ -370,7 +378,24 @@ async function confirmIn(
   switch (payload.kind) {
     case 'transaction': {
       const draft = applyEdits(payload.draft, edits);
-      transactionId = (await recordTransactionIn(tx, userId, { ...draft, clientId: item.id }, dek, now)).id;
+      if (edits.receiptDuplicateId !== undefined) {
+        if (payload.receiptId === undefined) throw new LedgerError('INVALID_TRANSACTION', 'Not a receipt proposal');
+        await receiptDuplicateIn(tx, userId, dek, payload.receiptId, edits.receiptDuplicateId);
+        await assertOpenTransactionsIn(tx, [edits.receiptDuplicateId]);
+        transactionId = edits.receiptDuplicateId;
+      } else {
+        transactionId = (
+          await recordTransactionIn(
+            tx,
+            userId,
+            { ...draft, ...(payload.receiptId === undefined ? {} : { source: 'receipt' as const }), clientId: item.id },
+            dek,
+            now,
+          )
+        ).id;
+      }
+      if (payload.receiptId !== undefined)
+        await attachReceiptIn(tx, userId, dek, payload.receiptId, transactionId, now, edits.receiptItems);
       if (item.occurrenceId !== null) {
         const occurrence = await occurrenceIn(tx, item.occurrenceId);
         await tx

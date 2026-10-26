@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createBuiltInFxProviders } from '@wf/integrations/fx/rates';
+import type { AiClient } from '@wf/integrations/ai';
+import { createOcrProcessor } from './processors/ocr.ts';
 import type { Mailer } from '@wf/integrations/mailer';
 import type { MarketAdapters } from '@wf/integrations/market/adapters';
 import type { ObjectStore } from '@wf/integrations/objectstore';
@@ -35,6 +37,7 @@ export interface ProcessorJob {
 
 export interface ProcessorDeps {
   readonly db: WorkerDb;
+  readonly receipt?: { readonly client: AiClient; readonly objects: Pick<ObjectStore, 'get' | 'delete'> };
   readonly now: () => Date;
   /** Adds follow-up jobs (the minute dispatch) under their deterministic ids. */
   readonly enqueue: Enqueue;
@@ -69,6 +72,7 @@ export interface ProcessorDefinition {
  * a few at a time (each is one short transaction of one user); the instance-wide ones one at a time.
  */
 export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
+  ocr: { concurrency: 1, create: createOcrProcessor },
   // One deletion at a time: each is a large transaction, and they are rare.
   'account-deletion': { concurrency: 1, create: createAccountDeletionProcessor },
   maintenance: { concurrency: 1, create: createMaintenanceProcessor },

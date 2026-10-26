@@ -43,7 +43,7 @@ export type ReviewDraft = DistributiveOmit<TransactionDraft, 'clientId'>;
 
 export type ReviewPayload =
   /** `due_occurrence` (later also `ai_suggestion`, `import_row`): record this transaction. */
-  | { readonly kind: 'transaction'; readonly draft: ReviewDraft }
+  | { readonly kind: 'transaction'; readonly draft: ReviewDraft; readonly receiptId?: string }
   /** `category_deleted`: the transaction lost its category and needs a new one ("Perlu kategori"). */
   | {
       readonly kind: 'category';
@@ -111,7 +111,7 @@ export function readReviewPayload(dek: Dek, userId: string, payloadEnc: Uint8Arr
   const payload = JSON.parse(json) as Encoded<ReviewPayload>;
   switch (payload.kind) {
     case 'transaction':
-      return { kind: 'transaction', draft: decodeDraft(payload.draft) };
+      return { ...payload, draft: decodeDraft(payload.draft) };
     case 'rollover':
       return { ...payload, deltaMinor: BigInt(payload.deltaMinor) };
     case 'leftover':

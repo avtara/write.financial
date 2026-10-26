@@ -813,6 +813,43 @@ export const attachments = pgTable(
   ],
 );
 
+/** FR-T7 staging: no fake ledger transaction. Names, page keys and extraction evidence are encrypted together. */
+export const receiptUploads = pgTable(
+  'receipt_uploads',
+  {
+    id: id(),
+    userId: ownerId(),
+    revision: uuid('revision').notNull(),
+    provider: varchar('provider', { length: 16, enum: AI_PROVIDERS }).notNull(),
+    status: varchar('status', { length: 16, enum: ['queued', 'reading', 'ready', 'failed', 'cancelled', 'attached'] })
+      .notNull()
+      .default('queued'),
+    payloadEnc: bytea('payload_enc').notNull(),
+    reviewItemId: uuid('review_item_id'),
+    transactionId: uuid('transaction_id'),
+    errorCode: varchar('error_code', { length: 64 }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique('receipt_uploads_user_id_id_key').on(table.userId, table.id),
+    foreignKey({
+      name: 'receipt_uploads_review_fk',
+      columns: [table.userId, table.reviewItemId],
+      foreignColumns: [reviewItems.userId, reviewItems.id],
+    }),
+    foreignKey({
+      name: 'receipt_uploads_transaction_fk',
+      columns: [table.userId, table.transactionId],
+      foreignColumns: [transactions.userId, transactions.id],
+    }).onDelete('cascade'),
+    check(
+      'receipt_uploads_status_check',
+      sql`${table.status} in ('queued','reading','ready','failed','cancelled','attached')`,
+    ),
+  ],
+);
+
 /** Unsaved forms ("Simpan draf", FR-T9); the payload is encrypted JSON. */
 export const drafts = pgTable(
   'drafts',

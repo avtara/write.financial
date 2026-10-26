@@ -30,6 +30,7 @@ const ENV = {
 };
 
 const QUEUES = [
+  'ocr',
   'account-deletion',
   'maintenance',
   'fx',

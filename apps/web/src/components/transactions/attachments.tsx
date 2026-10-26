@@ -19,7 +19,7 @@ import { usePreferences } from '../preferences.tsx';
 /** 2 MiB, as the server's image pipeline. */
 export const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const RECEIPT_TYPES = [...IMAGE_TYPES, 'application/pdf'];
+const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 
 /** The URL of an attachment file (`size: 'thumbnail'`, `download`). */
 export function attachmentUrl(

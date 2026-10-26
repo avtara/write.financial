@@ -141,6 +141,13 @@
       "when": 1792935289375,
       "tag": "0019_ai_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793002671026,
+      "tag": "0020_receipt_uploads",
+      "breakpoints": true
     }
   ]
 }

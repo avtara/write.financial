@@ -30,6 +30,7 @@ import { materializeIn } from './occurrences.ts';
 import { createPeriods } from './periods.ts';
 import { createPreferences } from './preferences.ts';
 import { insertReviewItemIn } from './review-items.ts';
+import { createReceipts } from './receipts.ts';
 import { bootstrapRoles, ROLES, type RoleName } from './roles.ts';
 import { createSchedules } from './schedules.ts';
 import {
@@ -162,6 +163,18 @@ beforeAll(async () => {
   const preferences = createPreferences(dbs.app);
   for (const userId of [alice, bob]) {
     await keys.getOrCreateDek(userId);
+    await createReceipts(dbs.app, { getDek: keys.getOrCreateDek }).stage(userId, {
+      id: randomUUID(),
+      revision: randomUUID(),
+      provider: 'openrouter',
+      payload: {
+        name: 'receipt-fixture.jpg',
+        original: { key: `u/${userId}/${randomUUID()}`, mime: 'image/webp', size: 100, sha256: 'a'.repeat(64) },
+        pages: [],
+        timeZone: 'Asia/Jakarta',
+        evidence: null,
+      },
+    });
     await events.append(userId, { type: 'sign_in', ipHash: null, userAgent: 'vitest' });
     await preferences.update(userId, { theme: 'light' });
     await superuser`INSERT INTO user_plans (user_id, plan_code) VALUES (${userId}, 'personal')`;
