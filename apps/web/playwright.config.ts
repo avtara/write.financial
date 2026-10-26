@@ -46,6 +46,11 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  * - `market-api`: Settings › API kurs & pasar (FR-ST4): prices in use with source and time and no key at all, an
  *   EODHD key refused without 2FA, saved after turning 2FA on, tested against the fake provider (`e2e/market-fetch.ts`)
  *   with per-symbol results, then deleted with its prices; the API log; 1440/1024/768.
+ * - `assistant`: the Assistant (M7 exit, FR-AI3): ⌘J and the ⌘K "Tanya Asisten" row into the "Belum ada penyedia AI"
+ *   state, BYOK configuration through Settings › AI agent (2FA enrolled first, fake provider `e2e/ai-fetch.ts`,
+ *   manual prices), an answer from the ledger ("berapa pengeluaran Oktober?" → the spending card with the seed's
+ *   October total and a source chip), the draft for "45.000 GoPay" (impact 93% / saldo Rp367.000, "Ubah" prefill,
+ *   "Simpan" records it with source=assistant), and the negative: an unconfirmed draft leaves no row; 1440.
  */
 const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependencies?: string[] }> = {
   tablet: { testMatch: 'tablet.spec.ts', use: { viewport: { width: 1024, height: 768 } } },
@@ -66,6 +71,7 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependenci
   goals: { testMatch: 'goals.spec.ts', use: { viewport: { width: 1440, height: 1198 } } },
   receivables: { testMatch: 'receivables.spec.ts' },
   'market-api': { testMatch: 'market-api.spec.ts' },
+  assistant: { testMatch: 'assistant.spec.ts', use: { viewport: { width: 1440, height: 1024 } } },
   reports: { testMatch: 'reports.spec.ts' },
   import: { testMatch: 'import.spec.ts' },
   rules: { testMatch: 'rules.spec.ts' },
@@ -132,9 +138,10 @@ export default defineConfig({
     })),
   ],
   webServer: {
-    // The fake market data providers (`e2e/market-fetch.ts`) keep every run off the real APIs.
+    // The fake market data providers (`e2e/market-fetch.ts`) and the fake AI provider (`e2e/ai-fetch.ts`) keep every
+    // run off the real APIs.
     command:
-      'node e2e/prepare.ts && node --import ./e2e/clock.ts --import ./e2e/market-fetch.ts .output/server/index.mjs',
+      'node e2e/prepare.ts && node --import ./e2e/clock.ts --import ./e2e/market-fetch.ts --import ./e2e/ai-fetch.ts .output/server/index.mjs',
     url: `${BASE_URL}/healthz`,
     env: { ...e2eEnv(), WF_E2E_CLOCK_OFFSET_MS: clockOffset },
     // Never reuse a server: the run needs the fresh instance `prepare.ts` creates.
