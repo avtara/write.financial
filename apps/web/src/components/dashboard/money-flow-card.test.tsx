@@ -177,6 +177,7 @@ describe('MoneyFlowCard without flows', () => {
     const spending = dashboard({ flow: { ...dashboard().flow, incomes: [] } });
     const { screen: second } = await renderFlow(spending);
     await expect.element(second.getByText('Pengeluaran Rp16.500.000, belum ada pemasukan')).toBeVisible();
+    await expect.element(node(/^Dari saldo/)).toBeInTheDocument();
     pointer(node(/^Dari saldo/).element(), 'mouseover');
     await expect.element(second.getByRole('tooltip')).toMatchTextContent('Dari saldo');
   });
