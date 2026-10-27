@@ -40,11 +40,13 @@ import {
   type TransactionDraft,
 } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
+import { readReviewPayload, type ReviewPayload } from './review-items.ts';
 import {
   accounts,
   activityLog,
   attachments,
   postings,
+  reviewItems,
   tags,
   transactions,
   transactionTags,
@@ -124,6 +126,8 @@ export interface TransactionDetail {
   readonly attachments: AttachmentView[];
   /** Oldest first. */
   readonly activity: ActivityEntry[];
+  /** Gmail's minimal source evidence, available only during the 30-day retention window. */
+  readonly gmailEvidence?: Extract<ReviewPayload, { kind: 'gmail' }> | null;
 }
 
 export interface AttachmentInput {
@@ -460,7 +464,19 @@ export function createTransactions(
       return withUser(db, userId, (tx) => recordTransactionIn(tx, userId, draft, dek, now()));
     },
 
-    get: async (userId, id) => reveal(userId, await withUser(db, userId, (tx) => loadIn(tx, id)), null),
+    get: async (userId, id) => {
+      const detail = await reveal(userId, await withUser(db, userId, (tx) => loadIn(tx, id)), null);
+      if (detail.source !== 'gmail') return detail;
+      const [item] = await withUser(db, userId, (tx) =>
+        tx
+          .select({ payload: reviewItems.payloadEnc })
+          .from(reviewItems)
+          .where(and(eq(reviewItems.resultingTransactionId, id), eq(reviewItems.source, 'gmail')))
+          .limit(1),
+      );
+      const payload = item === undefined ? null : readReviewPayload(await getDek(userId), userId, item.payload);
+      return { ...detail, gmailEvidence: payload?.kind === 'gmail' ? payload : null };
+    },
 
     update: async (userId, id, draft) => {
       // Always needed: the old note is compared to the new one.

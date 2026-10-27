@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-/** "Tersimpan" toast with "Urungkan" (FR-T9), shared by the Record sheet, the Quick Add bar, and receipts. */
+/** "Tersimpan" toast with "Urungkan" (FR-T9), shared by Record, Quick Add, receipts, and Gmail. */
 import { m } from '@wf/i18n/messages';
 import type { Locale } from '@wf/domain/money';
 import { Money } from '@wf/ui/money';

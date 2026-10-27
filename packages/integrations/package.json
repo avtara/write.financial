@@ -15,6 +15,7 @@
     "./mail-templates": "./src/mail-templates.ts",
     "./fx/provider": "./src/fx/provider.ts",
     "./fx/rates": "./src/fx/rates.ts",
+    "./gmail": "./src/gmail.ts",
     "./market/http": "./src/market/http.ts",
     "./market/adapters": "./src/market/adapters.ts",
     "./market/sync": "./src/market/sync.ts"

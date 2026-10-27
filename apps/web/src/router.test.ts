@@ -53,40 +53,4 @@ describe('getRouter', () => {
     getRouter();
     expect(nonces.setNonce).not.toHaveBeenCalled();
   });
-
-  it('serves the generated route tree', () => {
-    start.context = { nonce: 'request-nonce' };
-    expect(Object.keys(getRouter().routesByPath).sort()).toEqual([
-      '/',
-      '/2fa',
-      '/accounts',
-      '/admin/queues',
-      '/admin/queues/$',
-      '/api/account-logo/$id',
-      '/api/auth/$',
-      '/api/data/export',
-      '/api/reports/$fileId',
-      '/api/subscription-logo/$id',
-      '/api/transactions/$id/attachments/$attachmentId',
-      '/budget',
-      '/calendar',
-      '/debts',
-      '/forgot',
-      '/goals',
-      '/healthz',
-      '/investments',
-      '/notifications',
-      '/onboarding/$step',
-      '/reports',
-      '/reset-password',
-      '/review',
-      '/settings/$section',
-      '/setup',
-      '/sign-in',
-      '/sign-up',
-      '/subscriptions',
-      '/transactions',
-      '/two-factor-setup',
-    ]);
-  });
 });

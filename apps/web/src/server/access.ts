@@ -93,6 +93,8 @@ export const EXPECTED_CODES: readonly string[] = [
     'ATTACHMENT_LIMIT',
     // "Tes koneksi" pressed too often for one market data provider within the hour (FR-ST4).
     'MARKET_TEST_LIMIT',
+    // Google reported the Gmail grant gone during the card's filter dry run (FR-AI4).
+    'GMAIL_REVOKED',
     // Ledger repositories (`LedgerError`).
     ...LEDGER_ERROR_CODES,
     ...AI_ERROR_CODES,

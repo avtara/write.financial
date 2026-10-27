@@ -19,6 +19,7 @@ import { createAiRepository } from './ai.ts';
 import { createBudgets } from './budgets.ts';
 import { createDb, firstRow, withUser, type Database } from './db.ts';
 import { createFxRates } from './fx-rates.ts';
+import { createGmail } from './gmail.ts';
 import { createInstanceSettings } from './instance-settings.ts';
 import { createInvestments } from './investments.ts';
 import { builtInCategoryIn, recordTransactionIn } from './ledger-core.ts';
@@ -174,6 +175,20 @@ beforeAll(async () => {
         timeZone: 'Asia/Jakarta',
         evidence: null,
       },
+    });
+    const gmail = createGmail(dbs.app, { getDek: keys.getOrCreateDek });
+    await gmail.saveConnection(userId, {
+      email: `${userId}@example.test`,
+      tokens: { accessToken: password('gmail'), refreshToken: null, expiresAt: new Date('2099-01-01') },
+    });
+    await gmail.createConsent(userId, randomUUID(), `session-${userId}`, randomUUID());
+    await createGmail(dbs.worker, { getDek: keys.getOrCreateDek }).recordEmail(userId, {
+      messageId: `mail-${userId}`,
+      fromAddr: 'bank@example.test',
+      subject: 'Payment received',
+      excerpt: 'Minimal encrypted payment evidence',
+      receivedAt: new Date('2026-10-15T03:00:00Z'),
+      filterResult: 'passed',
     });
     await events.append(userId, { type: 'sign_in', ipHash: null, userAgent: 'vitest' });
     await preferences.update(userId, { theme: 'light' });

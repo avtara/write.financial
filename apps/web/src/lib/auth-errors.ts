@@ -42,6 +42,8 @@ const MESSAGES: Readonly<Record<string, () => string>> = {
   TWO_FACTOR_REQUIRED: m.auth_error_two_factor_required,
   FORBIDDEN: m.auth_error_forbidden,
   RATE_LIMITED: m.auth_error_rate_limited,
+  // Google reported the Gmail grant gone during the card's filter dry run (FR-AI4).
+  GMAIL_REVOKED: m.gmail_status_revoked,
   NETWORK: m.error_network,
 };
 

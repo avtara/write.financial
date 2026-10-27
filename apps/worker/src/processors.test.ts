@@ -55,6 +55,7 @@ describe('PROCESSORS', () => {
     ['market-server', { source: 'crypto' }],
     ['market-byok', { userId: USER }],
     ['snapshots', { userId: USER }],
+    ['gmail', { userId: USER }],
     [
       'report-export',
       {

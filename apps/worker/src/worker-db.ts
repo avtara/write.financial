@@ -10,6 +10,7 @@ import { createAccountDeletion, type AccountDeletion } from '@wf/db/account-dele
 import { createDetectRecurring, type DetectRecurring } from '@wf/db/detect-recurring';
 import { createDispatch, type Dispatch } from '@wf/db/dispatch';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
+import { createGmail, type GmailRepository } from '@wf/db/gmail';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createMaintenance, type Maintenance } from '@wf/db/maintenance';
 import { createMarketCredentials, type MarketCredentialsRepository } from '@wf/db/market-credentials';
@@ -90,6 +91,28 @@ export interface WorkerDb {
   readonly reportFiles: Pick<ReportFilesRepository, 'save' | 'recipient'>;
   /** The auto-send opt-in (FR-LP4) and nothing else of the preferences. */
   readonly preferences: Pick<PreferencesRepository, 'get'>;
+  /**
+   * The Gmail ingest (FR-AI4): the connection, its tokens, the log writes, the Review proposals, and the retention
+   * purge. Filters and connects stay the web's (`updateFilters`/`saveConnection` are not here).
+   */
+  readonly gmail: Pick<
+    GmailRepository,
+    | 'getConnection'
+    | 'tokens'
+    | 'markRevoked'
+    | 'recordEmail'
+    | 'assertCurrent'
+    | 'rotateTokens'
+    | 'setWatch'
+    | 'targets'
+    | 'pending'
+    | 'claimExtraction'
+    | 'storeExtraction'
+    | 'failExtraction'
+    | 'complete'
+    | 'setHistoryId'
+    | 'purgeExpired'
+  >;
 }
 
 export interface WorkerDbConnection {
@@ -151,6 +174,23 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
     baselineExists,
   } = createMarketJobs(database, { getDek });
   const { record: recordSnapshot } = createPortfolioSnapshots(database);
+  const {
+    getConnection: gmailConnection,
+    tokens: gmailTokens,
+    markRevoked: gmailMarkRevoked,
+    recordEmail,
+    assertCurrent,
+    rotateTokens,
+    setWatch,
+    targets,
+    pending,
+    claimExtraction,
+    storeExtraction,
+    failExtraction,
+    complete,
+    setHistoryId,
+    purgeExpired: purgeGmailLogs,
+  } = createGmail(database, { getDek });
   return {
     db: Object.freeze({
       maintenance: Object.freeze({ purgeExpiredAuth, purgeNotifications, purgeAiLogs }),
@@ -192,6 +232,23 @@ export function openWorkerDb(url: string, keyring: Keyring, options: WorkerDbOpt
       reports: Object.freeze({ generate: generateReport, pendingMonthly, get: getReport }),
       reportFiles: Object.freeze({ save: saveReportFile, recipient: reportRecipient }),
       preferences: Object.freeze({ get: getPreferences }),
+      gmail: Object.freeze({
+        getConnection: gmailConnection,
+        tokens: gmailTokens,
+        markRevoked: gmailMarkRevoked,
+        recordEmail,
+        assertCurrent,
+        rotateTokens,
+        setWatch,
+        targets,
+        pending,
+        claimExtraction,
+        storeExtraction,
+        failExtraction,
+        complete,
+        setHistoryId,
+        purgeExpired: purgeGmailLogs,
+      }),
     }),
     smtp: instanceSmtp({ get: settings, smtpPassword }),
     receiptObjects: createObjectStore({ s3: options.s3, bucket: 'attachments', getDek }),

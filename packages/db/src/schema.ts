@@ -16,6 +16,7 @@ import { CATEGORY_GROUPS, CATEGORY_KINDS } from '@wf/domain/categories';
 import { POSTING_ROLES, TRANSACTION_SOURCES, TRANSACTION_TYPES } from '@wf/domain/transactions';
 import { RECURRENCE_END_TYPES, RECURRENCE_FREQS } from '@wf/domain/recurrence';
 import { CANCEL_MODES, SUBSCRIPTION_CYCLES, SUBSCRIPTION_STATUSES, USAGE_RATINGS } from '@wf/domain/subscriptions';
+import type { GmailFilterResult, GmailFilters } from '@wf/domain/gmail';
 import { GOAL_KINDS, GOAL_STATUSES, GOAL_TARGET_MODES } from '@wf/domain/goals';
 import type { GoalValuation } from '@wf/domain/goals';
 import { DEBT_KINDS, INTEREST_METHODS, RECALC_MODES } from '@wf/domain/debt';
@@ -28,7 +29,7 @@ import { CREDENTIAL_STATUSES, MARKET_PROVIDERS, MARKETS } from '@wf/domain/marke
 import { LOCALES } from '@wf/i18n/locale';
 import type { AlertPct } from '@wf/domain/budget';
 import type { LocalDate, PeriodStartDay, YearMonth } from '@wf/domain/period';
-import { sql } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -498,6 +499,7 @@ export const categories = pgTable(
     id: id(),
     userId: ownerId(),
     kind: categoryKind('kind').notNull(),
+
     group: categoryGroup('group').notNull(),
     name: varchar('name', { length: 24 }).notNull(),
     icon: text('icon').notNull(),
@@ -2749,4 +2751,79 @@ export const aiLogs = pgTable(
       sql`${table.reservedUsd} >= 0 and (${table.costUsd} is null or ${table.costUsd} >= 0) and ${table.durationMs} >= 0 and ${table.images} >= 0 and ${table.categories} >= 0 and ${table.accounts} >= 0 and ${table.transactions} >= 0 and (${table.inputTokens} is null or ${table.inputTokens} >= 0) and (${table.outputTokens} is null or ${table.outputTokens} >= 0)`,
     ),
   ],
+);
+
+/** FR-AI4: one Gmail connection per user — the OAuth tokens stay sealed behind the user's DEK. */
+export const gmailConnections = pgTable(
+  'gmail_connections',
+  {
+    userId: ownerId(),
+    email: text('email').notNull(),
+    tokensEnc: bytea('tokens_enc'),
+    grantId: uuid('grant_id')
+      .notNull()
+      .default(sql`uuidv7()`),
+    watchRenewedAt: timestamp('watch_renewed_at', { withTimezone: true }),
+    /** Gmail's history id of the last ingested batch; `null` until the first successful poll. */
+    historyId: text('history_id'),
+    watchExpiresAt: timestamp('watch_expires_at', { withTimezone: true }),
+    /** `revoked` once Google reports the grant gone — the card then offers "Hubungkan lagi". */
+    status: text('status').$type<'connected' | 'revoked'>().notNull().default('connected'),
+    filters: jsonb('filters').$type<GmailFilters>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [primaryKey({ columns: [table.userId] })],
+);
+
+/** One-use session-bound consent: only the state digest is stored; PKCE material is encrypted. */
+export const gmailOauthStates = pgTable('gmail_oauth_states', {
+  userId: ownerId(),
+  stateHash: text('state_hash').primaryKey(),
+  sessionHash: text('session_hash').notNull(),
+  grantId: uuid('grant_id'),
+  verifierEnc: bytea('verifier_enc').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+});
+
+/** One ingested email (FR-AI4): sender, subject, and a sealed excerpt — never the body. */
+export const emailIngestLogs = pgTable(
+  'email_ingest_logs',
+  {
+    id: uuid('id')
+      .notNull()
+      .default(sql`uuidv7()`),
+    userId: ownerId(),
+    /** Gmail's message id: the idempotency key of the whole pipeline. */
+    messageId: text('message_id').notNull(),
+    fromAddr: text('from_addr').notNull(),
+    subject: text('subject').notNull(),
+    quoteEnc: bytea('quote_enc').notNull(),
+    filterResult: text('filter_result').$type<GmailFilterResult>().notNull(),
+    extractionEnc: bytea('extraction_enc'),
+    confidence: integer('confidence'),
+    outcome: text('outcome').$type<'pending' | 'confirmed' | 'ignored' | 'duplicate' | 'filtered'>().notNull(),
+    reviewItemId: uuid('review_item_id'),
+    processing: text('processing')
+      .$type<'queued' | 'extracting' | 'extracted' | 'done' | 'failed'>()
+      .notNull()
+      .default('queued'),
+    errorCode: text('error_code'),
+    extractionStartedAt: timestamp('extraction_started_at', { withTimezone: true }),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    uniqueIndex('email_ingest_logs_message_key').on(table.userId, table.messageId),
+    index('email_ingest_logs_user_id_created_at_idx').on(table.userId, desc(table.createdAt)),
+  ],
+);
+
+/** ID-only replay tombstones survive the 30-day evidence retention. */
+export const gmailMessageKeys = pgTable(
+  'gmail_message_keys',
+  { userId: ownerId(), messageId: text('message_id').notNull() },
+  (table) => [primaryKey({ columns: [table.userId, table.messageId] })],
 );

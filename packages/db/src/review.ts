@@ -33,6 +33,8 @@ import {
 import { activePlansIn } from './schedules.ts';
 import { attachReceiptIn, receiptDuplicateIn } from './receipts.ts';
 import {
+  accounts,
+  emailIngestLogs,
   budgetPeriodOverrides,
   goals,
   periods,
@@ -369,13 +371,63 @@ async function confirmIn(
   now: Date,
 ): Promise<ConfirmResult> {
   const [existing] = await tx.select().from(reviewItems).where(eq(reviewItems.id, itemId)).for('update');
-  if (existing?.source === 'receipt' && existing.status === 'confirmed')
+  if ((existing?.source === 'receipt' || existing?.source === 'gmail') && existing.status === 'confirmed')
     return { transactionId: existing.resultingTransactionId, overrideIds: [] };
   const item = await lockedItemIn(tx, itemId);
   const payload = readReviewPayload(dek, userId, item.payloadEnc);
   let transactionId: string | null = null;
   const overrideIds: string[] = [];
   switch (payload.kind) {
+    case 'gmail': {
+      const extraction = payload.extraction;
+      const accountId = edits.accountId ?? extraction.accountId;
+      const amountMinor = edits.amountMinor ?? extraction.amountMinor;
+      const occurredAt = edits.occurredAt ?? extraction.occurredAt;
+      const categoryId = edits.categoryId === undefined ? extraction.categoryId : edits.categoryId;
+      const merchant = edits.merchant === undefined ? extraction.merchant : edits.merchant;
+      if (
+        accountId === null ||
+        amountMinor === null ||
+        amountMinor <= 0n ||
+        occurredAt === null ||
+        !Number.isFinite(occurredAt.getTime()) ||
+        categoryId === null ||
+        !merchant?.trim()
+      )
+        throw new LedgerError('INVALID_TRANSACTION', 'Correct the missing Gmail fields before confirming');
+      const [account] = await tx
+        .select({ currency: accounts.currency })
+        .from(accounts)
+        .where(eq(accounts.id, accountId));
+      // An explicit owned-account choice also corrects a mistaken AI currency; untouched suggestions stay checked.
+      if (
+        account === undefined ||
+        (edits.accountId === undefined && extraction.currency !== null && account.currency !== extraction.currency)
+      )
+        throw new LedgerError('INVALID_ACCOUNT', 'Choose an account with the email currency');
+      transactionId = (
+        await recordTransactionIn(
+          tx,
+          userId,
+          {
+            type: 'expense',
+            accountId,
+            amountMinor,
+            occurredAt,
+            categoryId,
+            merchant,
+            description: edits.description ?? payload.subject,
+            note: edits.note ?? null,
+            tags: edits.tags ?? payload.tags,
+            source: 'gmail',
+            clientId: item.id,
+          },
+          dek,
+          now,
+        )
+      ).id;
+      break;
+    }
     case 'transaction': {
       const draft = applyEdits(payload.draft, edits);
       if (edits.receiptDuplicateId !== undefined) {
@@ -467,6 +519,8 @@ async function confirmIn(
     .update(reviewItems)
     .set({ status: 'confirmed', resolvedAt: now, resultingTransactionId: transactionId, updatedAt: now })
     .where(eq(reviewItems.id, item.id));
+  if (item.source === 'gmail')
+    await tx.update(emailIngestLogs).set({ outcome: 'confirmed' }).where(eq(emailIngestLogs.reviewItemId, item.id));
   return { transactionId, overrideIds };
 }
 
@@ -564,9 +618,11 @@ export function createReview(
           const proposed =
             payload.kind === 'transaction'
               ? (payload.draft.merchant ?? payload.draft.description ?? null)
-              : payload.kind === 'leftover' && payload.goalId !== null
-                ? (goalNames.get(payload.goalId) ?? null)
-                : null;
+              : payload.kind === 'gmail'
+                ? (payload.extraction.merchant ?? payload.subject)
+                : payload.kind === 'leftover' && payload.goalId !== null
+                  ? (goalNames.get(payload.goalId) ?? null)
+                  : null;
           const principal = principals.get(item.subjectTransactionId ?? '');
           return {
             id: item.id,
@@ -657,7 +713,20 @@ export function createReview(
           .update(reviewItems)
           .set({ status: 'ignored', resolvedAt: at, updatedAt: at })
           .where(and(inArray(reviewItems.id, [...itemIds]), eq(reviewItems.status, 'pending')))
-          .returning({ occurrenceId: reviewItems.occurrenceId });
+          .returning({ id: reviewItems.id, occurrenceId: reviewItems.occurrenceId });
+        if (items.length > 0)
+          await tx
+            .update(emailIngestLogs)
+            .set({ outcome: 'ignored' })
+            .where(
+              and(
+                inArray(
+                  emailIngestLogs.reviewItemId,
+                  items.map((item) => item.id),
+                ),
+                eq(emailIngestLogs.outcome, 'pending'),
+              ),
+            );
         const occurrenceIds = items.flatMap((item) => (item.occurrenceId === null ? [] : [item.occurrenceId]));
         if (occurrenceIds.length > 0) {
           const skipped = await tx

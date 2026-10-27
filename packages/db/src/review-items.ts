@@ -10,6 +10,7 @@ import { decryptText, encrypt } from '@wf/crypto/cipher';
 import type { Dek } from '@wf/crypto/envelope';
 import type { LocalDate } from '@wf/domain/period';
 import { zonedInstant } from '@wf/domain/recurrence';
+import { parseGmailExtraction, type GmailExtraction } from '@wf/domain/gmail';
 import { eq } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
 import { installmentExpenseIn } from './debts.ts';
@@ -44,6 +45,17 @@ export type ReviewDraft = DistributiveOmit<TransactionDraft, 'clientId'>;
 export type ReviewPayload =
   /** `due_occurrence` (later also `ai_suggestion`, `import_row`): record this transaction. */
   | { readonly kind: 'transaction'; readonly draft: ReviewDraft; readonly receiptId?: string }
+  | {
+      readonly kind: 'gmail';
+      readonly logId: string;
+      readonly messageId: string;
+      readonly from: string;
+      readonly subject: string;
+      readonly excerpt: string;
+      readonly extraction: GmailExtraction;
+      readonly tags: readonly string[];
+      readonly errorCode: string | null;
+    }
   /** `category_deleted`: the transaction lost its category and needs a new one ("Perlu kategori"). */
   | {
       readonly kind: 'category';
@@ -112,6 +124,8 @@ export function readReviewPayload(dek: Dek, userId: string, payloadEnc: Uint8Arr
   switch (payload.kind) {
     case 'transaction':
       return { ...payload, draft: decodeDraft(payload.draft) };
+    case 'gmail':
+      return { ...payload, extraction: parseGmailExtraction(JSON.stringify(payload.extraction)) };
     case 'rollover':
       return { ...payload, deltaMinor: BigInt(payload.deltaMinor) };
     case 'leftover':

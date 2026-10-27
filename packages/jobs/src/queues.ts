@@ -124,6 +124,12 @@ export const JOBS = {
   'market-byok': userJob,
   /** The daily portfolio snapshot (FR-I3 growth chart, plan §6 `snapshots`). */
   snapshots: userJob,
+  /**
+   * Gmail ingest for one user (FR-AI4, plan §6 `gmail`): fetch the messages since the stored history id, filter,
+   * extract, and propose Review items — the worker never records a transaction (D14). Behind the `config.google.gmail`
+   * flag: without it nothing is enqueued and the processor answers "not configured".
+   */
+  gmail: userJob,
 } as const satisfies { readonly [Q in QueueName]?: z.ZodType<object> };
 
 /** Queues that have a processor. */
@@ -177,6 +183,8 @@ export const jobIds = {
   snapshots: (userId: string, date: LocalDate) => `snap.${userId}.${date}` as JobId<'snapshots'>,
   /** One deletion per user (`del.{userId}`); a second run finds no user and does nothing. */
   'account-deletion': (userId: string) => `del.${userId}` as JobId<'account-deletion'>,
+  /** Push IDs and ten-minute poll slots dedupe queue delivery; email idempotency lives in Postgres. */
+  gmail: (userId: string, triggerId: string) => `gmail.${userId}.${triggerId}` as JobId<'gmail'>,
 } as const satisfies { readonly [Q in JobQueue]: (...args: never[]) => JobId<Q> };
 
 /** Redis key prefix of every queue. */

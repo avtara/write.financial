@@ -23,6 +23,7 @@ import { createDebts, type DebtsRepository } from '@wf/db/debts';
 import { createDb } from '@wf/db/db';
 import { createDrafts, type DraftsRepository } from '@wf/db/drafts';
 import { createFxRates, type FxRatesRepository } from '@wf/db/fx-rates';
+import { createGmail, type GmailRepository } from '@wf/db/gmail';
 import { createGoals, type GoalsRepository } from '@wf/db/goals';
 import { createInstanceSettings } from '@wf/db/instance-settings';
 import { createInvestments, type InvestmentsRepository } from '@wf/db/investments';
@@ -56,6 +57,7 @@ import { createUserKeys } from '@wf/db/user-keys';
 import type { Locale } from '@wf/i18n/locale';
 import { overwriteServerAsyncLocalStorage } from '@wf/i18n/runtime';
 import { createAiClient, type AiClient } from '@wf/integrations/ai';
+import { createGmailClient, type GmailFetchPort } from '@wf/integrations/gmail';
 import { createInstanceMailer, instanceSmtp, sendWith } from '@wf/integrations/instance-mailer';
 import type { Mailer } from '@wf/integrations/mailer';
 import { createMarketAdapters, type MarketAdapters } from '@wf/integrations/market/adapters';
@@ -68,6 +70,7 @@ import { createQueueBoard, type QueueBoard } from './queue-board.ts';
 import { createReportExportQueue, type ReportExportQueue } from './report-queue.ts';
 import { createRulesBackfillQueue, type RulesBackfillQueue } from './rules-backfill-queue.ts';
 import { createReceiptQueue, type ReceiptQueue } from './receipt-queue.ts';
+import { createGmailQueue, type GmailQueue } from './gmail-queue.ts';
 
 export interface LocaleStore {
   locale?: Locale;
@@ -170,6 +173,11 @@ export interface Services extends BaseRuntime {
   readonly reports: ReportsRepository;
   /** Settings › "API kurs & pasar": the user's keys (FR-ST4). */
   readonly marketCredentials: MarketCredentialsRepository;
+  /** Settings › Gmail and the ingest log (FR-AI4), on `wf_app` (tokens stay sealed). */
+  readonly gmail: GmailRepository;
+  /** The real Gmail fetch port, for the card's filter dry run (nothing it answers is stored). */
+  readonly gmailFetch: GmailFetchPort;
+  readonly gmailQueue: GmailQueue;
   /** Sync targets, the decrypted key for a request, tests per hour, the built-in sources' state. */
   readonly marketJobs: MarketJobs;
   /** Quote adapters (egress-allowlisted) for "Tes koneksi" and "Sinkronkan harga" with the user's key. */
@@ -258,6 +266,11 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     marketCredentials: createMarketCredentials(appDb, { getDek, now }),
     marketJobs: createMarketJobs(appDb, { getDek }),
     marketAdapters: createMarketAdapters(),
+    gmail: createGmail(appDb, { getDek, now }),
+    gmailQueue: createGmailQueue({ redis: config.redis.url, logger }),
+    gmailFetch: createGmailClient({
+      oauth: { clientId: config.google?.clientId ?? '', clientSecret: config.google?.clientSecret ?? '' },
+    }),
     mailer,
     reportExportQueue: createReportExportQueue({ redis: config.redis.url, logger }),
     rulesBackfillQueue: createRulesBackfillQueue({ redis: config.redis.url, logger }),

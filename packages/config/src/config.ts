@@ -76,7 +76,11 @@ export interface Config {
     readonly clientId: string;
     readonly clientSecret: string;
     /** `null` when Gmail push (D24) is not configured. */
-    readonly gmail: { readonly cloudProject: string; readonly pubsubTopic: string } | null;
+    readonly gmail: {
+      readonly cloudProject: string;
+      readonly pubsubTopic: string;
+      readonly pushServiceAccount: string;
+    } | null;
   } | null;
   readonly market: { readonly cmcApiKey: string | null };
   /** Exact operator-trusted OpenAI-compatible API bases, including the path; empty disables custom egress. */
@@ -155,6 +159,9 @@ const schema = z.object({
   GOOGLE_CLOUD_PROJECT: required().optional(),
   GOOGLE_GMAIL_PUBSUB_TOPIC: required()
     .regex(/^projects\/[^/]+\/topics\/[^/]+$/, { error: 'must look like projects/<project>/topics/<topic>' })
+    .optional(),
+  GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT: required()
+    .regex(/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/, { error: 'must be a Google service account email' })
     .optional(),
   CMC_API_KEY: required().optional(),
   AI_ALLOWED_BASE_URLS: required()
@@ -259,7 +266,7 @@ function crossFieldIssues(raw: Partial<Record<Key, string>>, isSet: (key: Key) =
 
   if (isSet('SMTP_URL')) requireAll(['MAIL_FROM'], 'when SMTP_URL is set');
 
-  const gmail = ['GOOGLE_CLOUD_PROJECT', 'GOOGLE_GMAIL_PUBSUB_TOPIC'] as const;
+  const gmail = ['GOOGLE_CLOUD_PROJECT', 'GOOGLE_GMAIL_PUBSUB_TOPIC', 'GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT'] as const;
   const oauth = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const;
   if (gmail.some(isSet)) requireAll([...oauth, ...gmail], 'to enable Gmail');
   else if (oauth.some(isSet)) requireAll(oauth, 'to enable Google sign-in');
@@ -317,7 +324,11 @@ function toConfig(env: Env): Config {
             gmail:
               env.GOOGLE_CLOUD_PROJECT === undefined
                 ? null
-                : { cloudProject: env.GOOGLE_CLOUD_PROJECT, pubsubTopic: env.GOOGLE_GMAIL_PUBSUB_TOPIC as string },
+                : {
+                    cloudProject: env.GOOGLE_CLOUD_PROJECT,
+                    pubsubTopic: env.GOOGLE_GMAIL_PUBSUB_TOPIC as string,
+                    pushServiceAccount: env.GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT as string,
+                  },
           },
     market: { cmcApiKey: env.CMC_API_KEY ?? null },
     ai: {

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** In-memory stand-ins for the worker's ports (Redis, BullMQ, the database, the log). */
 import type { BuiltInRateInput } from '@wf/db/fx-rates';
+import type { EmailLogView, GmailConnectionView, GmailRepository } from '@wf/db/gmail';
 import type { AuthPurgeCounts } from '@wf/db/maintenance';
 import type { MarketCredentialView } from '@wf/db/market-credentials';
 import type { Preferences } from '@wf/db/preferences';
 import type { ReportFileMeta } from '@wf/db/report-files';
 import type { ReportView } from '@wf/db/reports';
 import { DEFAULT_REPORT_EXPORT_OPTIONS } from '@wf/domain/report';
+import type { GmailFetchPort, GmailMessage } from '@wf/integrations/gmail';
 import type { MailMessage, Mailer } from '@wf/integrations/mailer';
 import type { MarketAdapters, QuoteProvider } from '@wf/integrations/market/adapters';
 import type { ObjectPurgePort } from '../src/processors.ts';
@@ -172,6 +174,8 @@ export function fakeBroker(nextRun: NextRun = NEXT_RUN): FakeBroker {
 
 export interface FakeDb extends WorkerDb {
   readonly purgeCalls: Date[];
+  /** When the maintenance job purges the Gmail log (`gmail.purgeExpired`). */
+  readonly gmailPurgeCalls: Date[];
   /** Every batch passed to `fxRates.upsertGlobal`. */
   readonly fxUpserts: (readonly BuiltInRateInput[])[];
   /** Calls of the M3 repositories, `repository.method` with the arguments, in order. */
@@ -183,6 +187,7 @@ export function fakeDb(
   currenciesInUse: readonly string[] = ['IDR', 'USD'],
 ): FakeDb {
   const purgeCalls: Date[] = [];
+  const gmailPurgeCalls: Date[] = [];
   const fxUpserts: (readonly BuiltInRateInput[])[] = [];
   const calls: { method: string; args: readonly unknown[] }[] = [];
   /** A repository method that records its call and resolves to `result`. */
@@ -194,6 +199,7 @@ export function fakeDb(
     };
   return {
     purgeCalls,
+    gmailPurgeCalls,
     fxUpserts,
     calls,
     receipts: {
@@ -289,6 +295,26 @@ export function fakeDb(
       recipient: method('reportFiles.recipient', null),
     },
     preferences: { get: method('preferences.get', DEFAULT_REPORT_EXPORT_PREFERENCES) },
+    gmail: {
+      getConnection: method('gmail.getConnection', null),
+      tokens: method('gmail.tokens', null),
+      markRevoked: method('gmail.markRevoked', fakeGmailConnection()),
+      recordEmail: method('gmail.recordEmail', { id: LOG_ID, duplicate: false }),
+      assertCurrent: method('gmail.assertCurrent', undefined),
+      rotateTokens: method('gmail.rotateTokens', undefined),
+      setWatch: method('gmail.setWatch', undefined),
+      targets: method('gmail.targets', []),
+      pending: method('gmail.pending', []),
+      claimExtraction: method('gmail.claimExtraction', null),
+      storeExtraction: method('gmail.storeExtraction', undefined),
+      failExtraction: method('gmail.failExtraction', undefined),
+      complete: method('gmail.complete', 'replay' as const),
+      setHistoryId: method('gmail.setHistoryId', fakeGmailConnection()),
+      purgeExpired: async (before: Date) => {
+        gmailPurgeCalls.push(before);
+        return Promise.resolve(3);
+      },
+    } satisfies Pick<GmailRepository, keyof FakeDb['gmail']>,
   };
 }
 
@@ -513,6 +539,107 @@ export function fakeReportFileMeta(overrides: Partial<ReportFileMeta> = {}): Rep
   };
 }
 
+/** Constants the gmail fakes answer with. */
+export const LOG_ID = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c82';
+export const REVIEW_ITEM_ID = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c83';
+
+/** A connected Gmail connection view with the given overrides. */
+export function fakeGmailConnection(overrides: Partial<GmailConnectionView> = {}): GmailConnectionView {
+  return {
+    email: 'avtara.k@gmail.com',
+    grantId: LOG_ID,
+    watchRenewedAt: null,
+    watchExpiresAt: null,
+    status: 'connected',
+    filters: { senders: ['bca.co.id'], keywords: ['transaksi'], ignoreKeywords: ['promo'] },
+    historyId: null,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    ...overrides,
+  };
+}
+
+/** A log row as `gmail.recordEmail`/`setOutcome` answers with. */
+export function fakeEmailLog(overrides: Partial<EmailLogView> = {}): EmailLogView {
+  return {
+    id: LOG_ID,
+    messageId: 'msg-1',
+    fromAddr: 'cs@bca.co.id',
+    subject: 'Transaksi Rp 350.000',
+    filterResult: 'passed',
+    outcome: 'pending',
+    confidence: null,
+    receivedAt: new Date(0),
+    createdAt: new Date(0),
+    reviewItemId: null,
+    processing: 'done',
+    errorCode: null,
+    extraction: null,
+    ...overrides,
+  };
+}
+
+/** One fetched Gmail message. */
+export function fakeGmailMessage(overrides: Partial<GmailMessage> = {}): GmailMessage {
+  return {
+    id: 'msg-1',
+    from: 'cs@bca.co.id',
+    subject: 'Transaksi Rp 350.000',
+    excerpt: 'KlikBCA: Anda menerima transfer Rp 350.000.',
+    receivedAt: new Date('2026-10-17T18:02:00Z'),
+    ...overrides,
+  };
+}
+
+export interface FakeGmailFetch extends GmailFetchPort {
+  /** The page the next `listMessages` answers with. */
+  page: { readonly messages: GmailMessage[]; readonly historyId: string | null };
+  /** Makes the next `listMessages` reject with this error (e.g. a `GmailRevokedError`). */
+  failNextList(error: Error): void;
+  /** Every history id asked with. */
+  readonly asked: (string | null)[];
+}
+
+export function fakeGmailFetch(page: FakeGmailFetch['page'] = { messages: [], historyId: null }): FakeGmailFetch {
+  const asked: (string | null)[] = [];
+  let failure: Error | undefined;
+  return {
+    page,
+    asked,
+    failNextList: (error) => {
+      failure = error;
+    },
+    listMessages: async (_tokens, historyId) => {
+      asked.push(historyId);
+      const error = failure;
+      failure = undefined;
+      if (error !== undefined) throw error;
+      return Promise.resolve(page);
+    },
+    watch: () => Promise.resolve({ historyId: '501', expiresAt: new Date('2099-01-01') }),
+    profile: () => Promise.resolve({ email: 'fixture@gmail.com', historyId: '501' }),
+    exchange: () =>
+      Promise.resolve({
+        accessToken: 'fixture-access',
+        refreshToken: 'fixture-refresh',
+        expiresAt: new Date('2099-01-01'),
+      }),
+    revoke: () => Promise.resolve(),
+  };
+}
+
+export function fakeGmail(): ProcessorDeps['gmail'] {
+  return {
+    enabled: false,
+    topic: 'projects/fixture/topics/mail',
+    fetch: fakeGmailFetch(),
+    client: {
+      models: () => Promise.reject(new Error('AI not configured in fixture')),
+      complete: () => Promise.reject(new Error('AI not configured in fixture')),
+    },
+  };
+}
+
 export interface FakeAdapters extends MarketAdapters {
   /** Every `fetchQuotes` call, `provider` with its input, in order. */
   readonly inputs: { readonly provider: QuoteProvider; readonly input: FetchQuotesInput }[];
@@ -588,6 +715,7 @@ export function fakeDeps(overrides: Partial<ProcessorDeps> = {}, now = new Date(
     // A one-line PDF marker; the chromium renderer is the production port and stays out of unit tests.
     render: async (html) => Promise.resolve(new Uint8Array([0x25, 0x50, 0x44, 0x46, html.length % 256])),
     market: { adapters: fakeAdapters(), cmcApiKey: 'fake-cmc-operator-key' },
+    gmail: fakeGmail(),
     objects: { attachments: fakePurgePort(), avatars: fakePurgePort() },
     enqueue: async (queue, payload, { jobId }) => {
       enqueued.push({ queue, payload, jobId });

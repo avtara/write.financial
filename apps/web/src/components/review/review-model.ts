@@ -5,7 +5,7 @@
  * group of bills adds up to.
  */
 import type { ReviewItemView } from '@wf/db/review';
-import type { ReviewDraft } from '@wf/db/review-items';
+import type { ReviewDraft, ReviewPayload } from '@wf/db/review-items';
 import { countDays, type LocalDate } from '@wf/domain/period';
 
 /** A `transaction` item: an AI result, an import row, or a due occurrence. */
@@ -14,10 +14,12 @@ export type DraftItem = ReviewItemView & {
 };
 export type CategoryItem = ReviewItemView & { readonly payload: { readonly kind: 'category' } };
 export type CloseItem = ReviewItemView & { readonly payload: { readonly kind: 'rollover' | 'leftover' } };
+export type GmailReviewItem = ReviewItemView & { readonly payload: Extract<ReviewPayload, { kind: 'gmail' }> };
 
 export interface ReviewGroups {
   /** AI suggestions and import rows (Gmail, Assistant, receipts), by confidence. */
   readonly ai: readonly DraftItem[];
+  readonly gmail: readonly GmailReviewItem[];
   /** Transactions whose category was deleted ("Perlu kategori"). */
   readonly categories: readonly CategoryItem[];
   /** Subscription bills that are due ("Belum / Sudah dibayar"). */
@@ -31,6 +33,7 @@ export interface ReviewGroups {
 /** Splits the pending items (already in the queue's order) into the page's panels. */
 export function groupReviewItems(items: readonly ReviewItemView[]): ReviewGroups {
   const ai: DraftItem[] = [];
+  const gmail: GmailReviewItem[] = [];
   const categories: CategoryItem[] = [];
   const bills: DraftItem[] = [];
   const recurring: DraftItem[] = [];
@@ -38,12 +41,13 @@ export function groupReviewItems(items: readonly ReviewItemView[]): ReviewGroups
   for (const item of items) {
     const { payload } = item;
     if (payload.kind === 'category') categories.push(item as CategoryItem);
+    else if (payload.kind === 'gmail') gmail.push(item as GmailReviewItem);
     else if (payload.kind !== 'transaction') closing.push(item as CloseItem);
     else if (item.reason !== 'due_occurrence') ai.push(item as DraftItem);
     else if (item.occurrence?.sourceType === 'subscription') bills.push(item as DraftItem);
     else recurring.push(item as DraftItem);
   }
-  return { ai, categories, bills, recurring, closing };
+  return { ai, gmail, categories, bills, recurring, closing };
 }
 
 export type DueState =

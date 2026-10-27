@@ -61,6 +61,7 @@ describe('loadConfig', () => {
       GOOGLE_CLIENT_SECRET: 'client-secret',
       GOOGLE_CLOUD_PROJECT: 'wf-project',
       GOOGLE_GMAIL_PUBSUB_TOPIC: 'projects/wf-project/topics/gmail-push',
+      GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT: 'push@wf-project.iam.gserviceaccount.com',
       LOG_LEVEL: 'debug',
     });
     expect(config).toMatchObject({
@@ -80,7 +81,11 @@ describe('loadConfig', () => {
       google: {
         clientId: 'client-id',
         clientSecret: 'client-secret',
-        gmail: { cloudProject: 'wf-project', pubsubTopic: 'projects/wf-project/topics/gmail-push' },
+        gmail: {
+          cloudProject: 'wf-project',
+          pubsubTopic: 'projects/wf-project/topics/gmail-push',
+          pushServiceAccount: 'push@wf-project.iam.gserviceaccount.com',
+        },
       },
       market: { cmcApiKey: 'cmc-key' },
       log: { level: 'debug' },
@@ -177,6 +182,7 @@ describe('loadConfig', () => {
         GOOGLE_CLIENT_SECRET: 'secret',
         GOOGLE_CLOUD_PROJECT: 'p',
         GOOGLE_GMAIL_PUBSUB_TOPIC: 'gmail-push',
+        GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT: 'push@p.iam.gserviceaccount.com',
       }),
     ).toEqual([{ key: 'GOOGLE_GMAIL_PUBSUB_TOPIC', message: 'must look like projects/<project>/topics/<topic>' }]);
   });
@@ -214,11 +220,12 @@ describe('loadConfig', () => {
       ]);
     });
 
-    it('requires the OAuth client and both Gmail settings for Gmail', () => {
+    it('requires the OAuth client, project, topic and authenticated push identity for Gmail', () => {
       expect(issuesOf({ ...BASE, GOOGLE_CLOUD_PROJECT: 'p' })).toEqual([
         { key: 'GOOGLE_CLIENT_ID', message: 'is required to enable Gmail' },
         { key: 'GOOGLE_CLIENT_SECRET', message: 'is required to enable Gmail' },
         { key: 'GOOGLE_GMAIL_PUBSUB_TOPIC', message: 'is required to enable Gmail' },
+        { key: 'GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT', message: 'is required to enable Gmail' },
       ]);
     });
 

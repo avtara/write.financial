@@ -18,6 +18,7 @@ import { formatDate, formatTime, toLocalDate, weekdayName } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { PageState } from '@wf/ui/page-state';
 import { toast } from '@wf/ui/toast';
+import { usePrivacy } from '@wf/ui/privacy';
 import { ArrowRight, Check, Copy, History, Pencil, Split, Trash2, X, Zap } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { colorProps } from '../../lib/colors.ts';
@@ -212,6 +213,7 @@ function View({
 }) {
   const { preferences } = usePreferences();
   const { locale } = preferences;
+  const { hidden, hiddenLabel } = usePrivacy();
   const actions = useTransactionActions();
   const row = actionRowOf(detail);
   const category = ledger.categories.find((candidate) => candidate.id === detail.categoryId);
@@ -379,6 +381,40 @@ function View({
           )}
         </Row>
       </dl>
+      {detail.gmailEvidence == null ? null : (
+        <details className="rounded-[8px] border border-border p-3 text-[12px]">
+          <summary className="cursor-pointer font-medium text-fg">{m.gmail_source()}</summary>
+          <p className="mt-2 break-words text-muted-fg">
+            {hidden ? hiddenLabel : `${detail.gmailEvidence.from} · ${detail.gmailEvidence.subject}`}
+          </p>
+          <blockquote className="mt-2 break-words text-muted-fg">
+            {hidden ? hiddenLabel : detail.gmailEvidence.excerpt}
+          </blockquote>
+          <p className="mt-2 text-muted-fg">
+            {m.review_amount_label()} ·{' '}
+            {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.amount })}
+            {' · '}
+            {m.record_date()} · {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.date })}
+            {' · '}
+            {m.review_ai_merchant()} ·{' '}
+            {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.merchant })}
+            {' · '}
+            {m.record_account()} · {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.account })}
+            {' · '}
+            {m.review_category_label()} ·{' '}
+            {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.category })}
+          </p>
+          <a
+            className="mt-2 inline-block text-blue-fg underline"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(detail.gmailEvidence.messageId)}`}
+          >
+            {m.gmail_open()}
+          </a>
+          <p className="mt-2 text-subtle">{m.gmail_readonly_note()}</p>
+        </details>
+      )}
       <Attachments
         transactionId={detail.id}
         attachments={detail.attachments}

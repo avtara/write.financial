@@ -13,7 +13,8 @@
  * `notification_outbox`, `market_quotes`, `user_quotes`, `fx_rates`, `snapshots`, `reports`, `periods.lock`,
  * `job_status`, and logs; each is added here when its processor lands. M1 adds the built-in rows of `fx_rates`; M3 the
  * schedules automation (occurrences, review items, notifications, outbox, subscription candidates, period close); M5
- * the market data (quotes, request log, key status, built-in source state) and the daily portfolio snapshot.
+ * the market data (quotes, request log, key status, built-in source state) and the daily portfolio snapshot; M7.5 the
+ * Gmail ingest (connection, log, proposals, retention).
  */
 export const WORKER_REPOSITORIES = [
   'receipts',
@@ -37,6 +38,7 @@ export const WORKER_REPOSITORIES = [
   'reports',
   'reportFiles',
   'preferences',
+  'gmail',
 ] as const;
 
 export type WorkerRepository = (typeof WORKER_REPOSITORIES)[number];

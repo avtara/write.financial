@@ -17,6 +17,7 @@ export const SETTINGS_SECTIONS = [
   'security',
   'ai',
   'market',
+  'gmail',
   'instance',
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

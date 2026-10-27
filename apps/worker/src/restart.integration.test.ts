@@ -29,7 +29,7 @@ import { DESIGN_SEED } from '@wf/domain/seed';
 import type { JobQueue } from '@wf/jobs/queues';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fakeAdapters, fakeMailer, fakePurgePort, type FakeMailer } from '../test/fakes.ts';
+import { fakeAdapters, fakeGmail, fakeMailer, fakePurgePort, type FakeMailer } from '../test/fakes.ts';
 import { PROCESSORS, type ProcessorDeps } from './processors.ts';
 import { FAKE_S3 } from '../test/fakes.ts';
 import { openWorkerDb, type WorkerDbConnection } from './worker-db.ts';
@@ -112,6 +112,7 @@ function startWorker(): WorkerProcess {
     render: async () => Promise.resolve(new Uint8Array()),
     objects: { attachments: fakePurgePort(), avatars: fakePurgePort() },
     market: { adapters: fakeAdapters(), cmcApiKey: null },
+    gmail: fakeGmail(),
     enqueue: async (queue, payload, { jobId }) => {
       if (CHAIN.includes(queue)) broker.add({ queue, id: jobId, data: payload });
       return Promise.resolve();
@@ -319,6 +320,7 @@ describe('restart safety (reminder → email → review)', () => {
       mailer: fakeMailer(),
       publicUrl: 'https://uang.example/',
       market: { adapters: fakeAdapters(), cmcApiKey: null },
+      gmail: fakeGmail(),
       render: async () => Promise.resolve(new Uint8Array()),
       objects: { attachments: fakePurgePort(), avatars: fakePurgePort() },
       enqueue: () => Promise.resolve(),

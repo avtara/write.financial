@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
-import { fakeDb, fakeDeps } from '../../test/fakes.ts';
+import { fakeDb, fakeDeps, fakeGmail } from '../../test/fakes.ts';
 import { BUDGET_ALERTS_FROM, DAILY_AT, DISPATCH_LIMIT, createDispatchProcessor, localClock } from './dispatch.ts';
 
 const JAKARTA = '0199f5d2-7c4e-7a3b-8c1d-2e3f4a5b6c71';
@@ -132,5 +132,26 @@ describe('dispatch processor', () => {
     const d = fakeDeps();
     await expect(createDispatchProcessor(d)({ ...job, data: { userId: JAKARTA } })).rejects.toThrow();
     expect(await createDispatchProcessor(d)(job)).toEqual({ users: 0, enqueued: {} });
+  });
+});
+
+describe('Gmail fallback dispatch', () => {
+  it('uses one ID-only poll per connected user and ten-minute slot, and schedules none when disabled', async () => {
+    const base = fakeDb();
+    const db = { ...base, gmail: { ...base.gmail, targets: () => Promise.resolve([{ userId: JAKARTA }]) } };
+    const first = fakeDeps({ db, gmail: { ...fakeGmail(), enabled: true } }, new Date('2026-10-18T02:31:00Z'));
+    await createDispatchProcessor(first)(job);
+    const sameSlot = fakeDeps({ db, gmail: { ...fakeGmail(), enabled: true } }, new Date('2026-10-18T02:39:59Z'));
+    await createDispatchProcessor(sameSlot)(job);
+    const nextSlot = fakeDeps({ db, gmail: { ...fakeGmail(), enabled: true } }, new Date('2026-10-18T02:40:00Z'));
+    await createDispatchProcessor(nextSlot)(job);
+    const one = first.enqueued.filter((job) => job.queue === 'gmail');
+    expect(one).toHaveLength(1);
+    expect(one[0]?.payload).toEqual({ userId: JAKARTA });
+    expect(sameSlot.enqueued.filter((job) => job.queue === 'gmail')).toEqual(one);
+    expect(nextSlot.enqueued.find((job) => job.queue === 'gmail')?.jobId).not.toBe(one[0]?.jobId);
+    const disabled = fakeDeps({ db });
+    await createDispatchProcessor(disabled)(job);
+    expect(disabled.enqueued.some((job) => job.queue === 'gmail')).toBe(false);
   });
 });

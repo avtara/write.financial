@@ -28,6 +28,7 @@ describe('JOBS', () => {
     'detect-recurring',
     'market-byok',
     'snapshots',
+    'gmail',
   ] as const)('accepts { userId } for %s and nothing else', (queue) => {
     expect(JOBS[queue].parse({ userId: USER })).toEqual({ userId: USER });
     expect(JOBS[queue].safeParse({}).success).toBe(false);
@@ -93,6 +94,7 @@ describe('jobIds', () => {
     // One own-key run per 5-minute slot.
     expect(jobIds['market-byok'](USER, new Date('2026-10-15T09:44:59Z'))).toBe(`mkb.${USER}.2026-10-15T0940`);
     expect(jobIds['market-byok'](USER, new Date('2026-10-15T09:45:00Z'))).toBe(`mkb.${USER}.2026-10-15T0945`);
+    expect(jobIds.gmail(USER, 'push123')).toBe(`gmail.${USER}.push123`);
     const all = [
       jobIds.dispatch(new Date()),
       jobIds.occurrences(USER, DAY),

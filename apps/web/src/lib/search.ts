@@ -76,7 +76,7 @@ export interface ReviewHit {
   readonly title: string | null;
   readonly dueDate: LocalDate | null;
   /** The signed amount confirming it would move, in `currency`. */
-  readonly amountMinor: bigint;
+  readonly amountMinor: bigint | null;
   readonly currency: string;
 }
 

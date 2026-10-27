@@ -30,6 +30,7 @@ import type { SecurityOverview } from '../../server/account.ts';
 import { getProfile, getSecurity } from '../../server/fn/account.ts';
 import { getAiSettings } from '../../server/fn/ai.ts';
 import { getDataSettings, type DataSettings } from '../../server/fn/data.ts';
+import { getGmailSettings, type GmailSettings } from '../../server/fn/gmail.ts';
 import { getPeriodSettings } from '../../server/fn/budget.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
 import { listAutoRules, listRuleSuggestions } from '../../server/fn/rules.ts';
@@ -43,6 +44,7 @@ import { AiSection } from './ai-section.tsx';
 import { CategoriesSection } from './categories-section.tsx';
 import { DataSection } from './data-section.tsx';
 import { InstanceSection } from './instance-section.tsx';
+import { GmailSection } from './gmail-section.tsx';
 import { MarketSection } from './market-section.tsx';
 import { NotificationsSection } from './notifications-section.tsx';
 import { PeriodSection } from './period-section.tsx';
@@ -68,6 +70,7 @@ const SECTIONS: Readonly<Record<SettingsSection, SectionInfo>> = {
   security: { label: m.settings_nav_security, description: m.settings_security_description },
   ai: { label: m.settings_nav_ai, description: m.settings_ai_description },
   market: { label: m.settings_nav_market, description: m.settings_market_description },
+  gmail: { label: m.settings_nav_gmail, description: m.settings_gmail_description },
   instance: { label: m.settings_nav_instance, description: m.settings_instance_description },
 };
 
@@ -75,7 +78,7 @@ const GROUPS: readonly { readonly label: () => string; readonly sections: readon
   { label: m.settings_group_account, sections: ['profile'] },
   { label: m.settings_group_preferences, sections: ['period', 'notifications', 'categories', 'tags', 'rules'] },
   { label: m.settings_group_data, sections: ['data', 'security'] },
-  { label: m.settings_group_integrations, sections: ['ai', 'market'] },
+  { label: m.settings_group_integrations, sections: ['ai', 'market', 'gmail'] },
   { label: m.settings_group_instance, sections: ['instance'] },
 ];
 
@@ -98,6 +101,7 @@ export type SettingsData =
   | { section: 'data'; data: Result<DataSettings> }
   | { section: 'market'; market: Result<MarketSettings> }
   | { section: 'ai'; ai: Result<AiSettingsView> }
+  | { section: 'gmail'; gmail: Result<GmailSettings> }
   | { section: 'instance' };
 
 /**
@@ -116,6 +120,7 @@ export async function loadSettingsSection(section: SettingsSection): Promise<Set
   if (section === 'notifications') return { section, notifications: await getNotificationSettings() };
   if (section === 'market') return { section, market: await getMarketSettings() };
   if (section === 'ai') return { section, ai: await getAiSettings() };
+  if (section === 'gmail') return { section, gmail: await getGmailSettings({ data: {} }) };
   if (section === 'categories')
     return { section, categories: await listCategories({ data: { includeArchived: true } }) };
   if (section === 'tags') {
@@ -165,6 +170,13 @@ function SectionContent({ data, viewer }: { data: SettingsData; viewer: Viewer }
       <AiSection settings={data.ai.value} viewer={viewer} timeZone={viewer.timezone} />
     ) : (
       <FormError>{aiErrorMessage(data.ai.code, locale)}</FormError>
+    );
+  }
+  if (data.section === 'gmail') {
+    return data.gmail.ok ? (
+      <GmailSection settings={data.gmail.value} timeZone={viewer.timezone} viewer={viewer} />
+    ) : (
+      <FormError>{ledgerErrorMessage(data.gmail.code, locale)}</FormError>
     );
   }
   if (data.section === 'categories') {
