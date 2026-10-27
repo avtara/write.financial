@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setLocale } from '@wf/i18n/runtime';
 import { announceSaved } from './announce-saved.tsx';
 
 const toast = vi.hoisted(() => ({ undo: vi.fn(), toast: vi.fn() }));
@@ -10,7 +11,9 @@ const { removeTransactions } = (await import('../../server/fn/transactions-write
 };
 
 describe('announceSaved', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // The toast copy reads the ambient paraglide locale; pin it instead of the browser's default.
+    await setLocale('id', { reload: false });
     vi.clearAllMocks();
   });
 
