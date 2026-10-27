@@ -5,7 +5,7 @@ import { announceSaved } from './announce-saved.tsx';
 const toast = vi.hoisted(() => ({ undo: vi.fn(), toast: vi.fn() }));
 vi.mock('@wf/ui/toast', () => ({ toast: Object.assign(toast.toast, { undo: toast.undo }) }));
 vi.mock('../../server/fn/transactions-write.ts', () => ({ removeTransactions: vi.fn() }));
-const { removeTransactions } = (await import('../../server/fn/transactions-write.ts')) as {
+const { removeTransactions } = (await import('../../server/fn/transactions-write.ts')) as unknown as {
   removeTransactions: ReturnType<typeof vi.fn>;
 };
 
