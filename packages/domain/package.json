@@ -15,6 +15,7 @@
     "./debt": "./src/debt.ts",
     "./decimal": "./src/decimal.ts",
     "./fx": "./src/fx.ts",
+    "./gmail": "./src/gmail.ts",
     "./goal-assets": "./src/goal-assets.ts",
     "./goals": "./src/goals.ts",
     "./investments": "./src/investments.ts",

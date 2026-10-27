@@ -87,6 +87,13 @@ vi.mock('../../server/fn/market.ts', () => market);
 vi.mock('./market-section.tsx', () => ({
   MarketSection: ({ timeZone }: { timeZone: string }) => <p>{`pasar di ${timeZone}`}</p>,
 }));
+const gmail = vi.hoisted(() => ({ getGmailSettings: vi.fn() }));
+vi.mock('../../server/fn/gmail.ts', () => gmail);
+vi.mock('./gmail-section.tsx', () => ({
+  GmailSection: ({ settings }: { settings: { connection: unknown } }) => (
+    <p>{`gmail ${settings.connection === null ? 'kosong' : 'terhubung'}`}</p>
+  ),
+}));
 const notifications = vi.hoisted(() => ({ getNotificationSettings: vi.fn() }));
 vi.mock('../../server/fn/notifications.ts', () => notifications);
 const data = vi.hoisted(() => ({
@@ -232,6 +239,11 @@ describe('loadSettingsSection', () => {
       section: 'market',
       market: { ok: true, value: { keys: [] } },
     });
+    gmail.getGmailSettings.mockResolvedValue({ ok: true, value: { connection: null } });
+    await expect(loadSettingsSection('gmail')).resolves.toEqual({
+      section: 'gmail',
+      gmail: { ok: true, value: { connection: null } },
+    });
   });
 });
 
@@ -255,13 +267,14 @@ describe('SettingsDialog', () => {
       );
     const nav = dialog.getByRole('navigation', { name: 'Bagian pengaturan' });
     expect(nav.element().textContent).toBe(
-      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagAturan otomatisPrivasiDataKeamananIntegrasiAI agent (BYOK)API kurs & pasar',
+      'AkunProfil & akunPreferensiPeriode bulananNotifikasiKategoriTagAturan otomatisPrivasiDataKeamananIntegrasiAI agent (BYOK)API kurs & pasarGmail',
     );
     const profile = nav.getByRole('link', { name: 'Profil & akun' });
     await expect.element(profile).toHaveAttribute('href', '/?settings=profile');
     await expect.element(profile).toHaveAttribute('aria-current', 'page');
     await expect.element(profile).toHaveFocus();
     await expect.element(nav.getByRole('link', { name: 'Tag' })).toHaveAttribute('href', '/?settings=tags');
+    await expect.element(nav.getByRole('link', { name: 'Gmail' })).toHaveAttribute('href', '/?settings=gmail');
     await expect.element(dialog.getByRole('region', { name: 'Profil & akun' })).toBeVisible();
     await expect.element(dialog.getByRole('textbox', { name: 'Nama lengkap' })).toHaveValue('Avtara K.');
   });

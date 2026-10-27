@@ -2,6 +2,7 @@
 import { createBuiltInFxProviders } from '@wf/integrations/fx/rates';
 import type { AiClient } from '@wf/integrations/ai';
 import { createOcrProcessor } from './processors/ocr.ts';
+import type { GmailFetchPort } from '@wf/integrations/gmail';
 import type { Mailer } from '@wf/integrations/mailer';
 import type { MarketAdapters } from '@wf/integrations/market/adapters';
 import type { ObjectStore } from '@wf/integrations/objectstore';
@@ -13,6 +14,7 @@ import { createBudgetAlertsProcessor } from './processors/budget-alerts.ts';
 import { createDetectRecurringProcessor } from './processors/detect-recurring.ts';
 import { createDispatchProcessor } from './processors/dispatch.ts';
 import { createFxProcessor } from './processors/fx.ts';
+import { createGmailProcessor } from './processors/gmail.ts';
 import { createMaintenanceProcessor } from './processors/maintenance.ts';
 import { createMarketByokProcessor } from './processors/market-byok.ts';
 import { createMarketServerProcessor } from './processors/market-server.ts';
@@ -49,6 +51,13 @@ export interface ProcessorDeps {
   readonly render: ReportPdfRenderer;
   /** Market quote adapters (egress-allowlisted) and the operator's CoinMarketCap key (`CMC_API_KEY`, null: none). */
   readonly market: { readonly adapters: MarketAdapters; readonly cmcApiKey: string | null };
+  /** Gmail egress is disabled unless the operator configured the restricted-scope integration. */
+  readonly gmail: {
+    readonly enabled: boolean;
+    readonly topic: string;
+    readonly fetch: GmailFetchPort;
+    readonly client: AiClient;
+  };
   /**
    * The encrypted object stores (`account-deletion` purges a leaving user's blobs from both buckets before the
    * database deletes their rows and their DEK).
@@ -91,4 +100,5 @@ export const PROCESSORS: { readonly [Q in JobQueue]: ProcessorDefinition } = {
   'market-server': { concurrency: 1, create: createMarketServerProcessor },
   'market-byok': { concurrency: 2, create: createMarketByokProcessor },
   snapshots: { concurrency: 2, create: createSnapshotsProcessor },
+  gmail: { concurrency: 2, create: createGmailProcessor },
 };

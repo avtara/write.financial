@@ -63,6 +63,7 @@ export function createDispatchProcessor({
   db,
   now,
   enqueue,
+  gmail,
 }: ProcessorDeps): (job: ProcessorJob) => Promise<DispatchResult> {
   return async (job) => {
     JOBS.dispatch.parse(job.data);
@@ -96,6 +97,16 @@ export function createDispatchProcessor({
     for (const { userId } of await db.marketJobs.byokUsers()) {
       await enqueue('market-byok', { userId }, { jobId: jobIds['market-byok'](userId, at) });
       count('market-byok');
+    }
+    if (gmail.enabled) {
+      for (const { userId } of await db.gmail.targets()) {
+        await enqueue(
+          'gmail',
+          { userId },
+          { jobId: jobIds.gmail(userId, `poll${Math.floor(at.getTime() / 600_000)}`) },
+        );
+        count('gmail');
+      }
     }
     return { users: users.length, enqueued };
   };

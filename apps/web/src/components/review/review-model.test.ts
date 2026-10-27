@@ -31,6 +31,7 @@ describe('groupReviewItems', () => {
     const items = [
       item('ai', { reason: 'ai_suggestion' }),
       item('import', { reason: 'import_row' }),
+      item('gmail', { reason: 'ai_suggestion', payload: { kind: 'gmail' } as never }),
       item('netflix', { occurrence: occurrence('subscription') }),
       item('sisihkan', { occurrence: occurrence('recurrence') }),
       item('orphan', {}),
@@ -41,6 +42,7 @@ describe('groupReviewItems', () => {
     const ids = (list: readonly { id: string }[]) => list.map((entry) => entry.id);
     const groups = groupReviewItems(items);
     expect(ids(groups.ai)).toEqual(['ai', 'import']);
+    expect(ids(groups.gmail)).toEqual(['gmail']);
     expect(ids(groups.bills)).toEqual(['netflix']);
     expect(ids(groups.recurring)).toEqual(['sisihkan', 'orphan']);
     expect(ids(groups.categories)).toEqual(['kopi']);

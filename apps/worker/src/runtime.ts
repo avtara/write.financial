@@ -35,6 +35,8 @@ export interface RuntimeDeps {
   readonly render: ProcessorDeps['render'];
   /** Market quote adapters and the operator's CoinMarketCap key. */
   readonly market: ProcessorDeps['market'];
+  /** The Gmail ingest ports (fetch and extraction), behind the `config.google.gmail` flag. */
+  readonly gmail: ProcessorDeps['gmail'];
   /** The encrypted object stores, for `account-deletion` to purge a leaving user's blobs from. */
   readonly objects: ProcessorDeps['objects'];
   readonly logger: Logger;
@@ -58,6 +60,7 @@ export async function startWorker({
   publicUrl,
   render,
   market,
+  gmail,
   objects,
   logger,
   now,
@@ -85,6 +88,7 @@ export async function startWorker({
       market,
       objects,
       ...(receipt === undefined ? {} : { receipt }),
+      gmail,
     });
     const run: Processor = async (job) => {
       const log = logger.child({ queue: name, jobId: job.id, attempt: job.attemptsMade + 1 });

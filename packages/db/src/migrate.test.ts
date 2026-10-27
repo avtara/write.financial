@@ -67,6 +67,10 @@ const GRANTS = {
   // M3: the worker suggests subscriptions (upsert) and the app acts on them.
   detected_recurring: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
   drafts: { wf_app: ALL },
+  email_ingest_logs: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
+  gmail_connections: { wf_app: ALL, wf_worker: 'SELECT,UPDATE' },
+  gmail_message_keys: { wf_app: 'INSERT,SELECT', wf_worker: 'INSERT,SELECT' },
+  gmail_oauth_states: { wf_app: 'DELETE,INSERT,SELECT' },
   entitlements: { wf_app: 'SELECT', wf_readonly_ops: 'SELECT', wf_worker: 'SELECT' },
   fx_rates: { wf_app: ALL, wf_worker: 'INSERT,SELECT,UPDATE' },
   goal_contribution_plans: LEDGER,
@@ -198,7 +202,7 @@ describe('migrate', () => {
     expect(actual).toEqual(GRANTS);
   });
 
-  it('has only the documented SECURITY DEFINER functions: owned by wf_migrate, pinned search_path, wf_worker only', async () => {
+  it('pins SECURITY DEFINER ownership/search_path and grants only documented worker/verified-ingress access', async () => {
     expect(
       await test.query(
         `SELECT p.proname AS name, pg_get_userbyid(p.proowner) AS owner, p.proconfig AS config,
@@ -212,6 +216,8 @@ describe('migrate', () => {
         'wf_account_delete_user',
         'wf_due_deletions',
         'wf_due_reminders',
+        'wf_gmail_purge',
+        'wf_gmail_targets',
         'wf_maintenance_purge_ai_logs',
         'wf_maintenance_purge_auth',
         'wf_maintenance_purge_notifications',
@@ -224,7 +230,7 @@ describe('migrate', () => {
         name,
         owner: 'wf_migrate',
         config: ['search_path=pg_catalog, public'],
-        execute: 'wf_worker',
+        execute: name === 'wf_gmail_targets' ? 'wf_app,wf_worker' : 'wf_worker',
       })),
     );
   });

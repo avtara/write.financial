@@ -3,6 +3,7 @@ import { hostname } from 'node:os';
 import { loadConfig, type Config } from '@wf/config';
 import { loadKeyring, type Keyring } from '@wf/crypto/keyring';
 import { createInstanceMailer, sendWith } from '@wf/integrations/instance-mailer';
+import { createGmailClient } from '@wf/integrations/gmail';
 import { createMarketAdapters } from '@wf/integrations/market/adapters';
 import { createObjectPurger } from '@wf/integrations/objectstore';
 import { createAiClient } from '@wf/integrations/ai';
@@ -146,6 +147,14 @@ async function work(
     render: createChromiumRenderer(),
     // Every adapter checks the egress allowlist before a request.
     market: { adapters: createMarketAdapters(), cmcApiKey: config.market.cmcApiKey },
+    gmail: {
+      enabled: config.google?.gmail != null,
+      topic: config.google?.gmail?.pubsubTopic ?? '',
+      fetch: createGmailClient({
+        oauth: { clientId: config.google?.clientId ?? '', clientSecret: config.google?.clientSecret ?? '' },
+      }),
+      client: createAiClient({ allowedBaseUrls: config.ai.allowedBaseUrls }),
+    },
     objects,
     logger,
     now,

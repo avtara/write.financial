@@ -249,6 +249,12 @@ function reviewHit(item: ReviewItemView, currency: (accountId: string | null) =>
   const { payload } = item;
   const common = { id: item.id, reason: item.reason, title: item.label, dueDate: item.dueDate };
   switch (payload.kind) {
+    case 'gmail':
+      return {
+        ...common,
+        amountMinor: payload.extraction.amountMinor === null ? null : -payload.extraction.amountMinor,
+        currency: payload.extraction.currency ?? currency(payload.extraction.accountId),
+      };
     case 'transaction': {
       const { draft } = payload;
       if (draft.type === 'transfer') {

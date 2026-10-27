@@ -421,3 +421,23 @@ describe('recentFor', () => {
     await expect(recentFor(services(), USER)).rejects.toThrow('database down');
   });
 });
+
+describe('Gmail search uncertainty', () => {
+  it('does not turn unknown email amounts into zero-valued search results', async () => {
+    fake.review.list.mockResolvedValue({
+      items: [
+        reviewItem('rv-gmail', 'PLN', {
+          kind: 'gmail',
+          extraction: { amountMinor: null, currency: null, accountId: null },
+        }),
+        reviewItem('rv-gmail-known', 'PLN paid', {
+          kind: 'gmail',
+          extraction: { amountMinor: 350000n, currency: 'IDR', accountId: 'acc-bca' },
+        }),
+      ],
+      total: 2,
+    });
+    const results = await searchFor(services(), USER, 'PLN');
+    expect(results.review.hits.map((hit) => hit.amountMinor)).toEqual([null, -350000n]);
+  });
+});

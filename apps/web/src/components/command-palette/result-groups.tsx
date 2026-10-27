@@ -70,7 +70,12 @@ export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits
       detail: [REVIEW_REASON[hit.reason](), hit.dueDate === null ? null : formatDate(hit.dueDate, locale, 'day')]
         .filter((part) => part !== null)
         .join(' · '),
-      aside: <Money minor={hit.amountMinor} currency={hit.currency} context="amount" locale={locale} />,
+      aside:
+        hit.amountMinor === null ? (
+          m.review_ai_unknown()
+        ) : (
+          <Money minor={hit.amountMinor} currency={hit.currency} context="amount" locale={locale} />
+        ),
     }),
     open: (hit, navigate) => navigate({ to: '/review', search: { item: hit.id } }),
   },

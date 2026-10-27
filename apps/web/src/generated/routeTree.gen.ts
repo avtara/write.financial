@@ -38,6 +38,9 @@ import { Route as AdminQueuesSplatRouteImport } from './../routes/admin/queues.$
 import { Route as ApiAccountLogoIdRouteImport } from './../routes/api/account-logo.$id.ts';
 import { Route as ApiAuthSplatRouteImport } from './../routes/api/auth/$.ts';
 import { Route as ApiDataExportRouteImport } from './../routes/api/data.export.ts';
+import { Route as ApiGmailCallbackRouteImport } from './../routes/api/gmail.callback.ts';
+import { Route as ApiGmailLogRouteImport } from './../routes/api/gmail.log.ts';
+import { Route as ApiGmailPushRouteImport } from './../routes/api/gmail.push.ts';
 import { Route as ApiReportsFileIdRouteImport } from './../routes/api/reports.$fileId.ts';
 import { Route as ApiSubscriptionLogoIdRouteImport } from './../routes/api/subscription-logo.$id.ts';
 import { Route as ApiTransactionsIdAttachmentsAttachmentIdRouteImport } from './../routes/api/transactions.$id.attachments.$attachmentId.ts';
@@ -185,6 +188,21 @@ const ApiDataExportRoute = ApiDataExportRouteImport.update({
   path: '/api/data/export',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ApiGmailCallbackRoute = ApiGmailCallbackRouteImport.update({
+  id: '/api/gmail/callback',
+  path: '/api/gmail/callback',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ApiGmailLogRoute = ApiGmailLogRouteImport.update({
+  id: '/api/gmail/log',
+  path: '/api/gmail/log',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ApiGmailPushRoute = ApiGmailPushRouteImport.update({
+  id: '/api/gmail/push',
+  path: '/api/gmail/push',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ApiReportsFileIdRoute = ApiReportsFileIdRouteImport.update({
   id: '/api/reports/$fileId',
   path: '/api/reports/$fileId',
@@ -230,6 +248,9 @@ export interface FileRoutesByFullPath {
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
   '/api/data/export': typeof ApiDataExportRoute;
+  '/api/gmail/callback': typeof ApiGmailCallbackRoute;
+  '/api/gmail/log': typeof ApiGmailLogRoute;
+  '/api/gmail/push': typeof ApiGmailPushRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -262,6 +283,9 @@ export interface FileRoutesByTo {
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
   '/api/data/export': typeof ApiDataExportRoute;
+  '/api/gmail/callback': typeof ApiGmailCallbackRoute;
+  '/api/gmail/log': typeof ApiGmailLogRoute;
+  '/api/gmail/push': typeof ApiGmailPushRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -297,6 +321,9 @@ export interface FileRoutesById {
   '/api/account-logo/$id': typeof ApiAccountLogoIdRoute;
   '/api/auth/$': typeof ApiAuthSplatRoute;
   '/api/data/export': typeof ApiDataExportRoute;
+  '/api/gmail/callback': typeof ApiGmailCallbackRoute;
+  '/api/gmail/log': typeof ApiGmailLogRoute;
+  '/api/gmail/push': typeof ApiGmailPushRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -331,6 +358,9 @@ export interface FileRouteTypes {
     | '/api/account-logo/$id'
     | '/api/auth/$'
     | '/api/data/export'
+    | '/api/gmail/callback'
+    | '/api/gmail/log'
+    | '/api/gmail/push'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
@@ -363,6 +393,9 @@ export interface FileRouteTypes {
     | '/api/account-logo/$id'
     | '/api/auth/$'
     | '/api/data/export'
+    | '/api/gmail/callback'
+    | '/api/gmail/log'
+    | '/api/gmail/push'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
@@ -397,6 +430,9 @@ export interface FileRouteTypes {
     | '/api/account-logo/$id'
     | '/api/auth/$'
     | '/api/data/export'
+    | '/api/gmail/callback'
+    | '/api/gmail/log'
+    | '/api/gmail/push'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
     | '/api/transactions/$id/attachments/$attachmentId';
@@ -413,6 +449,9 @@ export interface RootRouteChildren {
   ApiAccountLogoIdRoute: typeof ApiAccountLogoIdRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
   ApiDataExportRoute: typeof ApiDataExportRoute;
+  ApiGmailCallbackRoute: typeof ApiGmailCallbackRoute;
+  ApiGmailLogRoute: typeof ApiGmailLogRoute;
+  ApiGmailPushRoute: typeof ApiGmailPushRoute;
   ApiReportsFileIdRoute: typeof ApiReportsFileIdRoute;
   ApiSubscriptionLogoIdRoute: typeof ApiSubscriptionLogoIdRoute;
   ApiTransactionsIdAttachmentsAttachmentIdRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
@@ -623,6 +662,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDataExportRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/api/gmail/callback': {
+      id: '/api/gmail/callback';
+      path: '/api/gmail/callback';
+      fullPath: '/api/gmail/callback';
+      preLoaderRoute: typeof ApiGmailCallbackRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/api/gmail/log': {
+      id: '/api/gmail/log';
+      path: '/api/gmail/log';
+      fullPath: '/api/gmail/log';
+      preLoaderRoute: typeof ApiGmailLogRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/api/gmail/push': {
+      id: '/api/gmail/push';
+      path: '/api/gmail/push';
+      fullPath: '/api/gmail/push';
+      preLoaderRoute: typeof ApiGmailPushRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/api/reports/$fileId': {
       id: '/api/reports/$fileId';
       path: '/api/reports/$fileId';
@@ -722,6 +782,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAccountLogoIdRoute: ApiAccountLogoIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiDataExportRoute: ApiDataExportRoute,
+  ApiGmailCallbackRoute: ApiGmailCallbackRoute,
+  ApiGmailLogRoute: ApiGmailLogRoute,
+  ApiGmailPushRoute: ApiGmailPushRoute,
   ApiReportsFileIdRoute: ApiReportsFileIdRoute,
   ApiSubscriptionLogoIdRoute: ApiSubscriptionLogoIdRoute,
   ApiTransactionsIdAttachmentsAttachmentIdRoute:

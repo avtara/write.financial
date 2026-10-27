@@ -136,6 +136,7 @@ describe('RESULT_GROUPS', () => {
     expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'ai_suggestion' }, 'id').title).toBe('Hasil AI');
     expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'import_row' }, 'id').title).toBe('Hasil AI');
     expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'category_deleted' }, 'id').title).toBe('Perlu kategori');
+    expect(RESULT_GROUPS.review.view({ ...NETFLIX, amountMinor: null }, 'id').aside).toBe('belum diketahui');
   });
 
   it('remembers each hit under its recent kind and opens its page', async () => {

@@ -22,9 +22,11 @@ const server = vi.hoisted(() => ({
   confirmReviewBulk: vi.fn(),
   ignoreReview: vi.fn(),
   markReviewUnpaid: vi.fn(),
+  removeTransactions: vi.fn(),
 }));
 vi.mock('../../server/fn/review.ts', () => server);
-const toasts = vi.hoisted(() => ({ toast: vi.fn() }));
+vi.mock('../../server/fn/transactions-write.ts', () => ({ removeTransactions: server.removeTransactions }));
+const toasts = vi.hoisted(() => ({ toast: Object.assign(vi.fn(), { undo: vi.fn() }) }));
 vi.mock('@wf/ui/toast', () => toasts);
 
 const lookup = { baseCurrency: 'IDR', accounts: ACCOUNTS, categories: CATEGORIES };

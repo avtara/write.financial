@@ -24,6 +24,7 @@ import { cases as calendarCases } from '../../../test/isolation/cases/calendar.t
 import { cases as categoriesCases } from '../../../test/isolation/cases/categories.ts';
 import { cases as debtsCases } from '../../../test/isolation/cases/debts.ts';
 import { cases as gateCases } from '../../../test/isolation/cases/gate.ts';
+import { cases as gmailCases } from '../../../test/isolation/cases/gmail.ts';
 import { cases as getPreferencesCases } from '../../../test/isolation/cases/get-preferences.ts';
 import { cases as goalsCases } from '../../../test/isolation/cases/goals.ts';
 import { cases as importCases } from '../../../test/isolation/cases/import.ts';
@@ -111,6 +112,7 @@ const MATRIX: Record<Name, Case> = {
   ...receivablesCases,
   ...investmentsCases,
   ...reportsCases,
+  ...gmailCases,
   ...importCases,
   ...reportExportCases,
   ...receiptsCases,

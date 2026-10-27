@@ -21,11 +21,13 @@ import { categoryName } from '../../lib/ledger-labels.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { confirmReview, confirmReviewBulk, ignoreReview, markReviewUnpaid } from '../../server/fn/review.ts';
 import { Button, Select } from '../form.tsx';
+import { announceSaved } from '../ledger/announce-saved.tsx';
 import { Modal } from '../modal.tsx';
 import { PageHeader } from '../page-header.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { AiCard, BillCard, CategoryRow, CloseCard, type ReviewLookup } from './review-cards.tsx';
 import { draftAmount, groupReviewItems, pendingTotals, type CloseItem, type DraftItem } from './review-model.ts';
+import { GmailReviewCard } from './gmail-review-card.tsx';
 
 export interface ReviewPageProps {
   readonly items: readonly ReviewItemView[];
@@ -281,6 +283,49 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
         description={m.review_description({ count: items.length })}
       />
       <div className="grid items-start gap-4 xl:grid-cols-2">
+        {groups.gmail.length === 0 ? null : (
+          <Panel
+            icon={Sparkles}
+            title={m.review_source_gmail()}
+            count={groups.gmail.length}
+            subtitle={m.review_ai_subtitle()}
+            footer={<span>{m.review_ai_footer()}</span>}
+          >
+            {groups.gmail.map((item) => (
+              <GmailReviewCard
+                key={item.id}
+                item={item}
+                lookup={lookup}
+                locale={locale}
+                timeZone={timeZone}
+                pending={busy.has(item.id)}
+                onConfirm={(edits) => {
+                  void run(
+                    [item.id],
+                    () => confirmReview({ data: { itemId: item.id, edits } }),
+                    ({ transactionId }) => {
+                      if (transactionId === null) return;
+                      announceSaved({
+                        id: transactionId,
+                        label: edits.merchant ?? item.payload.subject,
+                        amountMinor: -edits.amountMinor,
+                        currency: currencyOf(edits.accountId),
+                        accountName: lookup.accounts.find((account) => account.id === edits.accountId)?.displayName,
+                        locale,
+                        onChange: () => {
+                          void router.invalidate();
+                        },
+                      });
+                    },
+                  );
+                }}
+                onIgnore={() => {
+                  ignore([item.id]);
+                }}
+              />
+            ))}
+          </Panel>
+        )}
         {groups.ai.length === 0 ? null : (
           <Panel
             icon={Sparkles}

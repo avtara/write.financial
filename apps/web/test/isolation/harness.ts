@@ -45,6 +45,13 @@ import {
 } from '../../src/server/fn/data.ts';
 import * as debts from '../../src/server/fn/debts.ts';
 import * as gate from '../../src/server/fn/gate.ts';
+import {
+  disconnectGmail,
+  getGmailSettings,
+  startGmailConnect,
+  testFilters,
+  updateFilters,
+} from '../../src/server/fn/gmail.ts';
 import * as goals from '../../src/server/fn/goals.ts';
 import * as importFn from '../../src/server/fn/import.ts';
 import {
@@ -180,6 +187,11 @@ export const FUNCTIONS = {
   ...receipts,
   ...receivables,
   ...reports,
+  disconnectGmail,
+  getGmailSettings,
+  startGmailConnect,
+  testFilters,
+  updateFilters,
   getReportAutoSend,
   listReportFiles,
   requestReportExport,

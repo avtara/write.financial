@@ -190,3 +190,22 @@ docker buildx imagetools inspect ghcr.io/avtara/write.financial:0.1.0 --format '
   the one the database volume was created with. Restore the original value.
 - `init` fails with `Invalid configuration`: the message lists the `.env` settings to fix.
 - A secret file was edited and is now group- or world-readable: `init` refuses it and prints the `chmod 600` command.
+
+## Optional Gmail (restricted scope)
+
+Leave `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GMAIL_PUBSUB_TOPIC` and `GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT` empty to disable Gmail. Ordinary Google sign-in remains profile-only. Do not enable public Gmail until Google restricted-scope verification and the required third-party security assessment are complete (M9). Testing mode limits test users and normally expires refresh tokens after seven days.
+
+For an approved private/test deployment:
+
+1. Enable Gmail and Pub/Sub APIs in the OAuth client's Cloud project. Configure the existing `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Register the exact additional Web OAuth redirect URI `https://<your-host>/api/gmail/callback`; sign-in's callback is separate. Gmail requests only `https://www.googleapis.com/auth/gmail.readonly`.
+2. Create `projects/<project>/topics/<topic>`, grant publisher access to `gmail-api-push@system.gserviceaccount.com`, and set `GOOGLE_CLOUD_PROJECT` and `GOOGLE_GMAIL_PUBSUB_TOPIC`.
+3. Create a push subscription to `https://<your-host>/api/gmail/push`. Enable OIDC authentication with a dedicated service account and audience equal to that exact endpoint URL, derived from `PUBLIC_URL`. Put the email in `GOOGLE_GMAIL_PUSH_SERVICE_ACCOUNT`. Give Pub/Sub's project service agent `roles/iam.serviceAccountTokenCreator` on that service account. The handler verifies Google's signature, issuer, audience and verified service-account identity before mailbox lookup.
+4. Restart web and worker. The user enables 2FA, signs in again if needed, and explicitly consents in Settings › Gmail. Configure the user's BYOK provider/model/prices, read-financial and draft permissions, and USD cap. Sender/domain allowlists and keywords narrow extraction; ignore keywords win. Test uses five actual recent emails and unsaved edits, without storing emails or invoking AI.
+
+The worker renews watches after six days and polls in ten-minute slots through the existing dispatcher. Every private Google request requires current 2FA, so disabling it also stops mailbox reads. Google destinations are fixed, redirects refused, and bodies/pages bounded. Expired history triggers bounded metadata resync; pagination refusal does not discard the durable cursor. Full message bodies are never requested.
+
+Every extraction waits in Review. Missing amount, date/time, merchant, category or account must be corrected. Date/time edits use the user's IANA time zone; an explicit account choice also corrects a mistaken extracted currency. Only confirming records a transaction and offers the normal save Undo; ignore only resolves the proposal/log. Same-user manual expenses are checked across same-currency accounts (amount ±1%, instant ±2h). Jobs contain IDs only. Tokens, excerpts and validated extraction are encrypted with the user's DEK. AI activity logs contain metadata, not email/provider text. Interrupted potentially billed attempts are never automatically resent and unknown costs retain conservative accounting; failed extraction remains manually editable in Review.
+
+Disconnect destroys local credentials before best-effort remote revocation, invalidates stale grants and stops further reads even if Google is unavailable. Reconnect preserves filters. Logs and encrypted email Review/source evidence expire after 30 days, including unresolved proposals; ID-only message tombstones prevent future replay billing. The settings preview shows 50 rows; CSV streams the entire retained log in bounded pages with formula protection.
+
+Provider contracts: [OAuth](https://developers.google.com/identity/protocols/oauth2/web-server), [Gmail push/watch](https://developers.google.com/workspace/gmail/api/guides/push), [authenticated Pub/Sub](https://cloud.google.com/pubsub/docs/authenticate-push-subscriptions), [history sync](https://developers.google.com/workspace/gmail/api/guides/sync).

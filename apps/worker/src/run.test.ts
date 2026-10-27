@@ -48,6 +48,7 @@ const QUEUES = [
   'market-server',
   'market-byok',
   'snapshots',
+  'gmail',
 ];
 
 const KEY = heartbeatKey('host-1');
