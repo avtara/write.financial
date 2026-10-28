@@ -8,6 +8,7 @@ import type { KbdKey } from '@wf/ui/kbd-hint';
 import {
   ArrowLeftRight,
   CalendarDays,
+  ChartPie,
   CandlestickChart,
   FileBarChart,
   HandCoins,
@@ -75,7 +76,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: m.nav_group_plan,
     items: [
-      { to: '/budget', label: m.nav_budget, icon: PiggyBank, railIcon: PiggyBank, shortcut: ['G', 'A'] },
+      // A pie for how the money is shared out; the piggy bank stays Tabungan's, so the two read apart.
+      { to: '/budget', label: m.nav_budget, icon: ChartPie, railIcon: ChartPie, shortcut: ['G', 'A'] },
       {
         to: '/subscriptions',
         label: m.nav_subscriptions,

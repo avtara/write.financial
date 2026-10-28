@@ -153,6 +153,13 @@ describe('Sidebar', () => {
     await expect.element(screen.getByRole('link', { name: 'Ringkasan' })).toHaveTextContent('Ringkasan');
   });
 
+  it('leaves out a count of zero', async () => {
+    const screen = await renderInApp({ transactions: 1, subscriptions: 0, review: 0, notifications: 0 });
+    await expect.element(screen.getByRole('link', { name: /Transaksi/ })).toHaveTextContent('Transaksi1');
+    await expect.element(screen.getByRole('link', { name: /Langganan/ })).toHaveTextContent('Langganan');
+    await expect.element(screen.getByRole('link', { name: /Perlu ditinjau/ })).toHaveTextContent('Perlu ditinjau');
+  });
+
   it('shows no count when it could not be loaded, or outside `_app`', async () => {
     for (const navCounts of [null, undefined]) {
       const screen = await renderInApp(navCounts);

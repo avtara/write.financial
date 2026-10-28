@@ -74,7 +74,8 @@ export function Sidebar() {
                   >
                     <item.icon aria-hidden="true" className="size-4 shrink-0" />
                     {item.label()}
-                    {item.badge === undefined || counts === null ? null : (
+                    {/* A zero is left out: the count only shows when there is something there. */}
+                    {item.badge === undefined || counts === null || counts[item.badge] === 0 ? null : (
                       <span className="ml-auto rounded-[4px] px-1.5 font-mono text-[11px] font-normal text-subtle in-data-[status=active]:text-muted-fg">
                         {counts[item.badge]}
                       </span>

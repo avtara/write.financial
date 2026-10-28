@@ -67,4 +67,10 @@ describe('NAV_GROUPS', () => {
       ['/subscriptions', 'subscriptions'],
     ]);
   });
+
+  it('gives every page its own icon in the sidebar and the rail, so no two entries look alike', () => {
+    const items = NAV_GROUPS.flatMap((group) => group.items);
+    expect(new Set(items.map((item) => item.icon)).size).toBe(items.length);
+    expect(new Set(items.map((item) => item.railIcon)).size).toBe(items.length);
+  });
 });
