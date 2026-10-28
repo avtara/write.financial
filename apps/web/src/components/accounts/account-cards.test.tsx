@@ -37,8 +37,10 @@ describe('AccountCards', () => {
     await expect.element(list.getByText('2 lainnya')).toBeVisible();
     await expect.element(list.getByText('Dompet · OVO')).toBeVisible();
     await expect.element(list.getByText('Rp350.000')).toBeVisible();
-    await userEvent.click(list.getByRole('button', { name: /2 lainnya/ }));
-    expect(onShowOthers).toHaveBeenCalled();
+    const others = list.getByRole('button', { name: /2 lainnya/ });
+    await userEvent.click(others);
+    // With its card, so a list can open right under it.
+    expect(onShowOthers).toHaveBeenCalledWith(others.element());
   });
 
   it('adds "≈ Rp…" under a balance in another currency when a rate is known', async () => {
