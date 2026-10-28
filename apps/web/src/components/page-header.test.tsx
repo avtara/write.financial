@@ -87,6 +87,29 @@ describe('PageHeader', () => {
     await userEvent.click(page.getByRole('menuitem', { name: 'Impor mutasi' }));
     expect(onImport).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps the title readable and moves crowded actions below it together with ⋯', async () => {
+    await page.viewport(768, 1024);
+    const { screen } = await renderApp(
+      <PageHeader
+        breadcrumb={['Keuangan', 'Ringkasan']}
+        title="Selamat pagi, Pengguna"
+        secondaryActions={[{ label: 'Atur dashboard', icon: FileUp, onSelect: vi.fn() }]}
+        actions={
+          <button type="button" className="w-[480px]">
+            Catat
+          </button>
+        }
+      />,
+    );
+    const title = screen.getByRole('heading', { level: 1 }).element().getBoundingClientRect();
+    const more = screen.getByRole('button', { name: 'Aksi lainnya' }).element().getBoundingClientRect();
+    const record = screen.getByRole('button', { name: 'Catat' }).element().getBoundingClientRect();
+    // 20rem for the title: no "Selamat pagi, / Pengguna" break.
+    expect(title.width).toBeGreaterThanOrEqual(320);
+    expect(more.top).toBeGreaterThan(title.bottom);
+    expect(more.top + more.height / 2).toBeCloseTo(record.top + record.height / 2, 0);
+  });
 });
 
 describe('PeekButton', () => {

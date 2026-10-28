@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * A budget progress bar (design "garis putih = posisi ideal hari ini"): the used share in the line's tone and a white
- * marker at the ideal share for today. Nothing used draws nothing (no track, no marker; the row's note says "belum
- * terpakai"), while the empty SVG keeps the row's height. Over the limit the whole bar turns red and the marker moves
+ * A budget progress bar (design "garis putih = posisi ideal hari ini", shown as "garis tegak" so it reads in both
+ * themes): the used share in the line's tone and a foreground-coloured marker at the ideal share for today. Nothing
+ * used draws nothing (no track, no marker; the row's note says "belum terpakai"), while the empty SVG keeps the row's
+ * height. Over the limit the whole bar turns red and the marker moves
  * to where 100% sits; at or under the limit there is no 100% marker. Drawn as SVG with attributes only: the production
  * CSP allows no `style` attributes, so no CSS widths.
  */
@@ -25,9 +26,19 @@ export interface BudgetBarProps {
   /** A blue/violet group bar instead of the tone. */
   readonly fillClassName?: string;
   readonly className?: string;
+  /** Draw the empty track when nothing is used (a goal at 0% still shows its bar); budgets draw nothing then. */
+  readonly emptyTrack?: boolean;
 }
 
-export function BudgetBar({ usedBps, tone, idealBps, size = 'sm', fillClassName, className = '' }: BudgetBarProps) {
+export function BudgetBar({
+  usedBps,
+  tone,
+  idealBps,
+  size = 'sm',
+  fillClassName,
+  className = '',
+  emptyTrack = false,
+}: BudgetBarProps) {
   const used = barLength(usedBps);
   const over = usedBps !== null && usedBps > 10_000;
   // Over the limit: the marker shows where the limit ends (2.000.000 of 2.400.000 → 83%).
@@ -46,7 +57,11 @@ export function BudgetBar({ usedBps, tone, idealBps, size = 'sm', fillClassName,
       preserveAspectRatio="none"
       className={`block w-full overflow-visible ${size === 'sm' ? 'h-1.5' : 'h-2.5'} ${className}`}
     >
-      {used === 0 ? null : (
+      {used === 0 ? (
+        emptyTrack ? (
+          <rect width="1000" height="10" rx="5" className="fill-surface-3" />
+        ) : null
+      ) : (
         <>
           <rect width="1000" height="10" rx="5" className="fill-surface-3" />
           <rect

@@ -11,6 +11,10 @@ describe('RebalanceCard', () => {
       <RebalanceCard portfolio={portfolioView()} rates={{ USD: '16350' }} locale="id" onEditTargets={vi.fn()} />,
     );
     const card = screen.getByRole('region', { name: 'Kalkulator rebalancing' });
+    // Rupiah and dollar trades share the list, so each keeps its symbol.
+    await expect.element(card).toMatchTextContent('+Rp613.600');
+    await expect.element(card).toMatchTextContent('+US$35,79');
+    await expect.element(card).toMatchTextContent('−US$31,19');
     await screen.getByRole('textbox', { name: 'Dana tambahan' }).fill('100.000.000');
     await expect.element(card).toMatchTextContent('Beli Rp100.000.000 · jual Rp0');
   });

@@ -92,7 +92,7 @@ function Gain({
         quoteMinor={quoteMinor}
         quoteCurrency={quoteCurrency}
         display={display}
-        context="delta"
+        context="signed"
       />
       {bps === null ? null : (
         <Percent
@@ -224,7 +224,7 @@ function AssetRow({
             aria-hidden="true"
             className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-surface-2 font-mono text-[9.5px] text-muted-fg"
           >
-            {asset.symbol.slice(0, 4)}
+            {asset.symbol.slice(0, 5)}
           </span>
           <span className="flex min-w-0 flex-col">
             <button
@@ -236,7 +236,15 @@ function AssetRow({
             >
               {asset.symbol}
             </button>
-            <span className="truncate text-[11.5px] text-subtle">{[asset.name, ...goals].join(' · ')}</span>
+            {/* Below 1024 px the Platform column is hidden, so the platform joins the subtitle. */}
+            <span className="truncate text-[11.5px] text-subtle">
+              {asset.name}
+              <span className="lg:hidden">
+                {' · '}
+                {asset.platformName}
+              </span>
+              {goals.map((goal) => ` · ${goal}`).join('')}
+            </span>
           </span>
           {asset.pendingMinor > 0n ? <Tag tone="blue">{m.invest_pending()}</Tag> : null}
           {asset.quote === null && holding.units !== '0' ? <Tag tone="amber">{m.invest_at_cost()}</Tag> : null}
@@ -330,7 +338,8 @@ function GroupRow({
             )}
           </button>
           <span className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-2">
+            {/* Wraps: in a narrow column the count drops under the title instead of running into the next one. */}
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-[13px] font-semibold text-fg">{entry.title}</span>
               <Tag tone="neutral">
                 {entry.kind === 'category'
@@ -428,7 +437,8 @@ export function HoldingsTable({
       className="flex min-w-0 flex-col rounded-[12px] border border-border bg-card"
     >
       <div className="flex flex-wrap items-center gap-3 px-5 py-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {/* Below 1280 px the title and summary take their own row, the controls the next one. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 max-xl:basis-full">
           <h2 id="invest-holdings" className="text-[15px] font-semibold text-fg">
             {m.invest_holdings_title()}
           </h2>
@@ -487,7 +497,7 @@ export function HoldingsTable({
           <col className="w-[130px] max-xl:hidden" />
           <col className="w-[120px] max-lg:hidden" />
           <col className="w-[150px]" />
-          <col className="w-[130px]" />
+          <col className="w-[160px]" />
           <col className="w-[130px]" />
           <col className="w-[110px] max-lg:hidden" />
           <col className="w-10" />
@@ -626,18 +636,20 @@ function ShareBar({
 }) {
   const width = (Math.min(shareBps ?? 0, SHARE_SCALE) / SHARE_SCALE) * 100;
   return (
-    <span className="flex items-center gap-2">
-      <svg aria-hidden="true" viewBox="0 0 100 6" preserveAspectRatio="none" className="h-1.5 w-full max-w-[64px]">
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <svg aria-hidden="true" viewBox="0 0 100 6" preserveAspectRatio="none" className="h-1.5 w-16 max-w-full">
         <rect width="100" height="6" rx="3" className="fill-surface-3" />
         <rect width={width} height="6" rx="3" className="fill-blue" />
         {target === null ? null : (
           <rect x={(Math.min(target, SHARE_SCALE) / SHARE_SCALE) * 100 - 1} width="2" height="6" className="fill-fg" />
         )}
       </svg>
-      <span className="flex flex-col font-mono text-[11.5px] text-muted-fg">
+      {/* "11,1% · target 12%" on one line (design `bgmSP`); it wraps under the bar as a whole when narrow. */}
+      <span className="font-mono text-[11.5px] whitespace-nowrap text-muted-fg">
         {shareBps === null ? '—' : <Percent value={shareBps / 10_000} locale={locale} />}
         {target === null ? null : (
           <span className="text-[10.5px] text-subtle">
+            {' · '}
             {m.invest_holdings_target()} <Percent value={target / 10_000} locale={locale} />
           </span>
         )}

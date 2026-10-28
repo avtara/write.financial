@@ -116,6 +116,22 @@ describe('NotificationsPage', () => {
     });
   });
 
+  it('keeps the chips, the search, and the range on one row on a desktop', async () => {
+    await page.viewport(1440, 900);
+    const { screen } = await renderPage();
+    const chips = screen.getByRole('group', { name: 'Saring notifikasi' }).element().getBoundingClientRect();
+    const search = screen.getByRole('searchbox', { name: 'Cari notifikasi' }).element().getBoundingClientRect();
+    const range = screen
+      .getByRole('button', { name: /^Rentang tanggal notifikasi/ })
+      .element()
+      .getBoundingClientRect();
+    for (const control of [search, range]) {
+      expect(control.top).toBeLessThan(chips.bottom);
+      expect(control.bottom).toBeGreaterThan(chips.top);
+    }
+    expect(search.right).toBeLessThan(range.left);
+  });
+
   it('picks a range', async () => {
     const { screen } = await renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Rentang tanggal notifikasi: 18 Sep – 17 Okt' }));

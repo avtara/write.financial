@@ -4,17 +4,18 @@
  * (design `IvIWD`), the failure state with "Coba lagi", and the new user's timeline up to the first report
  * (design `gyfhQ`).
  */
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import type { ReportStatus } from '@wf/domain/report';
 import type { LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
-import { formatDate } from '@wf/ui/dates';
+import { formatDate, formatDateRange } from '@wf/ui/dates';
 import { PageState } from '@wf/ui/page-state';
-import { Lock } from 'lucide-react';
+import { CalendarCog, FileChartColumn, Lock, Plus } from 'lucide-react';
 import { Button } from '../form.tsx';
+import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { openSettings } from '../settings/settings-sections.ts';
-import { emptySteps } from './reports-model.ts';
+import { emptyTimeline } from './reports-model.ts';
 
 /** "Final" in green, "Sementara" in amber (D10: only closed months are final). */
 export function StatusBadge({ status }: { readonly status: ReportStatus }) {
@@ -54,39 +55,71 @@ export function ReportsError({ label, onRetry }: { readonly label: string; reado
   );
 }
 
-/** The empty state (design `gyfhQ`): the timeline to the first report, then "Catat transaksi" / "Atur tanggal mulai". */
+/**
+ * The empty state (design `gyfhQ`): the timeline to the first report (recording starts today, the first period
+ * closes, its report is published), when that is and why, then "Catat transaksi" / "Atur tanggal mulai".
+ */
 export function ReportsEmpty({ today, locale }: { readonly today: LocalDate; readonly locale: Locale }) {
   const navigate = useNavigate();
-  const steps = emptySteps(today, locale);
+  const record = useRecordTransaction();
+  const timeline = emptyTimeline(today, locale);
+  const steps = [
+    { at: today, label: m.reports_empty_step_recorded(), note: m.reports_empty_step_recorded_note() },
+    {
+      at: timeline.period.end,
+      label: m.reports_empty_step_closed(),
+      // The next period starts on the day the report is published.
+      note: m.reports_empty_step_closed_note({ day: Number(timeline.publishedAt.slice(8)) }),
+    },
+    {
+      at: timeline.publishedAt,
+      label: m.reports_empty_step_published({ label: timeline.month }),
+      note: m.reports_empty_step_published_note(),
+    },
+  ];
   return (
-    <section className="flex flex-col gap-6 rounded-[12px] border border-border bg-card px-6 py-10">
-      <p className="text-center text-[15px] font-semibold text-fg">{m.reports_empty_title()}</p>
-      <ol className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12.5px]">
+    <section className="flex flex-col items-center gap-3.5 rounded-[16px] border border-border bg-card px-6 py-10 text-center">
+      <ol className="flex w-full max-w-[460px] pb-[22px] text-left">
         {steps.map((step, index) => (
-          <li key={step.key} className="flex items-center gap-2">
-            {index > 0 ? (
-              <span aria-hidden="true" className="text-subtle">
-                →
-              </span>
-            ) : null}
-            <span className="font-mono tabular-nums text-muted-fg">{formatDate(step.at, locale, 'day')}</span>
-            <span className="text-fg">
-              {step.key === 'recorded'
-                ? m.reports_empty_step_recorded()
-                : step.key === 'closed'
-                  ? m.reports_empty_step_closed()
-                  : m.reports_empty_step_published({ label: step.label as string })}
+          // Today can be the closing day, so the date alone is not a unique key.
+          <li key={step.label} className="group flex min-w-0 flex-1 flex-col gap-1.5">
+            <span aria-hidden="true" className="flex items-center">
+              <span className="size-2.5 shrink-0 rounded-full border-[1.5px] border-border-strong bg-card group-first:border-blue group-first:bg-blue" />
+              {index < steps.length - 1 ? <span className="h-px flex-1 bg-border" /> : null}
             </span>
+            <span className="font-mono text-[12px] font-medium text-fg tabular-nums group-first:text-blue-fg">
+              {formatDate(step.at, locale, 'day')}
+            </span>
+            <span className="pr-2 text-[12px] text-text-secondary">{step.label}</span>
+            <span className="text-[11px] text-subtle">{step.note}</span>
           </li>
         ))}
       </ol>
-      <div className="flex flex-wrap justify-center gap-2">
-        <Link
-          to="/transactions"
-          className="inline-flex h-7 items-center rounded-[7px] border border-border px-2 text-[12.5px] text-fg hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+      <span className="flex size-[52px] items-center justify-center rounded-[14px] border border-border bg-surface-2 text-muted-fg">
+        <FileChartColumn aria-hidden="true" className="size-6" />
+      </span>
+      <h2 className="text-[20px] font-semibold text-fg">
+        {m.reports_empty_title({
+          day: Number(timeline.publishedAt.slice(8)),
+          month: timeline.publishedMonth,
+        })}
+      </h2>
+      <p className="max-w-[500px] text-[14px] leading-[22px] text-muted-fg">
+        {m.reports_empty_body({
+          month: timeline.month,
+          range: formatDateRange(timeline.period, locale, today),
+        })}
+      </p>
+      <div className="flex flex-wrap justify-center gap-2 pt-1.5">
+        <Button
+          size="sm"
+          onClick={() => {
+            record.open();
+          }}
         >
+          <Plus aria-hidden="true" className="size-3.5" />
           {m.reports_empty_cta_record()}
-        </Link>
+        </Button>
         <Button
           size="sm"
           variant="secondary"
@@ -94,6 +127,7 @@ export function ReportsEmpty({ today, locale }: { readonly today: LocalDate; rea
             void navigate(openSettings('period'));
           }}
         >
+          <CalendarCog aria-hidden="true" className="size-3.5" />
           {m.reports_empty_cta_start()}
         </Button>
       </div>

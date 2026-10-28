@@ -36,7 +36,7 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
         <span aria-hidden="true" className={`size-2 rounded-full ${CLASS_TONE[trade.key as AssetClass].dot}`} />
         <span className="min-w-0 flex-1 truncate font-mono text-fg">{classLabel(trade.key as AssetClass)}</span>
         {trade.quoteMinor === null || item?.quote == null ? (
-          <Money minor={trade.amountMinor} currency={base} context="delta" locale={locale} />
+          <Money minor={trade.amountMinor} currency={base} context="signed" locale={locale} />
         ) : (
           <>
             <span className="text-[11.5px] text-subtle">
@@ -48,7 +48,7 @@ export function RebalanceCard({ portfolio, rates, locale, onEditTargets }: Rebal
                 locale={locale}
               />
             </span>
-            <Money minor={trade.quoteMinor} currency={item.quote.currency} context="delta" locale={locale} />
+            <Money minor={trade.quoteMinor} currency={item.quote.currency} context="signed" locale={locale} />
           </>
         )}
       </li>

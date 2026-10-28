@@ -188,21 +188,27 @@ export function monthEnd(today: LocalDate): LocalDate {
   return addDays(dateInMonth(shiftMonth(today.slice(0, 7) as YearMonth, 1), 1), -1);
 }
 
-/** The empty state's timeline: recording starts now, the first period closes, and the report is published. */
-export function emptySteps(
-  today: LocalDate,
-  locale: Locale,
-): {
-  at: LocalDate;
-  key: 'recorded' | 'closed' | 'published';
-  label: string | null;
-}[] {
-  const next = shiftMonth(today.slice(0, 7) as YearMonth, 1);
-  return [
-    { at: today, key: 'recorded', label: null },
-    { at: monthEnd(today), key: 'closed', label: null },
-    { at: dateInMonth(next, 1), key: 'published', label: monthName(next, locale, 'long') },
-  ];
+/** The empty state's timeline (design `gyfhQ`): recording starts today, the first period closes, its report is out. */
+export interface EmptyTimeline {
+  /** The first period: `today`'s month, from its first to its last day. */
+  readonly period: { readonly start: LocalDate; readonly end: LocalDate };
+  /** The first period's month in words ("Oktober"): the month the first report covers. */
+  readonly month: string;
+  /** The day after the period closes, when its report is published and the next period starts. */
+  readonly publishedAt: LocalDate;
+  /** {@link publishedAt}'s month in words ("November"). */
+  readonly publishedMonth: string;
+}
+
+export function emptyTimeline(today: LocalDate, locale: Locale): EmptyTimeline {
+  const month = today.slice(0, 7) as YearMonth;
+  const next = shiftMonth(month, 1);
+  return {
+    period: { start: dateInMonth(month, 1), end: monthEnd(today) },
+    month: monthName(month, locale, 'long'),
+    publishedAt: dateInMonth(next, 1),
+    publishedMonth: monthName(next, locale, 'long'),
+  };
 }
 
 /** The comparison's label for the header ("dibandingkan dengan Agustus 2026") or `null` without one. */

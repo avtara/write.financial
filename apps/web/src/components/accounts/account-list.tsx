@@ -141,7 +141,7 @@ export function AccountList({
       <div className="flex flex-col">
         <div aria-hidden="true" className="flex justify-between bg-surface-sunken px-4 py-2 text-[11.5px] text-subtle">
           <span className="pl-6">{m.accounts_column_account()}</span>
-          <span className="pr-9">{m.accounts_column_balance()}</span>
+          <span className="pr-7">{m.accounts_column_balance()}</span>
         </div>
         {groups.map((group) => {
           const foreign = group.accounts.some((account) => account.currency !== baseCurrency);
@@ -160,7 +160,7 @@ export function AccountList({
                     {m.accounts_not_in_available()}
                   </span>
                 ) : null}
-                <span className="ml-auto pr-9 font-mono text-muted-fg">
+                <span className="ml-auto pr-7 font-mono text-muted-fg">
                   {foreign ? '≈ ' : ''}
                   <Money
                     minor={group.totalBaseMinor}

@@ -60,7 +60,8 @@ export function AccountStrip({ accounts, baseCurrency, availableMinor, view, sel
       </div>
       <Popover open={othersOpen} onOpenChange={setOthersOpen}>
         <PopoverAnchor asChild>
-          <div className="flex gap-3">
+          {/* On a tablet the strip scrolls sideways instead of squeezing the tiles' amounts. */}
+          <div className="flex gap-3 overflow-x-auto pb-1">
             <button
               type="button"
               aria-pressed={ids.length === 0}
@@ -84,7 +85,7 @@ export function AccountStrip({ accounts, baseCurrency, availableMinor, view, sel
                 className="text-[17px] font-semibold text-fg"
               />
             </button>
-            <div className="min-w-0 flex-1">
+            <div className="flex-1">
               <AccountCards
                 accounts={accounts}
                 baseCurrency={baseCurrency}

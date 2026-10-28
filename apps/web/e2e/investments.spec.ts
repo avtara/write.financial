@@ -25,7 +25,8 @@ test('golden valuation, honest missing returns, USD toggle, search and class gro
   const summary = page.getByRole('region', { name: 'Ringkasan investasi' });
   await expect(summary).toContainText('Nilai portofolioRp61.420.000');
   await expect(summary).toContainText('ModalRp53.931.000');
-  await expect(summary).toContainText('+7.489.000');
+  // Gains keep their currency (mixed-currency holdings): "+Rp7.489.000".
+  await expect(summary).toContainText('+Rp7.489.000');
   await expect(summary).toContainText('Dividen 12 bulanRp0');
   await expect(page.getByRole('region', { name: 'Alokasi aset' })).toContainText('3,8%');
   await expect(page.getByRole('region', { name: 'Pertumbuhan portofolio' })).toContainText('Portofolio—SPY—IHSG—');
@@ -64,7 +65,8 @@ test('providers off retain manual values, report source outcomes and open the re
   await expect(sources).toContainText('Gagal — memakai harga terakhir');
   await expect(page.getByRole('button', { name: 'Sinkronkan', exact: true })).toBeEnabled();
   await expect(page.getByRole('region', { name: 'Ringkasan investasi' })).toContainText('Rp61.420.000');
-  await sources.getByRole('button', { name: 'Buka log API', exact: true }).click();
+  // A secondary header action (folded into ⋯ below 1024 px).
+  await page.getByRole('button', { name: 'Buka log API', exact: true }).click();
   const log = page.getByRole('dialog', { name: 'Log permintaan' });
   await expect(log).toContainText('Belum ada permintaan.');
   await screenshot(page, 'investments-providers-off-log');

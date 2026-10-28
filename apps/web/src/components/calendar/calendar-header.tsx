@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * The calendar's header (design `zEWoe`, `qYzQD`, `Ncucu`): the title with what the view shows, Minggu / Bulan / Tahun,
- * the previous and next week, month or year, "Hari ini", and "Catat Transaksi". Every switch is a link, so the view
- * lives in the URL (`?view=week|year`, `?date=YYYY-MM-DD`).
+ * the previous and next week, month or year, "Catat Transaksi", and "Hari ini" as a secondary action (folded into ⋯
+ * below 1024 px). Every switch goes through the URL, so the view lives there (`?view=week|year`, `?date=YYYY-MM-DD`).
  */
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { addDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { formatDateRange, formatMonth } from '@wf/ui/dates';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { CalendarCheck, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '../form.tsx';
 import { useRecordTransaction } from '../ledger/record-transaction.tsx';
@@ -40,6 +40,7 @@ export interface CalendarHeaderProps {
 
 export function CalendarHeader({ view, date, today, locale, description }: CalendarHeaderProps) {
   const record = useRecordTransaction();
+  const navigate = useNavigate();
   const step = (direction: 1 | -1): LocalDate => {
     if (view === 'week') return addDays(weekOf(date).first, 7 * direction);
     if (view === 'month') return `${shiftMonth(date.slice(0, 7) as YearMonth, direction)}-01` as LocalDate;
@@ -62,6 +63,15 @@ export function CalendarHeader({ view, date, today, locale, description }: Calen
       breadcrumb={[m.breadcrumb_finance(), m.nav_calendar()]}
       title={m.nav_calendar()}
       description={description}
+      secondaryActions={[
+        {
+          label: m.calendar_today(),
+          icon: CalendarCheck,
+          onSelect: () => {
+            void navigate({ to: '/calendar', search: calendarSearch(view, today, today) });
+          },
+        },
+      ]}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <nav aria-label={m.calendar_view_label()}>
@@ -101,13 +111,6 @@ export function CalendarHeader({ view, date, today, locale, description }: Calen
               <ChevronRight aria-hidden="true" className="size-4" />
             </Link>
           </div>
-          <Link
-            to="/calendar"
-            search={calendarSearch(view, today, today)}
-            className="inline-flex h-9 items-center rounded-[8px] border border-border px-3 text-[13px] text-fg hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            {m.calendar_today()}
-          </Link>
           <Button
             onClick={() => {
               record.open();

@@ -44,11 +44,21 @@ beforeEach(async () => {
 });
 
 describe('Rail', () => {
-  it('has the bell for a signed-in user, with the unread count when known', async () => {
+  it('has the bell for a signed-in user next to search, before the navigation, with the unread count when known', async () => {
     app.viewer = { name: 'Avtara K.', email: 'avtara@example.test', image: null, timezone: 'Asia/Jakarta' };
     app.counts = { transactions: 1, review: 0, subscriptions: 0, notifications: 5 };
     const { screen } = await renderApp(rail);
     await expect.element(screen.getByTestId('bell')).toHaveAttribute('data-unread', '5');
+    // Section 19 order: search, bell, navigation, …, Assistant at the bottom.
+    const [search, bell, nav, assistant] = [
+      screen.getByRole('button', { name: 'Cari' }),
+      screen.getByTestId('bell'),
+      screen.getByRole('navigation'),
+      screen.getByRole('button', { name: 'Tanya Asisten' }),
+    ].map((locator) => locator.element());
+    expect(search?.nextElementSibling).toBe(bell);
+    expect(bell?.compareDocumentPosition(nav as Element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(nav?.compareDocumentPosition(assistant as Element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     await screen.unmount();
     app.counts = null;
     const unknown = await renderApp(rail);

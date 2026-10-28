@@ -177,19 +177,22 @@ export function NotificationsPage({ search, page, counts, today, timeZone }: Not
             ))}
           </div>
           <span className="flex-1" />
-          <label className={`${INPUT_FRAME.sm} w-[220px] gap-2`}>
-            <Search aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-            <input
-              type="search"
-              aria-label={m.notifications_search_label()}
-              placeholder={m.notifications_search_placeholder()}
-              value={query}
-              onChange={(event) => {
-                setQuery(event.currentTarget.value);
-              }}
-              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-fg outline-none placeholder:text-subtle"
-            />
-          </label>
+          {/* `INPUT_FRAME` fills its parent (`w-full`), so the box sets the search's width. */}
+          <div className="w-[220px]">
+            <label className={`${INPUT_FRAME.sm} gap-2`}>
+              <Search aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+              <input
+                type="search"
+                aria-label={m.notifications_search_label()}
+                placeholder={m.notifications_search_placeholder()}
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.currentTarget.value);
+                }}
+                className="min-w-0 flex-1 bg-transparent text-[12.5px] text-fg outline-none placeholder:text-subtle"
+              />
+            </label>
+          </div>
           <RangePicker
             value={range}
             onValueChange={(next) => {

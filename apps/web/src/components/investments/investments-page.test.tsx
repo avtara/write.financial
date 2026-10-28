@@ -73,8 +73,12 @@ beforeEach(() => {
   );
 });
 
+/** "Sinkronkan", "Atur API harga", and "Buka log API" are header secondary actions: buttons from 1024 px. */
+const wide = () => browserPage.viewport(1440, 1000);
+
 describe('InvestmentsPage', () => {
   it('converts displayed portfolio values and refreshes each market source', async () => {
+    await wide();
     const { screen, router } = await renderApp(<InvestmentsPage {...page()} />);
     const kpis = screen.getByRole('region', { name: 'Ringkasan investasi' });
     await expect.element(kpis).toMatchTextContent('Nilai portofolioRp61.420.000');
@@ -105,6 +109,7 @@ describe('InvestmentsPage', () => {
         },
       }),
     );
+    await wide();
     const { screen } = await renderApp(<InvestmentsPage {...page()} />);
     await screen.getByRole('button', { name: 'Sinkronkan', exact: true }).click();
     const sources = screen.getByRole('region', { name: 'Sinkronisasi sumber harga' });
@@ -266,9 +271,15 @@ describe('InvestmentsPage', () => {
     );
   });
 
-  it('opens settings from the price sync panel', async () => {
+  it('folds the price actions into ⋯ below 1024 px and opens settings from there', async () => {
+    await browserPage.viewport(768, 1000);
     const { screen, router } = await renderApp(<InvestmentsPage {...page()} />);
-    await screen.getByRole('button', { name: 'Atur API harga' }).click();
+    // The buttons are hidden below 1024 px, so they leave the accessibility tree.
+    expect(screen.getByRole('button', { name: 'Sinkronkan', exact: true }).query()).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Aksi lainnya' }));
+    await expect.element(screen.getByRole('menuitem', { name: 'Sinkronkan' })).toBeVisible();
+    await expect.element(screen.getByRole('menuitem', { name: 'Buka log API' })).toBeVisible();
+    await screen.getByRole('menuitem', { name: 'Atur API harga' }).click();
     await expect.poll(() => router.state.location.search as unknown).toMatchObject({ settings: 'market' });
   });
 
@@ -294,9 +305,13 @@ describe('InvestmentsPage', () => {
       };
     });
     calls.sync.mockImplementation(() => pending);
+    await wide();
     const { screen } = await renderApp(<InvestmentsPage {...page({ rates: {} })} />);
     expect(screen.getByRole('button', { name: 'USD', exact: true }).query()).toBeNull();
     await screen.getByRole('button', { name: 'Sinkronkan', exact: true }).click();
+    expect(calls.sync).toHaveBeenCalledTimes(1);
+    // The header action has no pending state, so a second click while syncing is ignored.
+    await screen.getByRole('button', { name: 'Sinkron 1/4…', exact: true }).click();
     expect(calls.sync).toHaveBeenCalledTimes(1);
     release?.();
     await expect.element(screen.getByRole('button', { name: 'Sinkronkan', exact: true })).toBeVisible();
@@ -494,6 +509,7 @@ describe('InvestmentsPage', () => {
           },
         }),
       );
+    await wide();
     const { screen } = await renderApp(<InvestmentsPage {...page()} />);
     await screen.getByRole('button', { name: 'Sinkronkan', exact: true }).click();
     await expect.element(screen.getByRole('region', { name: 'Sinkronisasi sumber harga' })).toBeVisible();

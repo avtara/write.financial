@@ -38,6 +38,17 @@ describe('Field', () => {
     );
     await expect.element(screen.getByRole('textbox', { name: 'Nama' })).not.toHaveAttribute('aria-describedby');
   });
+
+  it('sets a plain-text aside in small print, like a hint', async () => {
+    const screen = await render(
+      <Field label="Tambahan" aside="opsional" hint="hint">
+        {({ id }) => <TextInput id={id} />}
+      </Field>,
+    );
+    const aside = getComputedStyle(screen.getByText('opsional').element());
+    const hint = getComputedStyle(screen.getByText('hint').element());
+    expect([aside.fontSize, aside.color]).toEqual([hint.fontSize, hint.color]);
+  });
 });
 
 describe('Select', () => {

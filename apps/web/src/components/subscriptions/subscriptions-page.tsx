@@ -16,7 +16,7 @@ import { ConfirmDialog } from '@wf/ui/confirm-dialog';
 import { formatDate } from '@wf/ui/dates';
 import { EmptyState } from '@wf/ui/empty-state';
 import { toast } from '@wf/ui/toast';
-import { Plus, Repeat } from 'lucide-react';
+import { Plus, Repeat, ScanSearch } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { confirmOccurrence, listReviewItems, markReviewUnpaid } from '../../server/fn/review.ts';
@@ -35,7 +35,7 @@ import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { PageHeader } from '../page-header.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { BillSchedule } from './bill-schedule.tsx';
-import { DetectionPanel } from './detection-panel.tsx';
+import { DetectionPanel, detectionLabel } from './detection-panel.tsx';
 import { CancelDialog, PauseDialog } from './subscription-dialogs.tsx';
 import { SubscriptionDetail } from './subscription-detail.tsx';
 import { SubscriptionForm } from './subscription-form.tsx';
@@ -236,29 +236,37 @@ export function SubscriptionsPage({
                     ]),
               ].join(' · ')
         }
+        secondaryActions={[
+          {
+            label: detectionLabel(detected),
+            icon: ScanSearch,
+            onSelect: () => {
+              setDetectOpen(true);
+            },
+          },
+        ]}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <DetectionPanel
-              detected={detected}
-              baseCurrency={baseCurrency}
-              accounts={accounts}
-              categories={categories}
-              locale={locale}
-              open={detectOpen}
-              onOpenChange={setDetectOpen}
-              onAdd={async (ids) => {
-                await run(addDetectedSubscriptions({ data: { ids: [...ids] } }), (value) => ({
-                  title: m.subscriptions_toast_detected_added({ count: value.subscriptionIds.length }),
-                }));
-              }}
-              onDismiss={async (ids) => {
-                await run(dismissDetectedSubscriptions({ data: { ids: [...ids] } }), () => ({
-                  title: m.subscriptions_toast_detected_dismissed(),
-                }));
-              }}
-            />
+          <DetectionPanel
+            detected={detected}
+            baseCurrency={baseCurrency}
+            accounts={accounts}
+            categories={categories}
+            locale={locale}
+            open={detectOpen}
+            onOpenChange={setDetectOpen}
+            onAdd={async (ids) => {
+              await run(addDetectedSubscriptions({ data: { ids: [...ids] } }), (value) => ({
+                title: m.subscriptions_toast_detected_added({ count: value.subscriptionIds.length }),
+              }));
+            }}
+            onDismiss={async (ids) => {
+              await run(dismissDetectedSubscriptions({ data: { ids: [...ids] } }), () => ({
+                title: m.subscriptions_toast_detected_dismissed(),
+              }));
+            }}
+          >
             {addButton}
-          </div>
+          </DetectionPanel>
         }
       />
 

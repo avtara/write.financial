@@ -211,7 +211,7 @@ export function BudgetHero({ status }: { status: BudgetStatus }) {
             />
           </li>
           <li className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2 rounded-[2px] bg-surface-3" />
+            <span aria-hidden="true" className="size-2 rounded-[2px] bg-border-strong" />
             <RichMessage
               message={m.budget_legend_left}
               slots={{ amount: <Amount valueMinor={totals.remainingMinor} /> }}
@@ -341,7 +341,7 @@ export function BudgetGroupsCard({ status }: { status: BudgetStatus }) {
                   <Amount valueMinor={group.spentMinor} bare /> / <Amount valueMinor={group.limitMinor} bare />
                 </span>
                 <span
-                  className={`whitespace-nowrap ${over ? 'text-red-fg' : group.overCount > 0 ? 'text-amber-fg' : 'text-subtle'}`}
+                  className={`ml-auto whitespace-nowrap ${over ? 'text-red-fg' : group.overCount > 0 ? 'text-amber-fg' : 'text-subtle'}`}
                 >
                   {over ? (
                     <RichMessage

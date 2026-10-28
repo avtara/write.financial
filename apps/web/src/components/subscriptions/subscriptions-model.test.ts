@@ -16,6 +16,8 @@ import {
 import {
   avatarColor,
   balanceCheck,
+  billClusters,
+  CLUSTER_DAYS,
   daysFrom,
   dueTomorrow,
   headerSummary,
@@ -39,6 +41,30 @@ describe('subscriptions model', () => {
     expect(monthsBetween(d('2026-03-31'), TODAY)).toBe(6);
     expect(monthsBetween(d('2026-03-15'), TODAY)).toBe(7);
     expect(monthsBetween(d('2025-12-01'), TODAY)).toBe(10);
+  });
+
+  it('stacks bills at most three days after the previous one, oldest first', () => {
+    const bill = (id: string, day: string) => ({ id, dueDate: d(`2026-10-${day}`) });
+    const ids = (clusters: readonly (readonly { readonly id: string }[])[]) =>
+      clusters.map((cluster) => cluster.map(({ id }) => id));
+    expect(CLUSTER_DAYS).toBe(3);
+    expect(billClusters([])).toEqual([]);
+    // October's seed, out of order: 3 · 5 stack, 9 alone (4 days on), 18 · 20 · 22 chain, 28 alone; same-day bills
+    // keep their order.
+    expect(
+      ids(
+        billClusters([
+          bill('chatgpt', '28'),
+          bill('netflix', '18'),
+          bill('gym', '03'),
+          bill('icloud', '09'),
+          bill('spotify', '20'),
+          bill('host', '05'),
+          bill('youtube', '22'),
+          bill('also-22', '22'),
+        ]),
+      ),
+    ).toEqual([['gym', 'host'], ['icloud'], ['netflix', 'spotify', 'youtube', 'also-22'], ['chatgpt']]);
   });
 
   it('gives each subscription a stable palette colour', () => {

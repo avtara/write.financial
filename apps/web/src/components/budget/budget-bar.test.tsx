@@ -30,6 +30,15 @@ describe('BudgetBar', () => {
     ).toContain('h-2.5 mt-1');
   });
 
+  it('keeps an empty track at 0% when asked (a goal with nothing saved yet)', async () => {
+    for (const usedBps of [0, null]) {
+      const { rects: found } = await rects(<BudgetBar usedBps={usedBps} tone="ok" idealBps={null} emptyTrack />);
+      expect(found).toHaveLength(1);
+      expect(found[0]).toHaveAttribute('width', '1000');
+      expect(found[0]?.getAttribute('class')).toBe('fill-surface-3');
+    }
+  });
+
   it('fills 1–99% in its tone with the ideal marker and no 100% marker', async () => {
     for (const usedBps of [1, 8800, 9900]) {
       const {

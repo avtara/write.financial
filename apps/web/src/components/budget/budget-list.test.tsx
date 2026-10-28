@@ -86,7 +86,7 @@ describe('BudgetList', () => {
     const actions = actionsMock();
     const { screen } = await renderApp(<Harness actions={actions} />);
     const list = screen.getByRole('region', { name: 'Anggaran per kategori' });
-    await expect.element(list.getByText('5 kategori · garis putih = posisi ideal hari ini')).toBeVisible();
+    await expect.element(list.getByText('5 kategori · garis tegak = posisi ideal hari ini')).toBeVisible();
     const needs = list.getByRole('region', { name: 'Kebutuhan' });
     await expect.element(needs.getByRole('heading')).toHaveTextContent('KebutuhanRp8.800.000 / Rp9.500.000');
     await expect.element(needs.getByText('sisa Rp300.000 · Rp18.000/hari')).toBeVisible();

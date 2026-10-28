@@ -123,4 +123,24 @@ describe('ProfileSection', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Simpan perubahan' }));
     expect(server.updateProfile).toHaveBeenLastCalledWith({ data: { ...PROFILE, name: 'Budi', timezone: 'UTC' } });
   });
+
+  it('keeps the save bar on the settings dialog’s bottom edge while the section scrolls', async () => {
+    // The settings dialog's scroll container (settings-dialog.tsx), short enough for the section to scroll.
+    const { screen } = await renderApp(
+      <AuthActionsProvider actions={fakeAuthActions()}>
+        <section aria-label="Pengaturan" className="flex h-[320px] flex-col gap-5 overflow-y-auto px-7 py-[22px]">
+          <ProfileSection viewer={VIEWER} profile={PROFILE} methods={{ hasPassword: true, googleLinked: true }} />
+        </section>
+      </AuthActionsProvider>,
+    );
+    const dialog = screen.getByRole('region', { name: 'Pengaturan' }).element();
+    const bar = dialog.querySelector('footer') as HTMLElement;
+    expect(dialog.scrollHeight).toBeGreaterThan(dialog.clientHeight);
+    // Scrolled to the top, the bar already sits on the dialog's bottom edge instead of below the fold.
+    expect(Math.round(bar.getBoundingClientRect().bottom)).toBe(Math.round(dialog.getBoundingClientRect().bottom));
+    dialog.scrollTop = dialog.scrollHeight;
+    await expect
+      .poll(() => Math.round(bar.getBoundingClientRect().bottom))
+      .toBe(Math.round(dialog.getBoundingClientRect().bottom));
+  });
 });

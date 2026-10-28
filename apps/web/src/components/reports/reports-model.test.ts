@@ -4,7 +4,7 @@ import type { LocalDate } from '@wf/domain/period';
 import { FINAL_VIEW, TODAY, summary } from '../../../test/report-fixtures.ts';
 import {
   comparisonLabel,
-  emptySteps,
+  emptyTimeline,
   formatFileSize,
   formatPoints,
   isCustomRangeValid,
@@ -175,15 +175,25 @@ describe('notesFor', () => {
   });
 });
 
-describe('monthEnd and emptySteps', () => {
-  it('finds the month end and the publication date', () => {
+describe('monthEnd and emptyTimeline', () => {
+  it('finds the month end', () => {
     expect(monthEnd(d('2026-10-23'))).toBe('2026-10-31');
     expect(monthEnd(d('2026-02-12'))).toBe('2026-02-28');
-    const steps = emptySteps(TODAY, 'id');
-    expect(steps.map((step) => step.at)).toEqual(['2026-10-23', '2026-10-31', '2026-11-01']);
-    expect(steps.map((step) => step.key)).toEqual(['recorded', 'closed', 'published']);
-    expect(steps[2]?.label).toBe('November');
-    expect(emptySteps(TODAY, 'en')[2]?.label).toBe('November');
+  });
+
+  it('names the closing month as the first report, published the day after it closes', () => {
+    expect(emptyTimeline(TODAY, 'id')).toEqual({
+      period: { start: '2026-10-01', end: '2026-10-31' },
+      month: 'Oktober',
+      publishedAt: '2026-11-01',
+      publishedMonth: 'November',
+    });
+    expect(emptyTimeline(d('2026-12-05'), 'en')).toEqual({
+      period: { start: '2026-12-01', end: '2026-12-31' },
+      month: 'December',
+      publishedAt: '2027-01-01',
+      publishedMonth: 'January',
+    });
   });
 });
 

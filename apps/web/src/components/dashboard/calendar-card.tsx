@@ -326,7 +326,8 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
           context="delta"
           locale={locale}
           // On the green surplus cell the green delta falls below 4.5:1; the cell's colour already says "surplus".
-          className="truncate text-[11.5px] !text-fg"
+          // Below 1024 px a cell is ~67 px wide: "+13.650.000" fits only at 10 px, set tight.
+          className="truncate text-[11.5px] !text-fg max-lg:text-[10px] max-lg:tracking-[-0.03em]"
         />
       ) : day.outMinor > 0n ? (
         <Money
@@ -334,7 +335,7 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
           currency={currency}
           context="table"
           locale={locale}
-          className="truncate !text-left text-[11.5px] text-fg"
+          className="truncate !text-left text-[11.5px] text-fg max-lg:text-[10px] max-lg:tracking-[-0.03em]"
         />
       ) : null}
     </button>
@@ -474,7 +475,8 @@ function DayBreakdown({
                   <Money
                     minor={row.amountBaseMinor}
                     currency={currency}
-                    context={row.type === 'transfer' ? 'amount' : 'delta'}
+                    // Every row with its symbol (design "−Rp45.000"); transfers stay uncoloured.
+                    context={row.type === 'transfer' ? 'amount' : 'signed'}
                     locale={locale}
                     className="w-[120px] text-right text-[13px]"
                   />
@@ -534,7 +536,8 @@ function YearView({ dashboard, periodLabels, locale }: YearViewProps) {
             </>
           );
           const current = month.label === today.slice(0, 7);
-          const classes = `flex flex-col gap-2 rounded-[10px] border p-3 ${current ? 'border-fg' : 'border-border'} ${month.future ? 'opacity-60' : ''}`;
+          // Full height: six-week months are taller, and a row's tiles keep one edge.
+          const classes = `flex h-full flex-col gap-2 rounded-[10px] border p-3 ${current ? 'border-fg' : 'border-border'} ${month.future ? 'opacity-60' : ''}`;
           return (
             <li key={month.label}>
               {linked ? (

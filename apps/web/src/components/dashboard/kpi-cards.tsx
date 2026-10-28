@@ -38,8 +38,7 @@ const DOT: Readonly<Record<Kind | 'rate', string>> = {
 };
 
 /** A change badge: green when it is good news (more income or savings, less spending), red otherwise. */
-function Change({ bps, kind, locale }: { bps: number | null; kind: Kind; locale: Locale }) {
-  if (bps === null) return null;
+function Change({ bps, kind, locale }: { bps: number; kind: Kind; locale: Locale }) {
   const good = kind === 'expense' ? bps < 0 : bps > 0;
   const Icon = bps < 0 ? TrendingDown : TrendingUp;
   return (
@@ -100,7 +99,8 @@ export function KpiCards({ kpis, comparison, currency, locale }: KpiCardsProps) 
           <span className="flex min-h-5 items-center gap-1.5 text-[11.5px] text-subtle">
             {kpis === null ? (
               m.overview_kpi_no_data()
-            ) : (
+            ) : // Nothing to compare with (no data in the previous period): no badge and no lone "vs 2025".
+            bps === null ? null : (
               <>
                 <Change bps={bps} kind={kind} locale={locale} />
                 {comparison}

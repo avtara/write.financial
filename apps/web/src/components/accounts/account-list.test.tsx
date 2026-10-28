@@ -116,6 +116,22 @@ describe('AccountList', () => {
     expect(onSelect).toHaveBeenCalledWith(MANDIRI);
   });
 
+  it('lines the "Saldo" column and the group subtotals up with the row amounts', async () => {
+    const { screen } = await renderList();
+    const bank = screen.getByRole('region', { name: 'Bank' });
+    // Where the text ends: the box's right edge less its right padding.
+    const rightEdge = (element: Element) =>
+      Math.round(element.getBoundingClientRect().right - Number.parseFloat(getComputedStyle(element).paddingRight));
+    const rowAmount = rightEdge(
+      bank
+        .getByRole('button', { name: /^Mandiri/ })
+        .getByText(/^Rp/)
+        .element(),
+    );
+    expect(rightEdge(screen.getByText('Saldo', { exact: true }).element())).toBe(rowAmount);
+    expect(rightEdge(bank.getByText('Rp3.000.000').element())).toBe(rowAmount);
+  });
+
   it('runs the ⋮ menu actions', async () => {
     const { screen, onEdit, onReconcile, onArchive, onToggle } = await renderList();
     const open = () => userEvent.click(screen.getByRole('button', { name: 'Menu BCA Tahapan' }));

@@ -18,6 +18,9 @@ describe('SubscriptionKpis', () => {
     expect(bars.elements()).toHaveLength(6);
     await expect.element(bars.nth(1)).toHaveTextContent('+ SpotifyJun815.900');
     await expect.element(bars.nth(4)).toHaveTextContent('+ YouTube Premium, ChatGPT naikSep904.900');
+    // The note is cut to the bar's width; its full text stays in the tooltip.
+    await expect.element(bars.nth(4).getByTitle('+ YouTube Premium, ChatGPT naik')).toBeInTheDocument();
+    await expect.element(bars.nth(5).getByTitle(/./)).not.toBeInTheDocument();
     expect(bars.nth(5).element().querySelector('rect')?.getAttribute('class')).toBe('fill-fg');
     expect(bars.nth(0).element().querySelector('rect')?.getAttribute('height')).toBe(String((729_000 / 904_900) * 40));
   });

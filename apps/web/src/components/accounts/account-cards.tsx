@@ -44,7 +44,7 @@ export function AccountCards({
   if (cards.length === 0 && others.length === 0) return null;
   const othersTotal = others.reduce((sum, account) => sum + (account.balanceBaseMinor ?? 0n), 0n);
   return (
-    <ul aria-label={m.accounts_cards_label()} className="grid grid-cols-4 gap-3">
+    <ul aria-label={m.accounts_cards_label()} className="grid grid-cols-[repeat(4,minmax(10rem,1fr))] gap-3">
       {cards.map((account) => (
         <li key={account.id} className="flex">
           <button
@@ -57,7 +57,7 @@ export function AccountCards({
           >
             <span className="flex items-start justify-between gap-2">
               <AccountLogo account={account} size="sm" />
-              <span className="rounded-[4px] border border-border px-1.5 text-[10.5px] text-subtle">
+              <span className="rounded-[4px] border border-border px-1.5 text-[10.5px] whitespace-nowrap text-subtle">
                 {accountTypeLabel(account.type)} · {account.currency}
               </span>
             </span>

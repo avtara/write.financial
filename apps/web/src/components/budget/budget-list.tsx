@@ -302,7 +302,7 @@ function BudgetRow({ line, readOnly, idealBps, editing, totalLimitMinor, actions
   const name = categoryName(line);
   const tone = lineTone(line);
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 @2xl:grid-cols-[minmax(0,1fr)_minmax(96px,160px)_auto]">
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 @2xl:grid-cols-[minmax(0,1fr)_minmax(80px,120px)_auto]">
       <div className="flex min-w-0 items-center gap-3">
         <CategoryIcon icon={line.icon} color={line.color} />
         <div className="flex min-w-0 flex-col">
@@ -329,7 +329,7 @@ function BudgetRow({ line, readOnly, idealBps, editing, totalLimitMinor, actions
         <BudgetBar usedBps={line.usedBps} tone={tone} idealBps={readOnly || line.isFixed ? null : idealBps} />
       </div>
       <div className="flex items-center justify-end gap-3">
-        <span className="flex items-center justify-end font-mono text-[13px] whitespace-nowrap @2xl:min-w-[14rem]">
+        <span className="flex items-center justify-end font-mono text-[13px] whitespace-nowrap @2xl:min-w-[12rem]">
           <Amount valueMinor={line.spentMinor} className={tone === 'over' ? 'text-red-fg' : 'text-fg'} />
           <span className="text-subtle">&nbsp;/&nbsp;</span>
           {readOnly ? (

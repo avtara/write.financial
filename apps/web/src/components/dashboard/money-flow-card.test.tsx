@@ -189,6 +189,32 @@ describe('MoneyFlowCard on a tablet (FR-TB2)', () => {
     pointer(node(/^Sewa Kos/).element(), 'mouseover');
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Kebutuhan → Sewa Kos');
   });
+
+  it('keeps "100%" beside the income total at 1024 px and leaves it out on a portrait tablet', async () => {
+    await page.viewport(1024, 768);
+    const { screen } = await renderFlow();
+    const chart = screen.getByRole('group', { name: 'Diagram arus uang' });
+    await expect.element(chart).toMatchTextContent(/Pemasukan Rp26\.000\.000\s+100%/);
+    await screen.unmount();
+
+    await page.viewport(768, 1024);
+    // The chart of a 768 px tablet: rail and page padding taken off.
+    const portrait = await renderApp(
+      <div style={{ width: 600 }}>
+        <MoneyFlowCard
+          dashboard={dashboard()}
+          categories={CATEGORIES}
+          accounts={ACCOUNTS}
+          locale="id"
+          timeZone="Asia/Jakarta"
+          loadedAt={LOADED}
+        />
+      </div>,
+    );
+    const narrow = portrait.screen.getByRole('group', { name: 'Diagram arus uang' });
+    await expect.element(narrow).toMatchTextContent(/Pemasukan Rp26\.000\.000/);
+    await expect.element(narrow).not.toMatchTextContent(/100%/);
+  });
 });
 
 describe('MoneyFlowCard without flows', () => {

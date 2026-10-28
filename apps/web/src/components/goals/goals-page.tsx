@@ -347,6 +347,19 @@ export function GoalsPage({
             ? m.goals_header_empty({ month: monthName(month, locale, 'long') })
             : `${m.goals_header_active({ count: active.length })} · ${monthLabel}`
         }
+        secondaryActions={
+          goals.length === 0
+            ? []
+            : [
+                {
+                  label: m.goals_plans_button(),
+                  icon: Repeat,
+                  onSelect: () => {
+                    setPlans({ goalId: null });
+                  },
+                },
+              ]
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex h-8 items-center rounded-[8px] border border-border">
@@ -375,18 +388,6 @@ export function GoalsPage({
                 <ChevronRight aria-hidden="true" className="size-3.5" />
               </button>
             </div>
-            {goals.length === 0 ? null : (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setPlans({ goalId: null });
-                }}
-              >
-                <Repeat aria-hidden="true" className="size-3.5" />
-                {m.goals_plans_button()}
-              </Button>
-            )}
             {newButton}
           </div>
         }
@@ -413,7 +414,8 @@ export function GoalsPage({
             }}
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          // `items-start`: a short list (one goal) keeps its own height instead of stretching to the side cards.
+          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
             <GoalList
               goals={goals}
               accounts={accounts}
@@ -427,7 +429,7 @@ export function GoalsPage({
               onShowSinkingChange={setShowSinking}
               actions={actions}
             />
-            <div className="grid min-w-0 grid-cols-1 content-start gap-4 md:max-xl:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 content-start items-start gap-4 lg:max-xl:grid-cols-2">
               <MonthContributions overview={overview} accounts={accounts} locale={locale} />
               <SinkingFunds
                 overview={overview}

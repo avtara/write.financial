@@ -4,6 +4,9 @@
  * tracked yet ("Vidio · tiap ±tgl 12 · terakhir 12 Okt", the months it was charged), each with "Tambahkan" and
  * "Bukan langganan", and "Tambah semua" with what the monthly total would become ("Jika ditambahkan: Rp970.800/bulan
  * (+Rp65.900)"). Detection starts once two months of transactions exist.
+ *
+ * The panel has no trigger of its own: the page opens it from a secondary header action (folded into ⋯ below 1024 px,
+ * FR-TB3) labelled by `detectionLabel`, and it hangs off `children`, the header's action row.
  */
 import type { AccountView } from '@wf/db/accounts';
 import type { CategoryView } from '@wf/db/categories';
@@ -13,9 +16,9 @@ import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { formatDate } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
-import { Popover, PopoverContent, PopoverTrigger } from '@wf/ui/popover';
+import { Popover, PopoverAnchor, PopoverContent } from '@wf/ui/popover';
 import { Check, Plus, ScanSearch } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { Button } from '../form.tsx';
 import { RichMessage } from '../rich-message.tsx';
@@ -31,6 +34,16 @@ export interface DetectionPanelProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly onAdd: (ids: readonly string[]) => Promise<void>;
   readonly onDismiss: (ids: readonly string[]) => Promise<void>;
+  /** What the panel hangs off (the header's action row). */
+  readonly children: ReactNode;
+}
+
+/** "Deteksi dari transaksi", plus "· 2 baru" while candidates wait. */
+export function detectionLabel(detected: DetectedOverview | null): string {
+  const count = detected?.candidates.length ?? 0;
+  return count === 0
+    ? m.subscriptions_detect_button()
+    : `${m.subscriptions_detect_button()} · ${m.subscriptions_detect_new({ count })}`;
 }
 
 /** The months a candidate was charged in, oldest first, ending with the month of its latest charge. */
@@ -54,8 +67,10 @@ export function DetectionPanel({
   onOpenChange,
   onAdd,
   onDismiss,
+  children,
 }: DetectionPanelProps) {
   const [pending, setPending] = useState<string | null>(null);
+  const anchor = useRef<HTMLDivElement>(null);
   const candidates = detected?.candidates ?? [];
   const run = async (key: string, action: Promise<void>) => {
     setPending(key);
@@ -64,21 +79,17 @@ export function DetectionPanel({
   };
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-border px-3 text-[13px] text-fg hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <ScanSearch aria-hidden="true" className="size-4 text-muted-fg" />
-          {m.subscriptions_detect_button()}
-          {candidates.length === 0 ? null : (
-            <span className="rounded-[4px] bg-blue-tint-2 px-1.5 text-[11px] text-blue-fg">
-              {m.subscriptions_detect_new({ count: candidates.length })}
-            </span>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-[440px] max-w-[calc(100vw-32px)] p-0">
+      <PopoverAnchor ref={anchor} className="flex flex-wrap items-center gap-2">
+        {children}
+      </PopoverAnchor>
+      <PopoverContent
+        align="end"
+        className="w-[440px] max-w-[calc(100vw-32px)] p-0"
+        // Opened from further down the page ("Tinjau" in "Bisa dihemat"), the header it hangs off is scrolled away.
+        onOpenAutoFocus={() => {
+          (anchor.current as HTMLDivElement).scrollIntoView({ block: 'nearest' });
+        }}
+      >
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <ScanSearch aria-hidden="true" className="size-4 text-muted-fg" />
           <h2 className="text-[13.5px] font-semibold text-fg">

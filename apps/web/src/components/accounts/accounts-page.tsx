@@ -156,30 +156,29 @@ export function AccountsPage({
               platforms: totals.investmentCount,
             })
       }
+      secondaryActions={
+        active.length === 0
+          ? []
+          : [
+              {
+                label: m.accounts_adjust(),
+                icon: Scale,
+                onSelect: () => {
+                  setDialog({ kind: 'bulk' });
+                },
+              },
+            ]
+      }
       actions={
-        <div className="flex shrink-0 gap-2">
-          {active.length === 0 ? null : (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setDialog({ kind: 'bulk' });
-              }}
-            >
-              <Scale aria-hidden="true" className="size-3.5" />
-              {m.accounts_adjust()}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            onClick={() => {
-              setDialog({ kind: 'add', type: 'bank' });
-            }}
-          >
-            <Plus aria-hidden="true" className="size-3.5" />
-            {m.accounts_add()}
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            setDialog({ kind: 'add', type: 'bank' });
+          }}
+        >
+          <Plus aria-hidden="true" className="size-3.5" />
+          {m.accounts_add()}
+        </Button>
       }
     />
   );
@@ -373,15 +372,17 @@ export function AccountsPage({
       </section>
 
       {tab === 'active' ? (
-        <AccountCards
-          accounts={active}
-          baseCurrency={baseCurrency}
-          selectedId={selected?.id ?? null}
-          onSelect={select}
-          onShowOthers={() => {
-            list.current?.focus();
-          }}
-        />
+        <div className="overflow-x-auto">
+          <AccountCards
+            accounts={active}
+            baseCurrency={baseCurrency}
+            selectedId={selected?.id ?? null}
+            onSelect={select}
+            onShowOthers={() => {
+              list.current?.focus();
+            }}
+          />
+        </div>
       ) : null}
 
       <div className="flex items-start gap-4">

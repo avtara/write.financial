@@ -263,4 +263,24 @@ describe('QuickAddBar', () => {
     await userEvent.click(category);
     await expect.element(page.getByRole('option', { name: /^Makan & Dapur/ })).toMatchTextContent('sisa Rp300.000');
   });
+
+  it('drops the note on a 1024 px tablet and keeps "Simpan" on the row', async () => {
+    await page.viewport(1024, 768);
+    // The Overview's content column at 1024 px: rail, page padding, and the card's own padding taken off.
+    const { screen } = await renderApp(
+      <div style={{ width: 880 }}>
+        <QuickAddBar data={LEDGER} locale="id" timeZone="Asia/Jakarta" today={TODAY} />
+      </div>,
+    );
+    const bar = screen.getByRole('form', { name: 'Catat cepat' });
+    await expect.element(bar.getByRole('textbox', { name: 'Catatan', includeHidden: true })).not.toBeVisible();
+    const amount = bar.getByRole('textbox', { name: 'Jumlah' }).element().getBoundingClientRect();
+    const save = bar.getByRole('button', { name: 'Simpan' }).element().getBoundingClientRect();
+    expect(save.top).toBeLessThan(amount.bottom);
+    // The narrower field still shows a full "25.000.000" without scrolling it.
+    await userEvent.fill(bar.getByRole('textbox', { name: 'Jumlah' }), '25000000');
+    const input = bar.getByRole('textbox', { name: 'Jumlah' }).element() as HTMLInputElement;
+    expect(input.value).toBe('25.000.000');
+    expect(input.scrollWidth).toBeLessThanOrEqual(input.clientWidth);
+  });
 });

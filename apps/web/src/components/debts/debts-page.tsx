@@ -159,12 +159,16 @@ export function DebtsPage({ overview, initialNew = false, tab, onTabChange }: De
         breadcrumb={[m.breadcrumb_finance(), m.debts_title()]}
         title={m.debts_title()}
         description={description}
-        actions={
-          <>
-            {recordButton}
-            {addButton}
-          </>
-        }
+        secondaryActions={[
+          {
+            label: m.debts_record_receivable(),
+            icon: HandCoins,
+            onSelect: () => {
+              setRecording(true);
+            },
+          },
+        ]}
+        actions={addButton}
       />
       <DebtKpis
         kpis={kpis}

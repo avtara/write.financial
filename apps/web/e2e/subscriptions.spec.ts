@@ -97,7 +97,7 @@ test('"Ya, catat" records the overdue iCloud+ bill through the Review queue', as
 
 test('detected candidates: add Vidio, dismiss Google One', async ({ page }) => {
   await openSubscriptions(page);
-  await page.getByRole('button', { name: 'Deteksi dari transaksi 2 baru' }).click();
+  await page.getByRole('button', { name: 'Deteksi dari transaksi · 2 baru' }).click();
   const panel = page.getByRole('dialog');
   await expect(panel.getByRole('heading', { name: '2 tagihan berulang terdeteksi' })).toBeVisible();
   await expect(panel).toContainText('Jika ditambahkan: Rp970.800/bulan (+Rp65.900)');

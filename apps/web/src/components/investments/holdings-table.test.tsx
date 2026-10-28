@@ -27,6 +27,60 @@ describe('HoldingsTable', () => {
     await expect.element(screen.getByRole('table')).toMatchTextContent('SPDR S&P 500 ETF');
   });
 
+  it('keeps the currency symbol on mixed gains, five-letter tickers, the platform, and a one-line target', async () => {
+    await page.viewport(768, 1000);
+    const { screen } = await renderApp(
+      <HoldingsTable
+        portfolio={portfolioView()}
+        display="base"
+        usdRate="16350"
+        locale="id"
+        onAction={vi.fn()}
+        onTopUp={vi.fn()}
+        onAddAsset={vi.fn()}
+      />,
+    );
+    const table = screen.getByRole('table');
+    // Dollar and rupiah gains share the column, so each keeps its symbol.
+    await expect.element(table).toMatchTextContent('+US$128,44');
+    await expect.element(table).toMatchTextContent('+Rp1.610.000');
+    // The badge shows the whole five-letter ticker before the ticker button.
+    await expect.element(table).toMatchTextContent('GOOGLGOOGL');
+    // Below 1024 px the platform joins the subtitle.
+    await expect.element(table).toMatchTextContent('SPDR S&P 500 ETF · Gotrade');
+    await screen.getByRole('button', { name: 'Kelas aset', exact: true }).click();
+    await expect.element(table).toMatchTextContent(/\d% · target 12%/);
+  });
+
+  it('keeps each group heading inside its cell on a 1024 px tablet', async () => {
+    await page.viewport(1024, 900);
+    // The Investasi page's content column at 1024 px: the rail and the page padding taken off.
+    const { screen } = await renderApp(
+      <div style={{ width: 880 }}>
+        <HoldingsTable
+          portfolio={portfolioView()}
+          display="base"
+          usdRate="16350"
+          locale="id"
+          onAction={vi.fn()}
+          onTopUp={vi.fn()}
+          onAddAsset={vi.fn()}
+        />
+      </div>,
+    );
+    // "Daftar saya" groups by category ("Indonesia · kategori · 5 aset"), "Kelas aset" by class.
+    for (const grouping of ['Daftar saya', 'Kelas aset']) {
+      await screen.getByRole('button', { name: grouping, exact: true }).click();
+      const toggles = screen.getByRole('button', { name: /^(Tutup|Buka) / }).elements();
+      expect(toggles.length).toBeGreaterThan(0);
+      for (const toggle of toggles) {
+        const cell = toggle.closest('td') as HTMLTableCellElement;
+        // The count chip wraps under the title instead of running into the Platform column.
+        expect(cell.scrollWidth).toBeLessThanOrEqual(cell.clientWidth);
+      }
+    }
+  });
+
   it('opens a holding, tops up cash, groups, collapses, and runs menu actions', async () => {
     await page.viewport(1440, 1000);
     const onAction = vi.fn();

@@ -18,7 +18,14 @@ import { ArrowRight, BellRing, CircleHelp, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '../form.tsx';
 import { SubscriptionAvatar } from './subscription-avatar.tsx';
-import { balanceCheck, daysFrom, dueTomorrow, overdueBills, type Shortfall } from './subscriptions-model.ts';
+import {
+  balanceCheck,
+  billClusters,
+  daysFrom,
+  dueTomorrow,
+  overdueBills,
+  type Shortfall,
+} from './subscriptions-model.ts';
 
 /** One literal class per day column (Tailwind only generates classes it finds in the source). */
 const COLUMN_START = [
@@ -145,8 +152,7 @@ export function BillSchedule({
   const largest = left
     .filter((bill) => bill.currency === baseCurrency)
     .toSorted((a, b) => Number(b.amountMinor - a.amountMinor))[0];
-  const days = new Map<LocalDate, MonthBill[]>();
-  for (const bill of monthSchedule) days.set(bill.dueDate, [...(days.get(bill.dueDate) ?? []), bill]);
+  const clusters = billClusters(monthSchedule);
   const todayIndex = Number(today.slice(8)) - 1;
 
   const billTip = (bill: MonthBill) => {
@@ -418,66 +424,67 @@ export function BillSchedule({
                 <span className="w-px flex-1 bg-blue" />
               </span>
             </li>
-            {[...days].map(([date, bills], index) => (
-              <li
-                key={date}
-                className={`${COLUMN_START[Number(date.slice(8)) - 1] as string} row-start-2 flex flex-col items-center gap-1`}
-              >
-                {bills.map((bill) => {
-                  const subscription = subscriptionOf.get(bill.subscriptionId);
-                  const tip = billTip(bill);
-                  const label = (
-                    <span className="flex flex-col items-center font-mono text-[10.5px] whitespace-nowrap text-muted-fg">
-                      <span>{formatDate(bill.dueDate, locale, 'day')}</span>
-                      <Money
-                        minor={bill.amountMinor}
-                        currency={bill.currency}
-                        context="amount"
-                        locale={locale}
-                        className="text-fg"
-                      />
-                    </span>
-                  );
-                  return (
-                    <span key={bill.occurrenceId} className="flex flex-col items-center gap-1">
-                      {index % 2 === 0 ? label : null}
-                      <Tooltip heading={tip.heading} content={tip.content}>
-                        <button
-                          type="button"
-                          aria-label={m.subscriptions_schedule_bill_label({
-                            name: bill.name,
-                            date: formatDate(bill.dueDate, locale, 'day'),
-                            status: STATUS_LABEL[bill.status](),
-                          })}
-                          onClick={() => {
-                            if (subscription !== undefined) onOpen(subscription);
-                          }}
-                          data-status={bill.status}
-                          className="relative rounded-[8px] outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring data-[status=paid]:opacity-50"
-                        >
-                          <SubscriptionAvatar
-                            subscription={{
-                              id: bill.subscriptionId,
-                              name: bill.name,
-                              icon: bill.icon,
-                              logoKey: subscription?.logoKey ?? null,
-                            }}
-                            size="sm"
+            {clusters.map((cluster) => {
+              const [first] = cluster as [MonthBill, ...MonthBill[]];
+              return (
+                // Bills a few days apart stack at the first one's day, each label right above its own icon; the
+                // stack's last icon sits on the axis.
+                <li
+                  key={first.dueDate}
+                  className={`${COLUMN_START[Number(first.dueDate.slice(8)) - 1] as string} row-start-2 flex flex-col items-center gap-2 self-end`}
+                >
+                  {cluster.map((bill) => {
+                    const subscription = subscriptionOf.get(bill.subscriptionId);
+                    const tip = billTip(bill);
+                    return (
+                      <span key={bill.occurrenceId} className="flex flex-col items-center gap-1">
+                        <span className="flex flex-col items-center font-mono text-[10.5px] whitespace-nowrap text-muted-fg">
+                          <span>{formatDate(bill.dueDate, locale, 'day')}</span>
+                          <Money
+                            minor={bill.amountMinor}
+                            currency={bill.currency}
+                            context="amount"
+                            locale={locale}
+                            className="text-fg"
                           />
-                          {bill.status === 'unconfirmed' ? (
-                            <span
-                              aria-hidden="true"
-                              className="absolute -top-1 -right-1 size-2 rounded-full border border-card bg-amber"
+                        </span>
+                        <Tooltip heading={tip.heading} content={tip.content}>
+                          <button
+                            type="button"
+                            aria-label={m.subscriptions_schedule_bill_label({
+                              name: bill.name,
+                              date: formatDate(bill.dueDate, locale, 'day'),
+                              status: STATUS_LABEL[bill.status](),
+                            })}
+                            onClick={() => {
+                              if (subscription !== undefined) onOpen(subscription);
+                            }}
+                            data-status={bill.status}
+                            className="relative rounded-[8px] outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring data-[status=paid]:opacity-50"
+                          >
+                            <SubscriptionAvatar
+                              subscription={{
+                                id: bill.subscriptionId,
+                                name: bill.name,
+                                icon: bill.icon,
+                                logoKey: subscription?.logoKey ?? null,
+                              }}
+                              size="sm"
                             />
-                          ) : null}
-                        </button>
-                      </Tooltip>
-                      {index % 2 === 1 ? label : null}
-                    </span>
-                  );
-                })}
-              </li>
-            ))}
+                            {bill.status === 'unconfirmed' ? (
+                              <span
+                                aria-hidden="true"
+                                className="absolute -top-1 -right-1 size-2 rounded-full border border-card bg-amber"
+                              />
+                            ) : null}
+                          </button>
+                        </Tooltip>
+                      </span>
+                    );
+                  })}
+                </li>
+              );
+            })}
             <li aria-hidden="true" className="col-span-full row-start-3 border-t border-border-strong pt-1" />
             {TICKS.filter((tick) => tick <= monthDays).map((tick) => (
               <li

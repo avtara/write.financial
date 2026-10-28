@@ -65,6 +65,8 @@ const NEUTRAL = { fill: 'fill-neutral-mid', stroke: 'stroke-neutral-mid', dot: '
 const LEFT = 170;
 const RIGHT = 230;
 const ROW = 34;
+/** Below this chart width (a 768 px tablet) the income total's label leaves out its "100%". */
+const NARROW_FLOW = 720;
 
 type Shown = 'amount' | 'percent';
 
@@ -138,7 +140,9 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
       ? null
       : { width, ...layoutFlow(graph, { left: LEFT, top: 16, right: width - RIGHT, bottom: height - 16 }, 18) };
   // Each node's label texts (formatted with the privacy mode), accessible name, and label centre; the two-line labels
-  // of the left column are pushed apart where small nodes sit close.
+  // of the left column are pushed apart where small nodes sit close. On a portrait tablet the income total's "100%"
+  // (always 100%) would run into the groups' column, so its label keeps the amount only.
+  const narrow = width !== null && width < NARROW_FLOW;
   const texts = new Map<string, { value: string; label: string; middle: number }>();
   let previousLeft = -Infinity;
   for (const node of layout?.nodes ?? []) {
@@ -149,10 +153,11 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
       middle = Math.max(middle, previousLeft + 32);
       previousLeft = middle;
     }
+    const parts = shown === 'amount' ? (narrow && node.id === 'total' ? [amount] : [amount, percent]) : [percent];
     texts.set(node.id, {
-      value: shown === 'amount' ? `${amount}  ${percent}` : percent,
+      value: parts.join('  '),
       // The visible text word for word (WCAG 2.5.3): "Gaji Rp18.500.000 71%", which the name and value lines show.
-      label: `${name(node.id)} ${shown === 'amount' ? `${amount} ` : ''}${percent}`,
+      label: [name(node.id), ...parts].join(' '),
       middle,
     });
   }
@@ -200,10 +205,11 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
       className="relative flex flex-col overflow-hidden rounded-[12px] border border-border bg-card"
     >
       <div className="flex flex-wrap items-start gap-3 border-b border-border px-6 py-5">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* 280 px for the title and caption: narrower, the scope chips move under them instead of squeezing them. */}
+        <div className="flex min-w-0 flex-1 basis-[280px] flex-col gap-1">
           <h2 id="overview-flow" className="flex items-center gap-2 text-[15px] font-semibold text-fg">
             {m.overview_flow_title()}
-            <span className="rounded-[5px] border border-border px-1.5 font-mono text-[11px] font-normal text-subtle">
+            <span className="rounded-[5px] border border-border px-1.5 font-mono text-[11px] font-normal whitespace-nowrap text-subtle">
               {shortRange(dashboard.ranges.current, locale, dashboard.today)}
             </span>
           </h2>

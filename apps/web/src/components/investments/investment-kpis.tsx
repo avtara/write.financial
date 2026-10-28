@@ -23,9 +23,20 @@ export interface InvestmentKpisProps {
   readonly locale: Locale;
 }
 
-function Kpi({ label, children }: { readonly label: string; readonly children: ReactNode }) {
+/** At 768 px the five KPIs fill a 6-column grid as 2/2/2 over 3/3, so no cell is left empty. */
+function Kpi({
+  label,
+  wide = false,
+  children,
+}: {
+  readonly label: string;
+  readonly wide?: boolean;
+  readonly children: ReactNode;
+}) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 border-b border-border px-5 py-4 lg:border-r lg:border-b-0 lg:last:border-r-0">
+    <div
+      className={`flex min-w-0 flex-col gap-1.5 bg-card px-5 py-4 xl:col-span-1 ${wide ? 'md:col-span-3' : 'md:col-span-2'}`}
+    >
       <span className="text-[12.5px] text-muted-fg">{label}</span>
       {children}
     </div>
@@ -55,7 +66,9 @@ export function InvestmentKpis({ portfolio, display, usdRate, locale }: Investme
   return (
     <section
       aria-label={m.invest_kpis_label()}
-      className="grid grid-cols-1 overflow-hidden rounded-[12px] border border-border bg-card md:grid-cols-3 lg:grid-cols-5"
+      // The 1px gaps over the border color are the dividers, in every layout and never on the outer edge. Five in a
+      // row only from 1280 px: at 1024 a 22 px amount would touch the dividers, so tablets keep three over two.
+      className="grid grid-cols-1 gap-px overflow-hidden rounded-[12px] border border-border bg-border md:grid-cols-6 xl:grid-cols-5"
     >
       <Kpi label={m.invest_kpi_value()}>
         <DisplayMoney baseMinor={summary.valueBaseMinor} display={shown} className={`${VALUE} text-fg`} />
@@ -74,13 +87,13 @@ export function InvestmentKpis({ portfolio, display, usdRate, locale }: Investme
         <span className="text-[12px] text-subtle">{m.invest_kpi_cost_sub()}</span>
       </Kpi>
       <Kpi label={m.invest_kpi_gain()}>
-        <DisplayMoney baseMinor={summary.gainBaseMinor} display={shown} context="delta" className={VALUE} />
+        <DisplayMoney baseMinor={summary.gainBaseMinor} display={shown} context="signed" className={VALUE} />
         {summary.gainBps === null ? null : <ChangeChip bps={summary.gainBps} locale={locale} />}
       </Kpi>
-      <Kpi label={m.invest_kpi_today()}>
+      <Kpi label={m.invest_kpi_today()} wide>
         {hasToday ? (
           <>
-            <DisplayMoney baseMinor={summary.todayBaseMinor} display={shown} context="delta" className={VALUE} />
+            <DisplayMoney baseMinor={summary.todayBaseMinor} display={shown} context="signed" className={VALUE} />
             {summary.todayBps === null ? null : <ChangeChip bps={summary.todayBps} locale={locale} />}
           </>
         ) : (
@@ -90,7 +103,7 @@ export function InvestmentKpis({ portfolio, display, usdRate, locale }: Investme
           </>
         )}
       </Kpi>
-      <Kpi label={m.invest_kpi_dividends()}>
+      <Kpi label={m.invest_kpi_dividends()} wide>
         <DisplayMoney baseMinor={summary.dividends12mBaseMinor} display={shown} className={`${VALUE} text-fg`} />
         <span className="text-[12px] text-subtle">
           {m.invest_kpi_dividends_sub()}

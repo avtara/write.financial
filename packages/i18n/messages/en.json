@@ -614,8 +614,8 @@
       "declarations": ["input count", "local countPlural = count: plural"],
       "selectors": ["countPlural"],
       "match": {
-        "countPlural=one": "{count} category · white line = today's ideal position",
-        "countPlural=*": "{count} categories · white line = today's ideal position"
+        "countPlural=one": "{count} category · vertical line = today's ideal position",
+        "countPlural=*": "{count} categories · vertical line = today's ideal position"
       }
     }
   ],
@@ -3732,12 +3732,17 @@
   "reports_custom_from": "From date",
   "reports_custom_invalid": "The end date cannot be before the start date.",
   "reports_custom_to": "to",
+  "reports_empty_body": "Reports are created once a full period is recorded. The {month} period runs {range}; you can change the period start date in Settings (up to the 28th).",
   "reports_empty_cta_record": "Record a transaction",
   "reports_empty_cta_start": "Set the start date",
   "reports_empty_step_closed": "The first period closes",
+  "reports_empty_step_closed_note": "start date: {day}",
   "reports_empty_step_published": "The {label} report is published",
+  "reports_empty_step_published_note": "PDF & summary",
   "reports_empty_step_recorded": "Start recording",
-  "reports_empty_title": "Your first report is waiting for the first period",
+  "reports_empty_step_recorded_note": "today",
+  "reports_empty_subtitle": "Monthly reports are not available yet",
+  "reports_empty_title": "Your first report is published on {month} {day}",
   "reports_error_retry": "Try again",
   "reports_error_title": "The {label} report failed to compile",
   "reports_final_badge": "Final",

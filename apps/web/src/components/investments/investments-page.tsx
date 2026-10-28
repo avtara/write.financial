@@ -46,7 +46,7 @@ import { DividendsCard, PlatformsCard } from './income-cards.tsx';
 import { InvestmentKpis } from './investment-kpis.tsx';
 import { growthPoints, isHeld, priceMinor, quoteStatus, toUsd, type DisplayCurrency } from './investments-model.ts';
 import { PriceFallback, PriceStatusPill } from './price-status.tsx';
-import { PriceSyncStatus, type PriceSyncState } from './price-sync.tsx';
+import { PriceSyncStatus, usePriceSyncActions, type PriceSyncState } from './price-sync.tsx';
 import { RebalanceCard } from './rebalance-card.tsx';
 import { TargetsDialog } from './targets-dialog.tsx';
 import { TradeSheet, type TradeDraft } from './trade-sheet.tsx';
@@ -69,6 +69,7 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   const [display, setDisplay] = useState<DisplayCurrency>('base');
   const [refreshing, setRefreshing] = useState(false);
   const [sync, setSync] = useState<PriceSyncState | null>(null);
+  const syncActions = usePriceSyncActions();
   const [detailId, setDetailId] = useState<string | null>(null);
   const [trade, setTrade] = useState<NonNullable<ComponentProps<typeof TradeSheet>['open']> | null>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
@@ -87,6 +88,8 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   });
 
   const refresh = async () => {
+    // The header's "Sinkronkan" stays clickable while a sync runs (it has no pending state); ignore repeats.
+    if (refreshing) return;
     setRefreshing(true);
     const results: MarketSyncResult[] = [];
     try {
@@ -226,15 +229,32 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {m.invest_header_counts({ positions: held.length, platforms: portfolio.platforms.length })}
           {usdRate === null ? null : (
-            <>
+            // The separator wraps with the rate so a line never ends on a dangling "·".
+            <span className="flex items-center gap-x-2 whitespace-nowrap">
               <span aria-hidden="true">·</span>
-              {m.invest_rate_usd()}{' '}
-              <Money minor={priceMinor(usdRate, base)} currency={base} context="amount" locale={locale} />
-            </>
+              <span>
+                {m.invest_rate_usd()}{' '}
+                <Money minor={priceMinor(usdRate, base)} currency={base} context="amount" locale={locale} />
+              </span>
+            </span>
           )}
           <PriceStatusPill status={status} today={portfolio.today} timeZone={timeZone} locale={locale} />
         </span>
       }
+      secondaryActions={[
+        {
+          label: refreshing
+            ? m.market_sync_progress({
+                // While refreshing, the first source is already in `sync`.
+                done: Math.min((sync as PriceSyncState).results.length + 1, SYNC_MARKETS.length),
+                total: SYNC_MARKETS.length,
+              })
+            : m.invest_sync(),
+          icon: RefreshCw,
+          onSelect: () => void refresh(),
+        },
+        ...syncActions.actions,
+      ]}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           {usdRate === null ? null : (
@@ -258,16 +278,6 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
               ))}
             </div>
           )}
-          <Button variant="secondary" pending={refreshing} onClick={() => void refresh()}>
-            <RefreshCw aria-hidden="true" className="size-3.5" />
-            {refreshing
-              ? m.market_sync_progress({
-                  // While refreshing, the first source is already in `sync`.
-                  done: Math.min((sync as PriceSyncState).results.length + 1, SYNC_MARKETS.length),
-                  total: SYNC_MARKETS.length,
-                })
-              : m.invest_sync()}
-          </Button>
           <Button
             onClick={() => {
               setTrade({ tab: 'buy', assetId: null });
@@ -312,7 +322,13 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
     return (
       <>
         {header}
-        <PriceSyncStatus state={sync} today={portfolio.today} timeZone={timeZone} locale={locale} />
+        <PriceSyncStatus
+          state={sync}
+          log={syncActions.log}
+          today={portfolio.today}
+          timeZone={timeZone}
+          locale={locale}
+        />
         <section className="rounded-[12px] border border-border bg-card">
           <EmptyState
             icon={CandlestickChart}
@@ -340,7 +356,7 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   return (
     <>
       {header}
-      <PriceSyncStatus state={sync} today={portfolio.today} timeZone={timeZone} locale={locale} />
+      <PriceSyncStatus state={sync} log={syncActions.log} today={portfolio.today} timeZone={timeZone} locale={locale} />
       <PriceFallback
         status={status}
         today={portfolio.today}
@@ -379,7 +395,7 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
           setForm({ asset: null });
         }}
       />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <RebalanceCard
           portfolio={portfolio}
           rates={rates}

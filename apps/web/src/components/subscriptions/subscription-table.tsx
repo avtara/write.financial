@@ -62,6 +62,18 @@ export const USAGE_TONE: Readonly<Record<UsageRating, string>> = {
 
 const USAGE_DOT: Readonly<Record<UsageRating, string>> = { often: 'bg-green', sometimes: 'bg-amber', rarely: 'bg-red' };
 
+/**
+ * Column widths by index. Below 1024 px "Layanan" takes a third and the two visible columns share the rest; from 1024 px
+ * the other columns get what their content needs ("Tagihan berikutnya", "Rp2.230.000/tahun") and "Layanan" the rest.
+ */
+const COLUMN_WIDTH: readonly string[] = [
+  'w-[34%] lg:w-auto',
+  'lg:w-[8.5rem]',
+  'lg:w-[7rem]',
+  'lg:w-[7rem]',
+  'lg:w-[9rem]',
+];
+
 export interface SubscriptionActions {
   readonly open: (subscription: SubscriptionView) => void;
   readonly edit: (subscription: SubscriptionView) => void;
@@ -140,7 +152,7 @@ export function SubscriptionTable({
         >
           {subscription.name}
         </button>
-        <span className="truncate text-[11.5px] text-subtle">
+        <span className="line-clamp-2 text-[11.5px] text-subtle">
           {[
             subscription.plan,
             subscription.cycle === 'yearly' ? m.subscriptions_cycle_yearly_short() : null,
@@ -179,7 +191,7 @@ export function SubscriptionTable({
     return (
       <div className="flex flex-col text-[13px] text-fg">
         {formatDate(bill.dueDate, locale, 'date')}
-        <span className="text-[11.5px]">{note}</span>
+        <span className="text-[11.5px] whitespace-nowrap">{note}</span>
       </div>
     );
   };
@@ -428,7 +440,7 @@ export function SubscriptionTable({
                 <th
                   key={header}
                   scope="col"
-                  className={`px-3 py-2.5 font-normal first:pl-5 ${index === 0 ? 'w-[34%]' : ''} ${index === 2 || index === 3 ? 'hidden lg:table-cell' : ''} ${index === 4 ? 'text-right' : ''}`}
+                  className={`px-3 py-2.5 font-normal whitespace-nowrap first:pl-5 ${COLUMN_WIDTH[index]} ${index === 2 || index === 3 ? 'hidden lg:table-cell' : ''} ${index === 4 ? 'text-right' : ''}`}
                 >
                   {header}
                 </th>
