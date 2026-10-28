@@ -87,6 +87,27 @@ describe('MoneyFlowCard on a desktop', () => {
     expect(router.state.location.search).toEqual({ period: '2026-10', category: FOOD_ID });
   });
 
+  it('opens the category a band flows into', async () => {
+    const { router } = await renderFlow();
+    const food = node(/^Makan & Dapur/);
+    await expect.element(food).toBeInTheDocument();
+    const box = (food.element().querySelector('rect') as SVGRectElement).getBBox();
+    // A band's path ends at its target node's left edge.
+    const band = [...document.querySelectorAll<SVGPathElement>('svg path[d]')].find((path) => {
+      const [x = Number.NaN, y = Number.NaN] =
+        (path.getAttribute('d') ?? '')
+          .match(/-?[\d.]+/g)
+          ?.slice(-2)
+          .map(Number) ?? [];
+      return Math.abs(x - box.x) < 1 && y >= box.y && y <= box.y + box.height;
+    });
+    if (band === undefined) throw new Error('No band into Makan & Dapur');
+    pointer(band, 'click');
+    await vi.waitFor(() => {
+      expect(router.state.location.search).toEqual({ period: '2026-10', category: FOOD_ID });
+    });
+  });
+
   it('focuses a group from its chip or its node, then opens its categories', async () => {
     const { screen, router } = await renderFlow();
     const chip = screen.getByRole('button', { name: 'Kebutuhan', exact: true });

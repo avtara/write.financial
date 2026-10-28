@@ -30,8 +30,11 @@ export function GmailReviewCard({
   locale: Locale;
   timeZone: string;
   pending: boolean;
+  /** Every value is known and corrected by the user; the merchant is never blank. */
   onConfirm: (
-    edits: Required<Pick<ReviewEdits, 'amountMinor' | 'occurredAt' | 'merchant' | 'accountId' | 'categoryId'>>,
+    edits: Required<Pick<ReviewEdits, 'amountMinor' | 'occurredAt' | 'accountId' | 'categoryId'>> & {
+      readonly merchant: string;
+    },
   ) => void;
   onIgnore: () => void;
 }) {
@@ -48,25 +51,31 @@ export function GmailReviewCard({
   );
   const account = lookup.accounts.find((account) => account.id === accountId);
   const currency = account?.currency ?? extraction.currency ?? lookup.baseCurrency;
+  // Like the server: an account the user picked corrects a mistaken AI currency; the untouched suggestion must match it.
+  const currencyMismatch =
+    account !== undefined &&
+    accountId === extraction.accountId &&
+    extraction.currency !== null &&
+    account.currency !== extraction.currency;
   let occurredAt: Date | null;
   try {
     occurredAt = date === '' ? null : zonedInstant(parseLocalDate(date.slice(0, 10)), date.slice(11, 16), timeZone);
   } catch {
     occurredAt = null;
   }
-  const valid =
+  const edits =
     amount !== null &&
     amount > 0n &&
     account !== undefined &&
-    account.currency === currency &&
+    !currencyMismatch &&
     categoryId !== '' &&
     merchant.trim() !== '' &&
-    date !== '' &&
-    occurredAt !== null &&
-    Number.isFinite(occurredAt.getTime());
+    occurredAt !== null
+      ? { amountMinor: amount, accountId, categoryId, merchant: merchant.trim(), occurredAt }
+      : null;
   return (
     <article
-      aria-label={item.label ?? item.payload.subject}
+      aria-label={item.label}
       data-review-item={item.id}
       className="flex min-w-0 flex-col gap-3 rounded-[12px] border border-border bg-surface-2 p-4"
     >
@@ -80,12 +89,16 @@ export function GmailReviewCard({
           {m.gmail_missing_fields()}
         </p>
       )}
+      {currencyMismatch ? (
+        <p role="status" className="text-[12px] text-amber-fg">
+          {m.ledger_error_invalid_account()}
+        </p>
+      ) : null}
       <form
         className="grid gap-3 sm:grid-cols-2"
         onSubmit={(event) => {
+          // The Record button confirms (also on Enter, which clicks it); the page never navigates.
           event.preventDefault();
-          if (valid && occurredAt !== null)
-            onConfirm({ amountMinor: amount, accountId, categoryId, merchant: merchant.trim(), occurredAt });
         }}
       >
         <Field label={`${m.review_amount_label()} · ${m.gmail_confidence({ percent: extraction.confidence.amount })}`}>
@@ -183,7 +196,18 @@ export function GmailReviewCard({
           <Button type="button" variant="secondary" disabled={pending} onClick={onIgnore}>
             {m.review_ignore()}
           </Button>
-          <Button type="submit" pending={pending} disabled={!valid}>
+          <Button
+            type="submit"
+            pending={pending}
+            disabled={edits === null}
+            onClick={
+              edits === null
+                ? undefined
+                : () => {
+                    onConfirm(edits);
+                  }
+            }
+          >
             {m.review_record()}
           </Button>
         </div>

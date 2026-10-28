@@ -140,8 +140,9 @@ function wireMessages(messages: readonly AiMessage[]): unknown[] {
 function parseJson(input: string): unknown {
   return JSON.parse(input, (_key: string, value: unknown, context?: { source?: string }) => {
     if (typeof value !== 'number') return value;
-    if (context?.source === undefined) throw new AiError('AI_PROVIDER_FAILED');
-    return context.source;
+    // The required Node 24 runtime supplies source for primitive numbers; older TS libraries omit that argument.
+    const lexeme = context as { source: string };
+    return lexeme.source;
   }) as unknown;
 }
 

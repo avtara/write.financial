@@ -217,6 +217,105 @@ describe('monthly snapshot aggregation', () => {
     expect(result.sections.subscriptions.shareBps).toBeNull();
   });
 
+  it('keeps tied rankings deterministic and never carries a goal opening across a currency change', () => {
+    const ids = ['b', 'z', 'a', null, 'c'];
+    const amounts = [2n, 1n, 3n, 2n, 2n];
+    const categories = ids.map((categoryId, index) => ({
+      categoryId,
+      name: categoryId,
+      group: null,
+      isFixed: null,
+      spentMinor: amounts[index] as bigint,
+      limitMinor: null,
+      shareBps: 0,
+      usedBps: null,
+      overMinor: 0n,
+    }));
+    const goal = {
+      goalId: 'reserve',
+      name: 'Reserve',
+      currency: 'IDR',
+      valuation: 'cash' as const,
+      openingMinor: 100n,
+      savedMinor: 200n,
+      targetMinor: 1000n,
+      progressBps: 2000,
+    };
+    const result = aggregateReports(
+      [
+        segment(august, 0n, 0n, { goals: [goal] }),
+        segment(september, 0n, 10n, {
+          categories,
+          incomeSources: categories.map((row) => ({
+            categoryId: row.categoryId,
+            name: row.name,
+            group: null,
+            totalMinor: row.spentMinor,
+            shareBps: 0,
+          })),
+          tags: categories
+            .filter((row) => row.categoryId !== null)
+            .map((row) => ({
+              tagId: row.categoryId as string,
+              name: row.name as string,
+              totalMinor: row.spentMinor,
+              count: 1,
+            })),
+          accounts: [
+            { accountId: 'z', name: 'Bank', type: 'bank', inMinor: 0n, outMinor: 1n },
+            { accountId: 'a', name: 'Bank', type: 'bank', inMinor: 0n, outMinor: 2n },
+          ],
+          goals: [
+            { ...goal, currency: 'USD' },
+            { ...goal, goalId: 'new' },
+          ],
+        }),
+      ],
+      range,
+    );
+    expect(result.sections.categories.map((row) => row.categoryId)).toEqual(['a', null, 'b', 'c', 'z']);
+    expect(result.sections.incomeSources.map((row) => [row.categoryId, row.shareBps])).toEqual([
+      ['a', 0],
+      [null, 0],
+      ['b', 0],
+      ['c', 0],
+      ['z', 0],
+    ]);
+    expect(result.sections.tags.map((row) => row.tagId)).toEqual(['a', 'b', 'c', 'z']);
+    expect(result.sections.accounts.map((row) => row.accountId)).toEqual(['a', 'z']);
+    expect(result.sections.goals.map((row) => row.openingMinor)).toEqual([null, null]);
+  });
+
+  it('ranks an uncategorized line first on a tie, whichever segment order produced it', () => {
+    const line = (categoryId: string | null) => ({
+      categoryId,
+      name: categoryId,
+      group: null,
+      isFixed: null,
+      spentMinor: 5n,
+      limitMinor: null,
+      shareBps: 0,
+      usedBps: null,
+      overMinor: 0n,
+    });
+    for (const ids of [
+      ['food', null],
+      [null, 'food'],
+    ]) {
+      const categories = ids.map(line);
+      const incomeSources = ids.map((categoryId) => ({
+        categoryId,
+        name: categoryId,
+        group: null,
+        totalMinor: 5n,
+        shareBps: 0,
+      }));
+      const result = aggregateReports([segment(september, 10n, 10n, { categories, incomeSources })], september);
+      expect(result.sections.categories.map((row) => row.categoryId)).toEqual([null, 'food']);
+      expect(result.sections.incomeSources.map((row) => row.categoryId)).toEqual([null, 'food']);
+    }
+  });
+
   it('refuses an aggregate without any covered segment', () => {
     expect(() => aggregateReports([], range)).toThrow(RangeError);
   });

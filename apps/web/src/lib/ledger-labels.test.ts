@@ -3,7 +3,7 @@ import { BUILT_IN_CATEGORIES, BUILT_IN_NAMES_ID, CATEGORY_GROUPS } from '@wf/dom
 import { ACCOUNT_TYPES } from '@wf/domain/ledger';
 import { setLocale } from '@wf/i18n/runtime';
 import { describe, expect, it } from 'vitest';
-import { accountTypeLabel, categoryGroupLabel, categoryName } from './ledger-labels.ts';
+import { accountTypeLabel, categoryGroupLabel, categoryName, categoryNameIn } from './ledger-labels.ts';
 
 describe('categoryName', () => {
   it('renders every built-in category in Indonesian exactly as the seed names them', async () => {
@@ -26,6 +26,22 @@ describe('categoryName', () => {
 
   it('falls back to the stored name for a built-in key this release does not know', () => {
     expect(categoryName({ name: 'system:future', builtInKey: 'system:future' })).toBe('system:future');
+  });
+});
+
+describe('categoryNameIn', () => {
+  it('names built-ins in the requested locale regardless of the runtime locale', async () => {
+    await setLocale('id', { reload: false });
+    expect(categoryNameIn({ name: 'system:food', builtInKey: 'system:food' }, 'en')).toBe('Food & groceries');
+    await setLocale('en', { reload: false });
+    expect(categoryNameIn({ name: 'system:food', builtInKey: 'system:food' }, 'id')).toBe(
+      BUILT_IN_NAMES_ID['system:food'],
+    );
+  });
+
+  it("keeps a user's own name and the stored name of an unknown built-in key", () => {
+    expect(categoryNameIn({ name: 'Kopi pagi', builtInKey: null }, 'en')).toBe('Kopi pagi');
+    expect(categoryNameIn({ name: 'system:future', builtInKey: 'system:future' }, 'id')).toBe('system:future');
   });
 });
 

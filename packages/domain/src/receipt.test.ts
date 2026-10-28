@@ -68,5 +68,6 @@ describe('receipt duplicates', () => {
     ).toBe(false);
     expect(isReceiptDuplicate(receipt, { ...candidate, merchant: 'Other' })).toBe(false);
     expect(isReceiptDuplicate(receipt, { ...candidate, merchant: null, description: 'Indomaret' })).toBe(true);
+    expect(isReceiptDuplicate(receipt, { ...candidate, merchant: null, description: null })).toBe(false);
   });
 });

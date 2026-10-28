@@ -31,7 +31,7 @@ import {
   type AssistantDraft,
   type AssistantTool,
 } from '@wf/domain/assistant';
-import { addDays, countDays, type LocalDate } from '@wf/domain/period';
+import { addDays, countDays, parseLocalDate, type LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import type { AiMessage } from '@wf/integrations/ai';
 import { toLocalDate } from '@wf/ui/dates';
@@ -136,7 +136,9 @@ export const askAssistant = createServerFn({ method: 'POST' })
       const stepCosts: (string | null)[] = [];
       const stepInputs: (number | null)[] = [];
       const stepOutputs: (number | null)[] = [];
-      let draft: AssistantDraft | null = null;
+      // A draft is built only after resolving an owned active account, so its account balance is always known.
+      type AccountDraft = AssistantDraft & { readonly balance: NonNullable<AssistantDraft['balance']> };
+      let draft: AccountDraft | null = null;
       let text = '';
       let httpStatus: number | null = null;
       let budget: BudgetStatus | null = null;
@@ -160,17 +162,16 @@ export const askAssistant = createServerFn({ method: 'POST' })
         const from = args.from;
         const to = args.to;
         if (typeof from !== 'string' || typeof to !== 'string') return null;
-        if (
-          !DATE.test(from) ||
-          !DATE.test(to) ||
-          from > to ||
-          countDays(from as LocalDate, to as LocalDate) > RANGE_MAX_DAYS
-        )
+        try {
+          const range = { from: parseLocalDate(from), to: parseLocalDate(to) };
+          if (range.from > range.to || countDays(range.from, range.to) > RANGE_MAX_DAYS) return null;
+          return range;
+        } catch {
           return null;
-        return { from: from as LocalDate, to: to as LocalDate };
+        }
       };
 
-      const draftFrom = async (args: Record<string, unknown>): Promise<AssistantDraft | string> => {
+      const draftFrom = async (args: Record<string, unknown>): Promise<AccountDraft | string> => {
         if (!settings.allowCreateDrafts) return 'draft_not_allowed';
         const type = args.type === 'income' ? 'income' : args.type === 'expense' ? 'expense' : null;
         if (type === null) return 'invalid_type';
@@ -211,7 +212,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
             ? undefined
             : (await budgetOf()).lines.find((candidate) => candidate.categoryId === categoryId);
         const impact = draftImpact({
-          amountMinor,
+          amountMinor: type === 'income' ? -amountMinor : amountMinor,
           budgetLine: line === undefined ? null : { limitMinor: line.limitMinor, spentMinor: line.spentMinor },
           account: {
             currency: account.currency,
@@ -253,7 +254,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
           occurredAt,
           tags,
           budget: impact.budget,
-          balance: impact.balance,
+          balance: impact.balance as AccountDraft['balance'],
           duplicate,
         };
         return draft;
@@ -310,19 +311,16 @@ export const askAssistant = createServerFn({ method: 'POST' })
             s.transactionQuery.summary(user.id, { ...range, types: ['expense'] }),
             s.transactionQuery.groupByCategory(user.id, { ...range, types: ['expense'] }),
           ]);
-          const totals = groups
-            .filter((group) => group.kind === 'expense')
-            .slice(0, 12)
-            .map((group) => {
-              const category = categories.find((candidate) => candidate.id === group.categoryId);
-              return {
-                categoryId: group.categoryId,
-                name: category === undefined ? null : categoryNameIn(category, locale),
-                builtInKey: category?.builtInKey ?? null,
-                totalMinor: group.totalMinor,
-                count: group.count,
-              };
-            });
+          const totals = groups.slice(0, 12).map((group) => {
+            const category = categories.find((candidate) => candidate.id === group.categoryId);
+            return {
+              categoryId: group.categoryId,
+              name: category === undefined ? null : categoryNameIn(category, locale),
+              builtInKey: category?.builtInKey ?? null,
+              totalMinor: group.totalMinor,
+              count: group.count,
+            };
+          });
           cards.push({
             kind: 'spending',
             from: range.from,
@@ -358,7 +356,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
             return {
               id: row.id,
               description: row.description ?? row.merchant ?? '',
-              amountMinor: row.amountMinor < 0n ? -row.amountMinor : row.amountMinor,
+              amountMinor: -row.amountMinor,
               localDate: row.localDate,
               categoryName: category === undefined ? null : categoryNameIn(category, locale),
               categoryBuiltInKey: category?.builtInKey ?? null,
@@ -424,7 +422,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
           },
           impact: {
             budgetUsedPercent: built.budget === null ? null : Math.round(built.budget.usedBps / 100),
-            balanceAfter: built.balance === null ? null : built.balance.afterMinor.toString(),
+            balanceAfter: built.balance.afterMinor.toString(),
           },
           duplicate: built.duplicate !== null,
         };
@@ -432,7 +430,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
 
       const outcome = await (async (): Promise<{ status: 'ok' | 'error' | 'timeout'; errorCode: string | null }> => {
         try {
-          for (let step = 0; step < ASSISTANT_MAX_STEPS; step++) {
+          for (let step = 0; ; step++) {
             const remaining = deadline - s.now().getTime();
             if (remaining <= 0) return { status: 'timeout', errorCode: 'timeout' };
             const result = await s.aiClient.complete({
@@ -462,7 +460,6 @@ export const askAssistant = createServerFn({ method: 'POST' })
             // The last step must answer; another tool round would exceed the loop.
             if (step === ASSISTANT_MAX_STEPS - 1) return { status: 'error', errorCode: 'step_limit' };
           }
-          return { status: 'error', errorCode: 'step_limit' };
         } catch {
           // A repository or tool failure is not a provider answer; the log keeps a code, the browser gets the summary.
           return { status: 'error', errorCode: 'internal' };
@@ -471,9 +468,10 @@ export const askAssistant = createServerFn({ method: 'POST' })
 
       const reported = sumReportedCost(stepCosts);
       const sum = (values: readonly (number | null)[]): number | null =>
-        values.length === 0 || values.some((value) => value === null)
-          ? null
-          : values.reduce<number>((total, value) => total + (value ?? 0), 0);
+        values.reduce<number | null>(
+          (total, value) => (total === null || value === null ? null : total + value),
+          values.length === 0 ? null : 0,
+        );
       const usage = await s.ai.settle(user.id, data.requestId, {
         status: outcome.status,
         httpStatus,

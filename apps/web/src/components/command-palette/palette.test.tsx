@@ -168,7 +168,7 @@ describe('Palette', () => {
     await expect.element(dialog()).not.toBeInTheDocument();
     expect(server.touchRecent).toHaveBeenCalledWith({ data: { kind: 'transaction', ref: 'tx-aug' } });
     await vi.waitFor(() => {
-      expect(router.state.location.href).toBe('/accounts?account=acc-bca');
+      expect(router.state.location.href).toBe('/transactions?tx=tx-aug');
     });
   });
 
@@ -289,5 +289,82 @@ describe('Palette', () => {
     recent.resolve({ ok: true, value: RECENT });
     await userEvent.keyboard('{Meta>}k{/Meta}');
     await expect.element(input()).toHaveValue('');
+  });
+
+  it.each([
+    [
+      'a review item',
+      {
+        review: {
+          total: 1,
+          hits: [
+            {
+              id: 'rv-netflix',
+              reason: 'due_occurrence' as const,
+              title: 'Netflix',
+              dueDate: '2026-10-18' as LocalDate,
+              amountMinor: -186_000n,
+              currency: 'IDR',
+            },
+          ],
+        },
+      },
+      { kind: 'review', ref: 'rv-netflix' },
+      '/review?item=rv-netflix',
+    ],
+    [
+      'a subscription',
+      {
+        subscriptions: {
+          total: 1,
+          hits: [
+            {
+              id: 'sub-netflix',
+              name: 'Netflix',
+              plan: 'Premium 4K',
+              priceMinor: 186_000n,
+              currency: 'IDR',
+              cycle: 'monthly' as const,
+              status: 'active' as const,
+              nextBillingDate: '2026-10-18' as LocalDate,
+            },
+          ],
+        },
+      },
+      { kind: 'subscription', ref: 'sub-netflix' },
+      '/subscriptions?subscription=sub-netflix',
+    ],
+    [
+      'a category',
+      {
+        categories: {
+          total: 1,
+          hits: [
+            {
+              id: 'cat-netflix',
+              name: 'Netflix',
+              builtInKey: null,
+              kind: 'expense' as const,
+              group: 'wants' as const,
+              archived: false,
+            },
+          ],
+        },
+      },
+      { kind: 'category', ref: 'cat-netflix' },
+      '/other?settings=categories',
+    ],
+    ['a tag', { tags: NETFLIX.tags }, { kind: 'tag', ref: 'tag-netflix' }, '/other?settings=tags'],
+  ])('opens %s where it lives and remembers it', async (_label, results, recent, href) => {
+    server.searchEverything.mockResolvedValue({ ok: true, value: { ...EMPTY, ...results } });
+    const { router } = await renderPalette();
+    await userEvent.click(page.getByRole('button', { name: 'buka palet' }));
+    await userEvent.fill(input(), 'netflix');
+    await userEvent.click(option(/netflix/i).first());
+    await expect.element(dialog()).not.toBeInTheDocument();
+    expect(server.touchRecent).toHaveBeenCalledWith({ data: recent });
+    await vi.waitFor(() => {
+      expect(router.state.location.href).toBe(href);
+    });
   });
 });

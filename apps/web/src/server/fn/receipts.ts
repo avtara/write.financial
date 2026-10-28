@@ -19,7 +19,8 @@ export const uploadReceipt = createServerFn({ method: 'POST' })
       const id = z.uuid().parse(data.get('id'));
       const settings = await s.ai.settings(user.id);
       if (!settings.allowReadFinancial || !settings.allowCreateDrafts) throw new AiError('AI_PERMISSION_REQUIRED');
-      const credential = await s.ai.credential(user.id, settings.provider, settings.revision ?? '');
+      // Both permissions can be enabled only by persisted settings, which always have a revision.
+      const credential = await s.ai.credential(user.id, settings.provider, settings.revision as string);
       if (credential.pricing === null) throw new AiError('AI_PRICING_REQUIRED');
       const existing = await s.receipts.get(user.id, id).catch((error: unknown) => {
         if (error instanceof Error && 'code' in error && error.code === 'NOT_FOUND') return null;

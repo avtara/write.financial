@@ -1017,7 +1017,7 @@ export function createReports(db: Database): ReportsRepository {
   ): Promise<ReportSections> {
     const categoryTotals = await categoryTotalsIn(tx, userId, { from: range.from, to: range.to });
     const expense = categoryTotals.filter((line) => line.kind === 'expense');
-    const names = new Map(
+    const names = new Map<string | null, Pick<typeof categories.$inferSelect, 'name' | 'group' | 'isFixed'>>(
       (
         await tx
           .select({ id: categories.id, name: categories.name, group: categories.group, isFixed: categories.isFixed })
@@ -1031,8 +1031,8 @@ export function createReports(db: Database): ReportsRepository {
     );
     const incomeSources = income.map((line, index) => ({
       categoryId: line.categoryId,
-      name: line.categoryId === null ? null : (names.get(line.categoryId)?.name ?? null),
-      group: line.categoryId === null ? null : (names.get(line.categoryId)?.group ?? null),
+      name: names.get(line.categoryId)?.name ?? null,
+      group: names.get(line.categoryId)?.group ?? null,
       totalMinor: line.totalMinor,
       shareBps: (incomeShares[index] as ShareLine<string | null>).shareBps,
     }));
@@ -1050,9 +1050,9 @@ export function createReports(db: Database): ReportsRepository {
       const limit = line.categoryId === null ? undefined : limits.get(line.categoryId);
       return {
         categoryId: line.categoryId,
-        name: line.categoryId === null ? null : (names.get(line.categoryId)?.name ?? null),
-        group: line.categoryId === null ? null : (names.get(line.categoryId)?.group ?? null),
-        isFixed: line.categoryId === null ? null : (names.get(line.categoryId)?.isFixed ?? null),
+        name: names.get(line.categoryId)?.name ?? null,
+        group: names.get(line.categoryId)?.group ?? null,
+        isFixed: names.get(line.categoryId)?.isFixed ?? null,
         spentMinor: line.totalMinor,
         shareBps: (shares[index] as ShareLine<string | null>).shareBps,
         limitMinor: limit?.limitMinor ?? null,

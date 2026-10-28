@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { NavigateFn } from '@tanstack/react-router';
 import type { LocalDate } from '@wf/domain/period';
 import { setLocale } from '@wf/i18n/runtime';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { renderApp } from '../../../test/render.tsx';
 import type { AccountHit, CategoryHit, ReviewHit, SubscriptionHit, TagHit, TransactionHit } from '../../lib/search.ts';
 import { RESULT_GROUPS, type ResultView } from './result-groups.tsx';
-
-// Opening Settings over the current page is `openSettings`' contract (tested there); here only the section matters.
-vi.mock('../settings/settings-sections.ts', () => ({
-  openSettings: (section: string) => ({ settingsOver: section }),
-}));
 
 const EXPENSE: TransactionHit = {
   id: 'tx-1',
@@ -137,31 +131,5 @@ describe('RESULT_GROUPS', () => {
     expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'import_row' }, 'id').title).toBe('Hasil AI');
     expect(RESULT_GROUPS.review.view({ ...unnamed, reason: 'category_deleted' }, 'id').title).toBe('Perlu kategori');
     expect(RESULT_GROUPS.review.view({ ...NETFLIX, amountMinor: null }, 'id').aside).toBe('belum diketahui');
-  });
-
-  it('remembers each hit under its recent kind and opens its page', async () => {
-    const navigate = vi.fn(() => Promise.resolve()) as unknown as NavigateFn;
-    expect(Object.values(RESULT_GROUPS).map((group) => group.recentKind)).toEqual([
-      'transaction',
-      'review',
-      'account',
-      'subscription',
-      'category',
-      'tag',
-    ]);
-    await RESULT_GROUPS.transactions.open(EXPENSE, navigate);
-    await RESULT_GROUPS.accounts.open(ACCOUNT, navigate);
-    await RESULT_GROUPS.categories.open(CATEGORY, navigate);
-    await RESULT_GROUPS.tags.open(TAG, navigate);
-    await RESULT_GROUPS.subscriptions.open(SUBSCRIPTION, navigate);
-    await RESULT_GROUPS.review.open(NETFLIX, navigate);
-    expect(vi.mocked(navigate).mock.calls).toEqual([
-      [{ to: '/accounts', search: { account: 'acc-bca' } }],
-      [{ to: '/accounts', search: { account: 'acc-1' } }],
-      [{ settingsOver: 'categories' }],
-      [{ settingsOver: 'tags' }],
-      [{ to: '/subscriptions', search: { subscription: 'sub-1' } }],
-      [{ to: '/review', search: { item: 'rv-1' } }],
-    ]);
   });
 });

@@ -14,7 +14,11 @@ export type DraftItem = ReviewItemView & {
 };
 export type CategoryItem = ReviewItemView & { readonly payload: { readonly kind: 'category' } };
 export type CloseItem = ReviewItemView & { readonly payload: { readonly kind: 'rollover' | 'leftover' } };
-export type GmailReviewItem = ReviewItemView & { readonly payload: Extract<ReviewPayload, { kind: 'gmail' }> };
+/** The server labels a Gmail item with its merchant, else the email subject, so it always has one. */
+export type GmailReviewItem = ReviewItemView & {
+  readonly label: string;
+  readonly payload: Extract<ReviewPayload, { kind: 'gmail' }>;
+};
 
 export interface ReviewGroups {
   /** AI suggestions and import rows (Gmail, Assistant, receipts), by confidence. */

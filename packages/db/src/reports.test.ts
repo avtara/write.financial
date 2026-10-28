@@ -338,4 +338,263 @@ describe('ranges and listings', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     expect(updated).toEqual([]);
     expect(await asApp(() => reports().get(owner, report.id))).toEqual(report);
   });
+
+  it('serializes concurrent final-month generation and refuses corrupt persisted report sections', async () => {
+    const owner = await insertUser(test, 'report-concurrent@example.test');
+    const [period] = await test.query<{ id: string }>(
+      `INSERT INTO periods
+      (user_id,label,start_date,end_date,days,status,closed_at)
+      VALUES($1,'2026-09','2026-09-01','2026-09-30',30,'closed','2026-10-01') RETURNING id`,
+      [owner],
+    );
+    const request = { kind: 'monthly' as const, periodId: period?.id as string };
+    const generated = await asApp(() =>
+      Promise.all([
+        reports().generate(owner, request, options.now()),
+        reports().generate(owner, request, options.now()),
+      ]),
+    );
+    expect(generated[0].id).toBe(generated[1].id);
+    expect(await test.query('SELECT count(*)::int AS n FROM reports WHERE user_id=$1', [owner])).toEqual([{ n: 1 }]);
+    const provisional = await asApp(() =>
+      reports().generate(
+        owner,
+        {
+          kind: 'custom',
+          from: '2026-10-01' as LocalDate,
+          to: '2026-10-15' as LocalDate,
+        },
+        options.now(),
+      ),
+    );
+    await test.query("UPDATE reports SET sections=sections-'incomeSources' WHERE id=$1", [provisional.id]);
+    await expect(asApp(() => reports().get(owner, provisional.id))).rejects.toBeInstanceOf(TypeError);
+  });
+
+  it('values outstanding principal after historical payments and converts subscription prices once per currency without guessing unknown FX', async () => {
+    const owner = await insertUser(test, 'report-liabilities@example.test');
+    const account = async (currency: string, opening: bigint) => {
+      const [row] = await test.query<{ id: string }>(
+        `INSERT INTO accounts
+        (user_id,type,provider_name,display_name,currency,opening_balance_minor,opening_date,color)
+        VALUES($1,'bank','Bank',$2,$3,$4,'2026-09-01','blue') RETURNING id`,
+        [owner, currency, currency, opening.toString()],
+      );
+      if (row === undefined) throw new Error('Missing report account');
+      return row.id;
+    };
+    const bank = await account('IDR', 50000n);
+    const usd = await account('USD', 0n);
+    const jpy = await account('JPY', 0n);
+    await asApp(() =>
+      createFxRates(test.db).upsertManual(owner, {
+        base: 'USD',
+        quote: 'IDR',
+        rate: '16000',
+        asOf: '2026-10-01' as LocalDate,
+      }),
+    );
+    const record = (type: 'expense' | 'income', amountMinor: bigint) =>
+      asApp(() =>
+        withUser(test.db, owner, (tx) =>
+          recordTransactionIn(
+            tx,
+            owner,
+            {
+              clientId: randomUUID(),
+              type,
+              accountId: bank,
+              categoryId: null,
+              amountMinor,
+              occurredAt: new Date('2026-10-10T03:00:00Z'),
+            },
+            dek,
+            options.now(),
+          ),
+        ),
+      );
+    const partial = await record('expense', 3000n);
+    const full = await record('expense', 4000n);
+    await record('income', 2000n);
+    for (const [name, principal, payment] of [
+      ['Partial', 10000n, { id: partial.id, amount: 3000n }],
+      ['Unpaid', 5000n, null],
+      ['Paid', 4000n, { id: full.id, amount: 4000n }],
+    ] as const) {
+      const [debt] = await test.query<{ id: string }>(
+        `INSERT INTO debts
+        (user_id,kind,name,pay_from_account_id,principal_minor,currency,tenor_months,first_due_date,created_at)
+        VALUES($1,'personal_loan',$2,$3,$4,'IDR',1,'2026-10-10','2026-10-01') RETURNING id`,
+        [owner, name, bank, principal.toString()],
+      );
+      if (payment !== null)
+        await test.query(
+          `INSERT INTO debt_installments
+        (user_id,debt_id,seq,due_date,principal_minor,status,paid_at,transaction_id)
+        VALUES($1,$2,1,'2026-10-10',$3,'paid','2026-10-10',$4)`,
+          [owner, debt?.id, payment.amount.toString(), payment.id],
+        );
+    }
+    for (const [name, currency, price, payFrom] of [
+      ['USD one', 'USD', 100, usd],
+      ['USD two', 'USD', 300, usd],
+      ['JPY one', 'JPY', 200, jpy],
+      ['JPY two', 'JPY', 200, jpy],
+    ])
+      await test.query(
+        `INSERT INTO subscriptions
+      (user_id,name,price_minor,currency,cycle,next_billing_date,pay_from_account_id,started_on)
+      VALUES($1,$2,$3,$4,'monthly','2026-10-20',$5,'2026-10-01')`,
+        [owner, name, price, currency, payFrom],
+      );
+    const report = await asApp(() =>
+      reports().generate(
+        owner,
+        {
+          kind: 'custom',
+          from: '2026-10-01' as LocalDate,
+          to: '2026-10-15' as LocalDate,
+        },
+        options.now(),
+      ),
+    );
+    expect(report.sections.netWorth).toMatchObject({ valueMinor: 33000n, cashMinor: 45000n, debtMinor: 12000n });
+    expect(report.sections.incomeSources).toEqual([
+      { categoryId: null, name: null, group: null, totalMinor: 2000n, shareBps: 10000 },
+    ]);
+    expect(report.sections.subscriptions).toMatchObject({
+      active: 4,
+      monthlyMinor: 64000n,
+      yearlyMinor: 768000n,
+      unconverted: 2,
+      shareBps: null,
+    });
+  });
+
+  it('keeps previous and current net worth unknown when historical reference FX is unavailable', async () => {
+    const owner = await insertUser(test, 'report-unknown-worth@example.test');
+    await test.query(
+      `INSERT INTO accounts
+      (user_id,type,provider_name,display_name,currency,opening_balance_minor,opening_date,color)
+      VALUES($1,'bank','EUR','EUR','EUR',100,'2026-09-01','blue')`,
+      [owner],
+    );
+    const [baseAccount] = await test.query<{ id: string }>(
+      `INSERT INTO accounts
+      (user_id,type,provider_name,display_name,currency,opening_date,color)
+      VALUES($1,'bank','Cash','Cash','IDR','2026-09-01','blue') RETURNING id`,
+      [owner],
+    );
+    await asApp(() =>
+      withUser(test.db, owner, (tx) =>
+        recordTransactionIn(
+          tx,
+          owner,
+          {
+            clientId: randomUUID(),
+            type: 'income',
+            accountId: baseAccount?.id as string,
+            amountMinor: 1n,
+            categoryId: null,
+            occurredAt: new Date('2026-09-20T03:00:00Z'),
+          },
+          dek,
+          options.now(),
+        ),
+      ),
+    );
+    const report = await asApp(() =>
+      reports().generate(
+        owner,
+        {
+          kind: 'custom',
+          from: '2026-10-01' as LocalDate,
+          to: '2026-10-15' as LocalDate,
+        },
+        options.now(),
+      ),
+    );
+    expect(report.totals.netWorthMinor).toBeNull();
+    expect(report.previous?.netWorthMinor).toBeNull();
+  });
+
+  it('combines a final month that starts the range with the live remainder, without a leading gap', async () => {
+    const at = options.now();
+    const periodId = await closedPeriodId();
+    const september = await asApp(() => reports().generate(userId, { kind: 'monthly', periodId }, at));
+    expect(september).toMatchObject({ status: 'final', range: { from: '2026-09-01', to: '2026-09-30' } });
+    const october = await asApp(() =>
+      reports().generate(
+        userId,
+        { kind: 'custom', from: '2026-10-01' as LocalDate, to: '2026-10-15' as LocalDate },
+        at,
+      ),
+    );
+    const combined = await asApp(() =>
+      reports().generate(
+        userId,
+        { kind: 'custom', from: '2026-09-01' as LocalDate, to: '2026-10-15' as LocalDate },
+        at,
+      ),
+    );
+    expect(combined.totals).toMatchObject({
+      incomeMinor: september.totals.incomeMinor + october.totals.incomeMinor,
+      expenseMinor: september.totals.expenseMinor + october.totals.expenseMinor,
+      txCount: september.totals.txCount + october.totals.txCount,
+    });
+  });
+
+  it('refuses a stored report whose previous-period comparison lost a required figure', async () => {
+    const owner = await insertUser(test, 'report-corrupt-previous@example.test');
+    await asApp(() => seedLedger(test.db, owner, { getDek: options.getDek }));
+    const report = await asApp(() =>
+      reports().generate(
+        owner,
+        { kind: 'custom', from: '2026-10-01' as LocalDate, to: '2026-10-15' as LocalDate },
+        options.now(),
+      ),
+    );
+    expect(report.previous).not.toBeNull();
+    await test.query("UPDATE reports SET previous=previous-'incomeMinor' WHERE id=$1", [report.id]);
+    await expect(asApp(() => reports().get(owner, report.id))).rejects.toThrow(
+      new TypeError('Corrupt report row: missing incomeMinor'),
+    );
+  });
+
+  it('values a foreign cash balance and a same-currency debt with one reference rate', async () => {
+    const owner = await insertUser(test, 'report-shared-rate@example.test');
+    const [account] = await test.query<{ id: string }>(
+      `INSERT INTO accounts
+      (user_id,type,provider_name,display_name,currency,opening_balance_minor,opening_date,color)
+      VALUES($1,'bank','Bank','USD','USD',100,'2026-09-01','blue') RETURNING id`,
+      [owner],
+    );
+    await test.query(
+      `INSERT INTO debts
+      (user_id,kind,name,pay_from_account_id,principal_minor,currency,tenor_months,first_due_date,created_at)
+      VALUES($1,'personal_loan','USD loan',$2,50,'USD',1,'2026-10-10','2026-10-01')`,
+      [owner, account?.id],
+    );
+    await asApp(() =>
+      createFxRates(test.db).upsertManual(owner, {
+        base: 'USD',
+        quote: 'IDR',
+        rate: '16000',
+        asOf: '2026-10-01' as LocalDate,
+      }),
+    );
+    const report = await asApp(() =>
+      reports().generate(
+        owner,
+        { kind: 'custom', from: '2026-10-01' as LocalDate, to: '2026-10-15' as LocalDate },
+        options.now(),
+      ),
+    );
+    expect(report.sections.netWorth).toMatchObject({
+      valueMinor: 8000n,
+      cashMinor: 16000n,
+      debtMinor: 8000n,
+      unvaluedCurrencies: [],
+    });
+  });
 });

@@ -58,8 +58,7 @@ export const RESULT_GROUPS: { readonly [K in SearchKind]: ResultGroup<SearchHits
         aside: <Money minor={hit.amountMinor} currency={hit.currency} context="amount" locale={locale} />,
       };
     },
-    // Until the Transactions page exists: the account the transaction moved money on.
-    open: (hit, navigate) => navigate({ to: '/accounts', search: { account: hit.accountId } }),
+    open: (hit, navigate) => navigate({ to: '/transactions', search: { tx: hit.id } }),
   },
   review: {
     heading: m.review_title,

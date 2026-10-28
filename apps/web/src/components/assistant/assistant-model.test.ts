@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { AssistantAnswer, AssistantCard, AssistantDraft } from '@wf/domain/assistant';
+import type { LocalDate } from '@wf/domain/period';
 import { describe, expect, it } from 'vitest';
 import {
   ASSISTANT_MAX_TURNS,
@@ -11,7 +12,6 @@ import {
   type AssistantTurn,
 } from './assistant-model.ts';
 
-const localDate = (value: string) => value as never;
 const answer = (text: string): AssistantAnswer => ({
   text,
   cards: [],
@@ -21,13 +21,10 @@ const answer = (text: string): AssistantAnswer => ({
   toolCalls: [],
   usage: { month: '2026-10', requests: 1, spentUsd: '0.1', estimatedUsd: '0', reservedUsd: '0', limitUsd: '5' },
 });
-const turn = (id: string, question: string, text: string | null): AssistantTurn => ({
-  id,
-  question,
-  answer: text === null ? null : answer(text),
-  errorCode: null,
-  pending: false,
-});
+const turn = (id: string, question: string, text: string | null): AssistantTurn =>
+  text === null
+    ? { id, question, status: 'failed', errorCode: 'AI_TIMEOUT' }
+    : { id, question, status: 'answered', answer: answer(text) };
 
 describe('assistant conversation', () => {
   it('keeps only the device window and sends answered turns in order', () => {
@@ -55,33 +52,33 @@ describe('assistant conversation', () => {
     const cards: AssistantCard[] = [
       {
         kind: 'budget',
-        from: localDate('2026-10-01'),
-        to: localDate('2026-10-31'),
+        from: '2026-10-01' as LocalDate,
+        to: '2026-10-31' as LocalDate,
         currency: 'IDR',
         lines: [],
         unbudgetedSpentMinor: 0n,
       },
       {
         kind: 'spending',
-        from: localDate('2026-10-01'),
-        to: localDate('2026-10-15'),
+        from: '2026-10-01' as LocalDate,
+        to: '2026-10-15' as LocalDate,
         currency: 'IDR',
         totalMinor: 0n,
         categories: [],
       },
       {
         kind: 'transactions',
-        from: localDate('2026-10-01'),
-        to: localDate('2026-10-15'),
+        from: '2026-10-01' as LocalDate,
+        to: '2026-10-15' as LocalDate,
         currency: 'IDR',
         items: [],
       },
       { kind: 'accounts', currency: 'IDR', items: [] },
     ];
     expect(sourceLinks(cards)).toEqual([
-      { kind: 'budget', from: '2026-10-01', to: '2026-10-31', categoryId: null },
-      { kind: 'transactions', from: '2026-10-01', to: '2026-10-15', categoryId: null },
-      { kind: 'accounts', from: null, to: null, categoryId: null },
+      { kind: 'budget', from: '2026-10-01', to: '2026-10-31' },
+      { kind: 'transactions', from: '2026-10-01', to: '2026-10-15' },
+      { kind: 'accounts', from: null, to: null },
     ]);
     expect(sourceLinks([])).toEqual([]);
   });

@@ -307,7 +307,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
                       if (transactionId === null) return;
                       announceSaved({
                         id: transactionId,
-                        label: edits.merchant ?? item.payload.subject,
+                        label: edits.merchant,
                         amountMinor: -edits.amountMinor,
                         currency: currencyOf(edits.accountId),
                         accountName: lookup.accounts.find((account) => account.id === edits.accountId)?.displayName,

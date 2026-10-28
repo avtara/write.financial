@@ -171,7 +171,7 @@ export function DataSection({
               <span className="text-[13px] font-medium text-fg">{m.data_delete_pending_title()}</span>
               <span className="text-[12px] text-muted-fg">
                 {m.data_delete_pending({
-                  date: formatDate(new Date(current.deleteAfter ?? ''), preferences.locale, { timeZone }),
+                  date: formatDate(new Date(current.deleteAfter), preferences.locale, { timeZone }),
                 })}
               </span>
             </div>

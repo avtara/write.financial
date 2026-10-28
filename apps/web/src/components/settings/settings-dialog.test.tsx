@@ -426,4 +426,50 @@ describe('SettingsDialog', () => {
     await renderSettings('/?settings=profile');
     await expect.element(page.getByRole('alert').last()).toHaveTextContent('Ada yang salah. Coba lagi sebentar.');
   });
+
+  it('renders Gmail, Data, and AI agent, or why each could not be loaded', async () => {
+    gmail.getGmailSettings.mockResolvedValueOnce({ ok: true, value: { connection: null } });
+    await renderSettings('/?settings=gmail');
+    await expect.element(page.getByText('gmail kosong')).toBeVisible();
+    gmail.getGmailSettings.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' });
+    await renderSettings('/?settings=gmail');
+    await expect
+      .element(page.getByRole('alert').last())
+      .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
+
+    data.getDataSettings.mockResolvedValueOnce({ ok: true, value: { deletionRequestedAt: null, deleteAfter: null } });
+    await renderSettings('/?settings=data');
+    await expect.element(page.getByRole('button', { name: 'Hapus akun' }).last()).toBeVisible();
+    data.getDataSettings.mockResolvedValueOnce({ ok: false, code: 'UNAUTHENTICATED' });
+    await renderSettings('/?settings=data');
+    await expect.element(page.getByRole('alert').last()).toHaveTextContent('Sesimu sudah berakhir. Masuk lagi.');
+
+    ai.getAiSettings.mockResolvedValueOnce({ ok: false, code: 'UNAUTHENTICATED' });
+    await renderSettings('/?settings=ai');
+    await expect.element(page.getByRole('alert').last()).toHaveTextContent('Sesimu sudah berakhir. Masuk lagi.');
+  });
+
+  it('refuses to show Aturan otomatis with any of its inputs missing', async () => {
+    ledger.listCategories.mockResolvedValue({ ok: true, value: [] });
+    ledger.listTags.mockResolvedValue({ ok: true, value: [] });
+    ledger.listAccounts.mockResolvedValue({
+      ok: true,
+      value: { baseCurrency: 'IDR', accounts: [], availableMinor: 0n },
+    });
+    const failures = [
+      () => rulesServer.listAutoRules.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' } as never),
+      () => rulesServer.listRuleSuggestions.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' } as never),
+      () => ledger.listCategories.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' }),
+      () => ledger.listTags.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' }),
+      () => ledger.listAccounts.mockResolvedValueOnce({ ok: false, code: 'NOT_FOUND' }),
+    ];
+    for (const fail of failures) {
+      fail();
+      await renderSettings('/?settings=rules');
+      const dialog = page.getByRole('dialog', { name: 'Pengaturan' }).last();
+      await expect
+        .element(dialog.getByRole('alert'))
+        .toHaveTextContent('Data ini sudah tidak ada. Muat ulang halaman.');
+    }
+  });
 });

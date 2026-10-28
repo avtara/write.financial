@@ -239,7 +239,7 @@ export function draftImpact(input: {
 function sameAmount(a: bigint, b: bigint): boolean {
   const larger = a > b ? a : b;
   const difference = a > b ? a - b : b - a;
-  return larger === 0n ? difference === 0n : difference * 100n <= larger;
+  return larger === 0n || difference * 100n <= larger;
 }
 
 /**
@@ -324,7 +324,7 @@ function zoneOffset(instant: Date, timeZone: string): number {
 export function assistantInstant(date: LocalDate, time: string, timeZone: string): Date {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new RangeError('assistant time is not HH:mm');
   const wall = Date.parse(`${date}T${time}:00Z`);
-  if (!Number.isFinite(wall) || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+  if (!Number.isFinite(wall) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(wall).toISOString().slice(0, 10) !== date)
     throw new RangeError('assistant date is not a calendar date');
   // The wall clock is parsed as UTC; subtract the zone's offset, resolved twice so the second pass sees the instant's
   // own offset at a daylight-saving change.

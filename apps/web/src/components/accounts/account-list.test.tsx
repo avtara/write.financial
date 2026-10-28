@@ -84,6 +84,13 @@ describe('dragAnnouncements', () => {
     expect(announce.onDragEnd({ active, over: null })).toBeUndefined();
     expect(announce.onDragCancel({ active, over: null })).toContain(BCA.displayName);
   });
+
+  it('never reads out an internal id for an account that left the list mid-drag', () => {
+    const announce = dragAnnouncements(ACTIVE);
+    const gone = { id: 'acc-gone-0192' } as Active;
+    expect(announce.onDragStart({ active: gone })).not.toContain('acc-gone-0192');
+    expect(announce.onDragEnd({ active: gone, over: { id: JAGO.id } as Over })).toContain(JAGO.displayName);
+  });
 });
 
 describe('AccountList', () => {

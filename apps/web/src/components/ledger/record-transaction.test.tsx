@@ -10,6 +10,7 @@ import { visa } from '../../../test/debt-fixtures.ts';
 import { DANA_DARURAT, PERPANJANG_STNK, SERVIS_MOTOR, source } from '../../../test/goal-fixtures.ts';
 import { ACCOUNTS, BCA, CARD, CATEGORIES, categoryId, JAGO, OVO, TAGS } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
+import { listAutoRules } from '../../server/fn/rules.ts';
 import {
   MissingRecordTransactionProviderError,
   RecordTransactionProvider,
@@ -240,6 +241,48 @@ describe('RecordTransactionProvider', () => {
     // The saved toast would otherwise linger into the next test.
     toast.dismiss();
     await expect.element(page.getByRole('region', { name: 'Notifikasi' }).getByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('suggests a rule that matches one of the user’s own registered subscriptions', async () => {
+    vi.mocked(listAutoRules).mockResolvedValueOnce({
+      ok: true,
+      value: [
+        {
+          id: 'r-sub',
+          name: 'Langganan streaming',
+          enabled: true,
+          position: 0,
+          conditions: [{ field: 'subscription', op: 'isRegistered' }],
+          actions: [{ type: 'setCategory', categoryId: categoryId('system:bills') }],
+          createdAt: new Date('2026-10-01T00:00:00Z'),
+          updatedAt: new Date('2026-10-01T00:00:00Z'),
+        },
+      ],
+    });
+    schedules.listSubscriptions.mockResolvedValueOnce({
+      ok: true,
+      value: { subscriptions: [{ name: 'Netflix' }] },
+    } as never);
+    const { sheet } = await open({ description: 'Netflix bulanan' });
+    await expect.element(sheet.getByText('Aturan “Langganan streaming” cocok').first()).toBeVisible();
+  });
+
+  it('still records when the rules and subscriptions cannot be loaded', async () => {
+    vi.mocked(listAutoRules).mockRejectedValueOnce(new Error('offline'));
+    schedules.listSubscriptions.mockRejectedValueOnce(new Error('offline'));
+    const { sheet, amount } = await open({ description: 'Netflix bulanan' });
+    expect(sheet.getByText(/^Aturan “/).elements()).toHaveLength(0);
+    await userEvent.fill(amount, '25000');
+    await userEvent.click(sheet.getByRole('button', { name: 'Makan & Dapur' }));
+    await userEvent.click(sheet.getByRole('button', { name: /^Simpan/ }));
+    expect(writes.recordTransaction).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'expense',
+        amountMinor: 25_000n,
+        description: 'Netflix bulanan',
+      }) as unknown,
+    });
+    toast.dismiss();
   });
 
   it('saves, announces it with Urungkan, and closes', async () => {

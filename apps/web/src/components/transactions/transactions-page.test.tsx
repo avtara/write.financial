@@ -24,8 +24,27 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 });
 // The real table module (loaded below) imports these; in the browser they must never reach the server.
 vi.mock('../../server/fn/transactions.ts', () => ({ listTransactionRows: vi.fn(), saveTablePrefs: vi.fn() }));
-// The import wizard is tested on its own; here it is a stub so its server functions stay off the browser.
-vi.mock('../import/import-dialog.tsx', () => ({ ImportDialog: () => null }));
+// The import wizard is tested on its own; here it is a stand-in so its server functions stay off the browser.
+vi.mock('../import/import-dialog.tsx', () => ({
+  ImportDialog: (props: {
+    open: boolean;
+    accounts: readonly { displayName: string }[];
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    props.open ? (
+      <div role="dialog" aria-label="Impor mutasi">
+        {props.accounts.map((account) => account.displayName).join(', ')}
+        <button
+          type="button"
+          onClick={() => {
+            props.onOpenChange(false);
+          }}
+        >
+          tutup impor
+        </button>
+      </div>
+    ) : null,
+}));
 /**
  * The table, filters, detail, and actions are tested on their own; here they show what they were given. The table's
  * real module is still loaded: in browser mode a module mocked without loading it leaves its import statement
@@ -121,6 +140,19 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe('TransactionsPage import', () => {
+  it.each([
+    ['with transactions', transactionsView([])],
+    ['before the first transaction', transactionsView([], { hasTransactions: false })],
+  ])('opens the statement import for the ledger’s accounts %s', async (_label, view) => {
+    const { screen } = await renderPage({}, view);
+    await userEvent.click(screen.getByRole('button', { name: 'Impor mutasi' }));
+    const dialog = page.getByRole('dialog', { name: 'Impor mutasi' });
+    await expect.element(dialog).toMatchTextContent(BCA.displayName);
+    await userEvent.click(dialog.getByRole('button', { name: 'tutup impor' }));
+    await expect.element(dialog).not.toBeInTheDocument();
+  });
+});
 describe('TransactionsPage', () => {
   it('shows the header, summary, accounts, and table, and records a transaction', async () => {
     const view = transactionsView([], {

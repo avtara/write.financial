@@ -366,8 +366,8 @@ export function createAiRepository(
       const refusal = await mutate(userId, async (tx) => {
         const user = await userIn(tx, userId);
         const current = await currentIn(tx);
-        checkRevision(current?.revision ?? null, input.expectedRevision);
         if (current === undefined) throw new AiError('AI_NOT_CONFIGURED');
+        checkRevision(current.revision, input.expectedRevision);
         const connection = (await tx.select().from(aiConnections).where(eq(aiConnections.provider, input.provider)))[0];
         if (connection?.apiKeyEnc == null || connection.modelId !== input.modelId)
           throw new AiError('AI_NOT_CONFIGURED');

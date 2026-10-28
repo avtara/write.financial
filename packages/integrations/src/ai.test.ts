@@ -110,6 +110,94 @@ describe('provider model catalogs', () => {
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+
+  it('uses conservative override maxima and rounds subquantum provider prices upward', async () => {
+    const catalog = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(
+        JSON.stringify({
+          data: [
+            {
+              id: 'quoted',
+              pricing: {
+                prompt: '1e-25',
+                completion: '0',
+                overrides: [
+                  { pricing: { prompt: '0.000002', completion: '0.000003', request: '0.1' } },
+                  { prompt: '0.000001', completion: '0.000004', image: '0.2' },
+                ],
+              },
+            },
+            { id: 'subquantum', pricing: { prompt: '1e-25', completion: '0' } },
+          ],
+        }),
+      ),
+    }).models('openrouter');
+    expect(catalog.models[0]?.pricing).toEqual({
+      inputUsdPerMillion: '2',
+      outputUsdPerMillion: '4',
+      requestUsd: '0.1',
+      imageUsd: '0.2',
+    });
+    expect(catalog.models[1]?.pricing?.inputUsdPerMillion).toBe('0.000000000001');
+  });
+
+  it.each([
+    { prompt: [], completion: [] },
+    { prompt: 'not an array', completion: [] },
+    { completion: [{ value: '1', currency: 'USD', unit: 'perMTokens' }] },
+    { prompt: [{ value: '1', currency: 'EUR', unit: 'perMTokens' }], completion: [] },
+    { prompt: [{ value: '1', currency: 'USD', unit: 'perCount' }], completion: [] },
+    { prompt: [{ value: '-1', currency: 'USD', unit: 'perMTokens' }], completion: [] },
+    ...[
+      'completion',
+      'input_cache_read',
+      'input_cache_write',
+      'input_cache_write_1_h',
+      'input_cache_write_5_min',
+      'internal_reasoning',
+      'request',
+      'image',
+    ].map((key) => ({
+      prompt: [{ value: '1', currency: 'USD', unit: 'perMTokens' }],
+      completion: [{ value: '1', currency: 'USD', unit: 'perMTokens' }],
+      [key]: [],
+    })),
+  ])('treats malformed ZenMux pricing as unknown, never free: %j', async (pricings) => {
+    const catalog = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(JSON.stringify({ data: [{ id: 'unknown', pricings }] })),
+    }).models('zenmux');
+    expect(catalog.models[0]?.pricing).toBeNull();
+  });
+
+  it.each([
+    { prompt: '100000000000000000000', completion: '0' },
+    { prompt: 'NaN', completion: '0' },
+    ...['input_cache_read', 'input_cache_write', 'internal_reasoning', 'request', 'image'].map((key) => ({
+      prompt: '0',
+      completion: '0',
+      [key]: '-1',
+    })),
+  ])('refuses unsafe or corrupt OpenRouter quotes: %j', async (quote) => {
+    const catalog = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(JSON.stringify({ data: [{ id: 'unknown', pricing: quote }] })),
+    }).models('openrouter');
+    expect(catalog.models[0]?.pricing).toBeNull();
+  });
+
+  it('omits unsafe model IDs and fails closed on private catalogs without a key or on HTTP errors', async () => {
+    const fetcher = reply('{"data":[{},{"id":"bad id"},{"id":"valid","display_name":"Valid"}]}');
+    const client = createAiClient({ allowedBaseUrls: ['https://custom.test/v1'], fetch: fetcher });
+    await expect(client.models('custom', 'https://custom.test/v1')).rejects.toMatchObject({
+      code: 'AI_NOT_CONFIGURED',
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await client.models('openrouter')).models.map((model) => model.id)).toEqual(['valid']);
+    fetcher.mockResolvedValueOnce(new Response('private key diagnostic', { status: 503 }));
+    await expect(client.models('openrouter')).rejects.toMatchObject({ code: 'AI_PROVIDER_FAILED' });
+  });
 });
 
 describe('bounded tool calling', () => {
@@ -198,6 +286,40 @@ describe('bounded tool calling', () => {
     await expect(
       client.complete(completion({ tools: [{ name: 'Bad Name', description: '', parameters: {} }] })),
     ).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+  });
+
+  it('normalizes structured and absent arguments without confusing them with malformed names', async () => {
+    const fetcher = reply(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: 'ok',
+              tool_calls: [
+                { id: 'one', function: { name: 'pengeluaran', arguments: { from: '2026-10-01' } } },
+                { id: 'two', function: { name: 'pengeluaran' } },
+                { id: 'three', function: { name: 'pengeluaran', arguments: null } },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const result = await createAiClient({ allowedBaseUrls: [], fetch: fetcher }).complete(
+      completion({
+        provider: 'zenmux',
+        messages: [
+          { role: 'assistant', content: 'Checking', toolCalls: [{ id: 'old', name: 'pengeluaran', arguments: '{}' }] },
+          { role: 'tool', content: 'No data' },
+        ],
+      }),
+    );
+    expect(result.toolCalls.map((call) => call.arguments)).toEqual(['{"from":"2026-10-01"}', '{}', '{}']);
+    const body = fetcher.mock.calls[0]?.[1]?.body;
+    if (typeof body !== 'string') throw new TypeError('Expected a JSON request body');
+    const sent = JSON.parse(body) as { messages: unknown[]; provider?: unknown };
+    expect(sent.messages).toMatchObject([{ content: 'Checking' }, { tool_call_id: '', content: 'No data' }]);
+    expect(sent.provider).toBeUndefined();
   });
 });
 
@@ -330,5 +452,37 @@ describe('bounded authenticated completions', () => {
     }).complete(completion());
     expect(network).toMatchObject({ status: 'error', errorCode: 'network', costUsd: null });
     expect(JSON.stringify(network)).not.toContain('fixture-private-key');
+  });
+
+  it.each([0, -1, 1.5, 32769])('rejects unsafe output bounds before authenticated egress: %s', async (maxTokens) => {
+    const fetcher = reply('{}');
+    await expect(
+      createAiClient({ allowedBaseUrls: [], fetch: fetcher }).complete(completion({ maxTokens })),
+    ).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('contains malformed, missing, oversized, and broken transport bodies without forwarding private text', async () => {
+    const bodies = [null, 'private not JSON', 'x'.repeat(8 * 1024 * 1024 + 1)];
+    for (const body of bodies) {
+      const result = await createAiClient({
+        allowedBaseUrls: [],
+        fetch: () => Promise.resolve(new Response(body)),
+      }).complete(completion());
+      expect(result).toMatchObject({ status: 'error', httpStatus: 200, errorCode: 'invalid_response', content: null });
+    }
+    const broken = new ReadableStream({
+      start(controller) {
+        controller.enqueue('not binary');
+      },
+      cancel() {
+        throw new Error('private cancellation');
+      },
+    });
+    const result = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: () => Promise.resolve(new Response(broken)),
+    }).complete(completion());
+    expect(result).toMatchObject({ status: 'error', errorCode: 'invalid_response' });
   });
 });

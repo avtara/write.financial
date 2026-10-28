@@ -264,7 +264,8 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<AiConnectionView | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  /** The revision the "Hapus key" confirmation removes from; `null` while it is closed. */
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const clearFieldError = (field: keyof AiFieldErrors) => {
@@ -302,7 +303,9 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
       : !hasSavedKeyAndModel
         ? m.ai_test_disabled_no_key()
         : null;
-  const canTest = testDisabledReason === null && !busy && settings.twoFactorEnabled;
+  /** The saved revision a test runs against; `null` while there is nothing saved to test. */
+  const testRevision = !dirty && hasSavedKeyAndModel ? view.revision : null;
+  const canTest = testRevision !== null && !busy && settings.twoFactorEnabled;
 
   const chooseProvider = (provider: AiProvider) => {
     const saved = connectionOf(provider);
@@ -342,7 +345,6 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   };
 
   const save = async () => {
-    if (!canSave) return;
     const errors: typeof fieldErrors = {};
     const modelId = draft.modelId.trim();
     if (modelId === '') errors.model = m.ai_model_required();
@@ -400,18 +402,17 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
     void router.invalidate();
   };
 
-  const remove = async () => {
-    if (view.revision === null || busy) return;
+  const remove = async (expectedRevision: string) => {
     setRemoving(true);
-    setDeleting(false);
+    setDeleting(null);
     setDeleteError(null);
     const first = await removeAiKey({
-      data: { provider: draft.provider, expectedRevision: view.revision },
+      data: { provider: draft.provider, expectedRevision },
     }).catch(() => null);
     let result = first;
     if (result !== null && !result.ok && needsReauthentication(result.code) && (await reauthenticate())) {
       result = await removeAiKey({
-        data: { provider: draft.provider, expectedRevision: view.revision },
+        data: { provider: draft.provider, expectedRevision },
       }).catch(() => null);
     }
     setRemoving(false);
@@ -430,14 +431,13 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
     void router.invalidate();
   };
 
-  const runTest = async () => {
-    if (!canTest || view.revision === null) return;
+  const runTest = async (expectedRevision: string) => {
     setTesting(true);
     setTestError(null);
     setLastTest(null);
     const data: AiConnectionTestInput = {
       provider: draft.provider,
-      expectedRevision: view.revision,
+      expectedRevision,
       requestId: crypto.randomUUID(),
     };
     let result = await testAiConnection({ data }).catch(() => null);
@@ -464,7 +464,6 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   };
 
   const loadModels = async () => {
-    if (!customCatalogReady) return;
     const key = `${draft.provider}:${draft.provider === 'custom' ? draft.baseUrl : ''}`;
     catalogFor.current = key;
     setCatalogLoading(true);
@@ -622,7 +621,7 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                     variant="ghost"
                     disabled={view.revision === null}
                     onClick={() => {
-                      setDeleting(true);
+                      setDeleting(view.revision);
                     }}
                   >
                     {m.ai_delete_key()}
@@ -750,7 +749,12 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                     {m.ai_models_failed()}{' '}
                     {catalogError === 'NETWORK' ? m.error_network() : aiErrorMessage(catalogError, locale)}
                   </FormError>
-                  <Button size="sm" variant="secondary" onClick={() => void loadModels()}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!customCatalogReady}
+                    onClick={() => void loadModels()}
+                  >
                     {m.ai_log_retry()}
                   </Button>
                 </div>
@@ -943,7 +947,12 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
               <p className="text-[12.5px] text-muted-fg">{m.ai_test_description()}</p>
               {testDisabledReason === null ? null : <p className="text-[12px] text-subtle">{testDisabledReason}</p>}
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" pending={testing} disabled={!canTest} onClick={() => void runTest()}>
+                <Button
+                  size="sm"
+                  pending={testing}
+                  disabled={!canTest}
+                  onClick={testRevision === null ? undefined : () => void runTest(testRevision)}
+                >
                   {testing ? m.ai_testing() : m.ai_test()}
                 </Button>
                 <span role="status" className="min-h-[18px] text-[12px] text-muted-fg">
@@ -980,11 +989,11 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
         </footer>
       </fieldset>
 
-      {deleting ? (
+      {deleting === null ? null : (
         <ConfirmDialog
           open
           onOpenChange={() => {
-            setDeleting(false);
+            setDeleting(null);
           }}
           title={m.ai_delete_title({ provider: PROVIDER_LABEL[draft.provider]() })}
           description={m.ai_delete_description()}
@@ -993,10 +1002,10 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
           cancelLabel={m.settings_cancel()}
           variant="destructive"
           onConfirm={() => {
-            void remove();
+            void remove(deleting);
           }}
         />
-      ) : null}
+      )}
       {dialog}
     </>
   );

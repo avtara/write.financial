@@ -62,6 +62,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
+      reportOnFailure: true,
       include: ['{apps,packages,tools}/*/src/**/*.{ts,tsx}'],
       exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', '**/src/paraglide/**', '**/src/**/generated/**'],
       reporter: ['text', 'html', 'json-summary'],

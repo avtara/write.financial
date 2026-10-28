@@ -411,43 +411,39 @@ describe('InvestmentsPage', () => {
     expect(calls.remove).toHaveBeenCalled();
   });
 
-  it('closes dialogs with Escape and records a sale and a whole-asset goal split', async () => {
+  it.each([
+    ['SPY · SPDR S&P 500 ETF', 'SPY', null],
+    ['Ubah detail aset', 'Menu SPY', 'Ubah detail aset…'],
+    ['Pindahkan SPY ke…', 'Menu SPY', 'Pindah ke kategori…'],
+    ['Alokasi SPY ke tujuan', 'Menu SPY', 'Atur alokasi ke tujuan…'],
+    ['Sesuaikan kepemilikan SPY', 'Menu SPY', 'Sesuaikan kepemilikan…'],
+  ] as const)('closes %s with Escape', async (dialogName, buttonName, menuItem) => {
     await browserPage.viewport(1440, 1000);
     const { screen } = await renderApp(<InvestmentsPage {...page()} />);
-    const escape = async (open: () => Promise<void>, dialog: ReturnType<typeof screen.getByRole>) => {
-      await open();
-      await expect.element(dialog).toBeVisible();
-      await userEvent.keyboard('{Escape}');
-      await expect.element(dialog).not.toBeInTheDocument();
-    };
-    await escape(
-      async () => {
-        await screen.getByRole('button', { name: 'SPY', exact: true }).click();
-      },
-      screen.getByRole('dialog', { name: 'SPY · SPDR S&P 500 ETF' }),
-    );
-    const menu = async (item: string) => {
-      await screen.getByRole('button', { name: 'Menu SPY', exact: true }).click();
-      await screen.getByRole('menuitem', { name: item }).click();
-    };
-    const menuText = async (text: RegExp) => {
-      await screen.getByRole('button', { name: 'Menu SPY', exact: true }).click();
-      await screen.getByRole('menuitem').filter({ hasText: text }).click();
-    };
-    await escape(() => menu('Ubah detail aset…'), screen.getByRole('dialog', { name: 'Ubah detail aset' }));
-    await escape(() => menu('Pindah ke kategori…'), screen.getByRole('dialog', { name: 'Pindahkan SPY ke…' }));
-    await escape(
-      async () => {
-        await screen.getByRole('button', { name: 'Tambah aset', exact: true }).click();
-      },
-      screen.getByRole('dialog', { name: 'Tambah aset' }),
-    );
-    await escape(() => menu('Atur alokasi ke tujuan…'), screen.getByRole('dialog', { name: 'Alokasi SPY ke tujuan' }));
-    await escape(
-      () => menu('Sesuaikan kepemilikan…'),
-      screen.getByRole('dialog', { name: 'Sesuaikan kepemilikan SPY' }),
-    );
-    // A sale goes through the page's recordTrade sell branch.
+    const opener = screen.getByRole('button', { name: buttonName, exact: true });
+    await opener.click();
+    if (menuItem !== null) await screen.getByRole('menuitem', { name: menuItem }).click();
+    const dialog = screen.getByRole('dialog', { name: dialogName });
+    await expect.element(dialog).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    await expect.element(dialog).not.toBeInTheDocument();
+    if (menuItem === null) await expect.element(opener).toHaveFocus();
+  });
+
+  it('closes Tambah aset with Escape', async () => {
+    await browserPage.viewport(1440, 1000);
+    const { screen } = await renderApp(<InvestmentsPage {...page()} />);
+    const opener = screen.getByRole('button', { name: 'Tambah aset', exact: true });
+    await opener.click();
+    const dialog = screen.getByRole('dialog', { name: 'Tambah aset' });
+    await expect.element(dialog.getByRole('textbox', { name: 'Ticker', exact: true })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(opener).toHaveFocus();
+  });
+
+  it('records a sale of all units and closes the trade sheet', async () => {
+    const { screen } = await renderApp(<InvestmentsPage {...page()} />);
     await screen.getByRole('button', { name: 'Catat Transaksi Investasi' }).click();
     const sheet = screen.getByRole('dialog', { name: 'Catat transaksi investasi' });
     await sheet.getByRole('tab', { name: 'Jual' }).click();
@@ -456,10 +452,23 @@ describe('InvestmentsPage', () => {
     expect(calls.record).toHaveBeenLastCalledWith({
       data: expect.objectContaining({ kind: 'sell', proceedsAccountId: null }) as unknown,
     });
-    // A whole-asset goal split maps without a percentage.
-    await menuText(/^Ubah target alokasi/);
-    await screen.getByRole('dialog', { name: 'Target alokasi' }).getByRole('button', { name: 'Batal' }).click();
-    await menu('Atur alokasi ke tujuan…');
+    await expect.element(sheet).not.toBeInTheDocument();
+    await expect.element(screen.getByRole('button', { name: 'Catat Transaksi Investasi' })).toHaveFocus();
+  });
+
+  it('opens allocation targets from the asset menu and assigns the whole asset to a goal', async () => {
+    await browserPage.viewport(1440, 1000);
+    const { screen } = await renderApp(<InvestmentsPage {...page()} />);
+    await screen.getByRole('button', { name: 'Menu SPY', exact: true }).click();
+    await screen
+      .getByRole('menuitem')
+      .filter({ hasText: /^Ubah target alokasi/ })
+      .click();
+    const targets = screen.getByRole('dialog', { name: 'Target alokasi' });
+    await targets.getByRole('button', { name: 'Batal' }).click();
+    await expect.element(targets).not.toBeInTheDocument();
+    await screen.getByRole('button', { name: 'Menu SPY', exact: true }).click();
+    await screen.getByRole('menuitem', { name: 'Atur alokasi ke tujuan…' }).click();
     const goals = screen.getByRole('dialog', { name: 'Alokasi SPY ke tujuan' });
     await goals.getByRole('combobox', { name: 'Alokasi ke DP Rumah' }).selectOptions('whole');
     await goals.getByRole('combobox', { name: 'Alokasi ke Dana Pensiun' }).selectOptions('none');

@@ -71,6 +71,22 @@ describe('ReportsPage', () => {
     await expect.element(screen.getByText('Laporan-2026-09.pdf')).toBeVisible();
   });
 
+  it('keeps the saved section usable when the stored files cannot be listed', async () => {
+    fake.viewReport.mockReset();
+    for (const failure of [
+      () => fake.listReportFiles.mockResolvedValueOnce({ ok: false, code: 'UNAUTHENTICATED' }),
+      () => fake.listReportFiles.mockRejectedValueOnce(new Error('offline')),
+    ]) {
+      failure();
+      const { screen } = await renderApp(
+        <ReportsPage reports={[]} latestFinal={FINAL_VIEW} today={TODAY} timeZone="Asia/Jakarta" locale="id" />,
+      );
+      await expect.element(screen.getByText('Belum ada laporan tersimpan.')).toBeVisible();
+      expect(document.querySelectorAll('a[download]')).toHaveLength(0);
+      await screen.unmount();
+    }
+  });
+
   it('opens the export dialog over the viewed report from the header button', async () => {
     fake.viewReport.mockReset();
     const { screen } = await renderApp(

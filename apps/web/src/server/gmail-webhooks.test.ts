@@ -181,6 +181,34 @@ describe('separate OAuth callback', () => {
     expect((await callback(`state=${state}&code=x`)).headers.get('location')).toContain('#gmail-failed');
     expect(googleFetch).not.toHaveBeenCalled();
   });
+
+  it.each(['', 'state=bad', `state=${state}&state=${state}&code=x`])(
+    'rejects malformed callback state before egress: %s',
+    async (query) => {
+      expect((await callback(query)).headers.get('location')).toContain('#gmail-failed');
+      expect(googleFetch).not.toHaveBeenCalled();
+      expect(enqueue).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['', 'code=x&code=y', `code=${'x'.repeat(4097)}`])(
+    'consumes consent but refuses ambiguous or unbounded code: %s',
+    async (query) => {
+      await test.as('wf_app', () => gmail.createConsent(userId, state, fakeSession().session.id, 'verifier'));
+      expect((await callback(`state=${state}&${query}`)).headers.get('location')).toContain('#gmail-failed');
+      expect(googleFetch).not.toHaveBeenCalled();
+      expect((await callback(`state=${state}&code=x`)).headers.get('location')).toContain('#gmail-failed');
+      expect(enqueue).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not save a short-lived grant without a refresh token', async () => {
+    await test.as('wf_app', () => gmail.createConsent(userId, state, fakeSession().session.id, 'verifier'));
+    googleFetch.mockResolvedValueOnce(Response.json({ access_token: 'private', expires_in: 3600, scope: GMAIL_SCOPE }));
+    expect((await callback(`state=${state}&code=x`)).headers.get('location')).toContain('#gmail-failed');
+    expect(await test.as('wf_app', () => gmail.getConnection(userId))).toBeNull();
+    expect(enqueue).not.toHaveBeenCalled();
+  });
 });
 
 describe('Pub/Sub authenticated ingress', () => {
@@ -211,6 +239,75 @@ describe('Pub/Sub authenticated ingress', () => {
   it('never enqueues when the integration is disabled', async () => {
     runtime.value.config = { ...config, google: null };
     expect((await push()).status).toBe(404);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('bounds authorization, declared and streamed body sizes before mailbox lookup', async () => {
+    const request = (body: BodyInit | null, headers: Record<string, string>) =>
+      new Request('https://money.test/api/gmail/push', {
+        method: 'POST',
+        body,
+        headers,
+        duplex: 'half',
+      } as RequestInit);
+    for (const headers of [{}, { authorization: 'Basic private' }, { authorization: `Bearer ${'x'.repeat(8200)}` }]) {
+      expect((await gmailPush({ request: request('{}', headers) })).status).toBe(401);
+    }
+    for (const req of [
+      request('{}', { authorization: `Bearer ${jwt()}`, 'content-length': '16385' }),
+      request(null, { authorization: `Bearer ${jwt()}` }),
+      request('x'.repeat(16385), { authorization: `Bearer ${jwt()}` }),
+    ])
+      expect((await gmailPush({ request: req })).status).toBe(401);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { message: {} },
+    { subscription: 'projects/other/subscriptions/mail', message: { messageId: '123', data: 'e30' } },
+    { subscription: 'projects/fixture/subscriptions/mail', message: { messageId: 'bad', data: 'e30' } },
+    { subscription: 'projects/fixture/subscriptions/mail', message: { messageId: '123', data: 'x'.repeat(4097) } },
+    ...[
+      {},
+      { emailAddress: 1, historyId: '501' },
+      { emailAddress: 'x'.repeat(255), historyId: '501' },
+      { emailAddress: 'fixture@gmail.com', historyId: 501 },
+      { emailAddress: 'fixture@gmail.com', historyId: 'bad' },
+    ].map((event) => ({
+      subscription: 'projects/fixture/subscriptions/mail',
+      message: { messageId: '123', data: Buffer.from(JSON.stringify(event)).toString('base64url') },
+    })),
+  ])('refuses malformed signed notifications without enqueueing: %j', async (body) => {
+    expect(
+      (
+        await gmailPush({
+          request: new Request('https://money.test/api/gmail/push', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${jwt()}` },
+            body: JSON.stringify(body),
+          }),
+        })
+      ).status,
+    ).toBe(401);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('contains a cancellation failure on an oversized push stream', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(16385));
+      },
+      cancel() {
+        throw new Error('private transport');
+      },
+    });
+    const request = new Request('https://money.test/api/gmail/push', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${jwt()}` },
+      body,
+      duplex: 'half',
+    } as RequestInit);
+    expect((await gmailPush({ request })).status).toBe(401);
     expect(enqueue).not.toHaveBeenCalled();
   });
 });

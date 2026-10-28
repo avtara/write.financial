@@ -10,6 +10,7 @@ import { createAiClient } from '@wf/integrations/ai';
 import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeDb, fakeDeps } from '../../test/fakes.ts';
 import { createOcrProcessor } from './ocr.ts';
+import type { ProcessorDeps } from '../processors.ts';
 let test: TestDatabase;
 let userId: string;
 let accountId: string;
@@ -27,11 +28,11 @@ const objects = {
   get: () => Promise.resolve({ mime: 'image/webp', bytes: new Uint8Array([82, 73, 70, 70]) }),
   delete: () => Promise.resolve(),
 };
-const run = async (id: string) => {
+const run = async (id: string, receipt: ProcessorDeps['receipt'] = { client, objects }, aiPort = ai) => {
   const processor = createOcrProcessor(
     fakeDeps({
-      db: { ...fakeDb(), receipts: createReceiptJobs(test.db, { getDek, now: () => now }), ai },
-      receipt: { client, objects },
+      db: { ...fakeDb(), receipts: createReceiptJobs(test.db, { getDek, now: () => now }), ai: aiPort },
+      receipt,
     }),
   );
   return test.as('wf_worker', () =>
@@ -190,5 +191,80 @@ describe('real queued receipt processor', () => {
     );
     expect(log).toMatchObject({ cost_source: 'estimated', spent: true, error_code: 'network' });
     expect(JSON.stringify(log)).not.toContain('private');
+  });
+
+  it('fails safely when receipt services are absent before provider egress', async () => {
+    const id = await stage();
+    const process = createOcrProcessor(
+      fakeDeps({
+        db: { ...fakeDb(), receipts: createReceiptJobs(test.db, { getDek, now: () => now }), ai },
+      }),
+    );
+    expect(
+      await test.as('wf_worker', () => process({ id, data: { userId, receiptId: id }, attemptsMade: 0 })),
+    ).toMatchObject({ status: 'failed', code: 'RECEIPT_FAILED' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing pricing and tampered page media before paid egress', async () => {
+    const unpriced = await stage();
+    expect(
+      await run(
+        unpriced,
+        { client, objects },
+        {
+          ...ai,
+          credential: async (...args) => ({ ...(await ai.credential(...args)), pricing: null }),
+        },
+      ),
+    ).toMatchObject({ status: 'failed', code: 'AI_PRICING_REQUIRED' });
+    const tampered = await stage();
+    expect(
+      await run(tampered, {
+        client,
+        objects: {
+          ...objects,
+          get: () => Promise.resolve({ mime: 'text/html', bytes: new Uint8Array([1]) }),
+        },
+      }),
+    ).toMatchObject({ status: 'failed', code: 'RECEIPT_UNREADABLE' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { choices: [{ message: { content: null }, finish_reason: 'stop' }] },
+    { choices: [{ message: { content: 'private partial' }, finish_reason: 'length' }] },
+    {
+      choices: [
+        {
+          message: {
+            content: '',
+            tool_calls: [{ id: 'call1', type: 'function', function: { name: 'write', arguments: '{}' } }],
+          },
+          finish_reason: 'tool_calls',
+        },
+      ],
+    },
+  ])('refuses incomplete or tool-bearing answers without losing the known charge: %j', async (response) => {
+    fetcher.mockResolvedValueOnce(
+      Response.json({ ...response, usage: { cost: '0.009', prompt_tokens: 10, completion_tokens: 5 } }),
+    );
+    const id = await stage();
+    expect(await run(id)).toMatchObject({ status: 'failed', code: 'RECEIPT_UNREADABLE' });
+    await run(id);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(await test.query('SELECT cost_usd > 0 AS charged FROM ai_logs WHERE id=$1', [id])).toEqual([
+      { charged: true },
+    ]);
+  });
+
+  it('keeps a timeout terminal instead of billing the same receipt twice', async () => {
+    fetcher.mockRejectedValueOnce(new DOMException('private timeout', 'TimeoutError'));
+    const deadline = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(AbortSignal.abort());
+    const id = await stage();
+    expect(await run(id)).toMatchObject({ status: 'failed', code: 'AI_TIMEOUT' });
+    deadline.mockRestore();
+    await run(id);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

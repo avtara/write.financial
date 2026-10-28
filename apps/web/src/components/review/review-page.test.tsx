@@ -389,3 +389,90 @@ describe('ReviewPage', () => {
       .toHaveFocus();
   });
 });
+
+describe('ReviewPage Gmail items', () => {
+  const PLN = reviewItem('rv-pln', {
+    reason: 'ai_suggestion',
+    source: 'gmail',
+    label: 'PLN',
+    payload: {
+      kind: 'gmail',
+      logId: 'log-pln',
+      messageId: 'msg-pln',
+      from: 'tagihan@pln.test',
+      subject: 'Pembayaran listrik',
+      excerpt: 'Pembayaran Rp350.000 berhasil',
+      tags: [],
+      errorCode: null,
+      extraction: {
+        amountMinor: 350_000n,
+        occurredAt: new Date('2026-10-14T02:00:00Z'),
+        merchant: 'PLN',
+        currency: 'IDR',
+        accountId: BCA.id,
+        categoryId: categoryId('system:bills'),
+        confidence: { amount: 97, date: 97, merchant: 97, currency: 97, account: 97, category: 97 },
+      },
+    },
+  });
+
+  it('records a 97% email only on "Catat", offers Urungkan, and refreshes the queue', async () => {
+    server.confirmReview.mockResolvedValue(ok({ transactionId: 'tx-pln', overrideIds: [] }));
+    const { invalidate } = await renderPage([PLN]);
+    const card = panel(/^Gmail/).getByRole('article', { name: 'PLN' });
+    await expect.element(card).toBeVisible();
+    expect(server.confirmReview).not.toHaveBeenCalled();
+    await userEvent.click(card.getByRole('button', { name: 'Catat' }));
+    expect(server.confirmReview).toHaveBeenCalledWith({
+      data: {
+        itemId: PLN.id,
+        edits: {
+          amountMinor: 350_000n,
+          accountId: BCA.id,
+          categoryId: categoryId('system:bills'),
+          merchant: 'PLN',
+          occurredAt: new Date('2026-10-14T02:00:00Z'),
+        },
+      },
+    });
+    await vi.waitFor(() => {
+      expect(invalidate).toHaveBeenCalled();
+    });
+    expect(toasts.toast.undo).toHaveBeenCalledWith(expect.objectContaining({ title: 'Transaksi tersimpan' }));
+    server.removeTransactions.mockResolvedValueOnce({ ok: true, value: { deleted: ['tx-pln'] } });
+    invalidate.mockClear();
+    const [{ onUndo }] = toasts.toast.undo.mock.lastCall as [{ onUndo: () => void }];
+    onUndo();
+    expect(server.removeTransactions).toHaveBeenCalledWith({ data: { ids: ['tx-pln'] } });
+    await vi.waitFor(() => {
+      expect(invalidate).toHaveBeenCalled();
+    });
+  });
+
+  it('offers no Urungkan when the confirmation left no transaction, and keeps the item after a refusal', async () => {
+    server.confirmReview
+      .mockResolvedValueOnce({ ok: false, code: 'INVALID_ACCOUNT' })
+      .mockResolvedValueOnce(ok({ transactionId: null, overrideIds: [] }));
+    const { invalidate } = await renderPage([PLN]);
+    const card = panel(/^Gmail/).getByRole('article', { name: 'PLN' });
+    await userEvent.click(card.getByRole('button', { name: 'Catat' }));
+    await vi.waitFor(() => {
+      expect(lastToast()).toMatchObject({ tone: 'error', title: 'Periksa lagi data rekening.' });
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+    await expect.element(card.getByRole('button', { name: 'Catat' })).toBeEnabled();
+    await userEvent.click(card.getByRole('button', { name: 'Catat' }));
+    await vi.waitFor(() => {
+      expect(invalidate).toHaveBeenCalled();
+    });
+    expect(toasts.toast.undo).not.toHaveBeenCalled();
+  });
+
+  it('ignores an email without recording it', async () => {
+    server.ignoreReview.mockResolvedValue(ok({ ignored: 1 }));
+    await renderPage([PLN]);
+    await userEvent.click(panel(/^Gmail/).getByRole('button', { name: 'Abaikan' }));
+    expect(server.ignoreReview).toHaveBeenCalledWith({ data: { itemIds: [PLN.id] } });
+    expect(server.confirmReview).not.toHaveBeenCalled();
+  });
+});

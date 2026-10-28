@@ -39,6 +39,9 @@ describe('assistant amounts', () => {
     );
     expect(assistantInstant(localDate('2026-10-15'), '00:00', 'UTC').toISOString()).toBe('2026-10-15T00:00:00.000Z');
     expect(() => assistantInstant(localDate('2026-10-15'), '24:00', 'UTC')).toThrow(RangeError);
+    for (const date of ['not-a-date', '2026-02-30', '2026-1-1', '+002026-10-15']) {
+      expect(() => assistantInstant(localDate(date), '12:00', 'UTC')).toThrow(RangeError);
+    }
   });
 });
 
@@ -88,6 +91,19 @@ describe('assistant evidence', () => {
     });
   });
 
+  it('shows zero utilization for a zero-limit budget and honors the account warning threshold', () => {
+    expect(
+      draftImpact({
+        amountMinor: 10n,
+        budgetLine: { limitMinor: 0n, spentMinor: 0n },
+        account: { currency: 'USD', balanceMinor: 15n, thresholdMinor: 20n },
+      }),
+    ).toEqual({
+      budget: { limitMinor: 0n, spentAfterMinor: 10n, usedBps: 0 },
+      balance: { currency: 'USD', afterMinor: 5n, thresholdMinor: 20n },
+    });
+  });
+
   it('treats the same amount within two hours as the same purchase, and nothing else', () => {
     const candidate = (overrides: Partial<Parameters<typeof findDuplicate>[1][number]> = {}) => ({
       transactionId: 't1',
@@ -103,6 +119,7 @@ describe('assistant evidence', () => {
     expect(findDuplicate({ ...draft, amountMinor: 111_100n }, [candidate()])?.transactionId).toBe('t1');
     expect(findDuplicate({ ...draft, amountMinor: 112_000n }, [candidate()])).toBeNull();
     expect(findDuplicate(draft, [candidate({ occurredAt: new Date('2026-10-15T03:06:00Z') })])).toBeNull();
+    expect(findDuplicate({ ...draft, amountMinor: 0n }, [candidate({ amountMinor: 0n })])?.transactionId).toBe('t1');
     expect(findDuplicate(draft, [])).toBeNull();
   });
 });
@@ -138,6 +155,24 @@ describe('assistant privacy and provider contract', () => {
     expect(prompt).toContain('c1 | Makan & Dapur (needs)');
     expect(prompt).toContain('Draft creation is not allowed');
     expect(prompt).not.toMatch(/saldo|balance/i);
+  });
+
+  it('does not expose ledger tools or invent accounts for an English no-data conversation', () => {
+    const prompt = assistantSystemPrompt({
+      locale: 'en',
+      timeZone: 'UTC',
+      today: localDate('2026-10-15'),
+      currency: 'USD',
+      accounts: [],
+      categories: [],
+      budget: false,
+      drafts: true,
+    });
+    expect(prompt).toContain('Answer in English');
+    expect(prompt).toContain('Accounts you may use:\n(none)');
+    expect(prompt).toContain('Categories you may use:\n(none)');
+    expect(prompt).toContain('ledger tools are unavailable');
+    expect(prompt).toContain('The user allows transaction drafts.');
   });
 
   it('offers the bounded tool surface with provider JSON schemas', () => {

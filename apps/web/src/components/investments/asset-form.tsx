@@ -123,7 +123,6 @@ function AssetFields({
           {({ id, describedBy, invalid }) => (
             <TextInput
               id={id}
-              autoFocus
               value={symbol}
               maxLength={20}
               aria-describedby={describedBy}

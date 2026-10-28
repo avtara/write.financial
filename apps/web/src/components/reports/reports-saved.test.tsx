@@ -28,6 +28,7 @@ describe('SavedSection', () => {
         selectable={new Map([['report-2026-09', { kind: 'monthly', id: 'report-2026-09', periodId: 'period-sep' }]])}
         locale="id"
         today={TODAY}
+        timeZone="Asia/Jakarta"
         files={null}
         onSelect={onSelect}
       />,
@@ -56,6 +57,7 @@ describe('SavedSection', () => {
         selectable={new Map()}
         locale="id"
         today={TODAY}
+        timeZone="Asia/Jakarta"
         files={null}
         onSelect={onSelect}
       />,
@@ -73,6 +75,7 @@ describe('SavedSection', () => {
         selectable={new Map()}
         locale="id"
         today={TODAY}
+        timeZone="Asia/Jakarta"
         files={null}
         onSelect={onSelect}
       />,
@@ -135,6 +138,7 @@ describe('SavedSection', () => {
         selectable={new Map()}
         locale="id"
         today={TODAY}
+        timeZone="Asia/Jakarta"
         files={null}
         onSelect={vi.fn()}
       />,

@@ -66,3 +66,27 @@ it(
   },
   PGLITE_HOOK_TIMEOUT,
 );
+
+it(
+  'logs only the snapshot date for an investment account, never financial values, on replay too',
+  async () => {
+    const owner = await insertUser(test, 'investment-snapshot@example.test');
+    await test.query(
+      `INSERT INTO accounts
+    (user_id, type, provider_name, display_name, currency, opening_date, color)
+    VALUES ($1, 'investment', 'Broker', 'Broker', 'IDR', '2026-10-01', 'blue')`,
+      [owner],
+    );
+    const process = createSnapshotsProcessor({
+      db: { portfolioSnapshots: createPortfolioSnapshots(test.db), goalSnapshots: createGoalSnapshots(test.db) },
+      now: () => new Date('2026-10-15T16:55:00Z'),
+    });
+    const job = { id: 'investment', data: { userId: owner }, attemptsMade: 0 };
+    expect(await test.as('wf_worker', () => process(job))).toEqual({ snapshot: { date: '2026-10-15' } });
+    expect(await test.as('wf_worker', () => process(job))).toEqual({ snapshot: { date: '2026-10-15' } });
+    expect(await test.query('SELECT count(*)::int AS n FROM portfolio_snapshots WHERE user_id=$1', [owner])).toEqual([
+      { n: 1 },
+    ]);
+  },
+  PGLITE_HOOK_TIMEOUT,
+);

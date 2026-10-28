@@ -1,8 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type * as ChildProcessModule from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { PassThrough } from 'node:stream';
 import sharp from 'sharp';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { prepareReceipt, receiptMime } from './receipt.ts';
 import { ImageRejectedError } from './image.ts';
+
+const native = vi.hoisted(() => ({ next: null as (() => ChildProcess) | null }));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof ChildProcessModule>();
+  const execFile = (...args: unknown[]): ChildProcess => {
+    const fake = native.next;
+    native.next = null;
+    return fake === null ? (actual.execFile as (...rest: unknown[]) => ChildProcess)(...args) : fake();
+  };
+  return { ...actual, execFile };
+});
+
 function pdf(pages = 1): Uint8Array {
   const parts = ['%PDF-1.4\n'];
   const objects = [
@@ -77,5 +92,18 @@ describe('receipt media boundary', () => {
     await expect(prepareReceipt(new Uint8Array([255, 216, 255]), 'image/jpeg')).rejects.toBeInstanceOf(
       ImageRejectedError,
     );
+  });
+  it('kills a native parser whose input pipe breaks and never leaks native document diagnostics', async () => {
+    const stdin = new PassThrough();
+    const kill = vi.fn();
+    native.next = () => {
+      queueMicrotask(() => stdin.emit('error', new Error('private PDF content in EPIPE')));
+      return { stdin, kill } as unknown as ChildProcess;
+    };
+    await expect(prepareReceipt(pdf(), 'application/pdf')).rejects.toMatchObject({
+      reason: 'corrupt',
+      message: expect.not.stringContaining('private PDF content') as unknown,
+    });
+    expect(kill).toHaveBeenCalledWith('SIGKILL');
   });
 });

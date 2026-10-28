@@ -175,5 +175,5 @@ export function createObjectPurger(
 ): Pick<ObjectStore, 'deletePrefix'> {
   const bucketName = options.s3.buckets[options.bucket];
   const client = createS3Port(options.s3);
-  return { deletePrefix: (userId) => deletePrefixIn(client, bucketName, userId) };
+  return { deletePrefix: deletePrefixIn.bind(null, client, bucketName) };
 }

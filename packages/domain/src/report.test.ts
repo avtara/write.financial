@@ -7,6 +7,7 @@ import {
   dailyAverageMinor,
   previousRange,
   quarterOf,
+  progressBps,
   quarterRange,
   reportTotals,
   shareLines,
@@ -26,6 +27,11 @@ const SEPTEMBER = reportTotals({
 const AUGUST = reportTotals({ incomeMinor: 24_900_000n, expenseMinor: 16_900_000n, txCount: 118 });
 
 describe('report totals', () => {
+  it('does not invent goal progress when there is no positive target', () => {
+    expect(progressBps(500n, 0n)).toBe(0);
+    expect(progressBps(500n, 1000n)).toBe(5000);
+  });
+
   it('derives the saved amount and the savings rate from the flows', () => {
     expect(SEPTEMBER).toEqual({
       incomeMinor: 25_800_000n,

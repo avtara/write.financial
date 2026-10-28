@@ -435,4 +435,54 @@ describe('TransactionDetailPanel', () => {
     expect(invalidate).toHaveBeenCalledOnce();
     expect(server.getTransactionDetail).toHaveBeenCalledTimes(2);
   });
+
+  it('shows the email evidence behind a Gmail-recorded transaction, masked while balances are hidden', async () => {
+    const detail = transactionDetail('tx-g', {
+      categoryId: KOPI.id,
+      gmailEvidence: {
+        kind: 'gmail',
+        logId: 'log-1',
+        messageId: 'msg/1#a',
+        from: 'billing@pln.test',
+        subject: 'Tagihan PLN Oktober',
+        excerpt: 'Pembayaran Rp350.000 berhasil',
+        tags: [],
+        errorCode: null,
+        extraction: {
+          amountMinor: 350_000n,
+          occurredAt: new Date('2026-10-15T02:00:00Z'),
+          merchant: 'PLN',
+          currency: 'IDR',
+          accountId: BCA.id,
+          categoryId: KOPI.id,
+          confidence: { amount: 97, date: 90, merchant: 80, currency: 97, account: 70, category: 60 },
+        },
+      },
+    });
+    const { screen } = await renderPanel(detail);
+    await userEvent.click(screen.getByText('Bukti email'));
+    await expect.element(screen.getByText('billing@pln.test · Tagihan PLN Oktober')).toBeVisible();
+    await expect.element(screen.getByText('Pembayaran Rp350.000 berhasil')).toBeVisible();
+    await expect
+      .element(screen.getByRole('link', { name: 'Buka di Gmail' }))
+      .toHaveAttribute('href', 'https://mail.google.com/mail/u/0/#all/msg%2F1%23a');
+    await screen.unmount();
+
+    server.getTransactionDetail.mockResolvedValue({ ok: true, value: detail });
+    const { screen: hidden } = await renderApp(
+      <TransactionDetailPanel
+        id={detail.id}
+        ledger={ledger}
+        timeZone="Asia/Jakarta"
+        today={'2026-10-15' as LocalDate}
+        variant="aside"
+        onClose={vi.fn()}
+      />,
+      { preferences: { balancesHidden: true } },
+    );
+    await userEvent.click(hidden.getByText('Bukti email'));
+    await expect.element(hidden.getByText(/97%/)).toBeVisible();
+    expect(document.body.textContent).not.toContain('billing@pln.test');
+    expect(document.body.textContent).not.toContain('Pembayaran Rp350.000');
+  });
 });
