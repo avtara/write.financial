@@ -191,19 +191,18 @@ export function BudgetPage({
           m.budget_description({ day: totals.day, days: period.days, left: totals.daysLeft })
         )
       }
+      secondaryActions={[
+        {
+          label: m.budget_history_button(),
+          icon: History,
+          onSelect: () => {
+            setHistoryOpen(true);
+          },
+        },
+      ]}
       actions={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <PeriodSwitcher period={period} periods={periods} onChange={onPeriodChange} />
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setHistoryOpen(true);
-            }}
-          >
-            <History aria-hidden="true" className="size-3.5" />
-            {m.budget_history_button()}
-          </Button>
           <Button
             size="sm"
             disabled={readOnly}
@@ -253,7 +252,7 @@ export function BudgetPage({
           </div>
           <aside
             aria-label={m.budget_aside_label()}
-            className="grid content-start gap-4 md:grid-cols-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:grid-cols-1"
+            className="grid content-start items-start gap-4 md:grid-cols-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:grid-cols-1"
           >
             <BudgetGroupsCard status={status} />
             {readOnly ? null : (

@@ -5,11 +5,22 @@ import { page } from 'vitest/browser';
 import { ACCOUNTS, CATEGORIES } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { detectedOverview } from '../../../test/subscription-fixtures.ts';
-import { DetectionPanel, type DetectionPanelProps } from './detection-panel.tsx';
+import { DetectionPanel, detectionLabel, type DetectionPanelProps } from './detection-panel.tsx';
 
-function Harness(props: Omit<DetectionPanelProps, 'open' | 'onOpenChange'>) {
+function Harness(props: Omit<DetectionPanelProps, 'open' | 'onOpenChange' | 'children'>) {
   const [open, setOpen] = useState(false);
-  return <DetectionPanel {...props} open={open} onOpenChange={setOpen} />;
+  return (
+    <DetectionPanel {...props} open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        {detectionLabel(props.detected)}
+      </button>
+    </DetectionPanel>
+  );
 }
 
 describe('DetectionPanel', () => {
@@ -28,7 +39,7 @@ describe('DetectionPanel', () => {
         onDismiss={onDismiss}
       />,
     );
-    await screen.getByRole('button', { name: 'Deteksi dari transaksi 2 baru' }).click();
+    await screen.getByRole('button', { name: 'Deteksi dari transaksi · 2 baru' }).click();
     const panel = page.getByRole('dialog');
     await expect.element(panel.getByRole('heading', { name: '2 tagihan berulang terdeteksi' })).toBeVisible();
     const items = panel.getByRole('listitem');

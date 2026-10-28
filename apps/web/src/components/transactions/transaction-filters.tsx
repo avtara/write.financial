@@ -262,10 +262,12 @@ export function TransactionFilters({ view, search, ledger, onSearchChange }: Tra
   const accountCounts = new Map(view.accounts.map((group) => [group.accountId, group.count]));
   const sourceLabel = (source: TransactionSource) => SOURCE_LABELS[source]();
   return (
+    // Below 1024 px the chips scroll sideways (FR-TB3); the faded right edge says there is more, and the end padding
+    // lets the last chip scroll clear of it.
     <div
       role="group"
       aria-label={m.transactions_filter_label()}
-      className="flex items-center gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible"
+      className="flex items-center gap-2 overflow-x-auto pb-1 max-lg:pr-12 max-lg:mask-r-from-90% lg:flex-wrap lg:overflow-visible"
     >
       <span className="inline-flex shrink-0 items-center gap-1">
         <RangePicker

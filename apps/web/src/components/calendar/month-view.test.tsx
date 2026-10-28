@@ -254,4 +254,24 @@ describe('WeekdayPattern', () => {
     );
     await expect.element(flat.screen.getByText(/Akhir pekan rata-rata/)).not.toBeInTheDocument();
   });
+
+  it('keeps the peak label inside the chart when the peak is the first or last day', async () => {
+    const rest = [100_000n, 200_000n, 300_000n, 400_000n, 500_000n];
+    for (const weekdays of [
+      [1_931_750n, ...rest, 600_000n],
+      [600_000n, ...rest, 1_931_750n],
+      [600_000n, 100_000n, 200_000n, 1_931_750n, 300_000n, 400_000n, 500_000n],
+    ]) {
+      const { screen } = await renderApp(
+        <div style={{ width: 260 }}>
+          <WeekdayPattern stats={{ ...stats, weekdays }} weekendRatio={null} baseCurrency="IDR" locale="id" />
+        </div>,
+      );
+      const chart = screen.getByRole('list').element().getBoundingClientRect();
+      const label = screen.getByText('Rp1.931.750').element().getBoundingClientRect();
+      expect(label.left).toBeGreaterThanOrEqual(chart.left);
+      expect(label.right).toBeLessThanOrEqual(chart.right);
+      await screen.unmount();
+    }
+  });
 });

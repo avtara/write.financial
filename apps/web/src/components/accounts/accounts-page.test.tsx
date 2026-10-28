@@ -219,6 +219,24 @@ describe('AccountsPage', () => {
     await expect.element(page.getByRole('dialog', { name: 'bulk 5' })).toBeVisible();
   });
 
+  it('folds "Sesuaikan saldo" into ⋯ and keeps the cards readable on a portrait tablet', async () => {
+    wide(false);
+    await page.viewport(768, 1024);
+    const { screen } = await renderPage();
+    const header = screen.getByRole('banner');
+    await expect
+      .element(header.getByRole('button', { name: 'Sesuaikan saldo', includeHidden: true }))
+      .not.toBeVisible();
+    await expect.element(header.getByRole('button', { name: 'Tambah rekening' })).toBeVisible();
+    // The cards keep their width and the strip scrolls rather than squeezing the amounts.
+    for (const card of screen.getByRole('list', { name: 'Kartu rekening' }).getByRole('listitem').elements()) {
+      expect(card.getBoundingClientRect().width).toBeGreaterThanOrEqual(160);
+    }
+    await userEvent.click(header.getByRole('button', { name: 'Aksi lainnya' }));
+    await userEvent.click(page.getByRole('menuitem', { name: 'Sesuaikan saldo' }));
+    await expect.element(page.getByRole('dialog', { name: 'bulk 5' })).toBeVisible();
+  });
+
   it('runs the list actions and flags through the server, reporting refusals', async () => {
     fake.updateAccount.mockResolvedValueOnce({ ok: true, value: BCA });
     fake.updateAccount.mockResolvedValueOnce({ ok: false, code: 'TOO_MANY_CARDS' });

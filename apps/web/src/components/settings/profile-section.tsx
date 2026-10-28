@@ -8,6 +8,7 @@ import { useRouter } from '@tanstack/react-router';
 import type { Profile } from '@wf/db/profiles';
 import { m } from '@wf/i18n/messages';
 import { LOCALES, type Locale } from '@wf/i18n/locale';
+import { CircleAlert, Cloud } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { authErrorMessage } from '../../lib/auth-errors.ts';
 import { timeZoneLabel } from '../../lib/time-zones.ts';
@@ -81,8 +82,9 @@ export function ProfileSection({
   else if (status === 'saved') footer = m.settings_saved();
 
   return (
-    // Not a <form>: the password dialog's form is a React child, and its submit would bubble up to this one.
-    <div className="flex flex-col gap-5">
+    // Not a <form>: the password dialog's form is a React child, and its submit would bubble up to this one. A fragment,
+    // so the save bar sticks to the bottom of the settings dialog's scroll container.
+    <>
       <SettingsGroup label={m.profile_group_profile()}>
         <SettingsRow title={m.profile_name()} description={m.profile_name_hint()}>
           <TextInput
@@ -169,8 +171,17 @@ export function ProfileSection({
         </SettingsRow>
       </SettingsGroup>
       {error === null ? null : <FormError>{error}</FormError>}
-      <footer className="flex items-center gap-2 border-t border-border pt-4">
-        <span role="status" className="flex-1 text-[12px] text-subtle">
+      {/* Sticky edges sit inside the scroller's 22px padding, so `-bottom-[22px]` puts the bar on the dialog's edge. */}
+      <footer className="sticky -bottom-[22px] z-10 -mx-7 -mb-[22px] flex flex-wrap items-center gap-2 border-t border-border bg-dialog px-7 py-3">
+        <span
+          role="status"
+          className={`flex flex-1 items-center gap-1.5 text-[12px] ${dirty ? 'text-amber-fg' : 'text-subtle'}`}
+        >
+          {dirty ? (
+            <CircleAlert aria-hidden="true" className="size-3.5" />
+          ) : (
+            <Cloud aria-hidden="true" className="size-3.5" />
+          )}
           {footer}
         </span>
         <Button
@@ -195,6 +206,6 @@ export function ProfileSection({
         </Button>
       </footer>
       {dialog}
-    </div>
+    </>
   );
 }

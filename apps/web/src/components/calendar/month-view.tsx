@@ -263,7 +263,7 @@ export function MonthGrid({
             onSelect(day.date);
           }}
           data-surplus={surplus ? 'true' : undefined}
-          className={`relative flex min-h-[92px] w-full min-w-0 flex-col gap-0.5 rounded-[8px] border p-1.5 text-left focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-fg data-[surplus=true]:bg-green-tint-3 ${heat} ${day.date === today ? 'border-blue' : 'border-transparent'}`}
+          className={`relative flex min-h-[92px] w-full min-w-0 flex-col gap-0.5 rounded-[8px] border p-1.5 text-left focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-fg data-[surplus=true]:bg-green-tint-3 xl:min-h-[122px] ${heat} ${day.date === today ? 'border-blue' : 'border-transparent'}`}
         >
           {/* The date first, then what the cell shows, so the name holds the visible text (WCAG 2.5.3). */}
           <span className="sr-only">
@@ -328,10 +328,12 @@ export function MonthGrid({
                   currency={baseCurrency}
                   context="delta"
                   locale={locale}
-                  className="text-[10px] lg:text-[11px]"
+                  className="truncate text-[10px] lg:text-[11px] xl:text-[10px]"
                 />
               ) : shown('spending') ? (
-                <span className="font-mono text-[10.5px] text-fg lg:text-[11.5px]">{spentPlain}</span>
+                <span className="truncate font-mono text-[10.5px] text-fg lg:text-[11.5px] xl:text-[10.5px]">
+                  {spentPlain}
+                </span>
               ) : null
             ) : null}
             {shown('spending') && needsShare !== null ? (
@@ -479,7 +481,14 @@ export function WeekdayPattern({ stats, weekendRatio, baseCurrency, locale }: We
       <ol className="grid grid-cols-7 items-end gap-1.5">
         {stats.weekdays.map((value, index) => (
           <li key={names[index]?.long} className="flex min-w-0 flex-col items-center gap-1">
-            <span className={value === highest ? 'text-[10px] text-fg' : 'sr-only'}>
+            {/* The label is wider than its column: at either end it aligns to the chart's edge, not past it. */}
+            <span
+              className={
+                value === highest
+                  ? `text-[10px] whitespace-nowrap text-fg ${index === 0 ? 'self-start' : index === stats.weekdays.length - 1 ? 'self-end' : ''}`
+                  : 'sr-only'
+              }
+            >
               <Money minor={value} currency={baseCurrency} context="amount" locale={locale} />
             </span>
             <svg aria-hidden="true" viewBox="0 0 10 60" preserveAspectRatio="none" className="block h-[60px] w-full">

@@ -55,7 +55,7 @@ export function SubscriptionKpis({ overview, spentMinor, incomeMinor, locale }: 
           currency={baseCurrency}
           context="amount"
           locale={locale}
-          className="text-[26px] leading-tight font-medium text-fg"
+          className="text-[22px] leading-tight font-medium text-fg lg:text-[26px]"
         />
         {spendingShare === null ? null : (
           <span className="text-[12px] text-subtle">
@@ -74,7 +74,7 @@ export function SubscriptionKpis({ overview, spentMinor, incomeMinor, locale }: 
           currency={baseCurrency}
           context="amount"
           locale={locale}
-          className="text-[26px] leading-tight font-medium text-fg"
+          className="text-[22px] leading-tight font-medium text-fg lg:text-[26px]"
         />
         {incomeShare === null ? null : (
           <span className="text-[12px] text-subtle">
@@ -93,7 +93,7 @@ export function SubscriptionKpis({ overview, spentMinor, incomeMinor, locale }: 
           currency={baseCurrency}
           context="amount"
           locale={locale}
-          className="text-[26px] leading-tight font-medium text-fg"
+          className="text-[22px] leading-tight font-medium text-fg lg:text-[26px]"
         />
         <span className="text-[12px] text-subtle">
           {remaining.firstDue === null || remaining.lastDue === null
@@ -122,14 +122,17 @@ export function SubscriptionKpis({ overview, spentMinor, incomeMinor, locale }: 
         <ol className="grid grid-cols-6 items-end gap-2">
           {history.map((month) => {
             const height = heights.get(month.month) as number;
-            const notes = [
+            const note = [
               ...month.added.map((id) => m.subscriptions_chart_added({ name: names.get(id) ?? '' })),
               ...month.increased.map((id) => m.subscriptions_chart_increased({ name: names.get(id) ?? '' })),
-            ];
+            ].join(', ');
             return (
               <li key={month.month} className="flex min-w-0 flex-col items-center gap-1">
-                <span className="min-h-[14px] w-full truncate text-center text-[10.5px] text-subtle">
-                  {notes.join(', ')}
+                <span
+                  title={note === '' ? undefined : note}
+                  className="min-h-[14px] w-full truncate text-center text-[10.5px] text-subtle"
+                >
+                  {note}
                 </span>
                 <svg
                   aria-hidden="true"

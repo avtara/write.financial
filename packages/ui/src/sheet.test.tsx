@@ -78,7 +78,7 @@ describe('Sheet', () => {
     await expect.element(opener).toHaveFocus();
   });
 
-  it('hands its opener to a sheet that replaces it, which keeps the focus', async () => {
+  it('hands its opener to a sheet that replaces it, which keeps the focus and does not slide in again', async () => {
     function Replacing() {
       const [step, setStep] = useState<'closed' | 'loading' | 'ready'>('closed');
       const close = () => {
@@ -92,7 +92,7 @@ describe('Sheet', () => {
               setStep('loading');
               setTimeout(() => {
                 setStep('ready');
-              }, 50);
+              }, 300);
             }}
           >
             Catat
@@ -114,7 +114,12 @@ describe('Sheet', () => {
     const opener = screen.getByRole('button', { name: 'Catat' });
     opener.element().focus();
     await userEvent.keyboard('{Enter}');
+    const animation = (name: string) => getComputedStyle(page.getByRole('dialog', { name }).element()).animationName;
+    await expect.element(page.getByRole('dialog', { name: 'Memuat' })).toBeVisible();
+    expect(animation('Memuat')).toBe('wf-sheet-in');
     await expect.element(page.getByRole('dialog', { name: 'Catat Transaksi' })).toBeVisible();
+    // The form takes the loading sheet's place where it is: no second slide-in (no blink).
+    expect(animation('Catat Transaksi')).toBe('none');
     await expect.element(page.getByRole('textbox', { name: 'Jumlah' })).toHaveFocus();
     // Radix restores focus a tick after the replaced sheet unmounts; it stays in the form.
     await new Promise((resolve) => setTimeout(resolve, 50));

@@ -98,8 +98,9 @@ export function MonthContributions({
                   <CategoryIcon icon={goal.icon} color={goal.color} />
                 )}
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[13px] font-medium text-fg">{title}</span>
-                  <span className="truncate text-[11.5px] text-subtle">{detail}</span>
+                  {/* Wrapped, never cut: in a narrow side card "BCA Tahapan → Bank Jago · …" takes a few lines. */}
+                  <span className="text-[13px] font-medium break-words text-fg">{title}</span>
+                  <span className="text-[11.5px] break-words text-subtle">{detail}</span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
                   <Money

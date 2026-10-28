@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { LocalDate } from '@wf/domain/period';
 import { describe, expect, it } from 'vitest';
+import { page } from 'vitest/browser';
 import { CARD_AFTER_PAYMENT, KULKAS_AFTER, MACBOOK, visa } from '../../../test/debt-fixtures.ts';
 import { NADIA, NO_RECEIVABLES, RAKA, receivable, receivablesOverview } from '../../../test/receivable-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
@@ -74,5 +75,12 @@ describe('DebtKpis', () => {
     await expect.element(region).toMatchTextContent(/1 cicilan/);
     await expect.element(region).toMatchTextContent(/cicilan & tagihan bulan ini/);
     await expect.element(region).toMatchTextContent(/MacBook Air M4 — iBox · hari ini/);
+  });
+
+  it('draws one line under the first row of the 2 × 2 tablet grid and none under the last', async () => {
+    await page.viewport(1024, 768);
+    const { region } = await kpisOf(debtKpis([], [], d('2026-10-15'), 'IDR'), d('2026-10-15'));
+    const bottoms = [...region.element().children].map((kpi) => getComputedStyle(kpi).borderBottomWidth);
+    expect(bottoms).toEqual(['1px', '1px', '0px', '0px']);
   });
 });

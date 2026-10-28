@@ -14,9 +14,10 @@ import { useNavCounts } from './sidebar.tsx';
 import { UserMenu } from './user-menu.tsx';
 
 /**
- * Tablet icon rail (768–1279 px, design Section 19 `F5zMBH`/`aMmPV`): 64 px, 40 px touch targets (FR-TB4),
- * the same navigation as the sidebar, the ⌘K search button, and the bell and the user menu at the bottom. Entries
- * have no visible text, so each one gets a tooltip with its name (FR-TB1).
+ * Tablet icon rail (768–1279 px, design Section 19 `F5zMBH`/`aMmPV`): 64 px, 40 px touch targets (FR-TB4). Top to
+ * bottom as the design orders it (FR-TB1): logo, the ⌘K search button and the bell, a divider, the same navigation
+ * as the sidebar, then the Assistant and the user menu at the bottom. Entries have no visible text, so each one
+ * gets a tooltip with its name.
  */
 export function Rail() {
   // The signed-in user, from the `_app` route context (absent outside it).
@@ -28,7 +29,7 @@ export function Rail() {
   return (
     <aside className="sticky top-0 hidden h-dvh w-16 shrink-0 flex-col items-center gap-1 border-r border-border py-3.5 md:flex xl:hidden">
       <LogoTile variant="rail" />
-      <div aria-hidden="true" className="my-2 h-px w-7 bg-border" />
+      <div aria-hidden="true" className="h-2" />
       <Tooltip content={m.cmdk_open_label()} hint={<KbdHint keys={['mod', 'K']} platform={platform} />} side="right">
         <button
           type="button"
@@ -40,6 +41,10 @@ export function Rail() {
           <Search aria-hidden="true" className="size-[17px]" />
         </button>
       </Tooltip>
+      {viewer === undefined ? null : (
+        <NotificationBell variant="rail" unread={counts?.notifications ?? null} timeZone={viewer.timezone} />
+      )}
+      <div aria-hidden="true" className="my-2 h-px w-7 bg-border" />
       <nav aria-label={m.nav_main_label()}>
         <ul className="flex flex-col items-center gap-1">
           {NAV_GROUPS.flatMap((group) => group.items).map((item) => (
@@ -59,9 +64,6 @@ export function Rail() {
         </ul>
       </nav>
       <div className="mt-auto flex flex-col items-center gap-1">
-        {viewer === undefined ? null : (
-          <NotificationBell variant="rail" unread={counts?.notifications ?? null} timeZone={viewer.timezone} />
-        )}
         <Tooltip content={m.assistant_open()} hint={<KbdHint keys={ASSISTANT_HINT} platform={platform} />} side="right">
           <button
             type="button"

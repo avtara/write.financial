@@ -23,6 +23,7 @@ vi.mock('../../server/fn/report-export.ts', () => ({
   getReportAutoSend: fake.getReportAutoSend,
   saveReportAutoSend: fake.saveReportAutoSend,
 }));
+vi.mock('../ledger/record-transaction.tsx', () => ({ useRecordTransaction: () => ({ open: vi.fn() }) }));
 
 const YEARLY_VIEW = { ...PROVISIONAL_VIEW, id: 'report-2026', kind: 'yearly', label: '2026' } as const;
 const deferred = () => {
@@ -108,7 +109,7 @@ describe('ReportsPage', () => {
     const { screen } = await renderApp(
       <ReportsPage reports={[]} latestFinal={null} today={TODAY} timeZone="Asia/Jakarta" locale="id" />,
     );
-    await expect.element(screen.getByText('Laporan pertamamu sedang menunggu periode pertama')).toBeVisible();
+    await expect.element(screen.getByRole('heading', { name: 'Laporan pertama terbit 1 November' })).toBeVisible();
     expect(screen.getByRole('button', { name: /Ekspor laporan/ }).elements()).toHaveLength(0);
   });
 
@@ -263,7 +264,8 @@ describe('ReportsPage', () => {
     const { screen } = await renderApp(
       <ReportsPage reports={[]} latestFinal={null} today={TODAY} timeZone="Asia/Jakarta" locale="id" />,
     );
-    await expect.element(screen.getByText('Laporan pertamamu sedang menunggu periode pertama')).toBeVisible();
+    await expect.element(screen.getByText('Laporan bulanan belum tersedia')).toBeVisible();
+    await expect.element(screen.getByRole('heading', { name: 'Laporan pertama terbit 1 November' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Kuartal' }).elements()).toHaveLength(0);
     expect(fake.viewReport).not.toHaveBeenCalled();
   });

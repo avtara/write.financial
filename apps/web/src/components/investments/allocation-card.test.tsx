@@ -11,6 +11,21 @@ describe('AllocationCard', () => {
     );
     await expect.element(screen.getByRole('region', { name: 'Alokasi aset' })).toMatchTextContent('3,8%');
   });
+
+  it('keeps every legend label whole in the 380 px side card', async () => {
+    const { screen } = await renderApp(
+      <div style={{ width: 380 }}>
+        <AllocationCard portfolio={portfolioView()} locale="id" onEditTargets={vi.fn()} />
+      </div>,
+    );
+    const items = screen.getByRole('listitem').elements();
+    expect(items.length).toBe(7);
+    for (const item of items) {
+      // The second child is the class name; it is cut off when its content is wider than its box.
+      const label = item.children[1] as HTMLElement;
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
+    }
+  });
   it('shows shares without inventing targets for a new portfolio', () => {
     const rows = allocationRows(portfolioView({ targets: {} }));
     expect(rows.find((row) => row.key === 'crypto')).toMatchObject({

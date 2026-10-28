@@ -45,7 +45,7 @@ export function Field({ label, aside, hint, error = null, children }: FieldProps
         <label htmlFor={id} className="text-[12.5px] font-medium text-muted-fg">
           {label}
         </label>
-        {aside}
+        {aside === undefined ? null : <span className="text-[12px] text-subtle">{aside}</span>}
       </div>
       {children({ id, describedBy: hasMessage ? messageId : undefined, invalid: error !== null })}
       {error === null ? (

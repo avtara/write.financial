@@ -152,7 +152,8 @@ export function CategorySpendingCard({ dashboard, budget, categories, locale, ca
         className="flex flex-col rounded-[12px] border border-border bg-card"
       >
         <div className="flex flex-wrap items-center gap-4 px-6 pt-5 pb-4">
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {/* 280 px for the title and caption: narrower, the group bar and the link move under them. */}
+          <div className="flex min-w-0 flex-1 basis-[280px] flex-col gap-1">
             <h2 id="overview-categories" className="text-[15px] font-semibold text-fg">
               {m.overview_categories_title()}
             </h2>

@@ -62,6 +62,42 @@ describe('AmountInput', () => {
     await expect.element(input()).toHaveValue('1.500.000');
   });
 
+  it('groups digits while they are typed and keeps the caret after the same digits', async () => {
+    const onValueChange = vi.fn();
+    await withPrivacy(<Harness onValueChange={onValueChange} />);
+    await userEvent.type(input(), '213123123');
+    await expect.element(input()).toHaveValue('213.123.123');
+    expect(onValueChange).toHaveBeenLastCalledWith(213_123_123n);
+    const field = input().element() as HTMLInputElement;
+    expect(field.selectionStart).toBe(11);
+    // A digit typed after the "2" regroups everything: "2|13.123.123" → "2.9|13.123.123".
+    field.setSelectionRange(1, 1);
+    await userEvent.keyboard('9');
+    await expect.element(input()).toHaveValue('2.913.123.123');
+    expect(field.selectionStart).toBe(3);
+    // Deleting a digit regroups too.
+    await userEvent.keyboard('{Backspace}');
+    await expect.element(input()).toHaveValue('213.123.123');
+    expect(field.selectionStart).toBe(1);
+    expect(onValueChange).toHaveBeenLastCalledWith(213_123_123n);
+  });
+
+  it('leaves separators and shorthands the person types as they are until the field is emptied', async () => {
+    const onValueChange = vi.fn();
+    await withPrivacy(<Harness onValueChange={onValueChange} />);
+    await userEvent.type(input(), '2.500.000');
+    await expect.element(input()).toHaveValue('2.500.000');
+    expect(onValueChange).toHaveBeenLastCalledWith(2_500_000n);
+    await userEvent.clear(input());
+    await userEvent.type(input(), '1.5jt');
+    await expect.element(input()).toHaveValue('1.5jt');
+    expect(onValueChange).toHaveBeenLastCalledWith(1_500_000n);
+    // Emptied by hand: digits group again.
+    await userEvent.keyboard('{Control>}a{/Control}{Backspace}');
+    await userEvent.type(input(), '45000');
+    await expect.element(input()).toHaveValue('45.000');
+  });
+
   it('marks text that is not an amount invalid and reports null; empty is not invalid', async () => {
     const onValueChange = vi.fn();
     await withPrivacy(<Harness onValueChange={onValueChange} />);

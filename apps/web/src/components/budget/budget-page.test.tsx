@@ -2,7 +2,7 @@
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { LocalDate, YearMonth } from '@wf/domain/period';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { userEvent } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { budgetStatus, FOOD, periodsOverview, SEPTEMBER, TRANSPORT } from '../../../test/budget-fixtures.ts';
 import { BCA, categoryView } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
@@ -108,7 +108,12 @@ describe('BudgetPage', () => {
     await screen.getByRole('button', { name: 'Periode sebelumnya' }).click();
     expect(onPeriodChange).toHaveBeenCalledWith('p-sep');
 
-    await screen.getByRole('button', { name: 'Riwayat perubahan' }).click();
+    // "Riwayat perubahan" is a secondary action, folded into ⋯ below 1024 px.
+    await expect
+      .element(screen.getByRole('button', { name: 'Riwayat perubahan', includeHidden: true }))
+      .not.toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Aksi lainnya' }));
+    await userEvent.click(page.getByRole('menuitem', { name: 'Riwayat perubahan' }));
     await expect.element(screen.getByText('Belum ada riwayat anggaran')).toBeVisible();
     await userEvent.keyboard('{Escape}');
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument();

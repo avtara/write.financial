@@ -308,19 +308,34 @@ describe('SubscriptionsPage', () => {
     expect(record.open).toHaveBeenCalledWith({ type: 'transfer', toAccountId: OVO.id, amountMinor: 900n });
   });
 
+  it('opens detection from the header: a button from 1024 px, folded into ⋯ below (FR-TB3)', async () => {
+    const { screen } = await renderPage();
+    await screen.getByRole('button', { name: 'Deteksi dari transaksi · 2 baru' }).click();
+    await expect.element(page.getByRole('heading', { name: '2 tagihan berulang terdeteksi' })).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    await expect.element(page.getByRole('heading', { name: '2 tagihan berulang terdeteksi' })).not.toBeInTheDocument();
+
+    await page.viewport(768, 1000);
+    await expect.poll(() => screen.getByRole('button', { name: 'Deteksi dari transaksi · 2 baru' }).query()).toBeNull();
+    await expect.element(screen.getByRole('button', { name: 'Tambah langganan' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Aksi lainnya' }));
+    await page.getByRole('menuitem', { name: 'Deteksi dari transaksi · 2 baru' }).click();
+    await expect.element(page.getByRole('heading', { name: '2 tagihan berulang terdeteksi' })).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+  });
+
   it('adds and dismisses detected candidates, compares overlaps, and filters by category', async () => {
     const { screen } = await renderPage();
     schedules.addDetectedSubscriptions.mockReturnValueOnce(ok({ subscriptionIds: ['a', 'b'] }));
     schedules.dismissDetectedSubscriptions.mockReturnValueOnce(ok({ dismissed: 1 }));
     await screen.getByRole('region', { name: 'Bisa dihemat' }).getByRole('button', { name: 'Tinjau' }).click();
     const panel = page.getByRole('dialog');
+    // "Tinjau" sits further down the page: opening scrolls the header the panel hangs off back into view.
+    await expect.element(panel).toBeInViewport();
     await panel.getByRole('button', { name: 'Tambah semua' }).click();
     expect(schedules.addDetectedSubscriptions).toHaveBeenCalledWith({ data: { ids: ['det-vidio', 'det-google'] } });
     expect(toasts.toast).toHaveBeenLastCalledWith({ tone: 'success', title: '2 langganan ditambahkan' });
-    // The popover hangs off the header's trigger, scrolled away after "Tinjau" further down the page.
-    const dismiss = panel.getByRole('button', { name: 'Bukan langganan' }).first().element();
-    if (!(dismiss instanceof HTMLButtonElement)) throw new Error('no dismiss button');
-    dismiss.click();
+    await panel.getByRole('button', { name: 'Bukan langganan' }).first().click();
     await expect.poll(() => schedules.dismissDetectedSubscriptions.mock.calls.length).toBe(1);
     expect(schedules.dismissDetectedSubscriptions).toHaveBeenCalledWith({ data: { ids: ['det-vidio'] } });
     await userEvent.keyboard('{Escape}');

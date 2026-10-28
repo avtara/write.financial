@@ -158,7 +158,7 @@ export function ReportsPage({ reports, latestFinal, today, timeZone, locale }: R
       <PageHeader
         breadcrumb={[m.breadcrumb_finance(), m.reports_title()]}
         title={m.reports_title()}
-        description={header}
+        description={empty ? m.reports_empty_subtitle() : header}
         actions={
           recalc ? (
             <PageState kind="refreshing" title={m.reports_recalculating()} />

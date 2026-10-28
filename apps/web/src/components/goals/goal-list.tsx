@@ -161,7 +161,7 @@ export function SourceChips({
   );
 }
 
-/** The goal's progress bar in its color. */
+/** The goal's progress bar in its color; a goal with nothing saved yet still shows its empty track. */
 export function GoalBar({
   color,
   progressBps,
@@ -178,6 +178,7 @@ export function GoalBar({
         tone="ok"
         idealBps={null}
         size={size}
+        emptyTrack
         fillClassName="fill-[var(--wf-color,var(--subtle))]"
       />
     </span>
@@ -389,9 +390,10 @@ function GoalRow({
         </div>
         <GoalMenu goal={goal} actions={actions} />
       </div>
-      <div className="grid grid-cols-[minmax(0,220px)_auto_minmax(0,1fr)_auto] items-center gap-3 pl-12 text-[12px] text-muted-fg max-xl:grid-cols-[minmax(0,1fr)_auto] max-xl:pl-0">
+      {/* Below 1280 px the second column is fixed, so every row's bar ends at the same x whatever its chip. */}
+      <div className="grid grid-cols-[minmax(0,220px)_auto_minmax(0,1fr)_auto] items-center gap-3 pl-12 text-[12px] text-muted-fg max-xl:grid-cols-[minmax(0,1fr)_7.5rem] max-xl:pl-0">
         <GoalBar color={goal.color} progressBps={snapshot.progressBps} />
-        <span className="font-mono text-text-secondary">
+        <span className="font-mono text-text-secondary max-xl:text-right">
           {snapshot.progressBps === null ? (
             '—'
           ) : (

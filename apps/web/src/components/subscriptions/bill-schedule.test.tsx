@@ -68,6 +68,32 @@ describe('BillSchedule', () => {
     expect(onOpen).toHaveBeenCalledWith(S_ICLOUD);
   });
 
+  it('stacks bills a few days apart, each label right above its own icon, and no labels touching', async () => {
+    const { screen } = await renderSchedule();
+    const days = screen.getByRole('list', { name: 'Jadwal tagihan Oktober' });
+    const stacks = days.getByRole('listitem');
+    // 3 · 5 Okt, 9 Okt, 18 · 20 · 22 Okt, 28 Okt.
+    expect(stacks.elements()).toHaveLength(4);
+    await expect.element(stacks.nth(0)).toMatchTextContent(/^3 OktRp199\.000.*5 OktRp660\.900.*$/);
+    await expect.element(stacks.nth(2)).toMatchTextContent(/^18 OktRp186\.000.*20 OktRp86\.900.*22 OktRp59\.000.*$/);
+    const box = (element: Element) => element.getBoundingClientRect();
+    const labels = ['3 Okt', '5 Okt', '9 Okt', '18 Okt', '20 Okt', '22 Okt', '28 Okt'].map((day) => {
+      const label = days.getByText(day, { exact: true }).element().parentElement as HTMLElement;
+      const icon = days.getByRole('button', { name: new RegExp(`, ${day}, `) }).element();
+      // The label sits right above its icon, centred on it.
+      expect(box(icon).top - box(label).bottom).toBeGreaterThanOrEqual(0);
+      expect(box(icon).top - box(label).bottom).toBeLessThan(8);
+      expect(Math.abs(box(icon).left + box(icon).width / 2 - (box(label).left + box(label).width / 2))).toBeLessThan(1);
+      return box(label);
+    });
+    for (const [index, a] of labels.entries()) {
+      for (const b of labels.slice(index + 1)) {
+        const apart = a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+        expect(apart).toBe(true);
+      }
+    }
+  });
+
   it('shows a bill’s account, balance after, reminder and status in its tooltip', async () => {
     const { screen } = await renderSchedule();
     await userEvent.hover(screen.getByRole('button', { name: 'Netflix, 18 Okt, Akan ditagih' }));

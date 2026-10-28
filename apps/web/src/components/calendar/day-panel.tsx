@@ -136,7 +136,8 @@ export function DayPanel({
             {day.future ? m.calendar_day_no_transactions_future() : m.calendar_day_no_transactions()}
           </p>
         ) : null}
-        <ul aria-label={m.calendar_day_items()} className="flex flex-col">
+        {/* 12.5px like the design, so the amounts leave room for the whole category · account · time · tag line. */}
+        <ul aria-label={m.calendar_day_items()} className="flex flex-col text-[12.5px]">
           {day.projected.map((income) => (
             <li key={`projected-${income.label}`} className="flex items-center gap-3 border-t border-border py-2.5">
               <span className="flex min-w-0 flex-1 flex-col">
@@ -202,7 +203,8 @@ export function DayPanel({
                   <span className="truncate text-[13px] text-fg">
                     {row.merchant ?? row.description ?? m.calendar_untitled()}
                   </span>
-                  <span className="truncate text-[11.5px] text-subtle">
+                  {/* Wraps rather than truncates, so the time and tags stay visible in the 340px panel. */}
+                  <span className="text-[11.5px] text-subtle">
                     {[
                       category === undefined ? null : categoryName(category),
                       account?.displayName ?? null,

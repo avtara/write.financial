@@ -12,8 +12,10 @@ export type Locale = 'id' | 'en';
  * - `table`: ledger/table cells, no currency symbol, minus sign only when negative.
  * - `amount`: headline figures and sentences, with currency symbol.
  * - `delta`: flows and differences, always signed (+/−), no currency symbol.
+ * - `signed`: a `delta` with the currency symbol ("+US$128,44", "−Rp45.000"), where currencies mix or a row stands
+ *   alone without a currency column.
  */
-export type MoneyContext = 'table' | 'amount' | 'delta';
+export type MoneyContext = 'table' | 'amount' | 'delta' | 'signed';
 
 export interface FormatMoneyOptions {
   locale: Locale;
@@ -84,6 +86,9 @@ export function formatMoney(minor: bigint, currency: string, options: FormatMone
     case 'delta':
       if (options.privacy) return digits;
       return `${negative ? MINUS : '+'}${digits}`;
+    case 'signed':
+      if (options.privacy) return `${info.symbol}${digits}`;
+      return `${negative ? MINUS : '+'}${info.symbol}${digits}`;
   }
 }
 
@@ -141,6 +146,40 @@ export function parseMoneyInput(input: string, options: ParseMoneyOptions): bigi
   const scaledFraction = fractionDigits.slice(0, totalShift).padEnd(totalShift, '0');
   const value = BigInt(`${integerDigits}${scaledFraction}`);
   return negative ? -value : value;
+}
+
+export interface GroupedAmountInput {
+  readonly text: string;
+  /** Where the caret goes: after the same digits as before. */
+  readonly caret: number;
+}
+
+/**
+ * Amount entry while typing (FR-T2): plain digits are regrouped for the locale ("213123123" → "213.123.123",
+ * "2.1312" → "21.312" once a digit lands in a group), with at most one decimal separator and `minorDigits` digits
+ * after it for currencies that have decimals ("1234,5" USD → "1.234,5"). Leading zeros go ("05" → "5"). The caret
+ * keeps the digits that followed it. Anything else (shorthands such as "25rb", signs, symbols, more decimals than
+ * the currency has) returns `null`, so the text stays as typed and `parseMoneyInput` reads it.
+ */
+export function groupAmountInput(text: string, caret: number, options: ParseMoneyOptions): GroupedAmountInput | null {
+  const { minorDigits } = currencyInfo(options.currency);
+  const { group, decimal } = SEPARATORS[options.locale];
+  const [integerRaw = '', fraction, ...rest] = text.split(decimal);
+  if (rest.length > 0 || (fraction !== undefined && (minorDigits === 0 || !/^\d*$/.test(fraction)))) return null;
+  if (fraction !== undefined && fraction.length > minorDigits) return null;
+  const integer = integerRaw.split(group).join('');
+  if (!/^\d+$/.test(integer)) return null;
+  const grouped = integer.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, group);
+  const next = fraction === undefined ? grouped : `${grouped}${decimal}${fraction}`;
+  // Count from the right what follows the caret (digits and the decimal separator), then find that spot again.
+  const significant = (value: string) => value.split(group).join('').length;
+  let after = significant(text.slice(caret));
+  let position = next.length;
+  while (after > 0) {
+    position -= 1;
+    if (next[position] !== group) after -= 1;
+  }
+  return { text: next, caret: position };
 }
 
 /** Non-negative `numerator ÷ denominator` (denominator > 0) rounded half up. */

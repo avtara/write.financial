@@ -60,7 +60,7 @@ export function Sidebar() {
         <span className="flex-1 text-left">{m.cmdk_open()}</span>
         <KbdHint keys={['mod', 'K']} platform={platform} />
       </button>
-      <nav aria-label={m.nav_main_label()} className="flex flex-col gap-0.5">
+      <nav aria-label={m.nav_main_label()} className="flex flex-col gap-4">
         {NAV_GROUPS.map((group) => (
           <section key={group.label()} className="flex flex-col gap-0.5">
             <h2 className="px-2.5 pb-1 text-[11px] font-medium text-subtle uppercase">{group.label()}</h2>

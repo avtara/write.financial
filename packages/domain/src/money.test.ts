@@ -7,6 +7,7 @@ import {
   divideCeil,
   divideHalfUp,
   formatMoney,
+  groupAmountInput,
   parseMoneyInput,
   splitByBps,
   splitEvenly,
@@ -53,6 +54,13 @@ describe('formatMoney — golden values from the design (PRD §7.1)', () => {
     [5n, 'USD', 'en', 'table', '0.05'],
     [375_657n, 'USD', 'en', 'amount', 'US$3,756.57'],
     [1_000n, 'JPY', 'en', 'amount', 'JPY 1,000'],
+    [1_610_000n, 'IDR', 'id', 'signed', '+Rp1.610.000'],
+    [-45_000n, 'IDR', 'id', 'signed', `${MINUS}Rp45.000`],
+    [12_844n, 'USD', 'id', 'signed', '+US$128,44'],
+    [-12_844n, 'USD', 'en', 'signed', `${MINUS}US$128.44`],
+    [-1n, 'IDR', 'id', 'signed', `${MINUS}Rp1`],
+    [0n, 'IDR', 'id', 'signed', '+Rp0'],
+    [1_000n, 'JPY', 'en', 'signed', '+JPY 1,000'],
   ])('%s %s %s %s → %s', (minor, currency, locale, context, expected) => {
     expect(formatMoney(minor, currency, { locale, context })).toBe(expected);
   });
@@ -63,12 +71,14 @@ describe('formatMoney — golden values from the design (PRD §7.1)', () => {
 });
 
 describe('formatMoney — privacy mode', () => {
-  it('masks digits and sign in every context but keeps the currency symbol for amounts', () => {
+  it('masks digits and sign in every context but keeps the currency symbol for amounts and signed values', () => {
     expect(formatMoney(55_023_000n, 'IDR', { locale: 'id', context: 'amount', privacy: true })).toBe('Rp••••••');
     expect(formatMoney(-55_023_000n, 'IDR', { locale: 'en', context: 'amount', privacy: true })).toBe('Rp••••••');
     expect(formatMoney(-28_000n, 'IDR', { locale: 'id', context: 'table', privacy: true })).toBe('••••••');
     expect(formatMoney(9_500_000n, 'IDR', { locale: 'id', context: 'delta', privacy: true })).toBe('••••••');
     expect(formatMoney(-9_500_000n, 'USD', { locale: 'id', context: 'delta', privacy: true })).toBe('••••••');
+    expect(formatMoney(12_844n, 'USD', { locale: 'id', context: 'signed', privacy: true })).toBe('US$••••••');
+    expect(formatMoney(-45_000n, 'IDR', { locale: 'id', context: 'signed', privacy: true })).toBe('Rp••••••');
   });
 
   it('does not leak the magnitude through the mask length', () => {
@@ -149,6 +159,68 @@ describe('parseMoneyInput', () => {
           expect(parseMoneyInput(text, { locale, currency })).toBe(minor);
         },
       ),
+    );
+  });
+});
+
+describe('groupAmountInput', () => {
+  const idr = { locale: 'id', currency: 'IDR' } as const;
+  const at = (text: string, caret = text.length, options: { locale: Locale; currency: string } = idr) =>
+    groupAmountInput(text, caret, options);
+
+  it('groups plain digits as they are typed, keeping the caret at the end', () => {
+    expect(at('213123123')).toEqual({ text: '213.123.123', caret: 11 });
+    expect(at('2131')).toEqual({ text: '2.131', caret: 5 });
+    expect(at('213')).toEqual({ text: '213', caret: 3 });
+    expect(at('2131', 4, { locale: 'en', currency: 'IDR' })).toEqual({ text: '2,131', caret: 5 });
+  });
+
+  it('regroups when a digit lands in a group or one is deleted, and drops leading zeros', () => {
+    expect(at('2.1312')).toEqual({ text: '21.312', caret: 6 });
+    expect(at('2.13')).toEqual({ text: '213', caret: 3 });
+    expect(at('05')).toEqual({ text: '5', caret: 1 });
+    expect(at('0')).toEqual({ text: '0', caret: 1 });
+    expect(at('000')).toEqual({ text: '0', caret: 1 });
+  });
+
+  it('keeps the caret after the same digits in the middle of the text', () => {
+    // "21|31" → "2.1|31": the two digits after the caret stay after it.
+    expect(at('2131', 2)).toEqual({ text: '2.131', caret: 3 });
+    // "1.|0000.000" (a digit typed into a group): still right after the "1".
+    expect(at('1.0000.000', 2)).toEqual({ text: '10.000.000', caret: 1 });
+    expect(at('2131', 0)).toEqual({ text: '2.131', caret: 0 });
+    expect(at('05', 1)).toEqual({ text: '5', caret: 0 });
+  });
+
+  it('keeps one decimal part for currencies with decimals, up to their minor digits', () => {
+    const usd = { locale: 'id', currency: 'USD' } as const;
+    expect(at('1234,5', 6, usd)).toEqual({ text: '1.234,5', caret: 7 });
+    expect(at('1234,', 5, usd)).toEqual({ text: '1.234,', caret: 6 });
+    expect(at('1234.56', 4, { locale: 'en', currency: 'USD' })).toEqual({ text: '1,234.56', caret: 5 });
+    expect(at('1234,567', 8, usd)).toBeNull();
+    expect(at('1,2,3', 5, usd)).toBeNull();
+    expect(at('1,5x', 4, usd)).toBeNull();
+  });
+
+  it('leaves shorthands, signs, symbols, and empty text as typed', () => {
+    for (const text of ['25rb', '1,5', '1,5jt', '-5', 'Rp5', ' 25', '', ',5', '.']) {
+      expect(at(text)).toBeNull();
+    }
+  });
+
+  it('always produces what parseMoneyInput reads as the same digits', () => {
+    fc.assert(
+      fc.property(fc.stringMatching(/^[0-9.]{1,15}$/), fc.constantFrom<Locale>('id', 'en'), (typed, locale) => {
+        const text = locale === 'id' ? typed : typed.replaceAll('.', ',');
+        const result = groupAmountInput(text, text.length, { locale, currency: 'IDR' });
+        const digits = text.replace(/\D/g, '');
+        if (digits === '') {
+          expect(result).toBeNull();
+          return;
+        }
+        expect(parseMoneyInput(result?.text ?? '', { locale, currency: 'IDR' })).toBe(BigInt(digits));
+        expect(result?.caret).toBe(result?.text.length);
+      }),
     );
   });
 });

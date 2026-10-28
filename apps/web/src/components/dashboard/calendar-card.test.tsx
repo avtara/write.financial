@@ -86,6 +86,9 @@ describe('CalendarCard', () => {
     await expect.element(region.getByRole('link', { name: /Erafone — Headphone/ })).toMatchTextContent('#gadget');
     await expect.element(region.getByRole('link', { name: /Erafone/ })).toMatchTextContent('14.12');
     await expect.element(region.getByRole('link', { name: /Transfer/ })).toBeVisible();
+    // Every row with its currency, as the design shows them: spending signed, transfers plain.
+    await expect.element(region.getByRole('link', { name: /Erafone/ })).toMatchTextContent(/−Rp2\.150\.000$/);
+    await expect.element(region.getByRole('link', { name: /Transfer/ })).toMatchTextContent(/−Rp500\.000$/);
     await expect.element(region.getByRole('link', { name: /Tanpa kategori/ }).last()).toBeVisible();
     expect(fns.listTransactionRows).toHaveBeenCalledWith({ data: { range: '2026-10-01..2026-10-01', offset: 0 } });
     await expect.element(region.getByRole('link', { name: 'Sebelumnya' })).toHaveAttribute('href', '/?period=2026-09');

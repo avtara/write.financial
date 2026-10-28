@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { YearMonth } from '@wf/domain/period';
 import { describe, expect, it, vi, type Mock } from 'vitest';
+import { page } from 'vitest/browser';
 import {
   DANA_DARURAT,
   DANA_PENSIUN,
@@ -80,6 +81,28 @@ describe('GoalList', () => {
     await expect
       .element(rows.nth(5))
       .toMatchTextContent(/Dana PensiunRp0dari Rp500\.000\.0000%Belum ada setoran rutin/);
+  });
+
+  it('ends every progress bar at the same x below 1280 px, whatever the badge', async () => {
+    await page.viewport(1024, 900);
+    const { view } = list();
+    const { screen } = await view;
+    const rows = screen.getByRole('tabpanel').getByRole('listitem');
+    await expect.element(rows.nth(5)).toBeVisible();
+    // The percentage's grid cell starts right after the bar, and its text sits at the cell's right edge.
+    const cells = rows.elements().map((_, index) => {
+      let cell = rows
+        .nth(index)
+        .getByText(/^\d+%$/)
+        .element() as HTMLElement;
+      while (cell.parentElement !== null && getComputedStyle(cell.parentElement).display !== 'grid') {
+        cell = cell.parentElement;
+      }
+      return cell;
+    });
+    expect(new Set(cells.map((cell) => Math.round(cell.getBoundingClientRect().left))).size).toBe(1);
+    expect(cells.map((cell) => getComputedStyle(cell).textAlign)).toEqual(Array(6).fill('right'));
+    await page.viewport(414, 896);
   });
 
   it('runs every action of an active goal’s menu', async () => {

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { TODAY } from '../../../test/investment-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
-import { PriceSyncStatus } from './price-sync.tsx';
+import { PriceSyncStatus, usePriceSyncActions, type PriceSyncState } from './price-sync.tsx';
 const fake = vi.hoisted(() => ({ log: vi.fn() }));
 // The sync panel reuses Settings › "API kurs & pasar"'s ApiLog/syncText, so its module's other server functions load too.
 vi.mock('../../server/fn/market.ts', () => ({
@@ -15,13 +15,25 @@ vi.mock('../../server/fn/market.ts', () => ({
   testMarketKey: vi.fn(),
 }));
 
+/** The header's secondary actions as plain buttons, next to the panel they feed. */
+function Harness({ state }: { readonly state: PriceSyncState | null }) {
+  const { actions, log } = usePriceSyncActions();
+  return (
+    <>
+      {actions.map((action) => (
+        <button key={action.label} type="button" onClick={action.onSelect}>
+          {action.label}
+        </button>
+      ))}
+      <PriceSyncStatus state={state} log={log} today={TODAY} timeZone="Asia/Jakarta" locale="id" />
+    </>
+  );
+}
+
 describe('PriceSyncStatus', () => {
   it('distinguishes a partial result, unavailable source, and the in-flight source', async () => {
     const { screen } = await renderApp(
-      <PriceSyncStatus
-        today={TODAY}
-        timeZone="Asia/Jakarta"
-        locale="id"
+      <Harness
         state={{
           current: 'crypto',
           results: [
@@ -38,10 +50,14 @@ describe('PriceSyncStatus', () => {
   });
 
   it('shows only the finished results once no source is in flight', async () => {
-    const { screen } = await renderApp(
-      <PriceSyncStatus today={TODAY} timeZone="Asia/Jakarta" locale="id" state={{ current: null, results: [] }} />,
-    );
+    const { screen } = await renderApp(<Harness state={{ current: null, results: [] }} />);
     await expect.element(screen.getByRole('status')).toBeVisible();
+  });
+
+  it('adds nothing under the header before a sync or a failed log request', async () => {
+    const { screen } = await renderApp(<Harness state={null} />);
+    await expect.element(screen.getByRole('button', { name: 'Buka log API' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Sinkronisasi sumber harga' }).query()).toBeNull();
   });
 
   it('explains a failed API log request and permits a real retry', async () => {
@@ -58,9 +74,7 @@ describe('PriceSyncStatus', () => {
       own: true,
     };
     fake.log.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ ok: true, value: [entry] });
-    const { screen } = await renderApp(
-      <PriceSyncStatus today={TODAY} timeZone="Asia/Jakarta" locale="id" state={null} />,
-    );
+    const { screen } = await renderApp(<Harness state={null} />);
     await screen.getByRole('button', { name: 'Buka log API' }).click();
     await expect.element(screen.getByRole('alert')).toMatchTextContent('Log tidak dapat dimuat');
     await screen.getByRole('button', { name: 'Buka log API' }).click();
@@ -72,9 +86,7 @@ describe('PriceSyncStatus', () => {
   });
 
   it('opens Settings › API kurs & pasar from the panel', async () => {
-    const { screen, router } = await renderApp(
-      <PriceSyncStatus today={TODAY} timeZone="Asia/Jakarta" locale="id" state={null} />,
-    );
+    const { screen, router } = await renderApp(<Harness state={null} />);
     await screen.getByRole('button', { name: 'Atur API harga' }).click();
     await expect.poll(() => router.state.location.search as unknown).toMatchObject({ settings: 'market' });
   });

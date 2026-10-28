@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { LocalDate } from '@wf/domain/period';
 import { describe, expect, it } from 'vitest';
+import { page } from 'vitest/browser';
 import { DANA_DARURAT, goalsOverview, movement, OCTOBER_MOVEMENTS } from '../../../test/goal-fixtures.ts';
 import { ACCOUNTS, BCA, JAGO } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
@@ -29,6 +30,27 @@ describe('MonthContributions', () => {
       .element(card.getByRole('link', { name: 'Buka' }))
       .toHaveAttribute('href', '/transactions?period=2026-10&type=transfer');
     await expect.element(card.getByText('Semua setoran ada di Transaksi')).toBeVisible();
+  });
+
+  it('wraps a long title and route over more lines instead of cutting them in a narrow card', async () => {
+    await page.viewport(320, 800);
+    const { screen } = await renderApp(
+      <MonthContributions overview={goalsOverview()} accounts={ACCOUNTS} locale="id" />,
+    );
+    const rows = screen.getByRole('region', { name: 'Setoran Oktober' }).getByRole('listitem');
+    for (const text of [
+      'Setor dana darurat · Bibit RDPU',
+      'BCA Tahapan → Bank Jago · Liburan Bali, Servis motor, Perpanjang STNK',
+    ]) {
+      const line = rows.getByText(text, { exact: true }).element();
+      await expect.element(rows.getByText(text, { exact: true })).toBeVisible();
+      expect(line.scrollWidth).toBeLessThanOrEqual(line.clientWidth);
+      expect(line.scrollHeight).toBeLessThanOrEqual(line.clientHeight);
+    }
+    // The route of 25 Okt takes several lines here.
+    const route = rows.getByText(/^BCA Tahapan → Bank Jago · Liburan Bali/).element();
+    expect(route.clientHeight).toBeGreaterThan(30);
+    await page.viewport(414, 896);
   });
 
   it('says so without contributions, and labels review and skipped ones', async () => {

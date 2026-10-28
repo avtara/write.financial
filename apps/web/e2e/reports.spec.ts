@@ -85,7 +85,9 @@ test('greet a new user with the timeline to the first report', async ({ browser 
   const page2 = await context.newPage();
   await page2.goto('/reports');
   await expect(page2.getByRole('heading', { level: 1, name: 'Laporan' })).toBeVisible();
-  await expect(page2.getByText('Laporan pertamamu sedang menunggu periode pertama')).toBeVisible();
+  await expect(page2.getByRole('heading', { name: 'Laporan pertama terbit 1 November' })).toBeVisible();
+  // The period that closes on 31 Okt is October's: its report is the one that comes out.
+  await expect(page2.getByText('Laporan Oktober terbit')).toBeVisible();
   await expect(page2.getByText('Mulai mencatat')).toBeVisible();
   await screenshot(page2, 'reports-empty');
   await context.close();

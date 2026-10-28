@@ -66,6 +66,10 @@ describe('DebtsPage', () => {
       .getByRole('button', { name: /KPR \/ KPM/ })
       .click();
     await expect.element(screen.getByRole('radio', { name: 'KPR' })).toBeChecked();
+    await screen.getByRole('dialog').getByRole('button', { name: 'Batal' }).click();
+    // "Catat piutang" is folded into ⋯ in the header below 1024 px, so this is the empty state's own button.
+    await screen.getByRole('button', { name: 'Catat piutang' }).click();
+    await expect.element(screen.getByRole('dialog', { name: 'Catat piutang' })).toBeVisible();
   });
 
   it('golden rHTMd: the card bill; "Bayar tagihan" records a transfer, "Ubah jadi cicilan" converts', async () => {
@@ -216,7 +220,9 @@ describe('DebtsPage', () => {
       expect(toasts.toast).toHaveBeenCalledWith({ tone: 'success', title: 'Piutang Nadia dihapuskan' });
     });
 
-    await screen.getByRole('button', { name: 'Catat piutang' }).first().click();
+    // "Catat piutang" is a secondary header action, folded into ⋯ below 1024 px (FR-TB3).
+    await screen.getByRole('banner').getByRole('button', { name: 'Aksi lainnya' }).click();
+    await screen.getByRole('menuitem', { name: 'Catat piutang' }).click();
     await screen.getByRole('dialog').getByRole('button', { name: 'Batal' }).click();
     await screen.getByRole('tab', { name: 'Utang & cicilan 0' }).click();
     expect(tabs).toHaveBeenLastCalledWith('debts');

@@ -27,6 +27,28 @@ export function upcomingBills(overview: Pick<SubscriptionsOverview, 'monthSchedu
   return overview.monthSchedule.filter((bill) => bill.status === 'will_charge' && bill.dueDate >= overview.today);
 }
 
+/** Bills at most this many days after the previous one share its stack on the "Jadwal tagihan" axis. */
+export const CLUSTER_DAYS = 3;
+
+/**
+ * The "Jadwal tagihan" axis stacks, oldest first: a bill at most `CLUSTER_DAYS` after the previous one joins its
+ * stack. Each stack sits at its first day, so stacks start at least `CLUSTER_DAYS + 1` days apart and their labels
+ * cannot run into each other (3 · 5 Okt → one stack, 9 Okt → the next).
+ */
+export function billClusters<T extends { readonly dueDate: LocalDate }>(bills: readonly T[]): T[][] {
+  const clusters: T[][] = [];
+  for (const bill of bills.toSorted((a, b) => a.dueDate.localeCompare(b.dueDate))) {
+    const last = clusters.at(-1);
+    const previous = last?.at(-1);
+    if (last !== undefined && previous !== undefined && daysFrom(previous.dueDate, bill.dueDate) <= CLUSTER_DAYS) {
+      last.push(bill);
+    } else {
+      clusters.push([bill]);
+    }
+  }
+  return clusters;
+}
+
 /** "6 aktif · 4 tagihan tersisa bulan ini · berikutnya Netflix, 3 hari lagi". */
 export function headerSummary(overview: SubscriptionsOverview): {
   readonly active: number;

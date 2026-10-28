@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { LocalDate } from '@wf/domain/period';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../../test/render.tsx';
 import { CalendarHeader, calendarSearch } from './calendar-header.tsx';
 
@@ -10,8 +11,12 @@ vi.mock('../ledger/record-transaction.tsx', () => ({ useRecordTransaction: () =>
 const d = (value: string) => value as LocalDate;
 const TODAY = d('2026-10-15');
 
+afterEach(async () => {
+  await page.viewport(414, 896);
+});
+
 describe('CalendarHeader', () => {
-  it('links the views, the previous and next month, and today; records a transaction', async () => {
+  it('links the views and the previous and next month; records a transaction', async () => {
     const { screen } = await renderApp(
       <CalendarHeader view="month" date={d('2026-11-03')} today={TODAY} locale="id" description="Bulan depan" />,
     );
@@ -29,9 +34,31 @@ describe('CalendarHeader', () => {
       .element(screen.getByRole('link', { name: 'Berikutnya' }))
       .toHaveAttribute('href', '/calendar?date=2026-12-01');
     await expect.element(screen.getByText('November 2026')).toBeVisible();
-    await expect.element(screen.getByRole('link', { name: 'Hari ini' })).toHaveAttribute('href', '/calendar');
     await screen.getByRole('button', { name: 'Catat Transaksi' }).click();
     expect(record.open).toHaveBeenCalledWith();
+  });
+
+  it('folds "Hari ini" into ⋯ on a portrait tablet and goes back to today', async () => {
+    const { screen, router } = await renderApp(
+      <CalendarHeader view="month" date={d('2026-11-03')} today={TODAY} locale="id" description="" />,
+    );
+    await expect.element(screen.getByRole('button', { name: 'Hari ini', includeHidden: true })).not.toBeVisible();
+    await expect.element(screen.getByRole('button', { name: 'Catat Transaksi' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Aksi lainnya' }));
+    await userEvent.click(page.getByRole('menuitem', { name: 'Hari ini' }));
+    await expect.poll(() => router.state.location.pathname).toBe('/calendar');
+    expect(router.state.location.search).toEqual({});
+  });
+
+  it('shows "Hari ini" as a button from 1024 px, keeping the view', async () => {
+    await page.viewport(1440, 900);
+    const { screen, router } = await renderApp(
+      <CalendarHeader view="week" date={d('2026-11-03')} today={TODAY} locale="id" description="" />,
+    );
+    await expect.element(screen.getByRole('button', { name: 'Aksi lainnya', includeHidden: true })).not.toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Hari ini' }));
+    await expect.poll(() => router.state.location.pathname).toBe('/calendar');
+    expect(router.state.location.search).toEqual({ view: 'week' });
   });
 
   it('steps a week or a year and titles them', async () => {

@@ -34,8 +34,10 @@ describe('KpiCards', () => {
     const { screen } = await renderApp(<KpiCards kpis={kpis} comparison="vs 2025" currency="IDR" locale="id" />);
     expect(screen.getByText('−12%').element().getAttribute('class')).toContain('text-red-fg');
     expect(screen.getByText('+15%').element().getAttribute('class')).toContain('text-red-fg');
-    await expect.element(screen.getByRole('group', { name: 'Ditabung & Investasi' })).toMatchTextContent(/vs 2025$/);
-    expect(screen.getByRole('group', { name: 'Ditabung & Investasi' }).getByText('%').query()).toBeNull();
+    // Unknown change: neither a badge nor a lone "vs 2025".
+    const saved = screen.getByRole('group', { name: 'Ditabung & Investasi' });
+    await expect.element(saved).toMatchTextContent(/^Ditabung & InvestasiRp[\d.]+$/);
+    await expect.element(screen.getByRole('group', { name: 'Pemasukan' })).toMatchTextContent(/vs 2025$/);
     const flat = { ...kpis, change: { ...kpis.change, savedBps: 0 } };
     const { screen: again } = await renderApp(<KpiCards kpis={flat} comparison="vs 2025" currency="IDR" locale="id" />);
     expect(again.getByText('0%').last().element().getAttribute('class')).toContain('text-muted-fg');

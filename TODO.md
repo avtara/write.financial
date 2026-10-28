@@ -95,11 +95,11 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M8 — Tablet & quality
 
-- [ ] Tablet polish on every page
+- [x] Tablet polish on every page — M8.1 (rail, touch, ⋯ header actions, long-press) and M8.6 (visual review of every main page at 1440/1024/768, both themes, against Section 19)
 - [x] Dashboard customization — M8.2: "Atur dashboard" reorders (drag or keyboard), hides, and sizes cards (⅓/⅔/full), adds Investasi ringkas, Tujuan tabungan, Pengingat tagihan; saved to the account with Reset ke default and Urungkan
 - [x] App lock PIN — M8.3: optional per-device PIN (IndexedDB PBKDF2 hash), idle auto-lock 1/5/15/30 min, lock screen instead of the app, 5 wrong PINs or "Lupa PIN?" → sign out and remove the PIN
 - [x] Accessibility and performance audit — M8.4: axe (WCAG 2.1 A/AA) with 0 serious violations on every main page at 1440/1024/768 and in the light theme, token contrast guard in `check:tokens`; M8.5: `pnpm test:perf`, p95 TTFB < 300 ms on every main page with 10,000 transactions
-- [ ] M8 unit tests: 100% per-file coverage gate green
+- [x] M8 unit tests: 100% per-file coverage gate green — M8.6 phase-exit run with `full-ci`
 
 ## M9a — Open-source v1.0 release
 

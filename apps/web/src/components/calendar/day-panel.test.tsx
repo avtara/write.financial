@@ -52,6 +52,26 @@ describe('DayPanel', () => {
     expect(record.open).toHaveBeenCalledWith({ date: '2026-10-01', time: '12:00' });
   });
 
+  it('fits the whole category · account · time · tag line beside the amount in the 340px side panel', async () => {
+    const { screen } = await renderApp(
+      <div style={{ width: 340 }}>
+        <DayPanel
+          day={dayOf('2026-10-01')}
+          today={TODAY}
+          averageMinor={606_000n}
+          patternMonth={null}
+          categories={CATEGORIES}
+          accounts={ACCOUNTS}
+          baseCurrency="IDR"
+          timeZone="Asia/Jakarta"
+          locale="id"
+        />
+      </div>,
+    );
+    const meta = screen.getByText(/· #rumah$/).element();
+    expect(meta.scrollWidth).toBeLessThanOrEqual(meta.clientWidth);
+  });
+
   it('shows a scheduled bill ahead with "Buka di Langganan", and no recording on a future day', async () => {
     const { screen } = await renderPanel(dayOf('2026-10-18'));
     const panel = screen.getByRole('region', { name: 'Minggu, 18 Oktober 2026' });

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface SheetProps {
   /** Controlled: to keep a filled form open (FR-T9 "Buang / Simpan draf / Lanjut mengisi"), ignore the close. */
@@ -23,6 +23,11 @@ export interface SheetProps {
  * its form) returns focus there, not to the body the replaced sheet left the focus on.
  */
 let released: HTMLElement | null | undefined;
+/**
+ * Sheets open on screen. One that opens while another is still open replaces it (the loading sheet, then the form):
+ * it shows without fading the scrim in and sliding in again, so the swap does not blink.
+ */
+let openSheets = 0;
 
 /**
  * A panel sliding in from the right (design "Catat Transaksi (Sheet)": `$card` fill, header 17/600 with a subtitle,
@@ -41,6 +46,20 @@ export function Sheet({
   children,
 }: SheetProps) {
   const opener = useRef<HTMLElement | null>(null);
+  // Whether this sheet replaced another, decided when it opens.
+  const [shownOpen, setShownOpen] = useState(false);
+  const [replacing, setReplacing] = useState(false);
+  if (open !== shownOpen) {
+    setShownOpen(open);
+    if (open) setReplacing(openSheets > 0);
+  }
+  useEffect(() => {
+    if (!open) return;
+    openSheets += 1;
+    return () => {
+      openSheets -= 1;
+    };
+  }, [open]);
   useEffect(
     () => () => {
       released = opener.current;
@@ -53,7 +72,9 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim motion-safe:animate-[wf-fade-in_150ms_ease-out]" />
+        <Dialog.Overlay
+          className={`fixed inset-0 z-50 bg-scrim ${replacing ? '' : 'motion-safe:animate-[wf-fade-in_150ms_ease-out]'}`}
+        />
         <Dialog.Content
           {...(description === undefined ? { 'aria-describedby': undefined } : {})}
           onOpenAutoFocus={() => {
@@ -66,7 +87,7 @@ export function Sheet({
             if (document.activeElement?.closest('[role="dialog"]') != null) return;
             opener.current?.focus();
           }}
-          className={`fixed inset-y-0 right-0 z-50 flex max-w-full flex-col border-l border-border bg-card text-fg shadow-[-12px_0_40px_var(--shadow)] motion-safe:animate-[wf-sheet-in_200ms_ease-out] ${size === 'md' ? 'w-[460px]' : 'w-[560px]'}`}
+          className={`fixed inset-y-0 right-0 z-50 flex max-w-full flex-col border-l border-border bg-card text-fg shadow-[-12px_0_40px_var(--shadow)] ${replacing ? '' : 'motion-safe:animate-[wf-sheet-in_200ms_ease-out]'} ${size === 'md' ? 'w-[460px]' : 'w-[560px]'}`}
         >
           <header className="flex flex-col gap-[3px] border-b border-border py-5 pr-16 pl-6">
             <Dialog.Title className="text-[17px] font-semibold">{title}</Dialog.Title>

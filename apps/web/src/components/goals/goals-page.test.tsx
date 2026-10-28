@@ -2,7 +2,7 @@
 import type { YearMonth } from '@wf/domain/period';
 import { useState, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import type { RenderResult } from 'vitest-browser-react';
 import {
   DANA_DARURAT,
@@ -449,6 +449,25 @@ describe('GoalsPage', () => {
       .first()
       .click();
     await expect.element(screen.getByRole('dialog', { name: 'Setoran rutin Dana Darurat' })).toBeVisible();
+  });
+
+  it('folds "Setoran rutin" into ⋯ below 1024 px (FR-TB3), keeping "Tujuan baru" beside the month', async () => {
+    await page.viewport(768, 1000);
+    const { screen } = await renderPage();
+    expect(screen.getByRole('button', { name: 'Setoran rutin', exact: true }).query()).toBeNull();
+    await expect.element(screen.getByRole('button', { name: 'Tujuan baru' })).toBeVisible();
+    await expect.element(screen.getByRole('button', { name: 'Bulan sebelumnya' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Aksi lainnya' }));
+    await page.getByRole('menuitem', { name: 'Setoran rutin' }).click();
+    await expect.element(screen.getByRole('dialog', { name: 'Setoran rutin' })).toBeVisible();
+  });
+
+  it('keeps a one-goal list its own height beside taller side cards', async () => {
+    const { screen } = await renderPage({ overview: goalsOverview({ goals: [LIBURAN_BALI] }) });
+    const list = screen.getByRole('region', { name: 'Tujuan tabungan' }).element().getBoundingClientRect();
+    const sinking = screen.getByRole('region', { name: 'Dana tidak rutin' }).element().getBoundingClientRect();
+    // The side cards reach further down; the list ends right after its one row.
+    expect(sinking.bottom).toBeGreaterThan(list.bottom + 100);
   });
 
   it('starts from a template when there are no goals yet', async () => {

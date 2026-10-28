@@ -44,6 +44,8 @@ describe('Money', () => {
     ['table', 'id', -42_810_000n, '−42.810.000'],
     ['delta', 'id', 9_500_000n, '+9.500.000'],
     ['delta', 'en', -2_277_000n, '−2,277,000'],
+    ['signed', 'id', 1_610_000n, '+Rp1.610.000'],
+    ['signed', 'en', -45_000n, '−Rp45,000'],
   ] as const)('formats %s in %s: %s → %s', async (context, locale, minor, expected) => {
     const element = await renderMoney(minor, context, locale);
     expect(element.textContent).toBe(expected);
@@ -58,11 +60,14 @@ describe('Money', () => {
     expect(getComputedStyle(amount).textAlign).not.toBe('right');
   });
 
-  it('colors deltas by sign and leaves zero, amounts, and table cells uncolored', async () => {
+  it('colors deltas and signed values by sign and leaves zero, amounts, and table cells uncolored', async () => {
     expect(getComputedStyle(await renderMoney(9_500_000n, 'delta', 'id')).color).toBe(tokenColor('green-fg'));
     expect(getComputedStyle(await renderMoney(-2_277_000n, 'delta', 'id')).color).toBe(tokenColor('red-fg'));
+    expect(getComputedStyle(await renderMoney(9_500_000n, 'signed', 'id')).color).toBe(tokenColor('green-fg'));
+    expect(getComputedStyle(await renderMoney(-2_277_000n, 'signed', 'id')).color).toBe(tokenColor('red-fg'));
     const neutral = tokenColor('fg');
     expect(getComputedStyle(await renderMoney(0n, 'delta', 'id')).color).toBe(neutral);
+    expect(getComputedStyle(await renderMoney(0n, 'signed', 'id')).color).toBe(neutral);
     expect(getComputedStyle(await renderMoney(-2_277_000n, 'amount', 'id')).color).toBe(neutral);
     expect(getComputedStyle(await renderMoney(-2_277_000n, 'table', 'id')).color).toBe(neutral);
   });
@@ -71,6 +76,7 @@ describe('Money', () => {
     ['amount', 'Rp••••••'],
     ['table', '••••••'],
     ['delta', '••••••'],
+    ['signed', 'Rp••••••'],
   ] as const)('hides the %s value in privacy mode without leaking it to the DOM', async (context, masked) => {
     const element = await renderMoney(-2_277_000n, context, 'id', true);
     const visible = element.querySelector('[aria-hidden="true"]');

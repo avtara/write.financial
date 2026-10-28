@@ -110,7 +110,8 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
           />
           {footer(available)}
         </button>
-        <div className="min-w-[520px] flex-1">
+        {/* At least the tiles' own width: on a tablet the strip scrolls sideways instead of squeezing amounts. */}
+        <div className="flex-1">
           <AccountCards
             accounts={active}
             baseCurrency={baseCurrency}

@@ -187,8 +187,9 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
             </TabsTrigger>
           </TabsList>
         </Tabs>
+        {/* Below 1280 px the amount takes what is left, so "Simpan" stays on the row at 1024 (FR-TB2). */}
         <div
-          className={`w-[170px] rounded-[9px] border bg-input px-3 py-[7px] ${message === m.quick_add_error_amount() ? 'border-red' : 'border-border-input'}`}
+          className={`w-[170px] rounded-[9px] border bg-input px-3 py-[7px] max-xl:w-0 max-xl:min-w-[7.5rem] max-xl:flex-1 ${message === m.quick_add_error_amount() ? 'border-red' : 'border-border-input'}`}
         >
           <AmountInput
             size="inline"

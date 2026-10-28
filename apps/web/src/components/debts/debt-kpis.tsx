@@ -142,7 +142,7 @@ function Kpi({
   readonly children: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 border-b border-border px-5 py-4 odd:border-r xl:border-r xl:border-b-0 xl:last:border-r-0">
+    <div className="flex min-w-0 flex-col gap-1.5 border-border px-5 py-4 odd:border-r max-xl:nth-[-n+2]:border-b xl:border-r xl:last:border-r-0">
       <span className="flex items-center gap-1.5 text-[12.5px] text-muted-fg">
         <Icon aria-hidden="true" className="size-3.5" />
         {label}
