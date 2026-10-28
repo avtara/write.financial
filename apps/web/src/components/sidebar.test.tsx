@@ -95,7 +95,7 @@ describe('Sidebar', () => {
     const nav = screen.getByRole('navigation', { name: 'Navigasi utama' });
     await expect.element(nav.getByRole('heading', { name: 'Menu' })).toBeVisible();
     await expect.element(nav.getByRole('link', { name: 'Ringkasan' })).toHaveAttribute('href', '/');
-    await expect.element(screen.getByRole('button', { name: 'Menu pengguna' })).toBeVisible();
+    await expect.element(screen.getByRole('button', { name: /^Menu pengguna/ })).toBeVisible();
   });
 
   it('highlights the current page only', async () => {

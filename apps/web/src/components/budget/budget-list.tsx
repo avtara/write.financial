@@ -339,12 +339,13 @@ function BudgetRow({ line, readOnly, idealBps, editing, totalLimitMinor, actions
           ) : (
             <button
               type="button"
-              aria-label={m.budget_limit_edit_label({ name })}
               onClick={() => {
                 actions.onEditLimit(line);
               }}
               className="rounded-[5px] px-0.5 text-subtle hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
             >
+              {/* "Ubah batas Makan 3.500.000": the action, then the amount it shows (WCAG 2.5.3). */}
+              <span className="sr-only">{m.budget_limit_edit_label({ name })} </span>
               <Amount valueMinor={line.limitMinor} bare />
             </button>
           )}

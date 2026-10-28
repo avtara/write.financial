@@ -212,7 +212,7 @@ export function CalendarCard({
                   ) : (
                     <span
                       aria-hidden="true"
-                      className="flex h-[68px] items-start rounded-[8px] p-2 text-[12px] text-text-faint"
+                      className="flex h-[68px] items-start rounded-[8px] p-2 text-[12px] text-subtle"
                     >
                       {Number(day.date.slice(8))}
                     </span>
@@ -292,10 +292,13 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
       type="button"
       data-date={day.date}
       tabIndex={tabbable ? 0 : -1}
-      aria-label={`${dayTitle(day.date, locale)}${day.count > 0 ? `, ${m.overview_calendar_count({ count: day.count })}` : ''}`}
       onClick={onSelect}
       className={`flex w-full flex-col justify-between gap-1 rounded-[8px] p-2 text-left focus-visible:outline-2 focus-visible:outline-ring ${tall ? 'h-[104px]' : 'h-[68px]'} ${background} ${selected ? 'ring-1 ring-fg' : isToday ? 'ring-1 ring-blue' : ''}`}
     >
+      {/* The day and its count first, then what the cell shows, so the name holds the visible text (WCAG 2.5.3). */}
+      <span className="sr-only">
+        {`${dayTitle(day.date, locale)}${day.count > 0 ? `, ${m.overview_calendar_count({ count: day.count })}` : ''}`}
+      </span>
       <span className="flex items-center justify-between gap-1">
         <span className={`text-[12px] font-medium ${day.future ? 'text-subtle' : 'text-fg'}`}>
           {Number(day.date.slice(8))}
@@ -322,7 +325,8 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
           currency={currency}
           context="delta"
           locale={locale}
-          className="truncate text-[11.5px]"
+          // On the green surplus cell the green delta falls below 4.5:1; the cell's colour already says "surplus".
+          className="truncate text-[11.5px] !text-fg"
         />
       ) : day.outMinor > 0n ? (
         <Money

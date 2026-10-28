@@ -174,10 +174,10 @@ for (const width of [1024, 768]) {
 
 test('light English and privacy views preserve usable chart and sheet controls', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Menu pengguna', exact: true }).click();
+  await page.getByRole('button', { name: /^Menu pengguna( |$)/ }).click();
   await page.getByRole('menuitemradio', { name: 'Terang', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.getByRole('button', { name: 'Menu pengguna', exact: true }).click();
+  await page.getByRole('button', { name: /^Menu pengguna( |$)/ }).click();
   const saved = page.waitForResponse(
     (response) => response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith('/_serverFn/'),
   );
@@ -185,7 +185,7 @@ test('light English and privacy views preserve usable chart and sheet controls',
   expect((await saved).ok()).toBe(true);
   await expect(page.getByRole('heading', { level: 1, name: 'Investments' })).toBeVisible();
   await screenshot(page, 'investments-light-en');
-  await page.getByRole('button', { name: 'User menu', exact: true }).click();
+  await page.getByRole('button', { name: /^User menu( |$)/ }).click();
   await page.getByRole('menuitemcheckbox', { name: 'Hide balances', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Investment summary' })).not.toContainText('61,420,000');
   await screenshot(page, 'investments-private');

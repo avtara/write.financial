@@ -136,12 +136,15 @@ describe('MonthGrid', () => {
     await expect.element(month.getByText('Klik tanggal untuk melihat rinciannya')).toBeVisible();
     const payday = month.getByRole('button', { name: /^Kamis, 1 Oktober 2026/ });
     await expect.element(payday).toHaveAttribute('data-surplus', 'true');
-    await expect.element(payday).toMatchTextContent(/^16\.000\.00018\.500\.000\+14\.000\.000$/);
-    const sunday = month.getByRole('button', { name: 'Minggu, 11 Oktober 2026, ada pengeluaran' });
+    // The hidden date comes first; the visible content follows, so it is part of the name (WCAG 2.5.3).
+    await expect
+      .element(payday)
+      .toMatchTextContent(/^Kamis, 1 Oktober 2026, ada pengeluaran16\.000\.00018\.500\.000\+14\.000\.000$/);
+    const sunday = month.getByRole('button', { name: /^Minggu, 11 Oktober 2026, ada pengeluaran / });
     await expect.element(sunday).toHaveAttribute('aria-pressed', 'true');
     expect(sunday.element().querySelectorAll('rect')).toHaveLength(2);
     await expect
-      .element(month.getByRole('button', { name: 'Kamis, 15 Oktober 2026, Hari ini, ada pengeluaran' }))
+      .element(month.getByRole('button', { name: /^Kamis, 15 Oktober 2026, ada pengeluaran 15 Hari ini/ }))
       .toBeVisible();
     await expect.element(month.getByRole('button', { name: /^Minggu, 18 Oktober/ })).toMatchTextContent(/Netflix/);
     await expect.element(month.getByRole('button', { name: /^Minggu, 25 Oktober/ })).toMatchTextContent(/Terjadwal/);
@@ -207,8 +210,13 @@ describe('MonthGrid', () => {
     const hidden: CalendarLayer[] = [];
     const bare = await renderGrid({ layers: hidden });
     await expect.element(bare.screen.getByText('Pemasukan disembunyikan · hanya pengeluaran')).toBeVisible();
-    await expect.element(bare.screen.getByRole('button', { name: /^Kamis, 1 Oktober/ })).toMatchTextContent(/^1$/);
-    await expect.element(bare.screen.getByRole('button', { name: /^Minggu, 18 Oktober/ })).toMatchTextContent(/^18$/);
+    // Only the hidden date and the day number remain.
+    await expect
+      .element(bare.screen.getByRole('button', { name: /^Kamis, 1 Oktober/ }))
+      .toMatchTextContent(/^Kamis, 1 Oktober 2026[^\d]*1$/);
+    await expect
+      .element(bare.screen.getByRole('button', { name: /^Minggu, 18 Oktober/ }))
+      .toMatchTextContent(/^Minggu, 18 Oktober 2026[^\d]*18$/);
     await bare.screen.unmount();
 
     const novemberGrid = monthGrid('2026-11' as YearMonth, octoberInputs({ days: [], rows: [] }), octoberInputs());

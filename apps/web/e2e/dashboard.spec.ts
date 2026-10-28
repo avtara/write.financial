@@ -45,7 +45,7 @@ test('October shows the persona’s KPIs, accounts, money flow, budget, calendar
   await expect(page.getByRole('region', { name: 'Rekening & dompet' })).toContainText('Rp55.023.000');
   const flow = page.getByRole('region', { name: /^Arus Uang/ });
   await expect(flow).toContainText('Pemasukan Rp26.000.000 ke');
-  await expect(flow.getByRole('button', { name: /^Gaji, Rp18\.500\.000/ })).toBeVisible();
+  await expect(flow.getByRole('button', { name: /^Gaji Rp18\.500\.000/ })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Anggaran Kategori' })).toContainText('lewat batas');
   await expect(page.getByRole('region', { name: 'Langganan' })).toContainText('Rp904.900');
   await expect(page.getByRole('region', { name: 'Kalender Pengeluaran' }).getByRole('grid')).toBeVisible();
@@ -105,9 +105,9 @@ test('1024 stacks the paired cards and draws two levels of the money flow; 768 h
   await page.setViewportSize({ width: 1024, height: 768 });
   await openOverview(page);
   const flow = page.getByRole('region', { name: /^Arus Uang/ });
-  await expect(flow.getByRole('button', { name: /^Kebutuhan, / })).toBeVisible();
+  await expect(flow.getByRole('button', { name: /^Kebutuhan Rp/ })).toBeVisible();
   await expect(flow.getByRole('button', { name: /^Makan & Dapur/ })).toHaveCount(0);
-  await flow.getByRole('button', { name: /^Kebutuhan, / }).focus();
+  await flow.getByRole('button', { name: /^Kebutuhan Rp/ }).focus();
   await page.keyboard.press('Enter');
   await expect(flow.getByRole('button', { name: /^Makan & Dapur/ })).toBeVisible();
   await expect(page.getByRole('form', { name: 'Catat cepat' }).getByRole('textbox', { name: 'Catatan' })).toBeHidden();

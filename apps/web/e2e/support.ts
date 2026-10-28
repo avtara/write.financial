@@ -127,8 +127,9 @@ export async function enterCode(page: Page, label: string | RegExp, code: string
   await page.keyboard.type(code);
 }
 
+/** The user menu: "Menu pengguna" alone on the rail, followed by the visible name and email in the sidebar. */
 export async function openUserMenu(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
+  await page.getByRole('button', { name: /^(Menu pengguna|User menu)( |$)/ }).click();
 }
 
 /**

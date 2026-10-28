@@ -202,7 +202,7 @@ export function ColumnSettings({ prefs, onChange }: ColumnSettingsProps) {
           >
             <TabsList label={m.transactions_columns_density()}>
               {DENSITIES.map((density) => (
-                <TabsTrigger key={density} value={density} className="py-1 text-[12px]">
+                <TabsTrigger key={density} value={density} panel={false} className="py-1 text-[12px]">
                   {DENSITY_LABELS[density]()}
                 </TabsTrigger>
               ))}

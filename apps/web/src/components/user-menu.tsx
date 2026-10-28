@@ -94,12 +94,13 @@ export function UserMenu({ variant, viewer }: { variant: 'sidebar' | 'rail'; vie
 
   let trigger: ReactNode;
   if (variant === 'sidebar') {
+    // Named by what it shows, after a hidden "Menu pengguna" (WCAG 2.5.3: the visible name and email are in the name).
     trigger = (
       <button
         type="button"
-        aria-label={m.user_menu_label()}
         className="flex w-full items-center gap-2.5 rounded-[8px] p-2 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:bg-muted"
       >
+        <span className="sr-only">{m.user_menu_label()}</span>
         <Avatar viewer={viewer} size="sm" />
         <Identity viewer={viewer} />
         <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
@@ -109,9 +110,10 @@ export function UserMenu({ variant, viewer }: { variant: 'sidebar' | 'rail'; vie
     trigger = (
       <button
         type="button"
-        aria-label={m.user_menu_label()}
         className="flex size-10 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
+        {/* Named by content like the sidebar's (no `aria-label` beside the initials it shows). */}
+        <span className="sr-only">{m.user_menu_label()}</span>
         <Avatar viewer={viewer} size="sm" />
       </button>
     );

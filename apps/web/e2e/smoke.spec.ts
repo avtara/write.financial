@@ -12,7 +12,7 @@ test.beforeAll(async ({ browser }) => {
 });
 
 async function openUserMenu(page: Page) {
-  await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
+  await page.getByRole('button', { name: /^(Menu pengguna|User menu)( |$)/ }).click();
 }
 
 /**

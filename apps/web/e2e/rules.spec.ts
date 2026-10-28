@@ -143,7 +143,7 @@ test('creates a rule with a trial preview and applies it in the unsaved Quick Ad
   // The English catalog on the same surface, through the user menu's language switch.
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
-  await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
+  await page.getByRole('button', { name: /^(Menu pengguna|User menu)( |$)/ }).click();
   await page.getByRole('menuitemradio', { name: 'English' }).click();
   await expect(page.getByRole('link', { name: 'Overview' })).toBeVisible();
   await expect
@@ -155,7 +155,7 @@ test('creates a rule with a trial preview and applies it in the unsaved Quick Ad
   await expect(english.getByRole('button', { name: 'New rule' })).toBeVisible();
   await screenshot(page, 'rules-settings-en-1440');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
+  await page.getByRole('button', { name: /^(Menu pengguna|User menu)( |$)/ }).click();
   await page.getByRole('menuitemradio', { name: 'Bahasa Indonesia' }).click();
   await expect(page.getByRole('link', { name: 'Ringkasan' })).toBeVisible();
   await expect

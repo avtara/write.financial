@@ -447,7 +447,7 @@ export function TransactionsTable({
           >
             <TabsList label={m.transactions_table_view_label()}>
               {TRANSACTION_VIEWS.map((value) => (
-                <TabsTrigger key={value} value={value} className="py-1 text-[12.5px]">
+                <TabsTrigger key={value} value={value} panel={false} className="py-1 text-[12.5px]">
                   {VIEW_LABELS[value]()}
                 </TabsTrigger>
               ))}

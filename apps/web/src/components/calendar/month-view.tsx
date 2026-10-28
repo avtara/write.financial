@@ -259,19 +259,18 @@ export function MonthGrid({
         <button
           type="button"
           aria-pressed={selected === day.date}
-          aria-label={[
-            formatDate(day.date, locale, 'full'),
-            day.date === today ? m.calendar_today() : null,
-            day.outMinor === 0n ? null : m.calendar_cell_out(),
-          ]
-            .filter((part) => part !== null)
-            .join(', ')}
           onClick={() => {
             onSelect(day.date);
           }}
           data-surplus={surplus ? 'true' : undefined}
           className={`relative flex min-h-[92px] w-full min-w-0 flex-col gap-0.5 rounded-[8px] border p-1.5 text-left focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-fg data-[surplus=true]:bg-green-tint-3 ${heat} ${day.date === today ? 'border-blue' : 'border-transparent'}`}
         >
+          {/* The date first, then what the cell shows, so the name holds the visible text (WCAG 2.5.3). */}
+          <span className="sr-only">
+            {[formatDate(day.date, locale, 'full'), day.outMinor === 0n ? null : m.calendar_cell_out()]
+              .filter((part) => part !== null)
+              .join(', ')}
+          </span>
           <span className="flex items-center justify-between gap-1 text-[12px] font-medium text-fg">
             {Number(day.date.slice(8))}
             {day.date === today ? (
@@ -279,7 +278,8 @@ export function MonthGrid({
             ) : null}
           </span>
           {shown('savings') && day.savingsMinor > 0n ? (
-            <span className="truncate rounded-[3px] bg-blue-tint-2 px-1 text-[10px] text-blue-fg">{saved}</span>
+            // The lighter tint keeps the blue text at 4.5:1 over the green surplus cell too.
+            <span className="truncate rounded-[3px] bg-blue-tint-1 px-1 text-[10px] text-blue-fg">{saved}</span>
           ) : null}
           {shown('income') && day.inMinor > 0n ? (
             <span className="flex items-center gap-0.5 truncate text-[10px] text-green-fg">
@@ -404,7 +404,7 @@ export function MonthGrid({
                       {day.inRange ? (
                         cell(day)
                       ) : (
-                        <span aria-hidden="true" className="flex min-h-[92px] p-1.5 text-[12px] text-text-disabled">
+                        <span aria-hidden="true" className="flex min-h-[92px] p-1.5 text-[12px] text-subtle">
                           {Number(day.date.slice(8))}
                         </span>
                       )}
