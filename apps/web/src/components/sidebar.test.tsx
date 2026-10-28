@@ -93,7 +93,12 @@ describe('Sidebar', () => {
     expect(aside.element().getBoundingClientRect().width).toBe(248);
     expect(aside.element().textContent).toMatch(/^write\.financial/);
     const nav = screen.getByRole('navigation', { name: 'Navigasi utama' });
-    await expect.element(nav.getByRole('heading', { name: 'Menu' })).toBeVisible();
+    expect(
+      nav
+        .getByRole('heading')
+        .elements()
+        .map((heading) => heading.textContent),
+    ).toEqual(['Utama', 'Rencana', 'Aset & utang']);
     await expect.element(nav.getByRole('link', { name: 'Ringkasan' })).toHaveAttribute('href', '/');
     await expect.element(screen.getByRole('button', { name: /^Menu pengguna/ })).toBeVisible();
   });

@@ -51,9 +51,13 @@ export interface NavGroup {
   readonly items: readonly NavItem[];
 }
 
+/**
+ * Three short groups instead of one long list: the daily pages (Utama), what is planned ahead (Rencana), and what
+ * the user owns and owes (Aset & utang). The rail draws a divider between them.
+ */
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
-    label: m.nav_menu,
+    label: m.nav_group_main,
     items: [
       { to: '/', label: m.nav_overview, icon: LayoutDashboard, railIcon: LayoutGrid, shortcut: ['G', 'R'] },
       {
@@ -64,6 +68,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         shortcut: ['G', 'T'],
         badge: 'transactions',
       },
+      { to: '/review', label: m.review_title, icon: Inbox, railIcon: Inbox, badge: 'review' },
+      { to: '/reports', label: m.reports_title, icon: FileBarChart, railIcon: FileBarChart },
+    ],
+  },
+  {
+    label: m.nav_group_plan,
+    items: [
       { to: '/budget', label: m.nav_budget, icon: PiggyBank, railIcon: PiggyBank, shortcut: ['G', 'A'] },
       {
         to: '/subscriptions',
@@ -74,15 +85,15 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         badge: 'subscriptions',
       },
       { to: '/calendar', label: m.nav_calendar, icon: CalendarDays, railIcon: CalendarDays },
-      { to: '/investments', label: m.invest_title, icon: CandlestickChart, railIcon: CandlestickChart },
-      { to: '/reports', label: m.reports_title, icon: FileBarChart, railIcon: FileBarChart },
-      { to: '/goals', label: m.nav_goals, icon: PiggyBank, railIcon: PiggyBank },
-      { to: '/debts', label: m.debts_title, icon: HandCoins, railIcon: HandCoins },
-      { to: '/review', label: m.review_title, icon: Inbox, railIcon: Inbox, badge: 'review' },
     ],
   },
   {
-    label: m.nav_group_account,
-    items: [{ to: '/accounts', label: m.accounts_title, icon: Wallet, railIcon: Wallet }],
+    label: m.nav_group_assets,
+    items: [
+      { to: '/accounts', label: m.accounts_title, icon: Wallet, railIcon: Wallet },
+      { to: '/goals', label: m.nav_goals, icon: PiggyBank, railIcon: PiggyBank },
+      { to: '/investments', label: m.invest_title, icon: CandlestickChart, railIcon: CandlestickChart },
+      { to: '/debts', label: m.debts_title, icon: HandCoins, railIcon: HandCoins },
+    ],
   },
 ];

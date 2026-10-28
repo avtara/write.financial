@@ -81,8 +81,15 @@ describe('Rail', () => {
     expect(avatar.element().getBoundingClientRect().height).toBe(40);
   });
 
-  it('lists Transactions and keeps an entry active whatever its search params', async () => {
+  it('lists the pages in the sidebar’s groups, named for screen readers, and keeps an entry active whatever its search params', async () => {
     const { screen } = await renderApp(rail, { path: '/?period=2026-10' });
+    const nav = screen.getByRole('navigation', { name: 'Navigasi utama' });
+    const groups = nav.getByRole('list').elements();
+    expect(groups.map((list) => [list.getAttribute('aria-label'), list.querySelectorAll('a').length])).toEqual([
+      ['Utama', 4],
+      ['Rencana', 3],
+      ['Aset & utang', 4],
+    ]);
     await expect.element(screen.getByRole('link', { name: 'Ringkasan' })).toHaveAttribute('data-status', 'active');
     await expect.element(screen.getByRole('link', { name: 'Transaksi' })).toHaveAttribute('href', '/transactions');
   });
