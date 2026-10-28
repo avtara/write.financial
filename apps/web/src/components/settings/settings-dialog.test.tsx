@@ -18,6 +18,7 @@ import { fakeAuthActions, VIEWER } from '../../../test/fake-auth.ts';
 import { DEFAULT_PREFERENCES } from '../../../test/render.tsx';
 import type { SecurityOverview } from '../../server/account.ts';
 import type { Viewer } from '../../server/gate.ts';
+import { AppLockProvider } from '../app-lock/app-lock.tsx';
 import { AuthActionsProvider } from '../auth-actions.tsx';
 import { PreferencesProvider } from '../preferences.tsx';
 import { ShortcutProvider } from '../shortcuts.tsx';
@@ -148,11 +149,14 @@ async function renderSettings(path: string, viewer: Viewer = VIEWER, locale: 'id
       <PreferencesProvider initial={{ ...DEFAULT_PREFERENCES, locale }}>
         <ShortcutProvider platform="mac">
           <AuthActionsProvider actions={fakeAuthActions()}>
-            <button type="button" onClick={() => void navigate(openSettings('security'))}>
-              buka keamanan
-            </button>
-            <Outlet />
-            <SettingsDialog viewer={viewer} data={data} />
+            {/* As in the app layout, which Settings › Keamanan's app lock rows need. */}
+            <AppLockProvider viewer={viewer} hinted={false}>
+              <button type="button" onClick={() => void navigate(openSettings('security'))}>
+                buka keamanan
+              </button>
+              <Outlet />
+              <SettingsDialog viewer={viewer} data={data} />
+            </AppLockProvider>
           </AuthActionsProvider>
         </ShortcutProvider>
       </PreferencesProvider>

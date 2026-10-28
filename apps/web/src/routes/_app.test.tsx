@@ -4,8 +4,13 @@ import type { ComponentType, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
+import { createPin, deletePin } from '../components/app-lock/pin-store.ts';
 import type { Viewer } from '../server/gate.ts';
 import { Route } from './_app.tsx';
+
+// The server render reads the request from the Start context; the browser has none.
+const start = vi.hoisted(() => ({ context: undefined as { headers: Headers } | undefined }));
+vi.mock('@tanstack/react-start', () => ({ getGlobalStartContext: () => start.context }));
 
 const ledger = vi.hoisted(() => ({
   listAccounts: vi.fn(),
@@ -191,16 +196,42 @@ describe('/_app layout', () => {
 
   it('wraps its pages in the app shell, with one toast region, the Record Transaction sheet (N), and Settings', async () => {
     await page.viewport(1440, 900);
+    // A server render of a request without cookies.
+    start.context = { headers: new Headers() };
     vi.spyOn(Route, 'useRouteContext').mockReturnValue({ viewer: VIEWER });
     vi.spyOn(Route, 'useLoaderData').mockReturnValue({ navCounts: null, settings: { section: 'security' } });
     ledger.listAccounts.mockReturnValue(Promise.withResolvers().promise);
     const Layout = Route.options.component as ComponentType;
     const { screen } = await renderApp(<Layout />);
+    start.context = undefined;
     await expect.element(screen.getByRole('main')).toBeInTheDocument();
     await expect.element(screen.getByRole('navigation', { name: 'Navigasi utama' })).toBeVisible();
     await expect.element(screen.getByRole('region', { name: 'Notifikasi' })).toBeInTheDocument();
     await expect.element(screen.getByText('pengaturan: security')).toBeInTheDocument();
     await userEvent.keyboard('n');
     await expect.element(page.getByRole('dialog', { name: 'Catat Transaksi' })).toBeVisible();
+  });
+
+  it('renders the lock screen instead of every page while this device is locked (FR-A6)', async () => {
+    await createPin(VIEWER.id, '123456', 5, Date.now() - 10 * 60_000);
+    vi.spyOn(Route, 'useRouteContext').mockReturnValue({ viewer: VIEWER });
+    vi.spyOn(Route, 'useLoaderData').mockReturnValue({ navCounts: null, settings: null });
+    const Layout = Route.options.component as ComponentType;
+    try {
+      for (const context of [undefined, { headers: new Headers({ cookie: 'wf_app_lock=on' }) }]) {
+        start.context = context;
+        document.cookie = 'wf_app_lock=on; Path=/';
+        const { screen } = await renderApp(<Layout />);
+        await expect.element(screen.getByRole('main', { name: 'Aplikasi terkunci · Sari' })).toBeVisible();
+        expect(screen.getByRole('navigation', { name: 'Navigasi utama' }).query()).toBeNull();
+        await userEvent.keyboard('n');
+        expect(page.getByRole('dialog', { name: 'Catat Transaksi' }).query()).toBeNull();
+        await screen.unmount();
+      }
+    } finally {
+      start.context = undefined;
+      await deletePin(VIEWER.id);
+      document.cookie = 'wf_app_lock=; Path=/; Max-Age=0';
+    }
   });
 });

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+import { getGlobalStartContext } from '@tanstack/react-start';
 import { m } from '@wf/i18n/messages';
 import { Toaster } from '@wf/ui/toast';
 import * as z from 'zod';
 import { ReconcileProvider } from '../components/accounts/reconcile.tsx';
+import { AppLockProvider } from '../components/app-lock/app-lock.tsx';
 import { AssistantProvider } from '../components/assistant/assistant.tsx';
 import { AppShell } from '../components/app-shell.tsx';
 import { AppCommandActions } from '../components/command-palette/app-actions.tsx';
@@ -12,6 +14,7 @@ import { RecordTransactionProvider } from '../components/ledger/record-transacti
 import type { NavCounts } from '../components/nav.ts';
 import { loadSettingsSection, SettingsDialog, type SettingsData } from '../components/settings/settings-dialog.tsx';
 import { canOpenSection, SETTINGS_SECTIONS } from '../components/settings/settings-sections.ts';
+import { hasAppLockHint } from '../lib/app-lock-hint.ts';
 import { countActiveSubscriptions } from '../server/fn/schedules.ts';
 import { getNotificationCounts } from '../server/fn/notifications.ts';
 import { getReviewCounts } from '../server/fn/review.ts';
@@ -24,9 +27,9 @@ import { countPeriodTransactions } from '../server/fn/transactions.ts';
  * (`toast()` from `@wf/ui/toast`) appear in the one `<Toaster>` mounted here, and the Record Transaction sheet (`N`,
  * FR-T1), "Sesuaikan saldo" (`useReconcile()`, FR-R4), and the ⌘K palette (`<CommandPaletteProvider>`, inside both so
  * its app-wide actions can use them) are mounted here once for every page. `?settings=<section>` on any page opens the
- * Settings dialog over it (`openSettings()`; `/settings/<section>` redirects there). The loader provides the nav badge
- * counts (`null` when they fail; the nav then shows none) and the open Settings section's data (`null` when closed or
- * not open to this user).
+ * Settings dialog over it (`openSettings()`; `/settings/<section>` redirects there). The app lock (FR-A6) wraps it all:
+ * while locked, its lock screen renders instead. The loader provides the nav badge counts (`null` when they fail; the
+ * nav then shows none) and the open Settings section's data (`null` when closed or not open to this user).
  */
 export const Route = createFileRoute('/_app')({
   validateSearch: z.object({ settings: z.enum(SETTINGS_SECTIONS).optional().catch(undefined) }),
@@ -73,8 +76,11 @@ export const Route = createFileRoute('/_app')({
 function AppLayout() {
   const { viewer } = Route.useRouteContext();
   const { settings } = Route.useLoaderData();
+  // On the server from the request's cookies, in the browser from the same cookie, so the hydration matches.
+  const start = getGlobalStartContext();
+  const hinted = hasAppLockHint(start === undefined ? document.cookie : (start.headers.get('cookie') ?? ''));
   return (
-    <>
+    <AppLockProvider viewer={viewer} hinted={hinted}>
       <ReconcileProvider timeZone={viewer.timezone}>
         <RecordTransactionProvider timeZone={viewer.timezone}>
           <AssistantProvider timeZone={viewer.timezone}>
@@ -89,6 +95,6 @@ function AppLayout() {
         </RecordTransactionProvider>
       </ReconcileProvider>
       <Toaster label={m.toast_region_label()} />
-    </>
+    </AppLockProvider>
   );
 }

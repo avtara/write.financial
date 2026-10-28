@@ -51,6 +51,9 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  *   manual prices), an answer from the ledger ("berapa pengeluaran Oktober?" → the spending card with the seed's
  *   October total and a source chip), the draft for "45.000 GoPay" (impact 93% / saldo Rp367.000, "Ubah" prefill,
  *   "Simpan" records it with source=assistant), and the negative: an unconfirmed draft leaves no row; 1440.
+ * - `app-lock`: the per-device PIN (FR-A6): set in Settings › Keamanan, the lock screen after five idle minutes (page
+ *   clock fast-forwarded) and after a reload, wrong PINs counting down, unlocking, and "Lupa PIN?" signing out to the
+ *   sign-in page with the PIN removed; 1440.
  */
 const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependencies?: string[] }> = {
   tablet: { testMatch: 'tablet.spec.ts', use: { viewport: { width: 1024, height: 768 } } },
@@ -84,6 +87,7 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependenci
     dependencies: ['m0', 'market-api'],
     use: { viewport: { width: 1440, height: 1024 } },
   },
+  'app-lock': { testMatch: 'app-lock.spec.ts' },
 };
 
 /**
