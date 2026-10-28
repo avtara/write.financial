@@ -304,13 +304,12 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 **Exit:** clean install and upgrade from the previous release pass automatically in CI (compose); guide tested by someone other than its author; critical/high findings = 0.
 
 ### M9b — write.financial cloud launch
-- Legal entity (PT Perorangan (Indonesian sole-proprietor limited company) + NIB (business identification number)) and PSE Lingkup Privat (private-scope electronic system operator) registration [needs legal confirmation] (D19); cloud privacy policy + terms of service (UU PDP (Indonesian Personal Data Protection Law No. 27/2022)), incident procedure.
 - External penetration test of the cloud instance (OWASP ASVS L2 for auth/session/crypto).
 - Cloud-only features: open sign-up, hosting plans & resource quotas, migration flow to self-host (FR-OP6). Billing can follow after launch.
 - Google OAuth verification (login). Gmail on cloud stays off until restricted-scope verification + third-party security assessment are complete.
 - Runbooks: KEK rotation, restore, mass session revocation, operator CMC quota monitoring.
 
-**Exit:** legal documents published; critical/high penetration test findings = 0; restore + KEK rotation drills succeed; data moves cloud → self-host → cloud with no discrepancy (G6).
+**Exit:** critical/high penetration test findings = 0; restore + KEK rotation drills succeed; data moves cloud → self-host → cloud with no discrepancy (G6).
 
 ```mermaid
 flowchart LR
@@ -384,5 +383,5 @@ Two lanes in one workflow (CONTRIBUTING.md › CI lanes). **Fast**, on every pul
 ## 12. Next steps
 
 1. ~~Save the design file~~ (done) · ~~Create the public repo~~ (done: `github.com/avtara/write.financial`, initial local commit).
-2. Prepare the `write.financial` domain: DNS, SPF/DKIM/DMARC for `no-reply@write.financial` (D18). Legal entity + PSE are only needed ahead of M9b.
+2. Prepare the `write.financial` domain (in hand, as is the VPS): DNS, SPF/DKIM/DMARC for `no-reply@write.financial` (D18).
 3. Start M0: scaffold monorepo + Docker image + self-host compose (with SeaweedFS), RLS + `packages/crypto`, auth + 2FA, setup wizard, tokens from the design file, `<Money>`, domain golden tests.
