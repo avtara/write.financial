@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Settings › Keamanan (design `kKAEZ`/`pdmek`): two-step verification, the password, signed-in devices, and the
- * security history. Actions Better Auth refuses for an old session open the re-authentication dialog first.
+ * Settings › Keamanan (design `kKAEZ`/`pdmek`): two-step verification, the app lock of this device (FR-A6), the
+ * password, signed-in devices, and the security history. Actions Better Auth refuses for an old session open the
+ * re-authentication dialog first.
  */
 import { m } from '@wf/i18n/messages';
 import { TriangleAlert } from 'lucide-react';
+import { AppLockSettings } from '../app-lock/app-lock-settings.tsx';
 import type { SecurityOverview } from '../../server/account.ts';
 import type { Viewer } from '../../server/gate.ts';
 import { DevicesCard } from './devices-card.tsx';
@@ -44,6 +46,7 @@ export function SecuritySection({
         reauthenticate={reauthenticate}
       />
       <SettingsGroup label={m.security_group_access()}>
+        <AppLockSettings />
         <SettingsRow
           title={m.security_password_title()}
           description={overview.hasPassword ? m.profile_password_set() : m.profile_password_unset()}

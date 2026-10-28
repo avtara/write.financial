@@ -96,7 +96,8 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 ## M8 — Tablet & quality
 
 - [ ] Tablet polish on every page
-- [ ] Dashboard customization, app lock PIN
+- [ ] Dashboard customization
+- [x] App lock PIN — M8.3: optional per-device PIN (IndexedDB PBKDF2 hash), idle auto-lock 1/5/15/30 min, lock screen instead of the app, 5 wrong PINs or "Lupa PIN?" → sign out and remove the PIN
 - [ ] Accessibility and performance audit
 - [ ] M8 unit tests: 100% per-file coverage gate green
 

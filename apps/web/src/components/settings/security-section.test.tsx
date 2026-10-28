@@ -4,6 +4,7 @@ import { page, userEvent } from 'vitest/browser';
 import { fail, fakeAuthActions, ok, VIEWER } from '../../../test/fake-auth.ts';
 import { renderApp } from '../../../test/render.tsx';
 import type { SecurityOverview } from '../../server/account.ts';
+import { AppLockProvider } from '../app-lock/app-lock.tsx';
 import { AuthActionsProvider } from '../auth-actions.tsx';
 import { SecuritySection } from './security-section.tsx';
 
@@ -39,7 +40,9 @@ describe('SecuritySection', () => {
       .mockReturnValueOnce(ok(null));
     const { screen } = await renderApp(
       <AuthActionsProvider actions={fakeAuthActions({ changePassword, signInEmail: () => ok({ twoFactor: false }) })}>
-        <SecuritySection viewer={VIEWER} overview={OVERVIEW} />
+        <AppLockProvider viewer={VIEWER} hinted={false}>
+          <SecuritySection viewer={VIEWER} overview={OVERVIEW} />
+        </AppLockProvider>
       </AuthActionsProvider>,
     );
     await expect
@@ -52,6 +55,8 @@ describe('SecuritySection', () => {
     await expect.element(screen.getByRole('region', { name: 'Riwayat keamanan' })).toBeVisible();
     const access = screen.getByRole('region', { name: 'Akses' });
     await expect.element(access.getByText('Diatur', { exact: true })).toBeVisible();
+    // This device's app lock (FR-A6) comes first, off until a PIN is set.
+    await expect.element(access.getByRole('switch', { name: 'Kunci aplikasi' })).not.toBeChecked();
 
     await userEvent.click(access.getByRole('button', { name: 'Ubah' }));
     const dialog = page.getByRole('dialog', { name: 'Ubah kata sandi' });
@@ -69,7 +74,9 @@ describe('SecuritySection', () => {
 
   it('has no banner once 2FA is on, and offers to set a password for Google-only accounts', async () => {
     const { screen } = await renderApp(
-      <SecuritySection viewer={VIEWER} overview={{ ...OVERVIEW, twoFactorEnabled: true, hasPassword: false }} />,
+      <AppLockProvider viewer={VIEWER} hinted={false}>
+        <SecuritySection viewer={VIEWER} overview={{ ...OVERVIEW, twoFactorEnabled: true, hasPassword: false }} />
+      </AppLockProvider>,
     );
     await expect.element(screen.getByRole('region', { name: 'Akses' })).toBeVisible();
     expect(screen.getByRole('note').query()).toBeNull();
