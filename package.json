@@ -21,6 +21,7 @@
     "test:unit": "vitest run --project unit --project unit-browser --coverage",
     "test:integration": "vitest run --project integration --passWithNoTests",
     "test:e2e": "pnpm --filter @wf/web build && pnpm --filter @wf/web test:e2e",
+    "test:perf": "pnpm --filter @wf/web build && pnpm --filter @wf/web test:perf",
     "test:mutation": "stryker run",
     "check:test-files": "node tools/repo-checks/src/cli.ts test-files",
     "check:spdx": "node tools/repo-checks/src/cli.ts spdx",

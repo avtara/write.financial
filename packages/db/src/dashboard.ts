@@ -22,7 +22,7 @@ import {
 } from '@wf/domain/dashboard';
 import { addDays, countDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import { and, asc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
-import { withUser, type Database, type Transaction } from './db.ts';
+import { withUser, type Database } from './db.ts';
 import { budgetStatusIn } from './budgets.ts';
 import { userContextIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
@@ -128,10 +128,15 @@ export interface DashboardRepository {
 
 const MAX_RANGE_DAYS = 366;
 
-async function kpisIn(tx: Transaction, userId: string, range: DateRange): Promise<Kpis> {
-  const days = await dayTotalsIn(tx, userId, range);
-  const incomeMinor = days.reduce((total, day) => total + day.inMinor, 0n);
-  const expenseMinor = days.reduce((total, day) => total + day.outMinor, 0n);
+/** The KPIs of `range` from day totals (newest first) covering it. */
+function kpisOf(days: readonly DayGroup[], range: DateRange): Kpis {
+  let incomeMinor = 0n;
+  let expenseMinor = 0n;
+  for (const day of days) {
+    if (day.date < range.from || day.date > range.to) continue;
+    incomeMinor += day.inMinor;
+    expenseMinor += day.outMinor;
+  }
   return {
     incomeMinor,
     expenseMinor,
@@ -198,12 +203,25 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
           }
         }
         const { current } = ranges;
-
-        const [currentKpis, previousKpis] = [
-          await kpisIn(tx, userId, current),
-          await kpisIn(tx, userId, ranges.previous),
-        ];
         const covering = await coveringIn(tx, ranges.full, startDay);
+        // Income vs expense per period: six up to the end of the range, or the year's twelve.
+        const trendPeriods =
+          request.scope === 'year'
+            ? covering
+            : (await coveringIn(tx, { from: addDays(current.to, -6 * 31), to: current.to }, startDay)).slice(-6);
+        // One day-totals query over everything the KPIs, the trend, and the calendar sum up (M8.5: one query per
+        // period took most of the year view's time).
+        const spanned = [
+          current,
+          ranges.previous,
+          ...trendPeriods.filter((item) => item.start <= today).map((item) => ({ from: item.start, to: item.end })),
+        ];
+        const allDays = await dayTotalsIn(tx, userId, {
+          from: spanned.reduce((from, range) => (range.from < from ? range.from : from), current.from),
+          to: spanned.reduce((to, range) => (range.to > to ? range.to : to), current.to),
+        });
+        const currentKpis = kpisOf(allDays, current);
+        const previousKpis = kpisOf(allDays, ranges.previous);
 
         // Money flow and categories.
         const totals = await categoryTotalsIn(tx, userId, current);
@@ -278,27 +296,20 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
           };
         });
 
-        // Income vs expense per period: six up to the end of the range, or the year's twelve.
-        const trendEnd = current.to;
-        const trendPeriods =
-          request.scope === 'year'
-            ? covering
-            : (await coveringIn(tx, { from: addDays(trendEnd, -6 * 31), to: trendEnd }, startDay)).slice(-6);
-        const trend: TrendPeriod[] = [];
-        for (const item of trendPeriods) {
-          const kpis = item.start > today ? null : await kpisIn(tx, userId, { from: item.start, to: item.end });
-          trend.push({
+        const trend: TrendPeriod[] = trendPeriods.map((item) => {
+          const kpis = item.start > today ? null : kpisOf(allDays, { from: item.start, to: item.end });
+          return {
             label: item.label,
             start: item.start,
             end: item.end,
             incomeMinor: kpis?.incomeMinor ?? 0n,
             expenseMinor: kpis?.expenseMinor ?? 0n,
             savedMinor: kpis?.savedMinor ?? 0n,
-          });
-        }
+          };
+        });
         const started = trend.filter((item) => item.start <= today);
 
-        const days = await dayTotalsIn(tx, userId, current);
+        const days = allDays.filter((day) => day.date >= current.from && day.date <= current.to);
         const accountFlows = await tx
           .select({
             accountId: postings.accountId,

@@ -77,9 +77,25 @@ export function formatMonth(month: LocalDate, locale: Locale): string {
   return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(parseISO(month));
 }
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * One `Intl.DateTimeFormat` per locale and {@link DateFormat}: creating one costs far more than formatting with it,
+ * and a year of days (the Transactions page's daily chart) formats hundreds of dates per render.
+ */
+function formatterFor(locale: Locale, style: DateFormat): Intl.DateTimeFormat {
+  const key = `${locale}:${style}`;
+  let formatter = formatters.get(key);
+  if (formatter === undefined) {
+    formatter = new Intl.DateTimeFormat(locale, FORMATS[style]);
+    formatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 /** A calendar date in one of the {@link DateFormat}s. */
 export function formatDate(date: LocalDate, locale: Locale, style: DateFormat): string {
-  return new Intl.DateTimeFormat(locale, FORMATS[style]).format(parseISO(date));
+  return formatterFor(locale, style).format(parseISO(date));
 }
 
 /** The 24-hour time of an instant in `timeZone`: `19.30` / `19:30`. */
@@ -98,7 +114,7 @@ export function formatDateRange(range: DateRange, locale: Locale, today: LocalDa
   const withYear = !range.start.startsWith(year) || !range.end.startsWith(year);
   // Plain spaces: Node's ICU puts thin spaces around the dash where browsers put plain ones, and the server-rendered
   // text must match what hydration renders.
-  return new Intl.DateTimeFormat(locale, withYear ? FORMATS.date : FORMATS.day)
+  return formatterFor(locale, withYear ? 'date' : 'day')
     .formatRange(parseISO(range.start), parseISO(range.end))
     .replace(/[\u2009\u202f]/g, ' ');
 }

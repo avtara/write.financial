@@ -156,16 +156,20 @@ export const getTransactionsView = createServerFn({ method: 'GET' })
       const { transactionQuery, preferences } = all;
       const dates = await resolveDates(userId, all, data);
       const filter = filterOf(data, dates.from, dates.to);
-      const [summary, days, categories, accounts, page, unfiltered, ever, stored] = await Promise.all([
+      // `filterOf` adds a key only for a filter in use: with just the dates, the page's total is the range's count.
+      const filtered = Object.keys(filter).length > 2;
+      const [summary, days, categories, accounts, page, unfiltered, stored] = await Promise.all([
         transactionQuery.summary(userId, filter),
         transactionQuery.groupByDay(userId, filter),
         transactionQuery.groupByCategory(userId, filter),
         transactionQuery.groupByAccount(userId, filter),
         rowsPage(userId, all, data, filter, 0),
-        transactionQuery.list(userId, { from: dates.from, to: dates.to }, { limit: 1 }),
-        transactionQuery.list(userId, {}, { limit: 1 }),
+        filtered ? transactionQuery.list(userId, { from: dates.from, to: dates.to }, { limit: 1 }) : null,
         preferences.get(userId),
       ]);
+      const unfilteredCount = unfiltered?.total ?? page.total;
+      // Only an empty range has to ask whether there is any transaction at all.
+      const hasTransactions = unfilteredCount > 0 || (await transactionQuery.list(userId, {}, { limit: 1 })).total > 0;
       return {
         ...dates,
         rangeSummary: rangeSummary({ from: dates.from, to: dates.to }, dates.periods),
@@ -174,8 +178,8 @@ export const getTransactionsView = createServerFn({ method: 'GET' })
         categories,
         accounts,
         page,
-        unfilteredCount: unfiltered.total,
-        hasTransactions: ever.total > 0,
+        unfilteredCount,
+        hasTransactions,
         prefs: tablePrefsOf(stored.tablePrefs['transactions']),
       };
     }),
