@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { userEvent } from 'vitest/browser';
+import { useState } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { page, userEvent } from 'vitest/browser';
 import { budgetStatus, periodsOverview, RECORD_BUDGET } from '../../test/budget-fixtures.ts';
-import { dashboard, subscriptionsOverview, weekDashboard } from '../../test/dashboard-fixtures.ts';
+import { dashboard, scheduledItem, subscriptionsOverview, weekDashboard } from '../../test/dashboard-fixtures.ts';
+import { goalView } from '../../test/goal-fixtures.ts';
 import { ACCOUNTS, ARCHIVED, CATEGORIES, TAGS } from '../../test/ledger-fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
+import { DEFAULT_DASHBOARD_LAYOUT, updateCard, type DashboardLayout } from '../lib/dashboard-layout.ts';
 import { OverviewPage, type OverviewData } from './overview-page.tsx';
 
 const cards = vi.hoisted(() => ({
@@ -25,6 +28,19 @@ vi.mock('./dashboard/category-spending-card.tsx', () => ({
     return <p>categories</p>;
   },
 }));
+vi.mock('./dashboard/extra-cards.tsx', () => ({
+  InvestmentsMiniCard: (props: { overview: unknown }) => <p>investments {props.overview === null ? 'failed' : 'ok'}</p>,
+  GoalsCard: (props: { goals: unknown }) => <p>goals {props.goals === null ? 'failed' : 'ok'}</p>,
+  BillsCard: (props: { items: unknown; today: string }) => (
+    <p>
+      bills {props.items === null ? 'failed' : 'ok'} {props.today}
+    </p>
+  ),
+}));
+const layouts = vi.hoisted(() => ({ saveDashboardLayout: vi.fn() }));
+vi.mock('../server/fn/dashboard-layout.ts', () => layouts);
+const toasts = vi.hoisted(() => ({ toast: Object.assign(vi.fn(), { undo: vi.fn() }) }));
+vi.mock('@wf/ui/toast', () => toasts);
 vi.mock('./ledger/quick-add-bar.tsx', () => ({ QuickAddBar: () => <p>quick add</p> }));
 const record = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock('./ledger/record-transaction.tsx', () => ({ useRecordTransaction: () => record }));
@@ -48,6 +64,10 @@ function data(patch: Partial<OverviewData> = {}): OverviewData {
     shownBudget: null,
     subscriptions: ok(subscriptionsOverview()),
     scheduled: ok([]),
+    layout: ok(DEFAULT_DASHBOARD_LAYOUT),
+    investments: null,
+    goals: null,
+    bills: null,
     loadedAt: new Date('2026-10-15T02:42:00Z'),
     ...patch,
   };
@@ -139,5 +159,182 @@ describe('OverviewPage', () => {
     await expect.element(screen.getByText('Ringkasan gagal dimuat')).toBeVisible();
     const { screen: categories } = await renderOverview(data({ categories: failed }));
     await expect.element(categories.getByText('Ringkasan gagal dimuat').last()).toBeVisible();
+  });
+});
+
+describe('OverviewPage dashboard layout (FR-D3)', () => {
+  const subscriptionsOff = updateCard(DEFAULT_DASHBOARD_LAYOUT, 'subscriptions', { visible: false });
+  const editBar = () => page.getByRole('region', { name: 'Mode atur dashboard' });
+  const customize = () => userEvent.click(page.getByRole('button', { name: 'Atur dashboard' }));
+  const saveButton = () => editBar().getByRole('button', { name: 'Simpan tata letak' });
+
+  beforeEach(async () => {
+    await page.viewport(1440, 900);
+    layouts.saveDashboardLayout.mockImplementation(({ data: layout }: { data: DashboardLayout }) =>
+      Promise.resolve(ok(layout)),
+    );
+  });
+
+  afterEach(async () => {
+    await page.viewport(414, 896);
+  });
+
+  it('arranges the cards by the saved layout, with the addable ones that are on', async () => {
+    const layout = updateCard(
+      updateCard(updateCard(subscriptionsOff, 'goals', { visible: true }), 'investments', { visible: true }),
+      'bills',
+      { visible: true },
+    );
+    const { screen } = await renderOverview(
+      data({
+        layout: ok(layout),
+        goals: ok([goalView({ id: 'g1', name: 'Dana Darurat' })]),
+        investments: failed,
+        bills: ok([scheduledItem({ sourceId: 'netflix', dueDate: '2026-10-16' as never })]),
+      }),
+    );
+    await expect.element(screen.getByText('goals ok')).toBeVisible();
+    await expect.element(screen.getByText('investments failed')).toBeVisible();
+    await expect.element(screen.getByText('bills ok 2026-10-15')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Langganan' }).query()).toBeNull();
+    // Without the subscriptions, the card is left out too, whatever the layout says.
+    const { screen: none } = await renderOverview(data({ subscriptions: failed }));
+    await expect.element(none.getByText('calendar').last()).toBeVisible();
+    expect(none.getByRole('region', { name: 'Langganan' }).query()).toBeNull();
+  });
+
+  it('saves a hidden card, then "Urungkan" saves the previous layout back', async () => {
+    const { screen, router } = await renderOverview(data());
+    const invalidate = vi.spyOn(router, 'invalidate');
+    await customize();
+    await expect.element(editBar()).toMatchTextContent('Seret ⋮⋮ untuk memindah kartu · klik mata untuk sembunyikan');
+    await expect.element(saveButton()).toBeDisabled();
+    await expect.element(editBar().getByRole('button', { name: 'Reset ke default' })).toBeDisabled();
+    // Editing replaces the header's action until it ends.
+    expect(screen.getByRole('button', { name: 'Atur dashboard' }).query()).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Langganan' }));
+    await expect.element(editBar()).toMatchTextContent('Tersembunyi: 1');
+    await userEvent.click(saveButton());
+    expect(layouts.saveDashboardLayout).toHaveBeenLastCalledWith({ data: subscriptionsOff });
+    await expect.element(editBar()).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Langganan' }).query()).toBeNull();
+    // Nothing new to read: no reload.
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(toasts.toast.undo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Tata letak dashboard disimpan',
+        description: 'Tersimpan di akunmu, juga di perangkat lain.',
+        undoLabel: 'Urungkan',
+      }),
+    );
+
+    const { onUndo } = toasts.toast.undo.mock.lastCall?.[0] as { onUndo: () => void };
+    onUndo();
+    await expect.element(screen.getByRole('region', { name: 'Langganan' })).toBeVisible();
+    expect(layouts.saveDashboardLayout).toHaveBeenLastCalledWith({ data: DEFAULT_DASHBOARD_LAYOUT });
+    expect(toasts.toast).toHaveBeenLastCalledWith({ tone: 'info', title: 'Tata letak sebelumnya dikembalikan' });
+  });
+
+  it('previews added cards until they are saved, then reads their data', async () => {
+    const { screen, router } = await renderOverview(data());
+    const invalidate = vi.spyOn(router, 'invalidate').mockResolvedValue();
+    await customize();
+    for (const name of ['Investasi ringkas', 'Tujuan tabungan', 'Pengingat tagihan']) {
+      await userEvent.click(screen.getByRole('button', { name: `Tambah ${name}` }));
+    }
+    await expect.poll(() => screen.getByText('Isinya tampil setelah tata letak disimpan.').all()).toHaveLength(3);
+    await userEvent.click(saveButton());
+    await vi.waitFor(() => {
+      expect(invalidate).toHaveBeenCalledOnce();
+    });
+    await expect.element(screen.getByRole('heading', { name: 'Tujuan tabungan' })).toBeVisible();
+  });
+
+  it('keeps the draft when saving fails, and Reset, "Kelola kartu", and Batal work on the draft', async () => {
+    const { screen } = await renderOverview(data({ layout: ok(subscriptionsOff) }));
+    await customize();
+    await userEvent.click(screen.getByRole('button', { name: 'Tampilkan Langganan' }));
+
+    layouts.saveDashboardLayout.mockResolvedValueOnce(failed).mockRejectedValueOnce(new Error('offline'));
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await userEvent.click(saveButton());
+      await vi.waitFor(() => {
+        expect(toasts.toast).toHaveBeenLastCalledWith({
+          tone: 'error',
+          title: 'Tata letak tidak bisa disimpan. Coba lagi.',
+        });
+      });
+      await expect.element(editBar()).toBeVisible();
+    }
+    expect(toasts.toast.undo).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Arus Uang' }));
+    await userEvent.click(editBar().getByRole('button', { name: 'Reset ke default' }));
+    await expect.element(screen.getByRole('button', { name: 'Sembunyikan Arus Uang' })).toBeVisible();
+
+    await userEvent.click(editBar().getByRole('button', { name: 'Kelola kartu' }));
+    const sheet = screen.getByRole('dialog', { name: 'Kelola kartu dashboard' });
+    await userEvent.click(sheet.getByRole('switch', { name: /Pemasukan vs Pengeluaran/ }));
+    await userEvent.keyboard('{Escape}');
+    await expect.element(sheet).not.toBeInTheDocument();
+    await expect.element(screen.getByRole('button', { name: 'Tampilkan Pemasukan vs Pengeluaran' })).toBeVisible();
+
+    await userEvent.click(editBar().getByRole('button', { name: 'Batal' }));
+    await expect.element(editBar()).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Langganan' }).query()).toBeNull();
+    expect(layouts.saveDashboardLayout).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a failed "Urungkan" without claiming the old layout is back', async () => {
+    const { screen } = await renderOverview(data());
+    await customize();
+    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Langganan' }));
+    await userEvent.click(saveButton());
+    await vi.waitFor(() => {
+      expect(toasts.toast.undo).toHaveBeenCalledOnce();
+    });
+    layouts.saveDashboardLayout.mockResolvedValueOnce(failed);
+    (toasts.toast.undo.mock.lastCall?.[0] as { onUndo: () => void }).onUndo();
+    await vi.waitFor(() => {
+      expect(toasts.toast).toHaveBeenLastCalledWith(expect.objectContaining({ tone: 'error' }));
+    });
+    expect(screen.getByRole('region', { name: 'Langganan' }).query()).toBeNull();
+  });
+
+  it('offers no customizing offline, without a readable layout, or without the cards', async () => {
+    const { screen } = await renderOverview(data(), { offline: true });
+    await expect.element(screen.getByRole('region', { name: 'Anggaran Kategori' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Atur dashboard' }).query()).toBeNull();
+    const { screen: unreadable } = await renderOverview(data({ layout: failed }));
+    // The defaults are shown instead.
+    await expect.element(unreadable.getByRole('region', { name: 'Langganan' }).last()).toBeVisible();
+    expect(unreadable.getByRole('button', { name: 'Atur dashboard' }).query()).toBeNull();
+    const { screen: broken } = await renderOverview(data({ dashboard: failed }));
+    await expect.element(broken.getByText('Ringkasan gagal dimuat').last()).toBeVisible();
+    expect(broken.getByRole('button', { name: 'Atur dashboard' }).query()).toBeNull();
+  });
+
+  it('follows a newer saved layout from the loader', async () => {
+    function Reloading() {
+      const [layout, setLayout] = useState(ok(DEFAULT_DASHBOARD_LAYOUT));
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setLayout(ok(subscriptionsOff));
+            }}
+          >
+            reload
+          </button>
+          <OverviewPage data={data({ layout })} timeZone="Asia/Jakarta" />
+        </>
+      );
+    }
+    const { screen } = await renderApp(<Reloading />);
+    await expect.element(screen.getByRole('region', { name: 'Langganan' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'reload' }));
+    await expect.element(screen.getByRole('region', { name: 'Langganan' })).not.toBeInTheDocument();
   });
 });

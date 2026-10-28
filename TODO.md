@@ -96,7 +96,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 ## M8 — Tablet & quality
 
 - [ ] Tablet polish on every page
-- [ ] Dashboard customization
+- [x] Dashboard customization — M8.2: "Atur dashboard" reorders (drag or keyboard), hides, and sizes cards (⅓/⅔/full), adds Investasi ringkas, Tujuan tabungan, Pengingat tagihan; saved to the account with Reset ke default and Urungkan
 - [x] App lock PIN — M8.3: optional per-device PIN (IndexedDB PBKDF2 hash), idle auto-lock 1/5/15/30 min, lock screen instead of the app, 5 wrong PINs or "Lupa PIN?" → sign out and remove the PIN
 - [ ] Accessibility and performance audit
 - [ ] M8 unit tests: 100% per-file coverage gate green

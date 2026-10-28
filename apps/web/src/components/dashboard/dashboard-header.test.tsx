@@ -51,6 +51,25 @@ describe('DashboardHeader', () => {
     await expect.element(screen.getByRole('link', { name: 'Bulan' })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('offers "Atur dashboard" as a button on a wide screen and in the ⋯ menu on a portrait tablet', async () => {
+    const onCustomize = vi.fn();
+    await page.viewport(1440, 900);
+    const wide = await renderHeader({ onCustomize });
+    await userEvent.click(wide.screen.getByRole('button', { name: 'Atur dashboard' }));
+    expect(onCustomize).toHaveBeenCalledOnce();
+    await wide.screen.unmount();
+    await page.viewport(768, 1024);
+    const narrow = await renderHeader({ onCustomize });
+    await userEvent.click(narrow.screen.getByRole('button', { name: 'Aksi lainnya' }));
+    await userEvent.click(page.getByRole('menuitem', { name: 'Atur dashboard' }));
+    expect(onCustomize).toHaveBeenCalledTimes(2);
+    await narrow.screen.unmount();
+    // Without the callback (offline, editing) there is nothing to offer.
+    const none = await renderHeader();
+    expect(none.screen.getByRole('button', { name: 'Aksi lainnya', includeHidden: true }).query()).toBeNull();
+    await page.viewport(414, 896);
+  });
+
   it('picks a month of the year with its spending in millions', async () => {
     fns.getDashboard.mockImplementation(({ data }: { data: { year: number } }) =>
       Promise.resolve(

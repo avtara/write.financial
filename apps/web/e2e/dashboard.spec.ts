@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Ringkasan (FR-D1, D2, D4, FR-S7, FR-TB2/TB3) as its own invited user with the design persona on 15 Okt 2026: October's
- * KPIs (Rp26.000.000 in, Rp16.500.000 out, Rp9.500.000 saved, saving rate 36,5%), the money flow, the Week and Year
- * switch with the keyboard only, the custom range 14 Sep – 13 Okt ("30 hari · melintasi 2 periode"), the layout at
- * 1440, 1024, and 768 px, and the last data while offline. Read-only: the spec changes nothing.
+ * Ringkasan (FR-D1, D2, D3, D4, FR-S7, FR-TB2/TB3) as its own invited user with the design persona on 15 Okt 2026:
+ * October's KPIs (Rp26.000.000 in, Rp16.500.000 out, Rp9.500.000 saved, saving rate 36,5%), the money flow, the Week
+ * and Year switch with the keyboard only, the custom range 14 Sep – 13 Okt ("30 hari · melintasi 2 periode"), the
+ * layout at 1440, 1024, and 768 px, the last data while offline, and last "Atur dashboard", which saves a layout and
+ * leaves the defaults again when it ends.
  */
 import type { Page } from '@playwright/test';
 import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
@@ -135,4 +136,53 @@ test('offline, the last data stays available', async ({ page, context }) => {
   await expect(page.getByRole('region', { name: 'Angka utama' })).toContainText('Rp26.000.000');
   await screenshot(page, 'dashboard-offline-1440');
   await context.setOffline(false);
+});
+
+test('"Atur dashboard" saves hidden, resized, and added cards across a reload; Reset and "Urungkan" work', async ({
+  page,
+}) => {
+  await openOverview(page);
+  const bar = page.getByRole('region', { name: 'Mode atur dashboard' });
+  const subscriptions = page.getByRole('region', { name: 'Langganan', exact: true });
+  const goals = page.getByRole('region', { name: 'Tujuan tabungan', exact: true });
+  const widthOf = async (name: string) =>
+    (await page.getByRole('region', { name, exact: true }).boundingBox())?.width ?? 0;
+  await expect(subscriptions).toBeVisible();
+  expect(await widthOf('Anggaran Kategori')).toBeLessThan((await widthOf('Rekening & dompet')) / 2);
+
+  await page.getByRole('button', { name: 'Atur dashboard' }).click();
+  await expect(bar).toBeVisible();
+  await page.getByRole('button', { name: 'Sembunyikan Langganan' }).click();
+  await page.getByRole('radiogroup', { name: 'Lebar Anggaran Kategori' }).getByRole('radio', { name: 'Penuh' }).click();
+  await page.getByRole('button', { name: 'Tambah Tujuan tabungan' }).click();
+  await expect(bar).toContainText('Tersembunyi: 1');
+  await screenshot(page, 'dashboard-customize-1440');
+  await bar.getByRole('button', { name: 'Simpan tata letak' }).click();
+  await expect(bar).toBeHidden();
+  // The added card reads its data once saved: the persona's goals.
+  await expect(goals).toContainText('Dana Darurat');
+  await expect(subscriptions).toHaveCount(0);
+
+  // Saved to the account: the same after a reload.
+  await openOverview(page);
+  await expect(goals).toContainText('Dana Darurat');
+  await expect(subscriptions).toHaveCount(0);
+  expect(await widthOf('Anggaran Kategori')).toBeGreaterThan((await widthOf('Rekening & dompet')) * 0.9);
+
+  // Reset to the defaults, then "Urungkan" brings the saved layout back.
+  await page.getByRole('button', { name: 'Atur dashboard' }).click();
+  await bar.getByRole('button', { name: 'Reset ke default' }).click();
+  await bar.getByRole('button', { name: 'Simpan tata letak' }).click();
+  await expect(subscriptions).toBeVisible();
+  await expect(goals).toHaveCount(0);
+  await page.getByRole('region', { name: 'Notifikasi', exact: true }).getByRole('button', { name: 'Urungkan' }).click();
+  await expect(page.getByText('Tata letak sebelumnya dikembalikan')).toBeVisible();
+  await expect(subscriptions).toHaveCount(0);
+  await expect(goals).toContainText('Dana Darurat');
+
+  // Leave the defaults for the next run.
+  await page.getByRole('button', { name: 'Atur dashboard' }).click();
+  await bar.getByRole('button', { name: 'Reset ke default' }).click();
+  await bar.getByRole('button', { name: 'Simpan tata letak' }).click();
+  await expect(subscriptions).toBeVisible();
 });

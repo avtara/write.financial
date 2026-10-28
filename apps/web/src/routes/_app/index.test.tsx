@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { periodsOverview } from '../../../test/budget-fixtures.ts';
+import { DEFAULT_DASHBOARD_LAYOUT, updateCard } from '../../lib/dashboard-layout.ts';
 import { dashboard } from '../../../test/dashboard-fixtures.ts';
 import { VIEWER } from '../../../test/fake-auth.ts';
 import { renderApp } from '../../../test/render.tsx';
@@ -20,7 +21,13 @@ const fns = vi.hoisted(() => ({
   listSubscriptions: vi.fn(),
   listScheduled: vi.fn(),
   listAutoRules: vi.fn(),
+  getDashboardLayout: vi.fn(),
+  getInvestments: vi.fn(),
+  listGoals: vi.fn(),
 }));
+vi.mock('../../server/fn/dashboard-layout.ts', () => ({ getDashboardLayout: fns.getDashboardLayout }));
+vi.mock('../../server/fn/investments.ts', () => ({ getInvestments: fns.getInvestments }));
+vi.mock('../../server/fn/goals.ts', () => ({ listGoals: fns.listGoals }));
 vi.mock('../../server/fn/budget.ts', () => ({
   listPeriods: fns.listPeriods,
   getBudgetStatus: fns.getBudgetStatus,
@@ -64,6 +71,9 @@ function answer() {
   fns.listSubscriptions.mockResolvedValue(ok({ subscriptions: [] }));
   fns.listScheduled.mockResolvedValue(ok([]));
   fns.listAutoRules.mockResolvedValue(ok([]));
+  fns.getDashboardLayout.mockResolvedValue(ok(DEFAULT_DASHBOARD_LAYOUT));
+  fns.getInvestments.mockResolvedValue(ok('portfolio'));
+  fns.listGoals.mockResolvedValue(ok(['goal']));
 }
 
 async function renderRoute(which: 'component' | 'pendingComponent', load?: unknown) {
@@ -112,6 +122,35 @@ describe('/ (Overview) loader', () => {
     await expect(loader({ deps: {} })).resolves.toEqual({ status: 'offline' });
     fns.listAccounts.mockRejectedValue(new Error('boom'));
     await expect(loader({ deps: {} })).rejects.toThrow('boom');
+  });
+
+  it('reads the addable cards only while the saved layout shows them', async () => {
+    answer();
+    const none = (await loader({ deps: {} })) as OverviewData;
+    expect(none).toMatchObject({ layout: ok(DEFAULT_DASHBOARD_LAYOUT), investments: null, goals: null, bills: null });
+    expect(fns.getInvestments).not.toHaveBeenCalled();
+    expect(fns.listGoals).not.toHaveBeenCalled();
+    // Only the dashboard's own span.
+    expect(fns.listScheduled).toHaveBeenCalledOnce();
+
+    const all = DEFAULT_DASHBOARD_LAYOUT.cards.reduce(
+      (layout, card) => updateCard(layout, card.id, { visible: true }),
+      DEFAULT_DASHBOARD_LAYOUT,
+    );
+    fns.getDashboardLayout.mockResolvedValue(ok(all));
+    fns.listScheduled.mockResolvedValueOnce(ok(['span'])).mockResolvedValueOnce(ok(['week']));
+    const shown = (await loader({ deps: {} })) as OverviewData;
+    expect(shown).toMatchObject({ investments: ok('portfolio'), goals: ok(['goal']), bills: ok(['week']) });
+    expect(fns.listGoals).toHaveBeenLastCalledWith({ data: { status: 'active' } });
+    // The dashboard's today (15 Oct) through 6 days later.
+    expect(fns.listScheduled).toHaveBeenLastCalledWith({ data: { from: '2026-10-15', to: '2026-10-21' } });
+
+    // Without a dashboard there is no "today" for the bills; a layout that failed to load gives the defaults.
+    fns.getDashboard.mockResolvedValue({ ok: false, code: 'INVALID_PERIOD' });
+    expect(((await loader({ deps: {} })) as OverviewData).bills).toBeNull();
+    fns.getDashboardLayout.mockResolvedValue({ ok: false, code: 'INTERNAL' });
+    fns.getDashboard.mockResolvedValue(ok(dashboard()));
+    expect(((await loader({ deps: {} })) as OverviewData).goals).toBeNull();
   });
 });
 

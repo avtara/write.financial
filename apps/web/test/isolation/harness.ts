@@ -37,6 +37,7 @@ import * as budgetWrite from '../../src/server/fn/budget-write.ts';
 import * as budget from '../../src/server/fn/budget.ts';
 import { getCalendarRange, getCalendarYear } from '../../src/server/fn/calendar.ts';
 import * as categories from '../../src/server/fn/categories.ts';
+import * as dashboardLayout from '../../src/server/fn/dashboard-layout.ts';
 import {
   cancelAccountDeletion,
   exportMyData,
@@ -202,6 +203,7 @@ export const FUNCTIONS = {
   ...search,
   ...setup,
   ...tags,
+  ...dashboardLayout,
   getCalendarRange,
   getCalendarYear,
   cancelAccountDeletion,
