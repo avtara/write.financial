@@ -12,8 +12,8 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Public repo, AGPL-3.0 license, secret scanning + push protection, Dependabot
 - [x] Google Cloud project `write-financial`: OAuth client, Gmail API, Pub/Sub topic `gmail-push`
 - [x] Confirm runtime versions: Node 24 LTS + pnpm 12 + TypeScript 6.0 (see implementation plan §2)
-- [ ] VPS details: specs, Postgres version, dedicated or shared Redis, Docker, disk encryption
-- [ ] DNS for `write.financial` and email provider (SPF/DKIM/DMARC) — before staging
+- [ ] VPS details (the VPS is in hand): specs, Postgres version, dedicated or shared Redis, Docker, disk encryption
+- [ ] DNS for `write.financial` (the domain is in hand) and email provider (SPF/DKIM/DMARC) — before staging
 - [ ] Off-site backup bucket (Backblaze B2 / Cloudflare R2)
 - [ ] Offline backup location for the master encryption key (KEK)
 - [ ] Export logo to `images/brand/`
@@ -38,7 +38,7 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 - [x] Encrypted backup + restore of DB and objects (age), restore proven in CI
 - [x] Install proof in CI: fresh self-host stack through Caddy → setup wizard → admin sign-in with 2FA in ≤ 15 minutes
 - [x] API tenant isolation: every server function called as user B against A's data, with a guard that fails on uncovered server functions; no `_enc` fields or secrets in responses
-- [ ] Cloud staging: VPS, Caddy TLS, encrypted volumes, off-site backup copy — **deferred, not blocking M0**: no VPS yet (also needs DNS and off-site bucket details)
+- [ ] Cloud staging: VPS, Caddy TLS, encrypted volumes, off-site backup copy — **deferred, not blocking M0**: the VPS and the domain are in hand; still needs the VPS details and DNS above and the off-site bucket
 - [x] M0 unit tests: 100% per-file coverage gate green
 
 ## M1 — Ledger
@@ -111,8 +111,6 @@ Details and exit criteria for each milestone are in the [implementation plan](do
 
 ## M9b — Cloud launch
 
-- [ ] PT Perorangan + NIB + PSE registration
-- [ ] Privacy policy & terms of service
 - [ ] Penetration test
 - [ ] Google verification (login; Gmail later)
 - [ ] M9b unit tests: 100% per-file coverage gate green
