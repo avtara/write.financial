@@ -39,7 +39,7 @@ Product differentiators:
 **Non-goals (v1)**
 - Direct connections to banks, brokers, or open banking. The design states "Tidak perlu login bank" (no bank login needed).
 - Multiple users in one workspace (shared couple finances). The "Pribadi" (Personal) menu is prepared, but there is only one workspace per user.
-- **Phones (< 768 px).** v1 supports only desktop (≥ 1280 px) and tablet (768–1279 px). Section 17 (Mobile) is postponed. On screens < 768 px show a "Gunakan tablet atau desktop" (use a tablet or desktop) page while still allowing transactions to be recorded via the Record Transaction sheet.
+- **Phones (< 768 px).** v1 supports only desktop (≥ 1280 px) and tablet (768–1279 px). Section 17 (Mobile) is postponed. On screens < 768 px show a playful page asking for a wider screen ("Ups! Layarnya kurang lebar"), with no actions.
 - **Subscriber/billing.** No paid plans yet. The "Paket Pribadi" (Personal plan) label is display-only, but the data model already provides `plan` + entitlements (§12, D17) so subscriber features can be added without a large migration.
 - Investment advice. The rebalancing calculator "tidak membuat transaksi" (does not create transactions).
 
@@ -239,7 +239,7 @@ Navigation: Account (Profile & account) · Preferences (Currency & exchange rate
 - **FR-ST5** Data & backup: export all data, import, automatic daily backups (retention 30), restore from backup, delete all transactions (accounts, categories, and budgets remain).
 
 ### 6.18 Tablet (Section 19)
-- **FR-TB1** Breakpoints: desktop ≥ 1280 px (full sidebar 248 px), tablet 768–1279 px (sidebar becomes a **64 px icon rail** with tooltips; logo, search, notifications, menu, assistant, avatar), < 768 px not supported in v1 ("Gunakan tablet atau desktop" screen + recording still possible). `[F5zMBH, aMmPV]`
+- **FR-TB1** Breakpoints: desktop ≥ 1280 px (full sidebar 248 px), tablet 768–1279 px (sidebar becomes a **64 px icon rail** with tooltips; logo, search, notifications, menu, assistant, avatar), < 768 px not supported in v1 (a playful "Ups! Layarnya kurang lebar" screen asking for a tablet or computer, with no actions). `[F5zMBH, aMmPV]`
 - **FR-TB2** Tablet 1024 (landscape): single-column grid for cards that sit side by side on desktop (Income vs Expense, Budget, Calendar, Subscriptions), Sankey shows 2 levels (source → group; tap a group for details), Accounts shows max. 3 cards + "N lainnya", Quick Add bar without the note field.
 - **FR-TB3** Tablet 768 (portrait): secondary header actions move into the ⋯ menu, summary without the daily chart, Transactions table without the Account column, detail panel becomes a **sheet** from the right over the list, filter chips scroll horizontally.
 - **FR-TB4** Touch input: touch targets ≥ 40 px in the rail and table rows, every hover action also available via long-press or the ⋯ menu, keyboard shortcuts still work with an external keyboard.

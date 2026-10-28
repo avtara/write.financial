@@ -54,13 +54,12 @@ test.describe('layout', () => {
     await expect(page.getByRole('dialog', { name: 'Asisten' })).toBeVisible();
   });
 
-  test('phones below 768 get the use-a-tablet page and can still record', async ({ page }) => {
+  test('phones below 768 get the wider-screen page instead of the app', async ({ page }) => {
     await page.setViewportSize({ width: 600, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Gunakan tablet atau desktop' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ups! Layarnya kurang lebar' })).toBeVisible();
     await expect(page.getByRole('main')).toBeHidden();
-    await page.getByRole('button', { name: 'Catat Transaksi' }).click();
-    await expect(page.getByRole('dialog', { name: /^Catat/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Catat Transaksi' })).toHaveCount(0);
   });
 });
 
