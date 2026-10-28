@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { LocalDate } from '@wf/domain/period';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { page } from 'vitest/browser';
 import { renderApp } from '../../../test/render.tsx';
 import { transactionsView } from '../../../test/transaction-fixtures.ts';
 import { TransactionSummary } from './summary.tsx';
 
 const day = (date: string, outMinor: bigint) => ({ date: date as LocalDate, outMinor });
+
+beforeEach(async () => {
+  await page.viewport(1440, 900);
+});
 
 describe('TransactionSummary', () => {
   it('shows Masuk, Keluar, Transfer (not counted), and the average per day so far', async () => {
@@ -53,5 +58,17 @@ describe('TransactionSummary', () => {
     });
     await expect.element(screen.getByRole('heading', { name: 'Daily spending', exact: true })).toBeVisible();
     await expect.element(screen.getByText(/^average Rp0$/)).toBeVisible();
+  });
+
+  it('keeps only the three totals on a portrait tablet', async () => {
+    await page.viewport(768, 1024);
+    const { screen } = await renderApp(<TransactionSummary view={transactionsView([])} currency="IDR" />);
+    const summary = screen.getByRole('region', { name: 'Ringkasan transaksi' });
+    for (const name of ['Masuk', 'Keluar', 'Transfer']) {
+      await expect.element(summary.getByRole('heading', { name, exact: true })).toBeVisible();
+    }
+    await expect
+      .element(summary.getByRole('heading', { name: 'Pengeluaran harian', exact: true, includeHidden: true }))
+      .not.toBeVisible();
   });
 });

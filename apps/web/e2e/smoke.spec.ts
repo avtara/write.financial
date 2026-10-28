@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** The app shell, signed in as the project's own invited user (no 2FA needed for users). */
 import type { Page } from '@playwright/test';
-import { expect, projectUser, setUpProjectUser, test } from './support.ts';
+import { expect, pressUntil, projectUser, setUpProjectUser, test } from './support.ts';
 
 const user = projectUser('app');
 test.use({ storageState: user.state });
@@ -50,13 +50,17 @@ test.describe('layout', () => {
     await expect(overview).toHaveText('');
     await overview.hover();
     await expect(page.getByRole('tooltip', { name: 'Ringkasan' })).toBeVisible();
+    await page.getByRole('button', { name: 'Tanya Asisten' }).click();
+    await expect(page.getByRole('dialog', { name: 'Asisten' })).toBeVisible();
   });
 
-  test('phones below 768 get the use-a-tablet page', async ({ page }) => {
+  test('phones below 768 get the use-a-tablet page and can still record', async ({ page }) => {
     await page.setViewportSize({ width: 600, height: 900 });
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Gunakan tablet atau desktop' })).toBeVisible();
     await expect(page.getByRole('main')).toBeHidden();
+    await page.getByRole('button', { name: 'Catat Transaksi' }).click();
+    await expect(page.getByRole('dialog', { name: /^Catat/ })).toBeVisible();
   });
 });
 
@@ -102,8 +106,8 @@ test('theme and privacy mode persist across a reload', async ({ page }) => {
   await expect(peek).toBeVisible();
   // The server picks ⌘ or Ctrl from the request's platform; press what the hint shows.
   const modifier = (await peek.locator('kbd kbd').first().textContent()) === '⌘' ? 'Meta' : 'Control';
-  await page.keyboard.press(`${modifier}+Period`);
-  await expect(page.getByRole('button', { name: /Menampilkan · 5 dtk/ })).toBeVisible();
+  const showing = page.getByRole('button', { name: /Menampilkan · 5 dtk/ });
+  await pressUntil(page, `${modifier}+Period`, () => showing.isVisible());
 
   await openUserMenu(page);
   await page.getByRole('menuitemradio', { name: 'Sistem' }).click();

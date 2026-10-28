@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
 import { AppShell } from './app-shell.tsx';
+import { AssistantProvider } from './assistant/assistant.tsx';
 import { CommandPaletteProvider } from './command-palette/command-palette.tsx';
 
 // The sidebar's bell loads notifications only when opened.
@@ -11,13 +12,17 @@ vi.mock('../server/fn/notifications.ts', () => ({
   getNextReminder: vi.fn(),
   markNotificationsRead: vi.fn(),
 }));
+vi.mock('./assistant/assistant-dialog.tsx', () => ({ AssistantDialog: () => null }));
+vi.mock('./ledger/record-transaction.tsx', () => ({ useRecordTransaction: () => ({ open: vi.fn() }) }));
 
 const shell = (
-  <CommandPaletteProvider>
-    <AppShell>
-      <p>page content</p>
-    </AppShell>
-  </CommandPaletteProvider>
+  <AssistantProvider timeZone="Asia/Jakarta">
+    <CommandPaletteProvider>
+      <AppShell>
+        <p>page content</p>
+      </AppShell>
+    </CommandPaletteProvider>
+  </AssistantProvider>
 );
 
 describe('AppShell', () => {

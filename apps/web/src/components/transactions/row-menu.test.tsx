@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { TransactionRow } from '@wf/db/transaction-query';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { categoryId, LEDGER, userCategory } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { transactionRow } from '../../../test/transaction-fixtures.ts';
+import type { LedgerData } from '../ledger/use-transaction-form.ts';
 import { RowMenu } from './row-menu.tsx';
 
 const actions = vi.hoisted(() => ({
@@ -24,9 +27,15 @@ const GOJEK = transactionRow('t-1', {
   amountMinor: -42_000n,
 });
 
+/** The table keeps the menu's open state (a long-press opens it too); here a row on its own. */
+function Harness(props: { row: TransactionRow; ledger: LedgerData; onOpen: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return <RowMenu {...props} label="Gojek" menuOpen={open} onMenuOpenChange={setOpen} />;
+}
+
 async function openMenu(row = GOJEK, ledger = LEDGER) {
   const onOpen = vi.fn();
-  const { screen } = await renderApp(<RowMenu row={row} ledger={ledger} label="Gojek" onOpen={onOpen} />);
+  const { screen } = await renderApp(<Harness row={row} ledger={ledger} onOpen={onOpen} />);
   await userEvent.click(screen.getByRole('button', { name: 'Menu Gojek' }));
   return { onOpen, screen };
 }

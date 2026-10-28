@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { render } from 'vitest-browser-react';
 import { DEFAULT_PREFERENCES, renderApp } from '../../test/render.tsx';
+import { AssistantProvider } from './assistant/assistant.tsx';
 import { CommandPaletteProvider } from './command-palette/command-palette.tsx';
 import type { NavCounts } from './nav.ts';
 import { PreferencesProvider } from './preferences.tsx';
@@ -29,11 +30,17 @@ vi.mock('../server/fn/search.ts', () => ({
   searchEverything: vi.fn(),
   touchRecent: vi.fn(),
 }));
+// The Assistant sheet is tested on its own; here it only shows that the sidebar opened it.
+vi.mock('./assistant/assistant-dialog.tsx', () => ({
+  AssistantDialog: ({ open }: { readonly open: boolean }) => (open ? <div role="dialog" aria-label="Asisten" /> : null),
+}));
 
 const sidebar = (
-  <CommandPaletteProvider>
-    <Sidebar />
-  </CommandPaletteProvider>
+  <AssistantProvider timeZone="Asia/Jakarta">
+    <CommandPaletteProvider>
+      <Sidebar />
+    </CommandPaletteProvider>
+  </AssistantProvider>
 );
 
 const VIEWER = {
@@ -117,6 +124,14 @@ describe('Sidebar', () => {
     await expect.element(search).toHaveAttribute('aria-keyshortcuts', 'Control+K');
     await userEvent.click(search);
     await expect.element(page.getByRole('dialog', { name: 'Cari atau jalankan perintah' })).toBeVisible();
+  });
+
+  it('opens the Assistant from "Tanya Asisten", naming ⌘J', async () => {
+    const { screen } = await renderApp(sidebar);
+    const ask = screen.getByRole('button', { name: /^Tanya Asisten/ });
+    await expect.element(ask).toHaveAttribute('aria-keyshortcuts', 'Meta+J');
+    await userEvent.click(ask);
+    await expect.element(page.getByRole('dialog', { name: 'Asisten' })).toBeInTheDocument();
   });
 
   it('shows the transaction, active subscription, and pending review counts, and the unread notifications, from the `_app` loader', async () => {
