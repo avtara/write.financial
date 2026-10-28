@@ -5,6 +5,7 @@ import { BCA, categoryId, LEDGER, userCategory } from '../../../test/ledger-fixt
 import { renderApp } from '../../../test/render.tsx';
 import { transactionRow } from '../../../test/transaction-fixtures.ts';
 import type { TransactionColumn } from '../../lib/transaction-columns.ts';
+import { LONG_PRESS_MS } from '../../lib/use-long-press.ts';
 import {
   categoryLabel,
   RowAmount,
@@ -17,7 +18,7 @@ import {
 const DEFAULT_COLUMNS: TransactionColumn[] = ['time', 'description', 'tags', 'category', 'account', 'amount'];
 
 async function renderRow(props: Partial<TransactionRowViewProps> = {}) {
-  const handlers = { onCheck: vi.fn(), onOpen: vi.fn(), onKeyDown: vi.fn(), onFocus: vi.fn() };
+  const handlers = { onCheck: vi.fn(), onOpen: vi.fn(), onKeyDown: vi.fn(), onFocus: vi.fn(), onLongPress: vi.fn() };
   const result = await renderApp(
     <TransactionRowView
       row={transactionRow('t-1', { merchant: 'Gojek', description: 'ke kantor', tags: ['kantor', 'rumah'] })}
@@ -198,5 +199,21 @@ describe('TransactionRowView', () => {
     (group.element() as HTMLElement).focus();
     await userEvent.keyboard('{ArrowDown}');
     expect(onKeyDown).toHaveBeenCalled();
+  });
+
+  it('offers the ⋯ menu to a finger held on the row instead of opening it', async () => {
+    const { group, onOpen, onLongPress } = await renderRow();
+    const row = group.element() as HTMLElement;
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      row.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      row.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+      row.click();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(onLongPress).toHaveBeenCalledOnce();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });

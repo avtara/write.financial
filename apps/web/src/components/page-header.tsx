@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { m } from '@wf/i18n/messages';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@wf/ui/dropdown-menu';
 import { KbdHint, type KbdKey } from '@wf/ui/kbd-hint';
-import { ChevronRight, Eye } from 'lucide-react';
+import { ChevronRight, Ellipsis, Eye, type LucideIcon } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { usePreferences } from './preferences.tsx';
 import { useShortcuts } from './shortcuts.tsx';
@@ -37,10 +44,21 @@ export interface PageHeaderProps {
   description?: ReactNode;
   /** Page actions on the right ("Sesuaikan saldo", "Tambah rekening"). */
   actions?: ReactNode;
+  /**
+   * Secondary actions ("Impor mutasi"): buttons from 1024 px, folded into a ⋯ menu below that (FR-TB3), placed before
+   * `actions` so the primary action stays last.
+   */
+  secondaryActions?: readonly HeaderAction[];
+}
+
+export interface HeaderAction {
+  readonly label: string;
+  readonly icon: LucideIcon;
+  readonly onSelect: () => void;
 }
 
 /** Page header (design `yGvLv`): breadcrumb and title, plus "Intip saldo" while amounts are hidden. */
-export function PageHeader({ breadcrumb, title, description, actions }: PageHeaderProps) {
+export function PageHeader({ breadcrumb, title, description, actions, secondaryActions = [] }: PageHeaderProps) {
   const { preferences } = usePreferences();
   return (
     <header className="flex flex-wrap items-end gap-3 pb-2">
@@ -63,6 +81,38 @@ export function PageHeader({ breadcrumb, title, description, actions }: PageHead
         {description === undefined ? null : <p className="text-[13px] text-muted-fg">{description}</p>}
       </div>
       {preferences.balancesHidden ? <PeekButton /> : null}
+      {secondaryActions.length === 0 ? null : (
+        <>
+          {secondaryActions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              onClick={action.onSelect}
+              className="inline-flex h-8 items-center gap-1.5 rounded-[6px] border border-border px-3 text-[13px] text-fg hover:bg-tint-06 focus-visible:outline-2 focus-visible:outline-ring max-lg:hidden"
+            >
+              <action.icon aria-hidden="true" className="size-3.5 text-muted-fg" />
+              {action.label}
+            </button>
+          ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={m.page_header_more()}
+              className="inline-flex size-8 items-center justify-center rounded-[6px] border border-border text-muted-fg hover:bg-tint-06 hover:text-fg focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:bg-muted lg:hidden"
+            >
+              <Ellipsis aria-hidden="true" className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[220px]">
+              <DropdownMenuGroup>
+                {secondaryActions.map((action) => (
+                  <DropdownMenuItem key={action.label} icon={action.icon} onSelect={action.onSelect}>
+                    {action.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
       {actions}
     </header>
   );

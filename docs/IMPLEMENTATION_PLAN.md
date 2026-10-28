@@ -286,6 +286,7 @@ Each milestone can be deployed to staging and demoed. **Exit** criteria must pas
 ### M8 — Tablet, customization, quality
 - Tablet polish across all pages (FR-TB1–TB4), touch targets, long-press; dashboard customization (FR-D3); per-device app lock PIN (FR-A6).
 - Accessibility audit (axe + keyboard), token contrast, p95 performance.
+  - **M8.1 closes the tablet and touch gaps:** the sidebar and the 64 px rail open the Assistant ("Tanya Asisten", ⌘J), and every rail target, the avatar included, is 40 px. Below 768 px the "Gunakan tablet atau desktop" page keeps a 40 px "Catat Transaksi" button, so a phone can still record. Page headers take secondary actions that are buttons from 1024 px and fold into a ⋯ menu below (Transactions: "Impor mutasi"); the Transactions summary drops its daily chart on portrait tablets. On touch screens (`pointer: coarse`) the row ⋯ menu is always shown at 40 px, compact rows are at least 40 px tall, and drag handles are 40 px with `touch-action: none`; holding a finger on a transaction row for 500 ms opens its ⋯ menu (a scroll cancels it, and the lifting tap does not open the row).
 
 **Exit:** all main pages pass visual review at 1440/1024/768 against Section 19; axe 0 serious violations; p95 TTFB < 300 ms with 10,000 transactions.
 

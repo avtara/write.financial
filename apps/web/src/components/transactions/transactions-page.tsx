@@ -12,7 +12,7 @@ import { EmptyState } from '@wf/ui/empty-state';
 import { KbdHint } from '@wf/ui/kbd-hint';
 import { PageState } from '@wf/ui/page-state';
 import { Sheet } from '@wf/ui/sheet';
-import { Plus, ReceiptText } from 'lucide-react';
+import { FileUp, Plus, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
 import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import type { LedgerData } from '../ledger/use-transaction-form.ts';
@@ -20,7 +20,7 @@ import { listValues, type TransactionsSearch } from '../../lib/transactions-sear
 import { useMediaQuery } from '../../lib/use-media-query.ts';
 import type { TransactionsView } from '../../server/fn/transactions.ts';
 import { ImportDialog } from '../import/import-dialog.tsx';
-import { PageHeader } from '../page-header.tsx';
+import { PageHeader, type HeaderAction } from '../page-header.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { AccountStrip } from './account-strip.tsx';
 import { TransactionSummary } from './summary.tsx';
@@ -49,17 +49,15 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
   const refreshing = useRouterState({ select: (state) => state.isLoading });
   const [importing, setImporting] = useState(false);
   const header = <Header view={view} search={search} ledger={ledger} />;
-  const importButton = (
-    <button
-      type="button"
-      onClick={() => {
+  const secondaryActions: readonly HeaderAction[] = [
+    {
+      label: m.import_open(),
+      icon: FileUp,
+      onSelect: () => {
         setImporting(true);
-      }}
-      className="inline-flex h-8 items-center rounded-[6px] border border-border px-3 text-[13px] text-fg hover:bg-tint-06 focus-visible:outline-2 focus-visible:outline-ring"
-    >
-      {m.import_open()}
-    </button>
-  );
+      },
+    },
+  ];
   const importDialog = (
     <ImportDialog
       open={importing}
@@ -71,20 +69,17 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
     />
   );
   const actions = (
-    <>
-      {importButton}
-      <button
-        type="button"
-        onClick={() => {
-          record.open();
-        }}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-fg px-3 text-[13px] font-medium text-primary-fg hover:bg-text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <Plus aria-hidden="true" className="size-3.5" />
-        {m.transactions_page_record()}
-        <KbdHint keys={['N']} platform={preferences.platform} />
-      </button>
-    </>
+    <button
+      type="button"
+      onClick={() => {
+        record.open();
+      }}
+      className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-fg px-3 text-[13px] font-medium text-primary-fg hover:bg-text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <Plus aria-hidden="true" className="size-3.5" />
+      {m.transactions_page_record()}
+      <KbdHint keys={['N']} platform={preferences.platform} />
+    </button>
   );
 
   if (!view.hasTransactions) {
@@ -94,6 +89,7 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
           breadcrumb={[m.transactions_page_breadcrumb(), m.transactions_page_title()]}
           title={m.transactions_page_title()}
           actions={actions}
+          secondaryActions={secondaryActions}
         />
         {importDialog}
         <EmptyState
@@ -141,6 +137,7 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
         title={m.transactions_page_title()}
         description={header}
         actions={actions}
+        secondaryActions={secondaryActions}
       />
       {importDialog}
       <TransactionSummary view={view} currency={ledger.baseCurrency} />

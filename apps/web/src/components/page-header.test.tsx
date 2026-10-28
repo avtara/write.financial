@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { userEvent } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
+import { FileUp } from 'lucide-react';
 import { flushReact, renderApp } from '../../test/render.tsx';
 import { PageHeader } from './page-header.tsx';
 
@@ -50,6 +51,41 @@ describe('PageHeader', () => {
     );
     await expect.element(screen.getByRole('banner').getByRole('button', { name: 'Catat' })).toBeVisible();
     await expect.element(screen.getByRole('banner').getByText('Hari ke-15 dari 31')).toBeVisible();
+  });
+
+  it('shows secondary actions as buttons from 1024 px and folds them into ⋯ on a portrait tablet', async () => {
+    const onImport = vi.fn();
+    const withSecondary = (
+      <PageHeader
+        breadcrumb={['Keuangan', 'Transaksi']}
+        title="Transaksi"
+        secondaryActions={[{ label: 'Impor mutasi', icon: FileUp, onSelect: onImport }]}
+        actions={<button type="button">Catat</button>}
+      />
+    );
+    await page.viewport(1440, 900);
+    const wide = await renderApp(withSecondary);
+    const banner = wide.screen.getByRole('banner');
+    await expect.element(banner.getByRole('button', { name: 'Aksi lainnya', includeHidden: true })).not.toBeVisible();
+    // The primary action stays last.
+    expect(
+      banner
+        .getByRole('button')
+        .elements()
+        .map((button) => button.textContent),
+    ).toEqual(['Impor mutasi', 'Catat']);
+    await userEvent.click(banner.getByRole('button', { name: 'Impor mutasi' }));
+    expect(onImport).toHaveBeenCalledOnce();
+    await wide.screen.unmount();
+
+    await page.viewport(768, 1024);
+    const narrow = await renderApp(withSecondary);
+    const header = narrow.screen.getByRole('banner');
+    await expect.element(header.getByRole('button', { name: 'Impor mutasi', includeHidden: true })).not.toBeVisible();
+    await expect.element(header.getByRole('button', { name: 'Catat' })).toBeVisible();
+    await userEvent.click(header.getByRole('button', { name: 'Aksi lainnya' }));
+    await userEvent.click(page.getByRole('menuitem', { name: 'Impor mutasi' }));
+    expect(onImport).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -19,6 +19,7 @@ import { colorProps } from '../../lib/colors.ts';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import type { Density, TransactionColumn } from '../../lib/transaction-columns.ts';
 import type { TransactionView } from '../../lib/transactions-search.ts';
+import { useLongPress } from '../../lib/use-long-press.ts';
 import { CategoryIcon } from '../category-icon.tsx';
 import type { LedgerData } from '../ledger/use-transaction-form.ts';
 import { highlightParts, searchWords, tagMatches } from './table-groups.ts';
@@ -39,9 +40,10 @@ export const COLUMN_CLASS: Readonly<Record<Exclude<TransactionColumn, 'tags'>, s
 /** Without day headers (Per kategori, Rata) the time column shows the date too. */
 export const DATED_TIME_CLASS = 'w-[104px] shrink-0';
 
+/** Touch screens get rows of at least 40 px whatever the density (FR-TB4). */
 export const DENSITY_CLASS: Readonly<Record<Density, string>> = {
   comfortable: 'min-h-[55px] py-2',
-  compact: 'min-h-[38px] py-1',
+  compact: 'min-h-[38px] py-1 pointer-coarse:min-h-10',
 };
 
 const SOURCE_LABELS: Readonly<Record<Exclude<TransactionSource, 'manual'>, () => string>> = {
@@ -163,6 +165,8 @@ export interface TransactionRowViewProps {
   readonly onFocus: () => void;
   /** The ⋯ menu. */
   readonly menu: ReactNode;
+  /** Opens the ⋯ menu for a finger held on the row (FR-TB4). */
+  readonly onLongPress: () => void;
 }
 
 export function TransactionRowView({
@@ -184,7 +188,9 @@ export function TransactionRowView({
   onKeyDown,
   onFocus,
   menu,
+  onLongPress,
 }: TransactionRowViewProps) {
+  const longPress = useLongPress(onLongPress);
   const words = searchWords(query);
   const category = categoryLabel(row, ledger);
   const glyph = ledger.categories.find((candidate) => candidate.id === row.categoryId);
@@ -306,6 +312,7 @@ export function TransactionRowView({
         if (event.target === event.currentTarget) onFocus();
       }}
       onClick={click}
+      {...longPress}
       className={`group relative flex cursor-pointer items-center gap-3 border-b border-border px-4 outline-none focus-visible:bg-tint-04 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring hover:bg-tint-04 ${DENSITY_CLASS[density]} ${open || checked ? 'bg-tint-04' : ''}`}
     >
       {open ? <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-fg" /> : null}
@@ -320,7 +327,7 @@ export function TransactionRowView({
         className="shrink-0 gap-0 [&>span:first-child]:mt-0"
       />
       {columns.map(cell)}
-      <span className="flex w-8 shrink-0 justify-end">{menu}</span>
+      <span className="flex w-8 shrink-0 justify-end pointer-coarse:w-10">{menu}</span>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { renderApp } from '../../test/render.tsx';
 import type { NavCounts } from './nav.ts';
+import { AssistantProvider } from './assistant/assistant.tsx';
 import { CommandPaletteProvider } from './command-palette/command-palette.tsx';
 import { Rail } from './rail.tsx';
 
@@ -25,11 +26,17 @@ vi.mock('../server/fn/search.ts', () => ({
   searchEverything: vi.fn(),
   touchRecent: vi.fn(),
 }));
+// The Assistant sheet is tested on its own; here it only shows that the rail opened it.
+vi.mock('./assistant/assistant-dialog.tsx', () => ({
+  AssistantDialog: ({ open }: { readonly open: boolean }) => (open ? <div role="dialog" aria-label="Asisten" /> : null),
+}));
 
 const rail = (
-  <CommandPaletteProvider>
-    <Rail />
-  </CommandPaletteProvider>
+  <AssistantProvider timeZone="Asia/Jakarta">
+    <CommandPaletteProvider>
+      <Rail />
+    </CommandPaletteProvider>
+  </AssistantProvider>
 );
 
 beforeEach(async () => {
@@ -59,7 +66,9 @@ describe('Rail', () => {
     await expect.element(link).toHaveTextContent('');
     await expect.element(link).toHaveAttribute('data-status', 'active');
     expect(link.element().getBoundingClientRect().height).toBe(40);
-    await expect.element(screen.getByRole('button', { name: 'Menu pengguna' })).toBeVisible();
+    const avatar = screen.getByRole('button', { name: 'Menu pengguna' });
+    await expect.element(avatar).toBeVisible();
+    expect(avatar.element().getBoundingClientRect().height).toBe(40);
   });
 
   it('lists Transactions and keeps an entry active whatever its search params', async () => {
@@ -102,6 +111,17 @@ describe('Rail', () => {
     await expect.element(page.getByRole('tooltip')).toHaveTextContent('Cari⌘K');
     await userEvent.click(search);
     await expect.element(page.getByRole('dialog', { name: 'Cari atau jalankan perintah' })).toBeVisible();
+  });
+
+  it('opens the Assistant from its 40 px button, naming ⌘J', async () => {
+    const { screen } = await renderApp(rail);
+    const ask = screen.getByRole('button', { name: 'Tanya Asisten' });
+    await expect.element(ask).toHaveAttribute('aria-keyshortcuts', 'Meta+J');
+    expect(ask.element().getBoundingClientRect().height).toBe(40);
+    await userEvent.hover(ask);
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Tanya Asisten⌘J');
+    await userEvent.click(ask);
+    await expect.element(page.getByRole('dialog', { name: 'Asisten' })).toBeInTheDocument();
   });
 
   it('names the Ctrl+K shortcut on other platforms', async () => {

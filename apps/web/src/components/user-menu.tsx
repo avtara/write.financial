@@ -110,7 +110,7 @@ export function UserMenu({ variant, viewer }: { variant: 'sidebar' | 'rail'; vie
       <button
         type="button"
         aria-label={m.user_menu_label()}
-        className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="flex size-10 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Avatar viewer={viewer} size="sm" />
       </button>

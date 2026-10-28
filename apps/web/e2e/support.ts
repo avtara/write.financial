@@ -131,6 +131,20 @@ export async function openUserMenu(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }).click();
 }
 
+/**
+ * Presses a chord until the page answers: Chromium can deliver the first keystrokes before React has hydrated the
+ * shortcut listener, and a lost chord is indistinguishable from a closed sheet. Each press re-checks, so a chord that
+ * toggles (⌘K) still settles on "open".
+ */
+export async function pressUntil(page: Page, keys: string, open: () => Promise<boolean>): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await page.keyboard.press(keys);
+    await page.waitForTimeout(200);
+    if (await open()) return;
+  }
+  await expect.poll(open, { timeout: 5_000 }).toBe(true);
+}
+
 /** Signs out through the user menu and its confirmation dialog. */
 export async function signOut(page: Page): Promise<void> {
   await openUserMenu(page);

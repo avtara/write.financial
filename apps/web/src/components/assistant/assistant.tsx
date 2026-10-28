@@ -29,6 +29,8 @@ export function useAssistant(): AssistantApi {
 
 /** `⌘J` / `Ctrl+J`, the design's shortcut for the Assistant. */
 export const ASSISTANT_KEYS = ['mod', 'j'] as const;
+/** How `ASSISTANT_KEYS` reads in a hint (`⌘J`). */
+export const ASSISTANT_HINT = ['mod', 'J'] as const;
 
 export function AssistantProvider({ timeZone, children }: { readonly timeZone: string; readonly children: ReactNode }) {
   const [open, setOpen] = useState(false);

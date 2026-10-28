@@ -281,3 +281,17 @@ for (const width of [1024, 768]) {
     await expect(page).not.toHaveURL(/tx=/);
   });
 }
+
+test('at 768 px the header folds Impor mutasi into ⋯ and the summary keeps only the totals', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await open(page);
+  const summary = page.getByRole('region', { name: 'Ringkasan transaksi' });
+  await expect(summary.getByRole('heading', { name: 'Keluar', exact: true })).toBeVisible();
+  await expect(summary.getByRole('heading', { name: 'Pengeluaran harian', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Impor mutasi' })).toBeHidden();
+  await page.getByRole('button', { name: 'Aksi lainnya' }).click();
+  await page.getByRole('menuitem', { name: 'Impor mutasi' }).click();
+  await expect(page.getByRole('dialog', { name: /Impor/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await screenshot(page, 'transactions-768-header');
+});

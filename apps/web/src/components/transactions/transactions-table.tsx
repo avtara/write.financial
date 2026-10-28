@@ -218,6 +218,8 @@ export function TransactionsTable({
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set());
   const [anchor, setAnchor] = useState(0);
   const [focusIndex, setFocusIndex] = useState(0);
+  /** The row whose ⋯ menu is open (its button, or a long-press on the row). */
+  const [menuRowId, setMenuRowId] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<TablePrefs>(view.prefs);
   if (loaded.source !== view.page) {
     setLoaded({ source: view.page, rows: view.page.rows, balances: view.page.balances });
@@ -385,7 +387,21 @@ export function TransactionsTable({
         onFocus={() => {
           setFocusIndex(item.index);
         }}
-        menu={<RowMenu row={row} ledger={ledger} label={label} onOpen={onOpen} />}
+        menu={
+          <RowMenu
+            row={row}
+            ledger={ledger}
+            label={label}
+            onOpen={onOpen}
+            menuOpen={menuRowId === row.id}
+            onMenuOpenChange={(next) => {
+              setMenuRowId(next ? row.id : null);
+            }}
+          />
+        }
+        onLongPress={() => {
+          setMenuRowId(row.id);
+        }}
       />
     );
   };

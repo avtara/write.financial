@@ -16,6 +16,7 @@ import {
   enterCode,
   expect,
   freshPassword,
+  pressUntil,
   projectUser,
   screenshot,
   setUpProjectUser,
@@ -61,20 +62,6 @@ async function moneyRows(description: string) {
 const assistant = (page: Page) => page.getByRole('dialog', { name: 'Asisten' });
 const composer = (page: Page) => assistant(page).getByRole('textbox', { name: 'Pertanyaan untuk Asisten' });
 const draftCard = (page: Page) => assistant(page).getByRole('group', { name: 'Draft transaksi' });
-
-/**
- * Presses a chord until the page answers: Chromium can deliver the first keystrokes before React has hydrated the
- * shortcut listener, and a lost chord is indistinguishable from a closed sheet. Each press re-checks, so a chord that
- * toggles (⌘K) still settles on "open".
- */
-async function pressUntil(page: Page, keys: string, open: () => Promise<boolean>): Promise<void> {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    await page.keyboard.press(keys);
-    await page.waitForTimeout(200);
-    if (await open()) return;
-  }
-  await expect.poll(open, { timeout: 5_000 }).toBe(true);
-}
 
 const paletteOpen = (page: Page) => page.getByRole('dialog', { name: 'Cari atau jalankan perintah' }).isVisible();
 

@@ -8,6 +8,7 @@ import { BCA, categoryId, LEDGER } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { transactionRow, transactionsView } from '../../../test/transaction-fixtures.ts';
 import { DEFAULT_TABLE_PREFS } from '../../lib/transaction-columns.ts';
+import { LONG_PRESS_MS } from '../../lib/use-long-press.ts';
 import type { TransactionsSearch } from '../../lib/transactions-search.ts';
 import type { TransactionsView } from '../../server/fn/transactions.ts';
 import { TransactionsTable } from './transactions-table.tsx';
@@ -173,6 +174,29 @@ describe('TransactionsTable', () => {
   it('marks the region busy while the route reloads', async () => {
     const { table } = await renderTable(view(), {}, undefined, true);
     await expect.element(table).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it("opens a row's ⋯ menu from its button or from a finger held on the row, one row at a time", async () => {
+    const { row, onOpen } = await renderTable();
+    await userEvent.click(row('Gojek').getByRole('button', { name: 'Menu Gojek' }));
+    await expect.element(page.getByRole('menuitem', { name: /^Duplikat/ })).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    await expect.element(page.getByRole('menu')).not.toBeInTheDocument();
+    const warteg = row('Warteg Bahari').element();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      warteg.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      warteg.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+      (warteg as HTMLElement).click();
+    } finally {
+      vi.useRealTimers();
+    }
+    await expect.element(page.getByRole('menuitem', { name: /^Duplikat/ })).toBeVisible();
+    await userEvent.click(page.getByRole('menuitem', { name: /^Duplikat/ }));
+    expect(actions.duplicate).toHaveBeenCalledWith('warteg');
+    // The lifted finger did not also open the row.
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it('switches views; Per hari also drops an amount sort', async () => {

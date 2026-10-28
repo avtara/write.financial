@@ -110,7 +110,8 @@ function ColumnRow({
         {...attributes}
         {...listeners}
         aria-label={m.transactions_columns_drag_handle({ name })}
-        className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded-[5px] text-subtle focus-visible:outline-2 focus-visible:outline-ring"
+        // A finger drags the handle instead of scrolling the list; 40 px on touch screens (FR-TB4).
+        className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-[5px] text-subtle focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:size-10"
       >
         <GripVertical aria-hidden="true" className="size-3.5" />
       </button>

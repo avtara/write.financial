@@ -234,7 +234,8 @@ function SortableRow({
         {...attributes}
         {...listeners}
         aria-label={m.accounts_drag_handle({ name: account.displayName })}
-        className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded-[5px] text-subtle opacity-60 group-hover:opacity-100 hover:bg-muted focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
+        // A finger drags the handle instead of scrolling the page; touch screens always show it at 40 px (FR-TB4).
+        className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-[5px] text-subtle opacity-60 group-hover:opacity-100 hover:bg-muted focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:size-10 pointer-coarse:opacity-100"
       >
         <GripVertical aria-hidden="true" className="size-3.5" />
       </button>

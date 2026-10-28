@@ -36,9 +36,12 @@ export interface RowMenuProps {
   /** The row's name ("Shopee"). */
   readonly label: string;
   readonly onOpen: (id: string) => void;
+  /** Controlled, so a long-press on the row can open it too (FR-TB4). */
+  readonly menuOpen: boolean;
+  readonly onMenuOpenChange: (open: boolean) => void;
 }
 
-export function RowMenu({ row, ledger, label, onOpen }: RowMenuProps) {
+export function RowMenu({ row, ledger, label, onOpen, menuOpen, onMenuOpenChange }: RowMenuProps) {
   const actions = useTransactionActions();
   const { preferences } = usePreferences();
   const { locale, platform } = preferences;
@@ -53,11 +56,12 @@ export function RowMenu({ row, ledger, label, onOpen }: RowMenuProps) {
       ]
     : [];
   return (
-    <DropdownMenu>
+    <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
       <DropdownMenuTrigger
         aria-label={m.transactions_menu_open({ name: label })}
-        // Keyboard users reach it from the focused row (Tab); mouse users see it on hover.
-        className="flex size-7 items-center justify-center rounded-[6px] text-subtle opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-muted hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:bg-muted data-[state=open]:opacity-100"
+        // Keyboard users reach it from the focused row (Tab); mouse users see it on hover; touch screens always show
+        // it, 40 px wide (FR-TB4).
+        className="flex size-7 items-center justify-center rounded-[6px] text-subtle opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-muted hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:bg-muted data-[state=open]:opacity-100 pointer-coarse:size-10 pointer-coarse:opacity-100"
       >
         <Ellipsis aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>

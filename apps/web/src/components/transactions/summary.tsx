@@ -75,7 +75,10 @@ export function TransactionSummary({ view, currency }: TransactionSummaryProps) 
           {m.transactions_summary_transfer_note({ count: summary.transferCount })}
         </p>
       </div>
-      <div className={`${CARD} col-span-2 gap-2 border-t border-border md:col-span-3 xl:col-span-1 xl:border-t-0`}>
+      {/* Portrait tablets keep the three totals only (FR-TB3). */}
+      <div
+        className={`${CARD} col-span-2 gap-2 border-t border-border max-lg:hidden md:col-span-3 xl:col-span-1 xl:border-t-0`}
+      >
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-[12.5px] text-muted-fg">{m.transactions_summary_daily()}</h2>
           {/* The legend of the dashed average line in the chart. */}

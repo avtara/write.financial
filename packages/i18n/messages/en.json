@@ -3103,6 +3103,7 @@
   "overview_vs": "vs {what}",
   "overview_vs_last_days": "vs last {from}–{to}",
   "overview_vs_last_week": "vs last week",
+  "page_header_more": "More actions",
   "passkey_add": "Add passkey",
   "passkey_add_continue": "Continue",
   "passkey_add_title": "Add a passkey",
