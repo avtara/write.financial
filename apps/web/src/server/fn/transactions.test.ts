@@ -156,18 +156,27 @@ describe('getTransactionsView', () => {
       limit: PAGE_SIZE,
       offset: 0,
     });
-    expect(fake.transactionQuery.list).toHaveBeenCalledWith(USER_ID, filter, { limit: 1 });
-    expect(fake.transactionQuery.list).toHaveBeenCalledWith(USER_ID, {}, { limit: 1 });
+    // Without other filters, the page's total is the range's count, and a non-empty range has transactions.
+    expect(fake.transactionQuery.list).toHaveBeenCalledOnce();
     expect(fake.transactionQuery.balancesAfter).not.toHaveBeenCalled();
   });
 
-  it('tells a first run apart (no transaction at all)', async () => {
+  it('tells a first run apart from an empty period of a used ledger', async () => {
     fake.transactionQuery.list.mockResolvedValue({ rows: [], total: 0 });
     const result = await call<{ ok: true; value: Record<string, unknown> }>(getTransactionsView, {
       context: signedIn(),
       data: {},
     });
     expect(result.value).toMatchObject({ unfilteredCount: 0, hasTransactions: false });
+    expect(fake.transactionQuery.list).toHaveBeenLastCalledWith(USER_ID, {}, { limit: 1 });
+    fake.transactionQuery.list
+      .mockResolvedValueOnce({ rows: [], total: 0 })
+      .mockResolvedValueOnce({ rows: [], total: 3 });
+    const used = await call<{ ok: true; value: Record<string, unknown> }>(getTransactionsView, {
+      context: signedIn(),
+      data: {},
+    });
+    expect(used.value).toMatchObject({ unfilteredCount: 0, hasTransactions: true });
   });
 
   it('turns every query param into the repository filter; one account adds running balances', async () => {
@@ -226,6 +235,8 @@ describe('getTransactionsView', () => {
       { from: '2026-09-01', to: '2026-09-30' },
       { limit: 1 },
     );
+    // The period has transactions (7), so whether the ledger has any is known.
+    expect(fake.transactionQuery.list).toHaveBeenCalledTimes(2);
     expect(fake.transactionQuery.balancesAfter).toHaveBeenCalledWith(USER_ID, OTHER, [ID]);
   });
 

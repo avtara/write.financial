@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { parseLocalDate as d } from '@wf/domain/period';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   formatDate,
   formatDateRange,
@@ -71,6 +71,17 @@ describe('names and formats', () => {
   ] as const)('formats a %s', (style, id, en) => {
     expect(formatDate(d('2026-10-15'), 'id', style)).toBe(id);
     expect(formatDate(d('2026-10-15'), 'en', style)).toBe(en);
+  });
+
+  it('formats a year of days without building a formatter per day', () => {
+    const built = vi.spyOn(Intl, 'DateTimeFormat');
+    const days = Array.from({ length: 365 }, (_, index) =>
+      formatDate(fromDate(new Date(2025, 9, 16 + index)), 'en', 'weekday'),
+    );
+    expect(days[0]).toBe('Thursday, Oct 16');
+    expect(days.at(-1)).toBe('Thursday, Oct 15');
+    expect(built.mock.calls.length).toBeLessThanOrEqual(1);
+    built.mockRestore();
   });
 
   it('formats the 24-hour time in the time zone', () => {

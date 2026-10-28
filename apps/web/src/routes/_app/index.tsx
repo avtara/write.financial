@@ -24,19 +24,23 @@ type OverviewLoad = ({ readonly status: 'ready' } & OverviewData) | { readonly s
 /** Everything `/` shows for `search`; a failed request (no connection) is `offline`, never an error page. */
 async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
   try {
-    const [periods, accounts, categories, tags, rules, profile, budget, subscriptions, layout] = await Promise.all([
-      listPeriods(),
-      listAccounts({ data: {} }),
-      listCategories({ data: {} }),
-      listTags({ data: {} }),
-      listAutoRules({ data: { enabledOnly: true } }),
-      getProfile(),
-      getBudgetStatus({ data: {} }),
-      listSubscriptions({ data: {} }),
-      getDashboardLayout(),
-    ]);
-    const request = dashboardRequestOf(search, periods.ok ? periods.value.periods : []);
-    const dashboard = await getDashboard({ data: request });
+    // Only `?period=` needs the period rows (its label → id): any other request runs alongside the rest.
+    const known = search.period === undefined ? dashboardRequestOf(search, []) : null;
+    const [periods, accounts, categories, tags, rules, profile, budget, subscriptions, layout, early] =
+      await Promise.all([
+        listPeriods(),
+        listAccounts({ data: {} }),
+        listCategories({ data: {} }),
+        listTags({ data: {} }),
+        listAutoRules({ data: { enabledOnly: true } }),
+        getProfile(),
+        getBudgetStatus({ data: {} }),
+        listSubscriptions({ data: {} }),
+        getDashboardLayout(),
+        known === null ? null : getDashboard({ data: known }),
+      ]);
+    const request = known ?? dashboardRequestOf(search, periods.ok ? periods.value.periods : []);
+    const dashboard = early ?? (await getDashboard({ data: request }));
     const shownPeriod = request.scope === 'month' ? request.periodId : undefined;
     // The addable cards (FR-D3) cost a request each: read only what the saved layout shows.
     const cards = (layout.ok ? layout.value : DEFAULT_DASHBOARD_LAYOUT).cards;

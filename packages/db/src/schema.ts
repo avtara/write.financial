@@ -605,7 +605,14 @@ export const transactions = pgTable(
     unique('transactions_user_id_id_key').on(table.userId, table.id),
     unique('transactions_user_id_client_id_key').on(table.userId, table.clientId),
     unique('transactions_import_key').on(table.userId, table.importBatchId, table.externalHash),
-    index('transactions_user_id_local_date_idx').on(table.userId, table.localDate.desc(), table.occurredAt.desc()),
+    // The Transactions list's order (`ORDER BY local_date DESC, occurred_at DESC, id DESC`, whose DESC sorts nulls
+    // first): an index in exactly that order lets `… LIMIT` read only the page's rows instead of sorting them all.
+    index('transactions_user_id_local_date_idx').on(
+      table.userId,
+      table.localDate.desc().nullsFirst(),
+      table.occurredAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
     index('transactions_user_id_category_id_idx').on(table.userId, table.categoryId),
     index('transactions_split_parent_id_idx').on(table.splitParentId),
     index('transactions_merchant_trgm_idx').using('gin', table.merchant.op('gin_trgm_ops')),

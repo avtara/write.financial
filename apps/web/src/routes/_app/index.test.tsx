@@ -116,6 +116,19 @@ describe('/ (Overview) loader', () => {
     });
   });
 
+  it('requests the dashboard without waiting for the period rows unless `?period=` needs them', async () => {
+    answer();
+    const periods = Promise.withResolvers<unknown>();
+    fns.listPeriods.mockReturnValue(periods.promise);
+    const load = loader({ deps: { scope: 'year' } });
+    await vi.waitFor(() => {
+      expect(fns.getDashboard).toHaveBeenCalledWith({ data: { scope: 'year' } });
+    });
+    periods.resolve(ok(periodsOverview()));
+    await load;
+    expect(fns.getDashboard).toHaveBeenCalledOnce();
+  });
+
   it('is offline when a request never reaches the server, and rethrows anything else', async () => {
     answer();
     fns.listAccounts.mockRejectedValue(new TypeError('Failed to fetch'));

@@ -11,6 +11,7 @@
     "start": "node --env-file-if-exists=../../.env .output/server/index.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test:e2e": "playwright test",
+    "test:perf": "node perf/ttfb.ts",
     "test:e2e:selfhost": "playwright test -c playwright.selfhost.config.ts"
   },
   "dependencies": {
