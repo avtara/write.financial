@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createFileRoute, useHydrated, useRouter, useRouterState } from '@tanstack/react-router';
+import { addDays } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
 import { useEffect, useState } from 'react';
 import { DashboardOffline, DashboardSkeleton } from '../../components/dashboard/dashboard-states.tsx';
@@ -7,9 +8,13 @@ import { lastOverview, rememberOverview } from '../../components/dashboard/last-
 import { PageHeader } from '../../components/page-header.tsx';
 import { usePreferences } from '../../components/preferences.tsx';
 import { OverviewPage, type OverviewData } from '../../components/overview-page.tsx';
+import { DEFAULT_DASHBOARD_LAYOUT, type DashboardCard } from '../../lib/dashboard-layout.ts';
 import { DASHBOARD_SEARCH, dashboardRequestOf, type DashboardSearch } from '../../lib/dashboard-search.ts';
 import { getProfile } from '../../server/fn/account.ts';
 import { getBudgetStatus, getDashboard, listPeriods } from '../../server/fn/budget.ts';
+import { getDashboardLayout } from '../../server/fn/dashboard-layout.ts';
+import { listGoals } from '../../server/fn/goals.ts';
+import { getInvestments } from '../../server/fn/investments.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
 import { listAutoRules } from '../../server/fn/rules.ts';
 import { listScheduled, listSubscriptions } from '../../server/fn/schedules.ts';
@@ -19,7 +24,7 @@ type OverviewLoad = ({ readonly status: 'ready' } & OverviewData) | { readonly s
 /** Everything `/` shows for `search`; a failed request (no connection) is `offline`, never an error page. */
 async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
   try {
-    const [periods, accounts, categories, tags, rules, profile, budget, subscriptions] = await Promise.all([
+    const [periods, accounts, categories, tags, rules, profile, budget, subscriptions, layout] = await Promise.all([
       listPeriods(),
       listAccounts({ data: {} }),
       listCategories({ data: {} }),
@@ -28,17 +33,25 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
       getProfile(),
       getBudgetStatus({ data: {} }),
       listSubscriptions({ data: {} }),
+      getDashboardLayout(),
     ]);
     const request = dashboardRequestOf(search, periods.ok ? periods.value.periods : []);
     const dashboard = await getDashboard({ data: request });
     const shownPeriod = request.scope === 'month' ? request.periodId : undefined;
-    const [shownBudget, scheduled] = await Promise.all([
+    // The addable cards (FR-D3) cost a request each: read only what the saved layout shows.
+    const cards = (layout.ok ? layout.value : DEFAULT_DASHBOARD_LAYOUT).cards;
+    const shows = (id: DashboardCard) => cards.some((card) => card.id === id && card.visible);
+    const today = dashboard.ok ? dashboard.value.today : null;
+    const [shownBudget, scheduled, investments, goals, bills] = await Promise.all([
       shownPeriod === undefined || (periods.ok && shownPeriod === periods.value.current.id)
         ? null
         : getBudgetStatus({ data: { periodId: shownPeriod } }),
       dashboard.ok
         ? listScheduled({ data: { from: dashboard.value.ranges.full.from, to: dashboard.value.ranges.full.to } })
         : null,
+      shows('investments') ? getInvestments({ data: {} }) : null,
+      shows('goals') ? listGoals({ data: { status: 'active' } }) : null,
+      shows('bills') && today !== null ? listScheduled({ data: { from: today, to: addDays(today, 6) } }) : null,
     ]);
     return {
       status: 'ready',
@@ -53,6 +66,10 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
       shownBudget,
       subscriptions,
       scheduled,
+      layout,
+      investments,
+      goals,
+      bills,
       loadedAt: new Date(),
     };
   } catch (error) {

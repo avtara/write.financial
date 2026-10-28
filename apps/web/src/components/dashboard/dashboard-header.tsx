@@ -17,7 +17,16 @@ import { KbdHint } from '@wf/ui/kbd-hint';
 import { Popover, PopoverContent, PopoverTrigger } from '@wf/ui/popover';
 import { usePrivacy } from '@wf/ui/privacy';
 import { RangePicker } from '@wf/ui/range-picker';
-import { CalendarDays, CalendarRange, ChevronDown, ChevronLeft, ChevronRight, LoaderCircle, Plus } from 'lucide-react';
+import {
+  CalendarDays,
+  CalendarRange,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  LoaderCircle,
+  Plus,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import type { DashboardSearch } from '../../lib/dashboard-search.ts';
 import { rangeParamOf } from '../../lib/transactions-search.ts';
@@ -37,6 +46,8 @@ export interface DashboardHeaderProps {
   /** "Catat Transaksi" needs an active account. */
   readonly canRecord: boolean;
   readonly refreshing: boolean;
+  /** "Atur dashboard" (FR-D3); absent where the layout cannot be changed (offline, no data, already editing). */
+  readonly onCustomize?: () => void;
 }
 
 const SEGMENT =
@@ -53,6 +64,7 @@ export function DashboardHeader({
   periods,
   canRecord,
   refreshing,
+  onCustomize,
 }: DashboardHeaderProps) {
   const { preferences } = usePreferences();
   const record = useRecordTransaction();
@@ -62,6 +74,9 @@ export function DashboardHeader({
       breadcrumb={[m.breadcrumb_finance(), m.nav_overview()]}
       title={title}
       description={description}
+      secondaryActions={
+        onCustomize === undefined ? [] : [{ label: m.dashboard_customize(), icon: LayoutGrid, onSelect: onCustomize }]
+      }
       actions={
         <div className="flex flex-wrap items-center justify-end gap-2 max-lg:w-full max-lg:justify-start">
           {refreshing ? (

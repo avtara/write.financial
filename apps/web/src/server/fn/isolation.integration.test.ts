@@ -22,6 +22,7 @@ import { cases as budgetCases } from '../../../test/isolation/cases/budget.ts';
 import { cases as budgetWriteCases } from '../../../test/isolation/cases/budget-write.ts';
 import { cases as calendarCases } from '../../../test/isolation/cases/calendar.ts';
 import { cases as categoriesCases } from '../../../test/isolation/cases/categories.ts';
+import { cases as dashboardLayoutCases } from '../../../test/isolation/cases/dashboard-layout.ts';
 import { cases as debtsCases } from '../../../test/isolation/cases/debts.ts';
 import { cases as gateCases } from '../../../test/isolation/cases/gate.ts';
 import { cases as gmailCases } from '../../../test/isolation/cases/gmail.ts';
@@ -105,6 +106,7 @@ const MATRIX: Record<Name, Case> = {
   ...calendarCases,
   ...budgetWriteCases,
   ...getPreferencesCases,
+  ...dashboardLayoutCases,
   ...transactionsCases,
   ...onboardingCases,
   ...debtsCases,
