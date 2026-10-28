@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { randomUUID } from 'node:crypto';
+import { generateDek } from '@wf/crypto/envelope';
+import { createTransactions } from '@wf/db/transactions';
+import { PGLITE_HOOK_TIMEOUT, startMigrated } from '@wf/db/testing';
+import type { RecordResult } from '@wf/db/ledger-core';
+import type { TransactionDetail } from '@wf/db/transactions';
+import type { Result } from '../access.ts';
 import { LedgerError } from '@wf/db/ledger-errors';
 import { ImageRejectedError, MAX_IMAGE_BYTES } from '@wf/integrations/image';
 import type * as ImageModule from '@wf/integrations/image';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fakeSession } from '../../../test/fixtures.ts';
+import { fakeSession, NOW } from '../../../test/fixtures.ts';
 import { call, requestContext, validatorOf } from '../../../test/server-fn.ts';
 import { DEFAULT_TABLE_PREFS } from '../../lib/transaction-columns.ts';
 import { MAX_IMAGES, MAX_SPLIT_PARTS, PAGE_SIZE } from '../../lib/transaction-limits.ts';
@@ -282,12 +289,7 @@ describe('listTransactionRows', () => {
 });
 
 describe('getTransactionDetail', () => {
-  it("gives the user's transaction", async () => {
-    expect(await call(getTransactionDetail, { context: signedIn(), data: { id: ID } })).toEqual({
-      ok: true,
-      value: detail(),
-    });
-    expect(fake.transactions.get).toHaveBeenCalledWith(USER_ID, ID);
+  it('returns NOT_FOUND for a transaction outside the current tenant', async () => {
     fake.transactions.get.mockRejectedValueOnce(new LedgerError('NOT_FOUND'));
     expect(await call(getTransactionDetail, { context: signedIn(), data: { id: ID } })).toEqual({
       ok: false,
@@ -319,20 +321,92 @@ describe('updateTransaction', () => {
 });
 
 describe('duplicateTransaction', () => {
-  it('records the input as a copy of an existing transaction', async () => {
-    fake.transactions.create.mockResolvedValue({ id: OTHER, created: true, fxDifference: null });
-    expect(await call(duplicateTransaction, { context: signedIn(), data: { id: ID, input: EXPENSE } })).toEqual({
-      ok: true,
-      value: { id: OTHER, created: true, fxDifference: null },
-    });
-    expect(fake.transactions.create).toHaveBeenCalledWith(USER_ID, { ...EXPENSE, duplicatedFromId: ID });
+  it('refuses to duplicate a transaction outside the current tenant before any write', async () => {
     fake.transactions.get.mockRejectedValueOnce(new LedgerError('NOT_FOUND'));
     expect(await call(duplicateTransaction, { context: signedIn(), data: { id: OTHER, input: EXPENSE } })).toEqual({
       ok: false,
       code: 'NOT_FOUND',
     });
-    expect(fake.transactions.create).toHaveBeenCalledTimes(1);
+    expect(fake.transactions.create).not.toHaveBeenCalled();
   });
+
+  it(
+    'commits an explicit duplicate exactly once across a lost-response retry, preserving the original and copying no attachments',
+    async () => {
+      const test = await startMigrated();
+      try {
+        await test.query("INSERT INTO users(id,name,email) VALUES($1,'Duplicate','duplicate-rpc@example.test')", [
+          USER_ID,
+        ]);
+        const [account] = await test.query<{ id: string }>(
+          `INSERT INTO accounts
+        (user_id,type,provider_name,display_name,currency,opening_balance_minor,opening_date,color)
+        VALUES($1,'bank','Bank','Bank','IDR',1000000,'2026-10-01','blue') RETURNING id`,
+          [USER_ID],
+        );
+        if (account === undefined) throw new Error('Missing transaction account');
+        const dek = generateDek();
+        const repository = createTransactions(test.db, { getDek: () => Promise.resolve(dek), now: () => NOW });
+        fake.transactions.get.mockImplementation(repository.get);
+        fake.transactions.create.mockImplementation(repository.create);
+        const input = {
+          type: 'expense' as const,
+          clientId: randomUUID(),
+          occurredAt: NOW,
+          accountId: account.id,
+          amountMinor: 25000n,
+          categoryId: null,
+          description: 'Original',
+          note: 'Private original note',
+        };
+        const original = await test.as('wf_app', () => repository.create(USER_ID, input));
+        await test.as('wf_app', () =>
+          repository.addAttachment(USER_ID, original.id, {
+            bucket: 'attachments',
+            objectKey: `u/${USER_ID}/${randomUUID()}`,
+            thumbnailKey: null,
+            mime: 'image/webp',
+            size: 1,
+            sha256: 'a'.repeat(64),
+            kind: 'receipt',
+            name: 'private.webp',
+          }),
+        );
+        const data = {
+          id: original.id,
+          input: { ...input, clientId: randomUUID(), description: 'Explicit copy', note: 'Reviewed copy note' },
+        };
+        const first = await test.as('wf_app', () =>
+          call<Result<RecordResult>>(duplicateTransaction, { context: signedIn(), data }),
+        );
+        const retry = await test.as('wf_app', () =>
+          call<Result<RecordResult>>(duplicateTransaction, { context: signedIn(), data }),
+        );
+        if (!first.ok || !retry.ok) throw new Error('Duplicate request failed');
+        expect(first.value.created).toBe(true);
+        expect(retry.value).toMatchObject({ id: first.value.id, created: false });
+        const copy = await test.as('wf_app', () =>
+          call<Result<TransactionDetail>>(getTransactionDetail, {
+            context: signedIn(),
+            data: { id: first.value.id },
+          }),
+        );
+        expect(copy).toMatchObject({
+          ok: true,
+          value: { description: 'Explicit copy', note: 'Reviewed copy note', attachments: [] },
+        });
+        expect((await test.as('wf_app', () => repository.get(USER_ID, original.id))).note).toBe(
+          'Private original note',
+        );
+        expect(await test.query('SELECT count(*)::int AS n FROM transactions WHERE user_id=$1', [USER_ID])).toEqual([
+          { n: 2 },
+        ]);
+      } finally {
+        await test.close();
+      }
+    },
+    PGLITE_HOOK_TIMEOUT,
+  );
 });
 
 describe('splitTransaction / unsplitTransaction', () => {
@@ -495,6 +569,10 @@ describe('addAttachment', () => {
   it('rethrows pipeline crashes and deletes the stored objects when saving fails', async () => {
     fake.prepareImageUpload.mockRejectedValueOnce(new Error('libvips crashed'));
     await expect(add('image', file([1]))).rejects.toThrow('libvips crashed');
+    fake.prepareReceipt.mockRejectedValueOnce(new Error('native PDF pipeline unavailable'));
+    await expect(add('receipt', file(PDF))).rejects.toThrow('native PDF pipeline unavailable');
+    expect(fake.attachmentStore.put).not.toHaveBeenCalled();
+    expect(fake.transactions.removeAttachment).not.toHaveBeenCalled();
 
     fake.transactions.addAttachment.mockRejectedValueOnce(new LedgerError('NOT_FOUND'));
     expect(await add('image', file([1]))).toEqual({ ok: false, code: 'NOT_FOUND' });

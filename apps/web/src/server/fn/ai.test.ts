@@ -32,7 +32,7 @@ vi.mock('../runtime.ts', () => ({
 
 let test: TestDatabase;
 let userId: string;
-let mode: 'ok' | 'unauthorized' | 'missing_cost';
+let mode: 'ok' | 'unauthorized' | 'forbidden' | 'unavailable' | 'missing_cost';
 let requests: number;
 let duringRequest: (() => Promise<void>) | null;
 const dek = generateDek();
@@ -84,6 +84,8 @@ beforeEach(async () => {
       });
     if (duringRequest !== null) await duringRequest();
     if (mode === 'unauthorized') return new Response(`Revoked ${key}`, { status: 401 });
+    if (mode === 'forbidden') return new Response('private forbidden', { status: 403 });
+    if (mode === 'unavailable') return new Response('private provider error', { status: 503 });
     return Response.json({
       choices: [{ message: { content: 'OK' } }],
       usage: { prompt_tokens: 12, completion_tokens: 1, ...(mode === 'missing_cost' ? {} : { cost: '0.0002' }) },
@@ -91,8 +93,12 @@ beforeEach(async () => {
   });
   fake.current = {
     now: () => NOW,
-    ai: createAiRepository(test.db, { getDek: () => Promise.resolve(dek), allowedBaseUrls: [], now: () => NOW }),
-    aiClient: createAiClient({ allowedBaseUrls: [], fetch: fetcher }),
+    ai: createAiRepository(test.db, {
+      getDek: () => Promise.resolve(dek),
+      allowedBaseUrls: ['https://custom.test/v1'],
+      now: () => NOW,
+    }),
+    aiClient: createAiClient({ allowedBaseUrls: ['https://custom.test/v1'], fetch: fetcher }),
   };
 });
 
@@ -222,4 +228,87 @@ describe('connection tests and activity', () => {
     ).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
     expect(requests).toBe(1); // Public catalog only; no completion.
   });
+
+  it('retains a key when saving non-secret settings, then removes it with revision protection', async () => {
+    const saved = await save();
+    const { apiKey, ...retained } = input({ expectedRevision: saved.revision, monthlyLimitUsd: '2' });
+    expect(apiKey).toBe(key);
+    const updated = await invoke<AiSettingsView>(saveAiSettings, retained);
+    expect(updated).toMatchObject({
+      ok: true,
+      value: {
+        monthlyLimitUsd: '2',
+        connections: expect.arrayContaining([expect.objectContaining({ last4: key.slice(-4) })]) as unknown,
+      },
+    });
+    if (!updated.ok) throw new Error(updated.code);
+    expect(await invoke(removeAiKey, { provider: 'openrouter', expectedRevision: saved.revision })).toEqual({
+      ok: false,
+      code: 'AI_CONFIG_CHANGED',
+    });
+    expect(
+      await invoke(removeAiKey, { provider: 'openrouter', expectedRevision: updated.value.revision }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        connections: expect.arrayContaining([
+          expect.objectContaining({ provider: 'openrouter', last4: null, status: 'not_connected' }),
+        ]) as unknown,
+      },
+    });
+  });
+
+  it('binds custom catalog authentication to the saved endpoint, current 2FA and fresh session', async () => {
+    const saved = await save({ provider: 'custom', baseUrl: 'https://custom.test/v1' });
+    expect(await call(listAiModels, { context: context(false), data: { provider: 'custom' } })).toEqual({
+      ok: false,
+      code: 'TWO_FACTOR_REQUIRED',
+    });
+    expect(await call(listAiModels, { context: context(true, 16), data: { provider: 'custom' } })).toEqual({
+      ok: false,
+      code: 'REAUTHENTICATION_REQUIRED',
+    });
+    expect(await invoke(listAiModels, { provider: 'custom', baseUrl: 'https://other.test/v1' })).toEqual({
+      ok: false,
+      code: 'AI_CONFIG_CHANGED',
+    });
+    expect(requests).toBe(0);
+    expect(await invoke(listAiModels, { provider: 'custom', baseUrl: 'https://custom.test/v1/' })).toMatchObject({
+      ok: true,
+      value: { catalogPublic: false },
+    });
+    const catalogPriced = await save({
+      expectedRevision: saved.revision,
+      provider: 'custom',
+      baseUrl: 'https://custom.test/v1',
+      pricing: null,
+    });
+    expect(
+      await invoke(testAiConnection, {
+        provider: 'custom',
+        expectedRevision: catalogPriced.revision,
+        requestId: randomUUID(),
+      }),
+    ).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
+  });
+
+  it.each(['forbidden', 'unavailable'] as const)(
+    'classifies %s probes without claiming the key is valid',
+    async (next) => {
+      const saved = await save();
+      mode = next;
+      expect(
+        await invoke(testAiConnection, {
+          provider: 'openrouter',
+          expectedRevision: saved.revision,
+          requestId: randomUUID(),
+        }),
+      ).toMatchObject({ ok: true, value: { connection: { status: next === 'forbidden' ? 'invalid_key' : 'error' } } });
+      expect(await invoke(listAiLogs, { feature: 'receipt' })).toMatchObject({ ok: true, value: { total: 0 } });
+      expect(await invoke(exportAiLogs, { feature: 'test' })).toMatchObject({
+        ok: true,
+        value: { csv: expect.stringContaining('http_') as unknown },
+      });
+    },
+  );
 });

@@ -74,5 +74,6 @@ describe('operator-authorized custom endpoints', () => {
     ]) {
       expect(() => resolveAiBaseUrl('custom', value, ['https://api.example/v1'])).toThrow(AiError);
     }
+    expect(() => resolveAiBaseUrl('custom', undefined, ['https://api.example/v1'])).toThrow(AiError);
   });
 });

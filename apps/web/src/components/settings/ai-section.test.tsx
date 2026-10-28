@@ -728,3 +728,300 @@ describe('AiSection', () => {
     await expect.element(page.getByRole('region', { name: 'Koneksi OpenRouter' })).toBeVisible();
   });
 });
+
+describe('AiSection boundaries', () => {
+  const manualModel = () => page.getByLabelText('Atau ketik ID model');
+  const loadButton = () => page.getByRole('button', { name: 'Muat daftar model' });
+
+  it('refuses a save without a model, an endpoint, or a readable limit, and clears each error once fixed', async () => {
+    server.saveAiSettings.mockResolvedValueOnce({ ok: true, value: baseView() });
+    await render(baseView({ allowedCustomBaseUrls: ['https://api.example.test/v1'] }));
+    await manualModel().fill('');
+    await limitInput().fill('lima');
+    await saveButton().click();
+    await expect.element(page.getByText('Pilih atau ketik ID model.')).toBeVisible();
+    await expect.element(page.getByText('Masukkan nominal USD yang tidak negatif.')).toBeVisible();
+    await limitInput().fill('6');
+    await expect.element(page.getByText('Masukkan nominal USD yang tidak negatif.')).not.toBeInTheDocument();
+    await manualModel().fill('anthropic/claude-sonnet-5.5');
+    await expect.element(page.getByText('Pilih atau ketik ID model.')).not.toBeInTheDocument();
+    expect(server.saveAiSettings).not.toHaveBeenCalled();
+
+    // Custom without a saved connection starts with no endpoint chosen.
+    await page.getByRole('button', { name: /Custom/ }).click();
+    const origin = page.getByRole('combobox', { name: 'Base URL' });
+    await expect.element(origin).toHaveValue('');
+    await keyInput().fill('sk-custom-key');
+    await manualModel().fill('custom-model');
+    await saveButton().click();
+    await expect.element(page.getByText('Pilih base URL.')).toBeVisible();
+    expect(server.saveAiSettings).not.toHaveBeenCalled();
+    await userEvent.selectOptions(origin, 'https://api.example.test/v1');
+    await expect.element(page.getByText('Pilih base URL.')).not.toBeInTheDocument();
+    await saveButton().click();
+    await vi.waitFor(() => {
+      expect(server.saveAiSettings).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          provider: 'custom',
+          baseUrl: 'https://api.example.test/v1',
+          apiKey: 'sk-custom-key',
+          modelId: 'custom-model',
+          monthlyLimitUsd: '6',
+        }) as unknown,
+      });
+    });
+  });
+
+  it('keeps a saved custom provider unusable once the operator withdrew every endpoint', async () => {
+    await render(
+      baseView({
+        provider: 'custom',
+        connections: [connection({ provider: 'custom', baseUrl: 'https://gone.example.test/v1', modelId: 'm-1' })],
+        allowedCustomBaseUrls: [],
+      }),
+    );
+    const origin = page.getByRole('combobox', { name: 'Base URL' });
+    await expect.element(origin).toBeDisabled();
+    await expect.element(origin).toHaveTextContent('Operator belum mengizinkan base URL kustom.');
+  });
+
+  it('restores another provider’s own manual prices when switching to it', async () => {
+    await render(
+      baseView({
+        connections: [
+          connection(),
+          connection({ provider: 'zenmux', baseUrl: 'https://zenmux.ai/api/v1', pricingSource: 'manual' }),
+        ],
+      }),
+    );
+    await page.getByRole('button', { name: /ZenMux/ }).click();
+    await expect.element(page.getByRole('radio', { name: 'Harga manual' })).toBeChecked();
+    await expect.element(page.getByText(/^Harga manual: /)).toBeVisible();
+    await expect.element(page.getByLabelText('Input per 1 jt token (USD)')).toHaveValue('3');
+  });
+
+  it('turns financial reading off only through an explicit save', async () => {
+    server.saveAiSettings.mockResolvedValueOnce({ ok: true, value: baseView({ allowReadFinancial: false }) });
+    await render();
+    await page.getByRole('switch', { name: /Baca data keuangan/ }).click();
+    expect(server.saveAiSettings).not.toHaveBeenCalled();
+    await saveButton().click();
+    await vi.waitFor(() => {
+      expect(server.saveAiSettings).toHaveBeenCalledWith({
+        data: expect.objectContaining({ allowReadFinancial: false }) as unknown,
+      });
+    });
+  });
+
+  it('retries a stale key removal after signing in again, and keeps the key when removal fails', async () => {
+    server.removeAiKey
+      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
+      .mockResolvedValueOnce({ ok: false, code: 'AI_CONFIG_CHANGED' })
+      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('offline'));
+    await render();
+    const removeKey = async () => {
+      await page.getByRole('button', { name: 'Hapus key' }).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Hapus key' }).click();
+    };
+    await removeKey();
+    await expect
+      .element(page.getByRole('alert').filter({ hasText: 'Konfigurasi berubah di tempat lain' }))
+      .toBeVisible();
+    expect(reauth.reauthenticate).toHaveBeenCalledOnce();
+    expect(server.removeAiKey).toHaveBeenNthCalledWith(2, {
+      data: { provider: 'openrouter', expectedRevision: 'rev-1' },
+    });
+    await removeKey();
+    await expect.element(page.getByText('Koneksi terputus. Coba lagi.')).toBeVisible();
+    await expect.element(page.getByText(/3f9a · terenkripsi/)).toBeVisible();
+    await removeKey();
+    await expect.element(page.getByText('Koneksi terputus. Coba lagi.')).toBeVisible();
+    expect(server.removeAiKey).toHaveBeenCalledTimes(5);
+  });
+
+  it('retries a stale connection test with the same request after signing in again, and reports refusals', async () => {
+    server.testAiConnection
+      .mockResolvedValueOnce({ ok: false, code: 'SESSION_NOT_FRESH' })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { connection: connection({ testedAt: LATER }), usage: baseView().usage },
+      })
+      .mockResolvedValueOnce({ ok: false, code: 'AI_PROVIDER_FAILED' })
+      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('offline'));
+    await render();
+    await testButton().click();
+    await expect
+      .poll(() => page.getByRole('region', { name: 'Tes' }).query()?.textContent)
+      .toMatch(/inferensi berhasil/);
+    expect(reauth.reauthenticate).toHaveBeenCalledOnce();
+    expect(server.testAiConnection.mock.calls[1]?.[0]).toEqual(server.testAiConnection.mock.calls[0]?.[0]);
+    await testButton().click();
+    await expect.element(page.getByText(/Tes gagal\. Penyedia tidak menjawab dengan sukses/)).toBeVisible();
+    await testButton().click();
+    await expect.element(page.getByText('Tes gagal. Koneksi terputus. Coba lagi.')).toBeVisible();
+    await testButton().click();
+    await expect.element(page.getByText('Tes gagal. Koneksi terputus. Coba lagi.')).toBeVisible();
+    expect(server.testAiConnection).toHaveBeenCalledTimes(6);
+  });
+
+  it('drops a catalog answer for a provider the user already left, also around signing in again', async () => {
+    const stale = Promise.withResolvers<unknown>();
+    server.listAiModels.mockReturnValueOnce(stale.promise);
+    await render();
+    // 1. The answer arrives after switching provider.
+    await loadButton().click();
+    await page.getByRole('button', { name: /ZenMux/ }).click();
+    stale.resolve({ ok: true, value: CATALOG });
+    await expect.element(loadButton()).toBeEnabled();
+    expect(page.getByText(/model · bukan tes inferensi/).elements()).toHaveLength(0);
+
+    // 2. The user switches while signing in again.
+    const signedIn = Promise.withResolvers<boolean>();
+    server.listAiModels.mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' });
+    reauth.reauthenticate.mockReturnValueOnce(signedIn.promise);
+    await loadButton().click();
+    await vi.waitFor(() => {
+      expect(reauth.reauthenticate).toHaveBeenCalledOnce();
+    });
+    await page.getByRole('button', { name: /OpenRouter/ }).click();
+    signedIn.resolve(true);
+    await expect.element(loadButton()).toBeEnabled();
+    expect(server.listAiModels).toHaveBeenCalledTimes(2);
+
+    // 3. The user switches while the retried request runs.
+    const retried = Promise.withResolvers<unknown>();
+    server.listAiModels
+      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
+      .mockReturnValueOnce(retried.promise);
+    await loadButton().click();
+    await vi.waitFor(() => {
+      expect(server.listAiModels).toHaveBeenCalledTimes(4);
+    });
+    await page.getByRole('button', { name: /ZenMux/ }).click();
+    retried.resolve({ ok: true, value: CATALOG });
+    await expect.element(loadButton()).toBeEnabled();
+    expect(page.getByText(/model · bukan tes inferensi/).elements()).toHaveLength(0);
+  });
+
+  it('explains a refused or empty catalog and describes a priced model it lists', async () => {
+    server.listAiModels
+      .mockResolvedValueOnce({ ok: false, code: 'TWO_FACTOR_REQUIRED' })
+      .mockResolvedValueOnce({ ok: true, value: { ...CATALOG, models: [] } })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: {
+          ...CATALOG,
+          models: [
+            { id: 'priced/no-context', name: 'Priced', contextLength: null, maxOutputTokens: null, pricing: PRICING },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
+      .mockRejectedValueOnce(new Error('offline'));
+    await render();
+    await loadButton().click();
+    await expect.element(page.getByText(/Daftar model tidak dapat dimuat\./)).toBeVisible();
+    await expect.element(page.getByText(/Aktifkan verifikasi dua langkah di Keamanan/)).toBeVisible();
+    await page.getByRole('button', { name: 'Coba lagi' }).click();
+    await expect.element(page.getByText('Katalog tidak berisi model. Ketik ID model secara manual.')).toBeVisible();
+    await expect.element(page.getByText(/Aktifkan verifikasi dua langkah di Keamanan/)).not.toBeInTheDocument();
+    await loadButton().click();
+    await page.getByRole('combobox', { name: 'Model' }).selectOptions('priced/no-context');
+    await expect.element(page.getByRole('radio', { name: 'Harga katalog' })).toBeChecked();
+    await expect.element(page.getByText(/^Harga katalog: /).first()).toBeVisible();
+    expect(page.getByText(/token konteks/).elements()).toHaveLength(0);
+    await loadButton().click();
+    await expect.element(page.getByText('Daftar model tidak dapat dimuat. Koneksi terputus. Coba lagi.')).toBeVisible();
+    expect(server.listAiModels).toHaveBeenCalledTimes(5);
+  });
+
+  it('keeps the draft when signing in again is cancelled or the retried save cannot reach the server', async () => {
+    server.saveAiSettings
+      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
+      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
+      .mockRejectedValueOnce(new Error('offline'));
+    reauth.reauthenticate.mockResolvedValueOnce(false);
+    await render();
+    await limitInput().fill('6');
+    await saveButton().click();
+    await vi.waitFor(() => {
+      expect(reauth.reauthenticate).toHaveBeenCalledOnce();
+    });
+    expect(server.saveAiSettings).toHaveBeenCalledOnce();
+    await expect.element(saveButton()).toBeEnabled();
+    await saveButton().click();
+    await expect.element(page.getByText('Koneksi terputus. Coba lagi.')).toBeVisible();
+    expect(server.saveAiSettings).toHaveBeenCalledTimes(3);
+    await expect.element(limitInput()).toHaveValue('6');
+  });
+});
+
+describe('AiLogPanel boundaries', () => {
+  it('shows today’s entries by clock time and says when nothing financial was sent', async () => {
+    server.listAiLogs.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        total: 1,
+        failed: 0,
+        items: [
+          logView({
+            id: 'now',
+            createdAt: new Date(),
+            dataSent: { images: 0, categories: 0, accounts: 0, transactions: 0 },
+          }),
+        ],
+      },
+    });
+    await render();
+    await logButton().click();
+    const row = page.getByRole('listitem').first();
+    await expect.element(row).toBeVisible();
+    expect(row.element().querySelector('span')?.textContent).toMatch(/^\d{2}[.:]\d{2}$/);
+    const detail = row.getByRole('button', { name: 'Tampilkan detail Chat' });
+    await detail.click();
+    await expect.element(row).toMatchTextContent('Tidak ada data keuangan dikirim');
+    await row.getByRole('button', { name: 'Sembunyikan detail Chat' }).click();
+    expect(row.element().textContent).not.toContain('Tidak ada data keuangan dikirim');
+  });
+
+  it('ignores answers for a filter the user already changed, including failed ones', async () => {
+    const first = Promise.withResolvers<unknown>();
+    const second = Promise.withResolvers<unknown>();
+    server.listAiLogs
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValueOnce({ ok: true, value: { total: 0, failed: 0, items: [] } });
+    await render();
+    await logButton().click();
+    const log = page.getByRole('region', { name: 'Log aktivitas agent' });
+    await userEvent.selectOptions(log.getByRole('combobox', { name: 'Fitur' }), 'chat');
+    await userEvent.selectOptions(log.getByRole('combobox', { name: 'Status' }), 'error');
+    await expect.element(log.getByText('Belum ada aktivitas dalam 30 hari.')).toBeVisible();
+    first.resolve({ ok: true, value: { total: 1, failed: 0, items: [logView({ id: 'stale' })] } });
+    second.reject(new Error('offline'));
+    await expect.element(log.getByText('Belum ada aktivitas dalam 30 hari.')).toBeVisible();
+    expect(log.getByText('Log tidak dapat dimuat.').elements()).toHaveLength(0);
+  });
+
+  it('reports an unreachable log and a CSV that could not be made, without downloading', async () => {
+    server.listAiLogs.mockRejectedValueOnce(new Error('offline'));
+    server.exportAiLogs.mockRejectedValueOnce(new Error('offline'));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click');
+    await renderApp(<AiSection settings={baseView()} viewer={VIEWER} timeZone={TZ} />, {
+      preferences: { balancesHidden: true },
+    });
+    await logButton().click();
+    const log = page.getByRole('region', { name: 'Log aktivitas agent' });
+    await expect.element(log.getByText('Log tidak dapat dimuat.')).toBeVisible();
+    expect(log.element().textContent).not.toContain('$1,24');
+    await log.getByRole('button', { name: 'Ekspor CSV' }).click();
+    await expect.element(log.getByText('CSV tidak dapat dibuat.')).toBeVisible();
+    expect(server.exportAiLogs).toHaveBeenCalledWith({ data: {} });
+    expect(click).not.toHaveBeenCalled();
+    click.mockRestore();
+  });
+});

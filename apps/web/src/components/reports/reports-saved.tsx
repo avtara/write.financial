@@ -24,8 +24,8 @@ export interface SavedSectionProps {
   readonly selectable: ReadonlyMap<string, ReportSelection>;
   readonly locale: Locale;
   readonly today: LocalDate;
-  /** The user's zone, for the files' dates; absent until the page passes it. */
-  readonly timeZone?: string;
+  /** The user's zone, for the files' dates. */
+  readonly timeZone: string;
   /** The stored export files, newest first; `null` while the list has not loaded, hidden when empty. */
   readonly files: readonly ReportFileMeta[] | null;
   readonly onSelect: (selection: ReportSelection) => void;
@@ -112,7 +112,7 @@ export function SavedSection({
               <li key={file.id} className="border-border not-first:border-t">
                 <div className="-mx-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 text-[12.5px]">
                   <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{name}</span>
-                  <span className="text-subtle">{fileMeta(file, locale, timeZone ?? 'Asia/Jakarta')}</span>
+                  <span className="text-subtle">{fileMeta(file, locale, timeZone)}</span>
                   <a
                     href={`/api/reports/${file.id}`}
                     download

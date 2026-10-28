@@ -8,6 +8,7 @@ import { withUser } from './db.ts';
 import { recordTransactionIn } from './ledger-core.ts';
 import { createReview, type ReviewRepository } from './review.ts';
 import { insertReviewItemIn, occurrenceReviewItemIn, type NewReviewItem, type ReviewPayload } from './review-items.ts';
+import { createTransactions } from './transactions.ts';
 
 // 20 Okt 2026 10.00 WIB.
 const NOW = new Date('2026-10-20T03:00:00Z');
@@ -877,5 +878,86 @@ describe('category, rollover, and leftover proposals', () => {
       { name: 'Dana Darurat', jago: true, amount: '1150000' },
       { name: 'Liburan', jago: false, amount: '500000' },
     ]);
+  });
+});
+
+describe('Gmail evidence corrections and source-specific confirmation', () => {
+  it('requires an owned matching-currency account unless the user explicitly corrects it, and keeps original evidence', async () => {
+    const extraction = {
+      amountMinor: 350000n,
+      occurredAt: NOW,
+      merchant: 'Original merchant',
+      currency: 'USD',
+      accountId: ledger.bca,
+      categoryId: ledger.category('system:food'),
+      confidence: { amount: 97, date: 97, merchant: 97, currency: 97, account: 97, category: 97 },
+    };
+    const item = await draftItem(
+      {
+        kind: 'gmail',
+        logId: randomUUID(),
+        messageId: 'corrected-mail',
+        from: 'bank@example.test',
+        subject: 'Payment evidence',
+        excerpt: 'Private payment details',
+        extraction,
+        tags: [],
+        errorCode: null,
+      },
+      { source: 'gmail' },
+    );
+    await expect(asApp(() => review.confirm(userId, item))).rejects.toMatchObject({ code: 'INVALID_ACCOUNT' });
+    await expect(asApp(() => review.confirm(userId, item, { accountId: randomUUID() }))).rejects.toMatchObject({
+      code: 'INVALID_ACCOUNT',
+    });
+    const confirmed = await asApp(() =>
+      review.confirm(userId, item, {
+        accountId: ledger.bca,
+        categoryId: ledger.category('system:health'),
+        merchant: 'Corrected merchant',
+      }),
+    );
+    const detail = await asApp(() =>
+      createTransactions(test.db, { getDek: fixtureGetDek }).get(userId, confirmed.transactionId as string),
+    );
+    expect(detail).toMatchObject({
+      merchant: 'Corrected merchant',
+      categoryId: ledger.category('system:health'),
+      gmailEvidence: { extraction: { merchant: 'Original merchant', currency: 'USD' } },
+    });
+    await test.query('DELETE FROM review_items WHERE id=$1', [item]);
+    expect(
+      (
+        await asApp(() =>
+          createTransactions(test.db, { getDek: fixtureGetDek }).get(userId, confirmed.transactionId as string),
+        )
+      ).gmailEvidence,
+    ).toBeNull();
+  });
+
+  it('does not treat an ordinary transaction proposal as a receipt duplicate and does not invent Gmail evidence for a legacy corrected draft', async () => {
+    const item = await draftItem(
+      {
+        kind: 'transaction',
+        draft: {
+          type: 'expense',
+          occurredAt: NOW,
+          accountId: ledger.bca,
+          categoryId: ledger.category('system:food'),
+          amountMinor: 1000n,
+          source: 'gmail',
+        },
+      },
+      { source: 'gmail' },
+    );
+    await expect(asApp(() => review.confirm(userId, item, { receiptDuplicateId: randomUUID() }))).rejects.toMatchObject(
+      { code: 'INVALID_TRANSACTION' },
+    );
+    const result = await asApp(() => review.confirm(userId, item));
+    const detail = await asApp(() =>
+      createTransactions(test.db, { getDek: fixtureGetDek }).get(userId, result.transactionId as string),
+    );
+    expect(detail.source).toBe('gmail');
+    expect(detail.gmailEvidence).toBeNull();
   });
 });

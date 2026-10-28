@@ -183,7 +183,7 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
             <SettingsRow
               title={
                 <span className="flex items-center gap-2">
-                  {connection.email}
+                  {hidden ? hiddenLabel : connection.email}
                   {revoked ? <Badge>{m.gmail_status_revoked()}</Badge> : <Badge>{m.gmail_status_connected()}</Badge>}
                 </span>
               }
@@ -367,12 +367,13 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
                           <details>
                             <summary className="cursor-pointer">{m.gmail_source()}</summary>
                             <p>{hidden ? hiddenLabel : (row.extraction.merchant ?? m.review_ai_unknown())}</p>
-                            {row.extraction.amountMinor === null ? (
+                            {row.extraction.amountMinor === null || row.extraction.currency === null ? (
+                              // An amount without its currency is not a sum anyone can read; never assume rupiah.
                               <span>{m.review_ai_unknown()}</span>
                             ) : (
                               <Money
                                 minor={row.extraction.amountMinor}
-                                currency={row.extraction.currency ?? 'IDR'}
+                                currency={row.extraction.currency}
                                 context="table"
                                 locale={locale}
                               />

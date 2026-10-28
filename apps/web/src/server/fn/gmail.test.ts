@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeSession, NOW } from '../../../test/fixtures.ts';
 import { call, requestContext, validatorOf } from '../../../test/server-fn.ts';
 import { GmailRevokedError } from '@wf/integrations/gmail';
+import { LedgerError } from '@wf/db/ledger-errors';
 import type { Result } from '../access.ts';
 import type { EmailLogView } from '@wf/db/gmail';
 import {
@@ -193,6 +194,20 @@ describe('dry-run and disconnect boundaries', () => {
     });
     expect(fake.gmailFetch.revoke).toHaveBeenCalledTimes(1);
   });
+  it('still tombstones locally without remote revocation when no tokens remain or Gmail is disabled', async () => {
+    fake.gmail.tokens.mockResolvedValueOnce(null);
+    expect(await call(disconnectGmail, { context: context(), data: {} })).toMatchObject({
+      ok: true,
+      value: { status: 'revoked' },
+    });
+    fake.config.google = null;
+    expect(await call(disconnectGmail, { context: context(), data: {} })).toMatchObject({
+      ok: true,
+      value: { status: 'revoked' },
+    });
+    expect(fake.gmail.markRevoked).toHaveBeenCalledTimes(2);
+    expect(fake.gmailFetch.revoke).not.toHaveBeenCalled();
+  });
   it('keeps every function tenant-derived and refuses signed-out access before repositories/egress', async () => {
     for (const [fn, data] of [
       [getGmailSettings, {}],
@@ -203,6 +218,23 @@ describe('dry-run and disconnect boundaries', () => {
       expect(await call(fn, { context: requestContext(null), data })).toEqual({ ok: false, code: 'UNAUTHENTICATED' });
     expect(fake.gmail.getConnection).not.toHaveBeenCalled();
     expect(fake.gmailFetch.listMessages).not.toHaveBeenCalled();
+  });
+
+  it('refuses filter changes and disconnects for missing connections rather than manufacturing a connection', async () => {
+    fake.gmail.updateFilters.mockRejectedValueOnce(new LedgerError('NOT_FOUND'));
+    expect(await call(updateFilters, { context: context(), data: filters })).toEqual({ ok: false, code: 'NOT_FOUND' });
+    fake.gmail.getConnection.mockResolvedValue(null);
+    expect(await call(disconnectGmail, { context: context(), data: {} })).toEqual({ ok: false, code: 'NOT_FOUND' });
+    expect(fake.gmail.markRevoked).not.toHaveBeenCalled();
+  });
+
+  it('refuses a token deletion race and propagates unrelated provider outages without revoking the saved grant', async () => {
+    fake.gmail.tokens.mockResolvedValueOnce(null);
+    expect(await call(testFilters, { context: context(), data: filters })).toEqual({ ok: false, code: 'NOT_FOUND' });
+    expect(fake.gmailFetch.listMessages).not.toHaveBeenCalled();
+    fake.gmailFetch.listMessages.mockRejectedValueOnce(new Error('Gmail unavailable'));
+    await expect(call(testFilters, { context: context(), data: filters })).rejects.toThrow('Gmail unavailable');
+    expect(fake.gmail.markRevoked).not.toHaveBeenCalled();
   });
 });
 
@@ -222,6 +254,16 @@ describe('local-month log and safe CSV', () => {
     expect(localMonth(new Date('2026-11-01T00:30:00Z'), 'America/New_York').from).toEqual(
       new Date('2026-10-01T04:00:00Z'),
     );
+  });
+
+  it('uses the documented Jakarta month for an older session without a timezone', async () => {
+    const session = fakeSession();
+    delete session.user.timezone;
+    await call(getGmailSettings, { context: requestContext(session), data: {} });
+    expect(fake.gmail.monthlyStats).toHaveBeenCalledWith(userId, {
+      from: new Date('2026-09-30T17:00:00Z'),
+      to: new Date('2026-10-31T17:00:00Z'),
+    });
   });
   it('exports extracted values and per-field confidence while quoting RFC4180 and neutralizing spreadsheet formulas', () => {
     const csv = gmailLogCsv([

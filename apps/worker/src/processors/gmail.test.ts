@@ -42,11 +42,15 @@ const ports = (): ProcessorDeps['gmail'] => ({
   fetch: google,
   client,
 });
-const run = (overrides: Partial<GmailRepository> = {}, portOverrides: Partial<ProcessorDeps['gmail']> = {}) =>
+const run = (
+  overrides: Partial<GmailRepository> = {},
+  portOverrides: Partial<ProcessorDeps['gmail']> = {},
+  aiPort = ai,
+) =>
   test.as('wf_worker', () =>
     createGmailProcessor(
       fakeDeps(
-        { db: { ...fakeDb(), ai, gmail: { ...gmail, ...overrides } }, gmail: { ...ports(), ...portOverrides } },
+        { db: { ...fakeDb(), ai: aiPort, gmail: { ...gmail, ...overrides } }, gmail: { ...ports(), ...portOverrides } },
         clock,
       ),
     )({
@@ -266,6 +270,22 @@ describe('real Gmail processor with role-scoped repositories', () => {
     expect(aiFetch).toHaveBeenCalledTimes(1);
     expect(await test.query("SELECT count(*)::int AS n FROM review_items WHERE source='gmail'")).toEqual([{ n: 1 }]);
   });
+  it('keeps the stored history cursor when a page reports none, yet still drains the staged work', async () => {
+    const before = (await test.as('wf_app', () => gmail.getConnection(userId)))?.historyId;
+    const setHistoryId = vi.fn(gmail.setHistoryId);
+    const listMessages = vi.fn<ProcessorDeps['gmail']['fetch']['listMessages']>().mockResolvedValue({
+      historyId: null,
+      messages: [{ id: 'mail-no-history', from: 'Bank <pay@bank.test>', subject, excerpt: snippet, receivedAt: clock }],
+    });
+    expect(await run({ setHistoryId }, { fetch: { ...google, listMessages } })).toMatchObject({
+      status: 'ingested',
+      passed: 1,
+      proposed: 1,
+    });
+    expect(setHistoryId).not.toHaveBeenCalled();
+    expect((await test.as('wf_app', () => gmail.getConnection(userId)))?.historyId).toBe(before);
+    expect(await test.query("SELECT count(*)::int AS n FROM review_items WHERE source='gmail'")).toEqual([{ n: 1 }]);
+  });
   it('never automatically resends unknown billed attempts and preserves their reservation', async () => {
     aiFetch.mockRejectedValue(new Error('private provider diagnostics'));
     expect(await run()).toMatchObject({ proposed: 1 });
@@ -343,5 +363,98 @@ describe('real Gmail processor with role-scoped repositories', () => {
     failHistory = true;
     expect(await run()).toMatchObject({ status: 'revoked' });
     expect(await test.as('wf_app', () => gmail.tokens(userId))).toBeNull();
+  });
+
+  it('does not read a disconnected token row even if a connection was observed just before disconnect', async () => {
+    expect(await run({ tokens: () => Promise.resolve(null) })).toMatchObject({ status: 'no_connection' });
+    expect(googleFetch).not.toHaveBeenCalled();
+    expect(aiFetch).not.toHaveBeenCalled();
+  });
+
+  it('persists refreshed credentials before the watch and following mailbox read', async () => {
+    await test.as('wf_app', () =>
+      gmail.saveConnection(userId, {
+        email: 'fixture@gmail.com',
+        tokens: { accessToken: 'expired', refreshToken: 'fixture-refresh', expiresAt: new Date(0) },
+        filters: { senders: ['bank.test'], keywords: ['payment'], ignoreKeywords: [] },
+      }),
+    );
+    googleFetch.mockResolvedValueOnce(
+      Response.json({
+        access_token: 'fresh-access',
+        refresh_token: 'fresh-refresh',
+        expires_in: 3600,
+      }),
+    );
+    expect(await run()).toMatchObject({ proposed: 1 });
+    expect(await test.as('wf_app', () => gmail.tokens(userId))).toMatchObject({
+      accessToken: 'fresh-access',
+      refreshToken: 'fresh-refresh',
+    });
+    const requests = googleFetch.mock.calls.slice(1);
+    expect(
+      requests.every(([, init]) => new Headers(init?.headers).get('authorization') === 'Bearer fresh-access'),
+    ).toBe(true);
+  });
+
+  it('rechecks live enablement during mailbox access and exposes no provider diagnostic', async () => {
+    const live = { ...ports() };
+    const original = googleFetch.getMockImplementation();
+    googleFetch.mockImplementation((...args) => {
+      live.enabled = false;
+      if (original === undefined) throw new Error('Missing fetch fixture');
+      return original(...args);
+    });
+    const process = createGmailProcessor(fakeDeps({ db: { ...fakeDb(), ai, gmail }, gmail: live }, clock));
+    await expect(
+      test.as('wf_worker', () => process({ id: 'disabled-race', data: { userId }, attemptsMade: 0 })),
+    ).rejects.toThrow('Gmail ingestion unavailable');
+    expect(aiFetch).not.toHaveBeenCalled();
+  });
+
+  it('requires known pricing before reserving or making a paid extraction', async () => {
+    expect(
+      await run(
+        {},
+        {},
+        { ...ai, credential: async (...args) => ({ ...(await ai.credential(...args)), pricing: null }) },
+      ),
+    ).toMatchObject({ proposed: 1 });
+    expect(aiFetch).not.toHaveBeenCalled();
+    expect((await test.as('wf_app', () => gmail.listLogs(userId)))[0]?.errorCode).toBe('AI_PRICING_REQUIRED');
+  });
+
+  it.each([
+    { choices: [{ message: { content: null }, finish_reason: 'stop' }] },
+    { choices: [{ message: { content: 'private truncated evidence' }, finish_reason: 'length' }] },
+    {
+      choices: [
+        {
+          message: {
+            content: '',
+            tool_calls: [{ id: 'call1', type: 'function', function: { name: 'write', arguments: '{}' } }],
+          },
+          finish_reason: 'tool_calls',
+        },
+      ],
+    },
+  ])('retains paid metadata but refuses non-extraction answers: %j', async (response) => {
+    aiFetch.mockResolvedValueOnce(
+      Response.json({ ...response, usage: { prompt_tokens: 100, completion_tokens: 20, cost: '0.004' } }),
+    );
+    expect(await run()).toMatchObject({ proposed: 1 });
+    expect((await test.as('wf_app', () => gmail.listLogs(userId)))[0]?.errorCode).toBe('GMAIL_EXTRACTION_FAILED');
+    await run();
+    expect(aiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('records timeout as a bounded failure and never automatically retries paid extraction', async () => {
+    aiFetch.mockRejectedValueOnce(new DOMException('private timeout', 'TimeoutError'));
+    const deadline = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(AbortSignal.abort());
+    expect(await run()).toMatchObject({ proposed: 1 });
+    deadline.mockRestore();
+    expect((await test.as('wf_app', () => gmail.listLogs(userId)))[0]?.errorCode).toBe('AI_TIMEOUT');
+    await run();
+    expect(aiFetch).toHaveBeenCalledTimes(1);
   });
 });

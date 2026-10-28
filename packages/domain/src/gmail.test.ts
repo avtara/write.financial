@@ -108,6 +108,7 @@ describe('nullable financial extraction and confidence', () => {
     { occurredAt: 'not-a-date' },
     { occurredAt: '2026-02-30T00:00:00Z' },
     { currency: 'IDRX' },
+    { currency: '1$R' },
     { merchant: '' },
     { merchant: 'x'.repeat(201) },
     { accountId: 'another-user-account' },

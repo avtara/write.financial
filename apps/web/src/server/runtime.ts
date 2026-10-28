@@ -62,6 +62,7 @@ import { createInstanceMailer, instanceSmtp, sendWith } from '@wf/integrations/i
 import type { Mailer } from '@wf/integrations/mailer';
 import { createMarketAdapters, type MarketAdapters } from '@wf/integrations/market/adapters';
 import { createObjectStore, type ObjectStore } from '@wf/integrations/objectstore';
+import { prepareReceipt } from '@wf/integrations/receipt';
 import { Redis } from 'ioredis';
 import { pino, type Logger } from 'pino';
 import { createInstanceStore, type InstanceStore } from './instance-store.ts';
@@ -235,10 +236,7 @@ export async function createServices(runtime: BaseRuntime): Promise<Services> {
     aiClient: createAiClient({ now, allowedBaseUrls: config.ai.allowedBaseUrls }),
     receipts: createReceipts(appDb, { getDek, now }),
     receiptQueue: createReceiptQueue({ redis: config.redis.url, logger }),
-    receiptPrepare: async (bytes: Uint8Array, mime: string) => {
-      const { prepareReceipt } = await import('@wf/integrations/receipt');
-      return prepareReceipt(bytes, mime);
-    },
+    receiptPrepare: prepareReceipt,
     fxRates: createFxRates(appDb),
     periods: createPeriods(appDb, { now }),
     budgets: createBudgets(appDb, { now }),

@@ -86,9 +86,8 @@ describe('getDataSettings', () => {
     });
   });
 
-  it('adds the 7 days, and none when there is no request', () => {
+  it('adds the 7 days', () => {
     expect(deleteAfterOf(REQUESTED_AT)).toEqual(DELETE_AFTER);
-    expect(deleteAfterOf(null)).toBeNull();
   });
 });
 

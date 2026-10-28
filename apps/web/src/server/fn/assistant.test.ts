@@ -7,6 +7,7 @@ import { createBudgets } from '@wf/db/budgets';
 import { createCategories } from '@wf/db/categories';
 import { seedLedger } from '@wf/db/seed';
 import { createTransactionQuery } from '@wf/db/transaction-query';
+import { createTransactions } from '@wf/db/transactions';
 import { PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '@wf/db/testing';
 import type { AiSettingsInput, AiSettingsView } from '@wf/domain/ai';
 import type { AssistantAnswer } from '@wf/domain/assistant';
@@ -323,6 +324,236 @@ describe('assistant answers', () => {
     expect(JSON.stringify(logs)).not.toContain('Halo');
     expect(JSON.stringify(logs)).not.toContain('Baik.');
   });
+
+  it('returns scoped spending and largest-transaction evidence, including uncategorized expenses', async () => {
+    const uncategorized = await test.as('wf_app', () =>
+      createTransactions(test.db, { getDek, now: () => NOW }).create(USER, {
+        clientId: randomUUID(),
+        type: 'expense',
+        accountId: goPayId,
+        categoryId: null,
+        amountMinor: 123456n,
+        occurredAt: NOW,
+      }),
+    );
+    await test.as('wf_app', () =>
+      createTransactions(test.db, { getDek, now: () => NOW }).create(USER, {
+        clientId: randomUUID(),
+        type: 'expense',
+        accountId: goPayId,
+        categoryId: foodId,
+        amountMinor: 654321n,
+        occurredAt: NOW,
+        description: 'Known lunch',
+      }),
+    );
+    const before = await transactionCount();
+    const range = { from: '2026-10-18', to: '2026-10-18' };
+    script.push(
+      () => Response.json(toolCall('pengeluaran', range)),
+      () => Response.json(toolCall('transaksi_terbesar', range)),
+    );
+    const result = await invoke(question());
+    if (!result.ok) throw new Error(result.code);
+    expect(result.value.cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'spending',
+          totalMinor: 777777n,
+          categories: expect.arrayContaining([
+            expect.objectContaining({ categoryId: null, name: null, builtInKey: null }),
+            expect.objectContaining({ categoryId: foodId, builtInKey: 'system:food', totalMinor: 654321n }),
+          ]) as unknown,
+        }),
+        expect.objectContaining({
+          kind: 'transactions',
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              id: uncategorized.id,
+              description: '',
+              amountMinor: 123456n,
+              categoryName: null,
+            }),
+          ]) as unknown,
+        }),
+      ]),
+    );
+    expect(JSON.stringify(requests[1])).toContain('uncategorized');
+    expect(await transactionCount()).toBe(before);
+  });
+
+  it.each([
+    ['pengeluaran', {}],
+    ['pengeluaran', { from: '2026-10-01', to: 1 }],
+    ['pengeluaran', { from: 'bad', to: '2026-10-18' }],
+    ['pengeluaran', { from: '2026-10-01', to: 'bad' }],
+    ['pengeluaran', { from: '2026-10-18', to: '2026-10-01' }],
+    ['pengeluaran', { from: '2024-01-01', to: '2026-10-18' }],
+    ['transaksi_terbesar', {}],
+    ['pengeluaran', { from: '2026-02-30', to: '2026-03-01' }],
+  ])('refuses an invalid %s range without silently broadening ledger access', async (name, args) => {
+    script.push(() => Response.json(toolCall(name, args)));
+    const result = await invoke(question());
+    if (!result.ok) throw new Error(result.code);
+    expect(result.value.cards).toEqual([]);
+    expect(JSON.stringify(requests[1])).toContain('invalid_range');
+  });
+
+  it.each([
+    [{ type: 'transfer' }, 'invalid_type'],
+    [{ description: 1 }, 'invalid_description'],
+    [{ description: ' ' }, 'invalid_description'],
+    [{ amount: 1 }, 'invalid_amount'],
+    [{ accountId: 'foreign-account' }, 'unknown_account'],
+    [{ categoryId: randomUUID() }, 'unknown_category'],
+    [{ date: 1 }, 'invalid_date'],
+    [{ date: 'bad' }, 'invalid_date'],
+    [{ date: '2026-10-19' }, 'date_out_of_range'],
+    [{ date: '2026-01-01' }, 'date_out_of_range'],
+    [{ time: 1 }, 'invalid_time'],
+    [{ time: '24:00' }, 'invalid_time'],
+  ])('returns a specific draft refusal for malformed or unauthorized model fields: %j', async (patch, code) => {
+    const before = await transactionCount();
+    script.push(() =>
+      Response.json(
+        toolCall('draf_transaksi', {
+          type: 'expense',
+          description: 'Lunch',
+          amount: '45000',
+          accountId: goPayId,
+          categoryId: foodId,
+          date: '2026-10-18',
+          time: '12:00',
+          ...patch,
+        }),
+      ),
+    );
+    const result = await invoke(question());
+    if (!result.ok) throw new Error(result.code);
+    expect(result.value.draft).toBeNull();
+    expect(JSON.stringify(requests[1])).toContain(code);
+    expect(await transactionCount()).toBe(before);
+  });
+
+  it('proposes income without inventing a category or budget, filters tags, and uses the English legacy-session context', async () => {
+    await test.as('wf_app', () =>
+      createTransactions(test.db, { getDek, now: () => NOW }).create(USER, {
+        clientId: randomUUID(),
+        type: 'income',
+        accountId: goPayId,
+        categoryId: null,
+        amountMinor: 1000n,
+        occurredAt: NOW,
+      }),
+    );
+    const balanceBefore = (
+      await test.as('wf_app', () => createAccounts(test.db).list(USER, { status: 'active' }))
+    ).accounts.find((account) => account.id === goPayId)?.balanceMinor;
+    await test.query('UPDATE accounts SET low_balance_threshold_minor=1000 WHERE id=$1', [goPayId]);
+    script.push(() =>
+      Response.json(
+        toolCall('draf_transaksi', {
+          type: 'income',
+          description: 'Refund',
+          amount: '1000',
+          accountId: goPayId,
+          categoryId: '',
+          date: '2026-10-18',
+          time: '16:00',
+          tags: ['refund', 1, 'Invalid', 'a', 'b', 'c', 'd', 'e'],
+        }),
+      ),
+    );
+    const session = fakeSession({ locale: 'en' });
+    delete session.user.timezone;
+    const result = await test.as('wf_app', () =>
+      call<Result<AssistantAnswer>>(askAssistant, { context: requestContext(session), data: question() }),
+    );
+    if (!result.ok) throw new Error(result.code);
+    expect(result.value.draft).toMatchObject({
+      type: 'income',
+      categoryId: null,
+      categoryName: null,
+      categoryBuiltInKey: null,
+      budget: null,
+      tags: ['refund', 'a', 'b', 'c', 'd'],
+      duplicate: { amountMinor: 1000n, description: '' },
+    });
+    expect(result.value.draft?.balance?.afterMinor).toBe((balanceBefore ?? 0n) + 1000n);
+    expect(JSON.stringify(requests[0])).toContain('Answer in English');
+    await test.query('UPDATE accounts SET low_balance_threshold_minor=NULL WHERE id=$1', [goPayId]);
+  });
+
+  it('accepts an owned income category but refuses an expense category on income', async () => {
+    const [salary] = await test.query<{ id: string }>(
+      "SELECT id FROM categories WHERE user_id=$1 AND name='system:salary'",
+      [USER],
+    );
+    script.push(() =>
+      Response.json(
+        toolCall('draf_transaksi', {
+          type: 'income',
+          description: 'Salary',
+          amount: '1000',
+          accountId: goPayId,
+          categoryId: salary?.id,
+          date: '2026-10-18',
+          time: '15:00',
+        }),
+      ),
+    );
+    const result = await invoke(question());
+    expect(result).toMatchObject({ ok: true, value: { draft: { type: 'income', categoryId: salary?.id } } });
+    script.push(() =>
+      Response.json(
+        toolCall('draf_transaksi', {
+          type: 'income',
+          description: 'Salary',
+          amount: '1000',
+          accountId: goPayId,
+          categoryId: foodId,
+          date: '2026-10-18',
+          time: '15:00',
+        }),
+      ),
+    );
+    expect(await invoke(question())).toMatchObject({ ok: true, value: { draft: null } });
+    expect(JSON.stringify(requests.at(-1))).toContain('unknown_category');
+  });
+
+  it.each(['not JSON', '', 'null', '[]', '3'])(
+    'contains malformed arguments %s and unknown tools without running ledger writes',
+    async (argumentsText) => {
+      const malformed = toolCall('pengeluaran', {});
+      const raw = malformed.choices[0]?.message.tool_calls[0]?.function;
+      if (raw === undefined) throw new Error('Tool fixture missing');
+      raw.arguments = argumentsText;
+      script.push(
+        () => Response.json(malformed),
+        () => Response.json(toolCall('delete_everything', {})),
+      );
+      const result = await invoke(question());
+      if (!result.ok) throw new Error(result.code);
+      expect(result.value.cards).toEqual([]);
+      expect(result.value.toolCalls).toEqual(['pengeluaran']);
+      expect(JSON.stringify(requests[1])).toContain(
+        argumentsText === 'not JSON' ? 'invalid_arguments' : 'invalid_range',
+      );
+      expect(JSON.stringify(requests[2])).toContain('unknown_tool');
+    },
+  );
+
+  it('does not invent response text or token counts when the provider omits them', async () => {
+    script.push(() => Response.json({ ...toolCall('saldo_rekening', {}), usage: { completion_tokens: 0 } }));
+    script.push(() => Response.json({ choices: [{ message: { content: null } }], usage: { completion_tokens: 0 } }));
+    expect(await invoke(question())).toMatchObject({ ok: true, value: { text: '' } });
+    const logs = await test.as('wf_app', () => ai.logs(USER, { feature: 'chat' }));
+    expect(logs.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ inputTokens: null, outputTokens: 0, costSource: 'estimated' }),
+      ]),
+    );
+  });
 });
 
 describe('assistant refusals', () => {
@@ -401,6 +632,35 @@ describe('assistant refusals', () => {
       ok: false,
       code: 'AI_CONFIG_CHANGED',
     });
+    expect(requests).toHaveLength(0);
+  });
+
+  it('requires a known quote before reading accounts or making paid requests', async () => {
+    await saveSettings({ pricing: null });
+    expect(await invoke(question())).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
+    expect(requests).toHaveLength(0);
+  });
+
+  it('contains a repository failure during tools while still settling the known charge', async () => {
+    const broken = vi
+      .spyOn(transactionQuery, 'summary')
+      .mockRejectedValueOnce(new Error('private database diagnostics'));
+    script.push(() => Response.json(toolCall('pengeluaran', { from: '2026-10-01', to: '2026-10-18' })));
+    expect(await invoke(question())).toEqual({ ok: false, code: 'AI_ASSISTANT_FAILED' });
+    broken.mockRestore();
+    const logs = await test.as('wf_app', () => ai.logs(USER, { status: 'error' }));
+    expect(logs.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ errorCode: 'internal', costUsd: '0.0001' })]),
+    );
+    expect(JSON.stringify(logs)).not.toContain('private');
+  });
+
+  it('does not start a provider request after the overall deadline expires during local preparation', async () => {
+    if (running.services === null) throw new Error('Services missing');
+    const clock = vi.spyOn(running.services, 'now').mockReturnValue(new Date(NOW.getTime() + 30001));
+    clock.mockReturnValueOnce(NOW).mockReturnValueOnce(NOW).mockReturnValueOnce(NOW);
+    expect(await invoke(question())).toEqual({ ok: false, code: 'AI_TIMEOUT' });
+    clock.mockRestore();
     expect(requests).toHaveLength(0);
   });
 });

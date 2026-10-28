@@ -25,7 +25,7 @@ import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { announceSaved } from '../ledger/announce-saved.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { openSettings } from '../settings/settings-sections.ts';
-import { AssistantCards, AssistantDraftCard, AssistantSources, type DraftStatus } from './assistant-cards.tsx';
+import { AssistantCards, AssistantDraftCard, AssistantSources } from './assistant-cards.tsx';
 import { assistantText, draftPrefill, historyOf, nextTurns, type AssistantTurn } from './assistant-model.ts';
 import { ReceiptEntry } from '../ledger/receipt-entry.tsx';
 
@@ -48,12 +48,13 @@ type Config =
       readonly readAllowed: boolean;
     };
 
-interface DraftState {
-  readonly clientId: string;
-  /** `cancelled` drops the card without touching the ledger. */
-  readonly status: DraftStatus | 'cancelled';
-  readonly savedId: string | null;
-}
+/** An answer's proposal and what the user did with it; `clientId` makes a retried save idempotent. */
+type DraftEntry = { readonly draft: AssistantDraft; readonly clientId: string } & (
+  | { readonly status: 'unsaved' | 'saving' }
+  /** Dropped without touching the ledger. */
+  | { readonly status: 'cancelled' }
+  | { readonly status: 'saved'; readonly savedId: string }
+);
 
 export interface AssistantDialogProps {
   readonly open: boolean;
@@ -69,7 +70,7 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
   const locale = preferences.locale;
   const [config, setConfig] = useState<Config>({ status: 'loading' });
   const [turns, setTurns] = useState<readonly AssistantTurn[]>([]);
-  const [drafts, setDrafts] = useState<Readonly<Record<string, DraftState>>>({});
+  const [drafts, setDrafts] = useState<Readonly<Record<string, DraftEntry>>>({});
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement | null>(null);
@@ -122,7 +123,7 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
     setText('');
     const id = crypto.randomUUID();
     const history = historyOf(turns);
-    setTurns((current) => nextTurns(current, { id, question: trimmed, answer: null, errorCode: null, pending: true }));
+    setTurns((current) => nextTurns(current, { id, question: trimmed, status: 'pending' }));
     const result = await askAssistant({
       data: {
         requestId: crypto.randomUUID(),
@@ -132,40 +133,34 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
       },
     }).catch(() => null);
     setBusy(false);
-    if (result === null) {
+    if (result === null || !result.ok) {
+      const errorCode = result === null ? 'NETWORK' : result.code;
       setTurns((current) =>
-        current.map((turn) => (turn.id === id ? { ...turn, pending: false, errorCode: 'NETWORK' } : turn)),
-      );
-      return;
-    }
-    if (!result.ok) {
-      setTurns((current) =>
-        current.map((turn) => (turn.id === id ? { ...turn, pending: false, errorCode: result.code } : turn)),
+        current.map((turn) => (turn.id === id ? { id, question: trimmed, status: 'failed', errorCode } : turn)),
       );
       return;
     }
     const answer: AssistantAnswer = result.value;
-    setTurns((current) => current.map((turn) => (turn.id === id ? { ...turn, pending: false, answer } : turn)));
-    if (answer.draft !== null) {
-      setDrafts((current) => ({
-        ...current,
-        [id]: { clientId: crypto.randomUUID(), status: 'unsaved', savedId: null },
-      }));
+    setTurns((current) =>
+      current.map((turn) => (turn.id === id ? { id, question: trimmed, status: 'answered', answer } : turn)),
+    );
+    const { draft } = answer;
+    if (draft !== null) {
+      setDrafts((current) => ({ ...current, [id]: { draft, clientId: crypto.randomUUID(), status: 'unsaved' } }));
     }
     setConfig((current) => (current.status === 'ready' ? { ...current, usage: answer.usage } : current));
   };
 
-  const setDraft = (id: string, patch: Partial<DraftState>) => {
-    setDrafts((current) => (current[id] === undefined ? current : { ...current, [id]: { ...current[id], ...patch } }));
+  const setDraft = (id: string, entry: DraftEntry) => {
+    setDrafts((current) => ({ ...current, [id]: entry }));
   };
 
-  const save = async (id: string, draft: AssistantDraft) => {
-    const state = drafts[id] ?? { clientId: crypto.randomUUID(), status: 'unsaved' as const, savedId: null };
-    setDraft(id, { status: 'saving' });
+  const save = async (id: string, { draft, clientId }: DraftEntry) => {
+    setDraft(id, { draft, clientId, status: 'saving' });
     const result = await recordTransaction({
       data: {
         type: draft.type,
-        clientId: state.clientId,
+        clientId,
         occurredAt: draft.occurredAt,
         accountId: draft.accountId,
         amountMinor: draft.amountMinor,
@@ -176,7 +171,7 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
       },
     }).catch(() => null);
     if (result === null || !result.ok) {
-      setDraft(id, { status: 'unsaved', clientId: crypto.randomUUID() });
+      setDraft(id, { draft, clientId, status: 'unsaved' });
       toast({
         tone: 'error',
         title: m.record_save_failed(),
@@ -184,9 +179,10 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
       });
       return;
     }
-    setDraft(id, { status: 'saved', savedId: result.value.id });
+    const savedId = result.value.id;
+    setDraft(id, { draft, clientId, status: 'saved', savedId });
     announceSaved({
-      id: result.value.id,
+      id: savedId,
       label: draft.categoryName ?? draft.description,
       amountMinor: draft.type === 'income' ? draft.amountMinor : -draft.amountMinor,
       currency: draft.currency,
@@ -222,9 +218,8 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
   return (
     <Sheet
       open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
+      // Opened only by its caller, so a change can only be a close.
+      onOpenChange={onClose}
       title={m.assistant_title()}
       description={
         config.status === 'ready' && config.connected
@@ -345,15 +340,14 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
       ) : (
         <div className="flex flex-col gap-5" aria-live="polite">
           {turns.map((turn) => {
-            const state = drafts[turn.id];
-            const draftStatus: DraftStatus =
-              state?.status === 'saving' || state?.status === 'saved' ? state.status : 'unsaved';
+            const entry = drafts[turn.id];
+            const savedId = entry?.status === 'saved' ? entry.savedId : undefined;
             return (
               <div key={turn.id} className="flex flex-col gap-2">
                 <p className="self-end rounded-[9px] bg-surface-3 px-3 py-2 text-[13px] text-fg">{turn.question}</p>
-                {turn.pending ? (
+                {turn.status === 'pending' ? (
                   <p className="text-[12.5px] text-subtle">{m.assistant_loading()}</p>
-                ) : turn.errorCode !== null ? (
+                ) : turn.status === 'failed' ? (
                   <div className="flex flex-col items-start gap-2">
                     <p role="alert" className="text-[12.5px] text-fg">
                       {aiErrorMessage(turn.errorCode, locale)}
@@ -368,7 +362,7 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
                       {m.assistant_retry()}
                     </Button>
                   </div>
-                ) : turn.answer === null ? null : (
+                ) : (
                   <>
                     {turn.answer.text === '' ? (
                       <div className="flex flex-col items-start gap-2">
@@ -389,26 +383,24 @@ export function AssistantDialog({ open, onClose, timeZone }: AssistantDialogProp
                       </p>
                     )}
                     <AssistantCards cards={turn.answer.cards} />
-                    {turn.answer.draft === null ? null : state?.status === 'cancelled' ? (
+                    {entry === undefined ? null : entry.status === 'cancelled' ? (
                       <p className="text-[12px] text-subtle">{m.assistant_draft_cancelled()}</p>
                     ) : (
                       <AssistantDraftCard
-                        draft={turn.answer.draft}
-                        status={draftStatus}
-                        savedTransactionId={state?.savedId ?? null}
+                        draft={entry.draft}
+                        status={entry.status}
+                        savedTransactionId={savedId ?? null}
                         timeZone={timeZone}
                         onEdit={() => {
-                          if (turn.answer?.draft != null) edit(turn.answer.draft);
+                          edit(entry.draft);
                         }}
                         onCancel={() => {
-                          setDraft(turn.id, { status: 'cancelled' });
+                          setDraft(turn.id, { draft: entry.draft, clientId: entry.clientId, status: 'cancelled' });
                         }}
                         onSave={() => {
-                          if (turn.answer?.draft != null) void save(turn.id, turn.answer.draft);
+                          void save(turn.id, entry);
                         }}
                         onOpen={() => {
-                          const savedId = state?.savedId ?? null;
-                          if (savedId === null) return;
                           onClose();
                           void navigate({ to: '/transactions', search: { tx: savedId } });
                         }}

@@ -77,6 +77,18 @@ describe('serveGmailLog', () => {
     });
   });
 
+  it('finishes an exactly-full export without adding an empty row and emits a header for an empty mailbox', async () => {
+    fake.gmail.listLogs.mockResolvedValueOnce(Array.from({ length: 500 }, () => sample)).mockResolvedValueOnce([]);
+    expect((await (await call()).text()).split('\r\n')).toHaveLength(501);
+    fake.gmail.listLogs.mockResolvedValueOnce([]);
+    expect(await (await call()).text()).toBe('waktu,pengirim,subjek,filter,ai,status,extraction,processing,error');
+  });
+
+  it('fails the download rather than returning a truncated successful export or leaking database diagnostics', async () => {
+    fake.gmail.listLogs.mockRejectedValueOnce(new Error('private SQL and mailbox'));
+    await expect((await call()).text()).rejects.toThrow('Gmail log unavailable');
+  });
+
   it('refuses signed-out requests with 401 and requests without 2FA with 403, as JSON without a file', async () => {
     const signedOut = await call(true, false);
     expect(signedOut.status).toBe(401);

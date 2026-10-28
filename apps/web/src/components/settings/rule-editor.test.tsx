@@ -39,6 +39,20 @@ const definition: AutoRuleDefinition = {
   ],
 };
 
+const suggestion: AutoRuleDefinition = {
+  name: 'Kopi Kenangan',
+  enabled: true,
+  conditions: [{ field: 'description', op: 'containsAny', values: ['Kopi Kenangan'] }],
+  actions: [{ type: 'setCategory', categoryId: transport }],
+};
+
+const suggestionConditions: AutoRuleDefinition['conditions'] = [
+  { field: 'description', op: 'containsAny', values: ['gojek', 'krl'] },
+  { field: 'weekday', op: 'oneOf', values: [1] },
+  { field: 'time', op: 'before', minute: 570 },
+  { field: 'account', op: 'oneOf', values: ['acc-bca'] },
+];
+
 const saved = (patch: Partial<AutoRuleView> = {}): AutoRuleView => ({
   id: 'r-1',
   ...definition,
@@ -189,17 +203,10 @@ describe('RuleEditor', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('creates a rule from a suggestion with every condition and action, then undoes the save', async () => {
+  it('adds and edits the suggestion conditions before creating the rule', async () => {
     server.createAutoRule.mockReturnValue(ok({ id: 'new-rule' }));
-    server.deleteAutoRule.mockReturnValue(ok(null));
-    const initial: AutoRuleDefinition = {
-      name: 'Kopi Kenangan',
-      enabled: true,
-      conditions: [{ field: 'description', op: 'containsAny', values: ['Kopi Kenangan'] }],
-      actions: [{ type: 'setCategory', categoryId: transport }],
-    };
     const { onSaved } = await renderEditor({
-      initial,
+      initial: suggestion,
       rule: null,
       suggestionKey: 'kopi|a|b',
       previewValue: Promise.resolve(failed),
@@ -209,7 +216,7 @@ describe('RuleEditor', () => {
     await userEvent.click(page.getByRole('button', { name: m.rules_preview_run() }));
     await expect.element(page.getByText(m.ledger_error_invalid_rule())).toBeInTheDocument();
 
-    // A new condition of every kind, then all of them removed again.
+    // Add and edit the weekday, time, and account conditions alongside the description.
     const addCondition = page.getByRole('combobox', { name: m.rules_editor_add_condition() });
     for (const field of [m.rules_field_weekday(), m.rules_field_time(), m.rules_field_account()]) {
       await userEvent.click(page.getByRole('button', { name: m.rules_editor_add_condition() }));
@@ -227,6 +234,22 @@ describe('RuleEditor', () => {
     await userEvent.click(bca);
     // Description values stay raw while typing.
     await userEvent.fill(page.getByLabelText(m.rules_field_description()), 'gojek, krl');
+    await expect.element(page.getByLabelText(m.rules_field_description())).toHaveValue('gojek, krl');
+    await userEvent.click(page.getByRole('button', { name: m.rules_editor_save() }));
+    expect(server.createAutoRule).toHaveBeenCalledExactlyOnceWith({
+      data: { input: { ...suggestion, conditions: suggestionConditions }, suggestionKey: 'kopi|a|b' },
+    });
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it('configures both suggestion actions, disables the rule, saves it, and undoes creation', async () => {
+    server.createAutoRule.mockReturnValue(ok({ id: 'new-rule' }));
+    server.deleteAutoRule.mockReturnValue(ok(null));
+    const { onSaved } = await renderEditor({
+      initial: { ...suggestion, conditions: suggestionConditions },
+      rule: null,
+      suggestionKey: 'kopi|a|b',
+    });
 
     // An action with a tag, then another category action is no longer offered.
     await userEvent.click(page.getByRole('button', { name: m.rules_editor_add_action() }));
@@ -241,7 +264,7 @@ describe('RuleEditor', () => {
       .not.toHaveTextContent(m.rules_action_set_category());
     await userEvent.click(page.getByRole('button', { name: m.settings_cancel() }).nth(0));
 
-    // Remove the tag action and add a second category action after removing the first.
+    // Remove the category action, keep the tag, and add the category action again.
     const removes = page.getByRole('button', { name: /Hapus tindakan/ });
     await userEvent.click(removes.nth(0));
     await userEvent.click(page.getByRole('button', { name: m.rules_editor_add_action() }));
@@ -255,11 +278,15 @@ describe('RuleEditor', () => {
     await userEvent.click(page.getByRole('button', { name: m.rules_editor_save() }));
     const [call] = server.createAutoRule.mock.calls;
     const sent = call?.[0] as { data: { input: AutoRuleDefinition; suggestionKey?: string } } | undefined;
-    expect(sent?.data.input).toMatchObject({ name: 'Kopi Kenangan', enabled: false });
-    expect(sent?.data.input.actions).toEqual([
-      { type: 'addTag', tag: 'pagi' },
-      { type: 'setCategory', categoryId: transport },
-    ]);
+    expect(sent?.data.input).toEqual({
+      ...suggestion,
+      enabled: false,
+      conditions: suggestionConditions,
+      actions: [
+        { type: 'addTag', tag: 'pagi' },
+        { type: 'setCategory', categoryId: transport },
+      ],
+    });
     expect(sent?.data.suggestionKey).toBe('kopi|a|b');
     expect(onSaved).toHaveBeenCalledTimes(1);
     await userEvent.click(page.getByRole('button', { name: m.rules_editor_undo() }));

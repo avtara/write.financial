@@ -133,7 +133,7 @@ export function AssistantSources({
           'rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring';
         if (link.kind === 'budget') {
           return (
-            <Link key={`${link.kind}-${link.from ?? ''}`} to="/budget" className={className} onClick={onNavigate}>
+            <Link key={`${link.kind}-${link.from}`} to="/budget" className={className} onClick={onNavigate}>
               {m.assistant_source_budget()}
             </Link>
           );
@@ -147,12 +147,9 @@ export function AssistantSources({
         }
         return (
           <Link
-            key={`${link.kind}-${link.from ?? ''}`}
+            key={`${link.kind}-${link.from}`}
             to="/transactions"
-            search={{
-              ...(link.from === null || link.to === null ? {} : { range: `${link.from}..${link.to}` }),
-              type: 'expense',
-            }}
+            search={{ range: `${link.from}..${link.to}`, type: 'expense' }}
             className={className}
             onClick={onNavigate}
           >

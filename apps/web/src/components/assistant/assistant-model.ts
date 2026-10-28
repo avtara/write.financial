@@ -15,15 +15,12 @@ import type { Locale } from '@wf/i18n/locale';
 import { formatTime, toLocalDate } from '@wf/ui/dates';
 import type { RecordPrefill } from '../ledger/record-transaction.tsx';
 
-export interface AssistantTurn {
-  readonly id: string;
-  readonly question: string;
-  /** The answer, or `null` while pending or after a refusal. */
-  readonly answer: AssistantAnswer | null;
-  /** A `Result` code (`AI_TIMEOUT`, `TWO_FACTOR_REQUIRED`, …) shown in place of an answer. */
-  readonly errorCode: string | null;
-  readonly pending: boolean;
-}
+/** One question on the device: waiting for its answer, refused (a `Result` code such as `AI_TIMEOUT`), or answered. */
+export type AssistantTurn = { readonly id: string; readonly question: string } & (
+  | { readonly status: 'pending' }
+  | { readonly status: 'failed'; readonly errorCode: string }
+  | { readonly status: 'answered'; readonly answer: AssistantAnswer }
+);
 
 /** Questions kept on screen; the provider also sees at most {@link ASSISTANT_HISTORY_MAX} messages. */
 export const ASSISTANT_MAX_TURNS = ASSISTANT_HISTORY_MAX / 2;
@@ -39,7 +36,7 @@ export function historyOf(
 ): readonly { readonly role: 'user' | 'assistant'; readonly content: string }[] {
   return turns
     .flatMap((turn) => {
-      if (turn.answer === null || turn.answer.text.trim() === '') return [];
+      if (turn.status !== 'answered' || turn.answer.text.trim() === '') return [];
       return [
         { role: 'user' as const, content: turn.question },
         { role: 'assistant' as const, content: turn.answer.text },
@@ -54,27 +51,32 @@ export function assistantText(text: string, hidden: boolean): string {
 }
 
 /** A chip that opens the page holding the same numbers as a card. */
-export interface AssistantSource {
-  readonly kind: 'budget' | 'transactions' | 'accounts';
-  readonly from: LocalDate | null;
-  readonly to: LocalDate | null;
-  readonly categoryId: string | null;
-}
+export type AssistantSource =
+  | {
+      readonly kind: 'budget' | 'transactions';
+      readonly from: LocalDate;
+      readonly to: LocalDate;
+    }
+  | {
+      readonly kind: 'accounts';
+      readonly from: null;
+      readonly to: null;
+    };
 
-/** One chip per card kind; a category-specific spending card wins over the plain one. */
+/** One chip per card kind and date range. */
 export function sourceLinks(cards: readonly AssistantCard[]): readonly AssistantSource[] {
   const links: AssistantSource[] = [];
   const seen = new Set<string>();
   for (const card of cards) {
     const link: AssistantSource =
       card.kind === 'budget'
-        ? { kind: 'budget', from: card.from, to: card.to, categoryId: null }
+        ? { kind: 'budget', from: card.from, to: card.to }
         : card.kind === 'spending'
-          ? { kind: 'transactions', from: card.from, to: card.to, categoryId: null }
+          ? { kind: 'transactions', from: card.from, to: card.to }
           : card.kind === 'transactions'
-            ? { kind: 'transactions', from: card.from, to: card.to, categoryId: null }
-            : { kind: 'accounts', from: null, to: null, categoryId: null };
-    const key = `${link.kind}:${link.from ?? ''}:${link.to ?? ''}:${link.categoryId ?? ''}`;
+            ? { kind: 'transactions', from: card.from, to: card.to }
+            : { kind: 'accounts', from: null, to: null };
+    const key = `${link.kind}:${link.from ?? ''}:${link.to ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
     links.push(link);

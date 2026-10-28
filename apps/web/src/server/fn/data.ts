@@ -11,17 +11,18 @@ import { attempt, requireSession, type Result } from '../access.ts';
 import { buildExport } from '../export-file.ts';
 import { services } from '../runtime.ts';
 
-/** What Settings › Data shows: whether a deletion is pending, and when the grace period ends. */
-export interface DataSettings {
-  /** Set while the user is within (or, until the worker runs, past) the 7-day grace period. */
-  readonly deletionRequestedAt: string | null;
-  /** `deletionRequestedAt` + 7 days; the date the copy shows as the day the account is deleted. */
-  readonly deleteAfter: string | null;
-}
+/**
+ * What Settings › Data shows: whether a deletion is pending, and when the grace period ends. `deletionRequestedAt` is
+ * set while the user is within (or, until the worker runs, past) the 7-day grace period; `deleteAfter` is it + 7 days,
+ * the day the copy shows as the day the account is deleted. Both are set together or neither is.
+ */
+export type DataSettings =
+  | { readonly deletionRequestedAt: null; readonly deleteAfter: null }
+  | { readonly deletionRequestedAt: string; readonly deleteAfter: string };
 
-/** `null` when there is no request; the moment the grace period ends otherwise. */
-export function deleteAfterOf(deletionRequestedAt: Date | null): Date | null {
-  return deletionRequestedAt === null ? null : new Date(deletionRequestedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+/** The moment the grace period of a deletion requested at `deletionRequestedAt` ends. */
+export function deleteAfterOf(deletionRequestedAt: Date): Date {
+  return new Date(deletionRequestedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 }
 
 /** Settings › Data: whether an account deletion is pending (and until when), for the section's card. */
@@ -31,10 +32,9 @@ export const getDataSettings = createServerFn({ method: 'GET' }).handler(
     return attempt(async () => {
       const { user } = await requireSession(context.session, {}, now());
       const requestedAt = user.deletionRequestedAt ?? null;
-      return {
-        deletionRequestedAt: requestedAt?.toISOString() ?? null,
-        deleteAfter: deleteAfterOf(requestedAt)?.toISOString() ?? null,
-      };
+      return requestedAt === null
+        ? { deletionRequestedAt: null, deleteAfter: null }
+        : { deletionRequestedAt: requestedAt.toISOString(), deleteAfter: deleteAfterOf(requestedAt).toISOString() };
     });
   },
 );

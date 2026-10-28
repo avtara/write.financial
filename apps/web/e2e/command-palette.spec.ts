@@ -49,10 +49,12 @@ test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', 
   const shopee = transactions.getByRole('option', { name: /^Shopee/ }).first();
   await expect(shopee).toContainText('Belanja Online');
   await expect(shopee).toContainText('−Rp');
-  await expect(shopee).toHaveAttribute('aria-selected', 'true');
   await page.screenshot({ path: '/tmp/wf-cmdk-results.png' });
-  await page.keyboard.press('Enter');
+  await selectAndOpen(page, shopee);
   await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/transactions\?tx=/);
+  const detail = page.getByRole('complementary', { name: 'Detail transaksi' });
+  await expect(detail.getByRole('heading', { name: 'Shopee', exact: true })).toBeVisible();
 
   await page.keyboard.press('Control+k');
   const recent = dialog.getByRole('group', { name: 'Baru dibuka' });
@@ -71,9 +73,8 @@ test('records what matches nothing as a transaction', async ({ page }) => {
   await page.keyboard.type('cicilan motor');
   await expect(dialog.getByRole('listbox').getByText('Tidak ada hasil untuk “cicilan motor”')).toBeVisible();
   const record = dialog.getByRole('option', { name: 'Catat “cicilan motor” sebagai transaksi' });
-  await expect(record).toHaveAttribute('aria-selected', 'true');
   await page.screenshot({ path: '/tmp/wf-cmdk-empty.png' });
-  await page.keyboard.press('Enter');
+  await selectAndOpen(page, record);
   // The Record Transaction sheet opens with the query as its description (left unsaved).
   const sheet = page.getByRole('dialog');
   await expect(sheet.getByRole('heading', { level: 2 })).toHaveText(/^Catat /);

@@ -60,6 +60,16 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
       {m.import_open()}
     </button>
   );
+  const importDialog = (
+    <ImportDialog
+      open={importing}
+      onOpenChange={setImporting}
+      accounts={ledger.accounts}
+      categories={ledger.categories}
+      rules={ledger.rules}
+      subscriptionNames={ledger.subscriptionNames}
+    />
+  );
   const actions = (
     <>
       {importButton}
@@ -85,6 +95,7 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
           title={m.transactions_page_title()}
           actions={actions}
         />
+        {importDialog}
         <EmptyState
           icon={ReceiptText}
           title={m.transactions_page_empty_title()}
@@ -131,14 +142,7 @@ export function TransactionsPage({ view, search, ledger, available, timeZone, on
         description={header}
         actions={actions}
       />
-      <ImportDialog
-        open={importing}
-        onOpenChange={setImporting}
-        accounts={ledger.accounts}
-        categories={ledger.categories}
-        rules={ledger.rules}
-        subscriptionNames={ledger.subscriptionNames}
-      />
+      {importDialog}
       <TransactionSummary view={view} currency={ledger.baseCurrency} />
       <AccountStrip
         accounts={ledger.accounts}

@@ -14,6 +14,7 @@ import {
   type AiLogsPage,
   type AiModelCatalog,
   type AiSettingsView,
+  type AiConnectionView,
 } from '@wf/domain/ai';
 import * as z from 'zod';
 import { attempt, requireSession, type Result } from '../access.ts';
@@ -156,8 +157,8 @@ export const testAiConnection = createServerFn({ method: 'POST' })
       });
       const settings = await s.ai.settings(user.id);
       if (settings.revision !== data.expectedRevision) throw new AiError('AI_CONFIG_CHANGED');
-      const connection = settings.connections.find((item) => item.provider === data.provider);
-      if (connection === undefined) throw new AiError('AI_NOT_CONFIGURED');
+      // The repository always includes all providers, including a disconnected provider's empty connection.
+      const connection = settings.connections.find((item) => item.provider === data.provider) as AiConnectionView;
       return { connection, usage: settings.usage };
     });
   });

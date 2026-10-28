@@ -121,6 +121,18 @@ describe('Gmail consent and credential isolation', () => {
     await worker(() => gmail().rotateTokens(alice, replacement.grantId, { ...tokens, accessToken: 'rotated-fixture' }));
     expect((await app(() => gmail().tokens(alice)))?.accessToken).toBe('rotated-fixture');
   });
+
+  it('does not create a connection by saving filters and persists tenant-owned filter changes across reconnect', async () => {
+    const repository = createGmail(test.db, { getDek });
+    expect(await app(() => repository.getConnection(alice))).toBeNull();
+    const filters = { senders: ['bank.test'], keywords: ['paid'], ignoreKeywords: ['promo'] };
+    await expect(app(() => repository.updateFilters(alice, filters))).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await app(() => repository.saveConnection(alice, { email: 'fixture@gmail.com', tokens }));
+    await app(() => repository.updateFilters(alice, filters));
+    await app(() => repository.saveConnection(alice, { email: 'fixture@gmail.com', tokens }));
+    expect((await app(() => repository.getConnection(alice)))?.filters).toEqual(filters);
+    expect(await worker(() => repository.targets())).toEqual([{ userId: alice }]);
+  });
 });
 
 describe('durable email processing and retention', () => {
@@ -220,18 +232,76 @@ describe('durable email processing and retention', () => {
         email('out', { receivedAt: new Date('2026-10-31T17:00:00Z'), filterResult: 'filtered' }),
       ),
     );
+    await worker(() =>
+      gmail().recordEmail(
+        alice,
+        email('filtered', { receivedAt: new Date('2026-10-10T00:00:00Z'), filterResult: 'filtered' }),
+      ),
+    );
+    await worker(() =>
+      gmail().recordEmail(
+        alice,
+        email('promo', { receivedAt: new Date('2026-10-11T00:00:00Z'), filterResult: 'ignored_keyword' }),
+      ),
+    );
     expect(
       await app(() =>
         gmail().monthlyStats(alice, { from: new Date('2026-09-30T17:00:00Z'), to: new Date('2026-10-31T17:00:00Z') }),
       ),
     ).toEqual({
-      received: 1,
+      received: 3,
       passed: 1,
       pending: 1,
       confirmed: 0,
-      ignored: 0,
+      ignored: 1,
       duplicate: 0,
-      filtered: 0,
+      filtered: 1,
     });
+  });
+
+  it('keyset-pages equal-timestamp logs without omissions and without crossing tenant scope', async () => {
+    for (const id of ['a', 'b', 'c']) await worker(() => gmail().recordEmail(alice, email(id)));
+    await worker(() => gmail().recordEmail(bob, email('foreign')));
+    const all = await app(() => gmail().listLogs(alice));
+    const first = await app(() => gmail().listLogs(alice, { limit: 2 }));
+    const cursor = first.at(-1);
+    if (cursor === undefined) throw new Error('Missing log page');
+    const rest = await app(() =>
+      gmail().listLogs(alice, { before: { at: cursor.createdAt, id: cursor.id }, limit: 2 }),
+    );
+    expect([...first, ...rest].map((row) => row.id)).toEqual(all.map((row) => row.id));
+    expect(rest).toHaveLength(1);
+    expect([...first, ...rest].some((row) => row.messageId === 'foreign')).toBe(false);
+  });
+
+  it('offers owned rule corrections and drops overflowing tags even when the provider cannot identify a merchant', async () => {
+    const [category] = await test.query<{ id: string }>(
+      `INSERT INTO categories(user_id,name,kind,"group",icon,color)
+      VALUES($1,'Utilities','expense','needs','house','blue') RETURNING id`,
+      [alice],
+    );
+    await test.query('INSERT INTO ai_settings(user_id) VALUES($1)', [alice]);
+    await test.query('INSERT INTO auto_rules(user_id,name,position,conditions,actions) VALUES($1,$2,0,$3,$4)', [
+      alice,
+      'PLN',
+      JSON.stringify([{ field: 'description', op: 'containsAny', values: ['PLN'] }]),
+      JSON.stringify([
+        { type: 'setCategory', categoryId: category?.id },
+        ...Array.from({ length: 6 }, (_, index) => ({ type: 'addTag', tag: `tag-${index}` })),
+      ]),
+    ]);
+    const row = await worker(() => gmail().recordEmail(alice, email()));
+    await worker(() => gmail().claimExtraction(alice, row.id as string));
+    await worker(() =>
+      gmail().storeExtraction(alice, row.id as string, JSON.stringify({ ...JSON.parse(evidence), merchant: null })),
+    );
+    await worker(() => gmail().complete(alice, row.id as string));
+    const reviews = await app(() => createReview(test.db, { getDek, now: () => clock }).list(alice));
+    expect(reviews.items[0]?.payload).toMatchObject({
+      kind: 'gmail',
+      tags: [],
+      extraction: { merchant: null, categoryId: category?.id },
+    });
+    expect(await test.query('SELECT id FROM transactions')).toEqual([]);
   });
 });

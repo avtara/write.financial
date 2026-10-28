@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fakeDb, fakeDeps } from '../../test/fakes.ts';
 import { createMaintenanceProcessor } from './maintenance.ts';
 
@@ -36,5 +36,31 @@ describe('maintenance processor', () => {
       ),
     );
     await expect(process(job({}))).rejects.toThrow('connection refused');
+  });
+
+  it('deletes only released receipt objects under each tenant and stops on an object-store outage', async () => {
+    const db = fakeDb();
+    const owners = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'];
+    const cleanup = vi.fn().mockResolvedValueOnce(['u/one/released']).mockResolvedValueOnce([]);
+    const remove = vi.fn().mockResolvedValue(undefined);
+    const deps = fakeDeps(
+      {
+        db: {
+          ...db,
+          dispatch: {
+            ...db.dispatch,
+            users: () => Promise.resolve(owners.map((userId) => ({ userId, timeZone: 'UTC' }))),
+          },
+          receipts: { ...db.receipts, cleanup },
+        },
+      },
+      now,
+    );
+    const receipt = { client: deps.gmail.client, objects: { get: vi.fn(), delete: remove } };
+    await createMaintenanceProcessor({ ...deps, receipt })(job({}));
+    expect(remove.mock.calls).toEqual([[owners[0], 'u/one/released']]);
+    cleanup.mockResolvedValue(['u/one/released']);
+    remove.mockRejectedValueOnce(new Error('Object store unavailable'));
+    await expect(createMaintenanceProcessor({ ...deps, receipt })(job({}))).rejects.toThrow('Object store unavailable');
   });
 });

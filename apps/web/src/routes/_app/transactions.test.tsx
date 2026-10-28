@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { setLocale } from '@wf/i18n/runtime';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
@@ -68,7 +69,9 @@ afterEach(() => {
 });
 
 describe('/transactions', () => {
-  it('titles the page and keeps only valid search params', () => {
+  it('titles the page and keeps only valid search params', async () => {
+    // The title reads the runtime locale, which another file's test may have left in English.
+    await setLocale('id', { reload: false });
     const head = Route.options.head as unknown as () => { meta: { title: string }[] };
     expect(head().meta[0]?.title).toBe('Transaksi · write.financial');
     const validate = Route.options.validateSearch as unknown as { parse: (value: unknown) => unknown };
@@ -92,6 +95,7 @@ describe('/transactions', () => {
       { ...OK, accounts: { ok: false, code: 'NOT_FOUND' } },
       { ...OK, categories: { ok: false, code: 'NOT_FOUND' } },
       { ...OK, tags: { ok: false, code: 'NOT_FOUND' } },
+      { ...OK, rules: { ok: false, code: 'NOT_FOUND' } },
     ];
     for (const data of failures) {
       stubRoute(data);
@@ -105,5 +109,25 @@ describe('/transactions', () => {
       await screen.unmount();
     }
     expect(fake.page).not.toHaveBeenCalled();
+  });
+
+  it('loads the view for the search and the user’s subscription names for rule suggestions', async () => {
+    const loaderDeps = Route.options.loaderDeps as unknown as (context: { search: object }) => unknown;
+    const loader = Route.options.loader as unknown as (context: {
+      deps: unknown;
+    }) => Promise<{ subscriptionNames: string[] }>;
+    fake.getTransactionsView.mockResolvedValue(OK.view);
+    fake.listAccounts.mockResolvedValue(OK.accounts);
+    fake.listCategories.mockResolvedValue(OK.categories);
+    fake.listTags.mockResolvedValue(OK.tags);
+    fake.listAutoRules.mockResolvedValue(OK.rules);
+    const deps = loaderDeps({ search: { tx: ID, type: 'expense' } });
+    fake.listSubscriptions.mockResolvedValueOnce({ ok: true, value: { subscriptions: [{ name: 'Netflix' }] } });
+    await expect(loader({ deps })).resolves.toMatchObject({ view: OK.view, subscriptionNames: ['Netflix'] });
+    expect(fake.getTransactionsView).toHaveBeenCalledWith({ data: deps });
+    expect(fake.listAutoRules).toHaveBeenCalledWith({ data: { enabledOnly: true } });
+    // Without subscriptions the page still loads; only the subscription rule condition has nothing to match.
+    fake.listSubscriptions.mockResolvedValueOnce({ ok: false, code: 'UNAUTHENTICATED' });
+    await expect(loader({ deps })).resolves.toMatchObject({ subscriptionNames: [] });
   });
 });

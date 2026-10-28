@@ -54,6 +54,35 @@ beforeEach(async () => {
 
 // Seeding 128 transactions through the repositories on PGlite takes several seconds on a loaded CI runner.
 describe('seedLedger', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
+  it('keeps an unavailable historical goal valuation unknown rather than seeding a zero balance', async () => {
+    const goal = DESIGN_SEED.goals[0];
+    if (goal === undefined) throw new Error('Missing goal fixture');
+    const seed = tiny({
+      goals: [{ ...goal, accountKey: null, sources: [], assetSources: [] }],
+      goalSnapshots: [
+        {
+          date: '2026-09-30',
+          recordedAt: '2026-09-30T23:55:00+07:00',
+          goals: [
+            {
+              goal: goal.name,
+              currency: goal.currency,
+              targetMinor: goal.targetMinor,
+              savedMinor: null,
+              valuation: 'unavailable',
+            },
+          ],
+        },
+      ],
+    });
+    await asApp(() => seedLedger(test.db, userId, { ...options, seed }));
+    const [snapshot] = await test.query<{ goals: { savedMinor: string | null; valuation: string }[] }>(
+      'SELECT goals FROM goal_snapshots WHERE user_id=$1',
+      [userId],
+    );
+    expect(snapshot?.goals).toEqual([expect.objectContaining({ savedMinor: null, valuation: 'unavailable' })]);
+  });
+
   it('reproduces the design balances and the Rp55.023.000 available balance', async () => {
     // A category of the user's own is left alone.
     await test.query(

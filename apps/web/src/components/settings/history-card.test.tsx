@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { SECURITY_EVENT_TYPES } from '@wf/db/schema';
+import { setLocale } from '@wf/i18n/runtime';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { renderApp } from '../../../test/render.tsx';
 import type { SecurityEventView, SecurityHistory } from '../../server/account.ts';
@@ -9,6 +10,11 @@ import { describeDetail, EVENT_LABEL, HistoryCard } from './history-card.tsx';
 
 const server = vi.hoisted(() => ({ getSecurityHistory: vi.fn() }));
 vi.mock('../../server/fn/account.ts', () => server);
+
+// The labels call message functions directly; earlier test files may have left another locale.
+beforeEach(async () => {
+  await setLocale('id', { reload: false });
+});
 
 const event = (id: string, overrides: Partial<SecurityEventView> = {}): SecurityEventView => ({
   id,

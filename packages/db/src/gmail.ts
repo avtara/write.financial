@@ -371,36 +371,30 @@ export function createGmail(
             .where(eq(emailIngestLogs.messageId, email.messageId));
           return { id: stored?.id ?? null, duplicate: true };
         }
-        const [row] = await tx
-          .insert(emailIngestLogs)
-          .values({
-            id,
-            userId,
-            messageId: email.messageId,
-            fromAddr: email.fromAddr.slice(0, 254),
-            subject: email.subject.slice(0, 500),
-            quoteEnc: encrypt(dek, email.excerpt.slice(0, 1000), aad(userId, GMAIL_QUOTE_PURPOSE, id)),
-            receivedAt: email.receivedAt,
-            filterResult: email.filterResult,
-            outcome:
-              email.filterResult === 'passed'
-                ? 'pending'
-                : email.filterResult === 'ignored_keyword'
-                  ? 'ignored'
-                  : 'filtered',
-            processing: email.filterResult === 'passed' ? 'queued' : 'done',
-          })
-          .onConflictDoNothing({ target: [emailIngestLogs.userId, emailIngestLogs.messageId] })
-          .returning({ id: emailIngestLogs.id });
-        if (row !== undefined) return { id: row.id, duplicate: false };
-        const stored = firstRow(
+        const row = firstRow(
           await tx
-            .select({ id: emailIngestLogs.id })
-            .from(emailIngestLogs)
-            .where(and(eq(emailIngestLogs.userId, userId), eq(emailIngestLogs.messageId, email.messageId))),
+            .insert(emailIngestLogs)
+            .values({
+              id,
+              userId,
+              messageId: email.messageId,
+              fromAddr: email.fromAddr.slice(0, 254),
+              subject: email.subject.slice(0, 500),
+              quoteEnc: encrypt(dek, email.excerpt.slice(0, 1000), aad(userId, GMAIL_QUOTE_PURPOSE, id)),
+              receivedAt: email.receivedAt,
+              filterResult: email.filterResult,
+              outcome:
+                email.filterResult === 'passed'
+                  ? 'pending'
+                  : email.filterResult === 'ignored_keyword'
+                    ? 'ignored'
+                    : 'filtered',
+              processing: email.filterResult === 'passed' ? 'queued' : 'done',
+            })
+            .returning({ id: emailIngestLogs.id }),
           'email',
         );
-        return { id: stored.id, duplicate: true };
+        return { id: row.id, duplicate: false };
       });
     },
     pending: (userId) =>
@@ -575,7 +569,8 @@ export function createGmail(
             minute: '2-digit',
             hourCycle: 'h23',
           }).formatToParts(extraction.occurredAt);
-          const part = (name: string) => parts.find((entry) => entry.type === name)?.value ?? '';
+          const part = (name: Intl.DateTimeFormatPartTypes) =>
+            (parts.find((entry) => entry.type === name) as Intl.DateTimeFormatPart).value;
           const rules = evaluateRules(await tx.select().from(autoRules).orderBy(asc(autoRules.position)), {
             description: `${extraction.merchant ?? ''} ${row.subject}`,
             date: parseLocalDate(`${part('year')}-${part('month')}-${part('day')}`),

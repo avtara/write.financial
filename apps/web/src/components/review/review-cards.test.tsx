@@ -286,6 +286,40 @@ describe('AiCard', () => {
     await expect.element(transfer).toMatchTextContent('Asisten');
     await expect.element(transfer).toMatchTextContent('Merchantbelum diketahui');
   });
+
+  it('shows the category and the tags an AI result would record', async () => {
+    const item = reviewItem('rv-tagged', {
+      reason: 'ai_suggestion',
+      source: 'assistant',
+      label: 'Warteg',
+      payload: {
+        kind: 'transaction',
+        draft: {
+          type: 'expense',
+          occurredAt: new Date('2026-10-14T05:00:00Z'),
+          accountId: ACCOUNTS[0]?.id,
+          amountMinor: 25_000n,
+          categoryId: categoryId('system:food'),
+          merchant: 'Warteg',
+          tags: ['kantor', 'makan'],
+        } as never,
+      },
+    }) as DraftItem;
+    const { screen } = await renderApp(
+      <AiCard
+        item={item}
+        lookup={lookup}
+        locale="id"
+        timeZone="Asia/Jakarta"
+        pending={false}
+        onRecord={vi.fn()}
+        onIgnore={vi.fn()}
+      />,
+    );
+    const card = screen.getByRole('article', { name: 'Warteg' });
+    await expect.element(card).toMatchTextContent('KategoriMakan & Dapur');
+    await expect.element(card).toMatchTextContent('#kantor#makan');
+  });
 });
 
 describe('CategoryRow', () => {

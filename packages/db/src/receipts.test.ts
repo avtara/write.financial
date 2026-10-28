@@ -7,10 +7,11 @@ import { fixtureGetDek, ledgerFixture, type LedgerFixture } from '../test/ledger
 import { PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { createFxRates } from './fx-rates.ts';
 import { createReceiptJobs, type ReceiptPayload } from './receipt-jobs.ts';
-import { createReceipts } from './receipts.ts';
+import { createReceipts, attachReceiptIn, receiptDuplicateIn } from './receipts.ts';
 import { createReview } from './review.ts';
 import { createPeriods } from './periods.ts';
 import { createTransactions } from './transactions.ts';
+import { withUser } from './db.ts';
 let test: TestDatabase;
 let alice: LedgerFixture;
 let bob: LedgerFixture;
@@ -36,7 +37,7 @@ const evidence = (patch: Record<string, unknown> = {}) =>
     items: [{ name: 'Plester luka', quantity: '1', amountMinor: null, uncertain: true }],
     ...patch,
   });
-async function stage(text?: string) {
+async function stage(text?: string, patch: Partial<ReceiptPayload> = {}) {
   const id = randomUUID();
   const key = `u/${alice.userId}/${randomUUID()}`;
   const payload: ReceiptPayload = {
@@ -45,6 +46,7 @@ async function stage(text?: string) {
     pages: [{ key, size: 100, sha256: 'a'.repeat(64), mime: 'image/webp' }],
     timeZone: 'Asia/Jakarta',
     evidence: null,
+    ...patch,
   };
   expect(
     await app(() => receipts().stage(alice.userId, { id, revision: randomUUID(), provider: 'openrouter', payload })),
@@ -286,6 +288,150 @@ describe('receipt proposals and confirmation', () => {
       }),
     );
     await test.query('DELETE FROM auto_rules WHERE user_id=$1', [alice.userId]);
+  });
+
+  it('keeps staging and manual correction replays idempotent and fences late failures after cancellation', async () => {
+    const staged = await stage();
+    expect(
+      await app(() =>
+        receipts().stage(alice.userId, {
+          id: staged.id,
+          revision: randomUUID(),
+          provider: 'openrouter',
+          payload: { ...staged.payload, name: 'redundant.jpg' },
+        }),
+      ),
+    ).toBe(false);
+    expect((await app(() => receipts().get(alice.userId, staged.id))).name).toBe('apotek-private.jpg');
+    const draft = {
+      type: 'expense' as const,
+      occurredAt: now,
+      accountId: alice.bca,
+      amountMinor: 400n,
+      categoryId: null,
+    };
+    await expect(app(() => receipts().manual(alice.userId, staged.id, draft))).rejects.toMatchObject({
+      code: 'INVALID_TRANSACTION',
+    });
+    await worker(() => jobs().fail(alice.userId, staged.id, 'RECEIPT_UNREADABLE', 'private failed extraction'));
+    const itemId = await app(() => receipts().manual(alice.userId, staged.id, draft));
+    expect(await app(() => receipts().manual(alice.userId, staged.id, draft))).toBe(itemId);
+    const result = await app(() => reviews().confirm(alice.userId, itemId));
+    const dek = await fixtureGetDek();
+    await app(() =>
+      withUser(test.db, alice.userId, (tx) =>
+        attachReceiptIn(tx, alice.userId, dek, staged.id, result.transactionId as string, now),
+      ),
+    );
+    await expect(
+      app(() =>
+        withUser(test.db, alice.userId, (tx) => attachReceiptIn(tx, alice.userId, dek, staged.id, randomUUID(), now)),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSACTION' });
+    expect(await app(() => receipts().cancel(alice.userId, staged.id))).toEqual([]);
+    const [attachment] = await test.query<{ ocr_enc: Uint8Array }>(
+      'SELECT ocr_enc FROM attachments WHERE transaction_id=$1',
+      [result.transactionId],
+    );
+    expect(
+      decryptText(dek, attachment?.ocr_enc as Uint8Array, { userId: alice.userId, purpose: 'attachments.ocr' }),
+    ).toContain('private failed extraction');
+    const pending = await stage(evidence());
+    await app(() => receipts().cancel(alice.userId, pending.id));
+    expect(await test.query('SELECT status FROM review_items WHERE dedupe_key=$1', [`receipt.${pending.id}`])).toEqual([
+      { status: 'ignored' },
+    ]);
+    await worker(() => jobs().fail(alice.userId, pending.id, 'LATE_FAILURE'));
+    expect((await app(() => receipts().get(alice.userId, pending.id))).status).toBe('cancelled');
+  });
+
+  it('refuses absent evidence, missing/deleted targets, wrong currency and non-ready attachment transitions atomically', async () => {
+    const reading = await stage();
+    const ready = await stage(evidence());
+    const dek = await fixtureGetDek();
+    await expect(
+      app(() =>
+        withUser(test.db, alice.userId, (tx) => receiptDuplicateIn(tx, alice.userId, dek, reading.id, randomUUID())),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSACTION' });
+    await expect(
+      app(() =>
+        withUser(test.db, alice.userId, (tx) => attachReceiptIn(tx, alice.userId, dek, reading.id, randomUUID(), now)),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSACTION' });
+    await expect(
+      app(() =>
+        withUser(test.db, alice.userId, (tx) => attachReceiptIn(tx, alice.userId, dek, ready.id, randomUUID(), now)),
+      ),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const [foreignCurrency] = await test.query<{ id: string }>(
+      "SELECT id FROM accounts WHERE user_id=$1 AND currency='USD'",
+      [alice.userId],
+    );
+    if (foreignCurrency === undefined) throw new Error('USD account missing');
+    const target = await alice.entry('expense', '2026-10-15', 100n, alice.category('system:food'), {
+      accountId: foreignCurrency.id,
+    });
+    await expect(
+      app(() => withUser(test.db, alice.userId, (tx) => attachReceiptIn(tx, alice.userId, dek, ready.id, target, now))),
+    ).rejects.toMatchObject({ code: 'INVALID_ACCOUNT' });
+    expect((await app(() => receipts().get(alice.userId, ready.id))).status).toBe('ready');
+    await test.query('UPDATE receipt_uploads SET review_item_id=NULL WHERE id=$1', [ready.id]);
+    await expect(
+      app(() => withUser(test.db, alice.userId, (tx) => receiptDuplicateIn(tx, alice.userId, dek, ready.id, target))),
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSACTION' });
+  });
+
+  it('attaches PDF originals with an optional thumbnail and keeps reviewed evidence when pages are absent', async () => {
+    for (const withPage of [false, true]) {
+      const original = {
+        key: `u/${alice.userId}/${randomUUID()}`,
+        size: 100,
+        sha256: 'b'.repeat(64),
+        mime: 'application/pdf',
+      };
+      const page = { ...original, key: `u/${alice.userId}/${randomUUID()}`, mime: 'image/webp' };
+      const staged = await stage(evidence(), { original, pages: withPage ? [page] : [] });
+      const view = await app(() => receipts().get(alice.userId, staged.id));
+      const result = await app(() => reviews().confirm(alice.userId, view.reviewItemId as string));
+      expect(
+        await test.query('SELECT object_key,thumbnail_key FROM attachments WHERE transaction_id=$1', [
+          result.transactionId,
+        ]),
+      ).toEqual([{ object_key: original.key, thumbnail_key: withPage ? page.key : null }]);
+    }
+  });
+
+  it('uses only owned matching-currency accounts, drops unavailable categories and overflowing rule tags, never writes the ledger', async () => {
+    const before = await count();
+    const noCurrency = await stage();
+    await expect(
+      worker(() => jobs().complete(alice.userId, noCurrency.id, evidence({ currency: 'JPY' }))),
+    ).rejects.toMatchObject({ code: 'INVALID_ACCOUNT' });
+    const fallback = await stage(evidence({ accountId: bob.bca, categoryId: null }));
+    const fallbackDraft = (await app(() => receipts().get(alice.userId, fallback.id))).draft;
+    if (fallbackDraft?.type !== 'expense') throw new Error('Ready receipt must propose an expense');
+    expect(fallbackDraft.categoryId).toBeNull();
+    expect(await test.query('SELECT user_id,currency FROM accounts WHERE id=$1', [fallbackDraft.accountId])).toEqual([
+      { user_id: alice.userId, currency: 'IDR' },
+    ]);
+    await test.query('UPDATE categories SET archived_at=$1 WHERE id=$2', [now, alice.category('system:health')]);
+    const archived = await stage(evidence());
+    expect((await app(() => receipts().get(alice.userId, archived.id))).draft).toMatchObject({
+      type: 'expense',
+      categoryId: null,
+    });
+    await test.query('UPDATE categories SET archived_at=NULL WHERE id=$1', [alice.category('system:health')]);
+    await test.query('INSERT INTO auto_rules(user_id,name,position,conditions,actions) VALUES($1,$2,0,$3,$4)', [
+      alice.userId,
+      'Overflow',
+      JSON.stringify([{ field: 'description', op: 'containsAny', values: ['Overflow'] }]),
+      JSON.stringify(Array.from({ length: 6 }, (_, index) => ({ type: 'addTag', tag: `tag-${index}` }))),
+    ]);
+    const overflow = await stage(evidence({ merchant: 'Overflow' }));
+    expect((await app(() => receipts().get(alice.userId, overflow.id))).draft?.tags).toEqual([]);
+    await test.query('DELETE FROM auto_rules WHERE user_id=$1', [alice.userId]);
+    expect(await count()).toBe(before);
   });
   it('honors closed-period guards without dropping a ready receipt', async () => {
     await app(() =>

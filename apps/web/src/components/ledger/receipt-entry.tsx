@@ -9,7 +9,7 @@ import { Money } from '@wf/ui/money';
 import { Sheet } from '@wf/ui/sheet';
 import { toast } from '@wf/ui/toast';
 import { Paperclip } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { aiErrorMessage } from '../../lib/ai-errors.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { categoryName } from '../../lib/ledger-labels.ts';
@@ -25,24 +25,32 @@ import { defaultAccountId, emptyValues, wallTime, type TransactionFormValues } f
 import { ErrorSummary, TransactionFormFields } from './transaction-form.tsx';
 import { useTransactionForm, type LedgerData } from './use-transaction-form.ts';
 
+/** One receipt request at a time: a reply can never land on a receipt the user has since replaced or cancelled. */
+type Working = 'upload' | 'cancel' | 'undo' | 'save';
+/** A shown receipt keeps its file: reading it again needs the bytes. */
+type ReceiptRead = ReceiptView & { readonly file: File };
+
 /** Shared by Record and Assistant. The receipt has its own form: a late OCR result cannot overwrite manual work. */
 export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
   const { locale } = usePreferences().preferences;
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<ReceiptView | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [view, setView] = useState<ReceiptRead | null>(null);
+  const [working, setWorking] = useState<Working | null>(null);
+  /** `retry` is the failed upload: retrying reuses its id, so a lost reply cannot stage the receipt twice. */
+  const [failure, setFailure] = useState<{
+    readonly message: string;
+    readonly retry: { readonly id: string; readonly file: File } | null;
+  } | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [manual, setManual] = useState(false);
   const [data, setData] = useState<LedgerData | null>(null);
   const [dataRevision, setDataRevision] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const [request, setRequest] = useState<{ id: string; file: File } | null>(null);
   const inputId = useId();
   const router = useRouter();
   const navigate = useNavigate();
   const [savedId, setSavedId] = useState<string | null>(null);
   const [undoId, setUndoId] = useState<string | null>(null);
-  const [undoing, setUndoing] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -56,9 +64,10 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
       .then(([accounts, categories, tags, budget]) => {
         if (!live) return;
         if (!accounts.ok || !categories.ok || !tags.ok) {
-          setFailure(m.record_load_failed());
+          setLoadFailed(true);
           return;
         }
+        setLoadFailed(false);
         setData({
           baseCurrency: accounts.value.baseCurrency,
           accounts: accounts.value.accounts,
@@ -72,7 +81,7 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
         });
       })
       .catch(() => {
-        if (live) setFailure(m.record_load_failed());
+        if (live) setLoadFailed(true);
       });
     return () => {
       live = false;
@@ -88,7 +97,7 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
       const result = await getReceipt({ data: { id: receiptId } }).catch(() => null);
       if (!live) return;
       if (result?.ok === true) {
-        setView((current) => (current?.id === receiptId ? result.value : current));
+        setView((current) => (current?.id === receiptId ? { ...result.value, file: current.file } : current));
         if (result.value.status !== 'queued' && result.value.status !== 'reading') return;
       }
       timer = window.setTimeout(() => {
@@ -102,35 +111,34 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
     };
   }, [pending, receiptId]);
 
-  const upload = async (file: File, retry = false) => {
+  const upload = async (file: File, id: string = crypto.randomUUID()) => {
     setOpen(true);
-    if (busy || pending || undoing) return;
+    if (working !== null || pending) return;
     if (
       !['image/jpeg', 'image/png', 'application/pdf'].includes(file.type) ||
       file.size === 0 ||
       file.size > 2 * 1024 * 1024
     ) {
-      setFailure(m.receipt_invalid());
+      setFailure({ message: m.receipt_invalid(), retry: null });
       return;
     }
-    const attempt = retry ? request : { id: crypto.randomUUID(), file };
-    if (attempt === null) return;
-    setRequest(attempt);
-    setBusy(true);
+    setWorking('upload');
     setFailure(null);
     const form = new FormData();
-    form.set('id', attempt.id);
+    form.set('id', id);
     form.set('file', file);
     const result = await uploadReceipt({ data: form }).catch(() => null);
-    setBusy(false);
+    setWorking(null);
     if (result?.ok !== true) {
-      setFailure(
-        result === null
-          ? m.receipt_failed()
-          : result.code === 'IMAGE_REJECTED'
-            ? m.receipt_invalid()
-            : aiErrorMessage(result.code, locale),
-      );
+      setFailure({
+        message:
+          result === null
+            ? m.receipt_failed()
+            : result.code === 'IMAGE_REJECTED'
+              ? m.receipt_invalid()
+              : aiErrorMessage(result.code, locale),
+        retry: { id, file },
+      });
       return;
     }
     setManual(false);
@@ -138,37 +146,39 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
     setDataRevision((revision) => revision + 1);
     setSavedId(result.value.transactionId);
     setUndoId(null);
-    setView(result.value);
+    setView({ ...result.value, file });
   };
-  const drop = (event: DragEvent) => {
-    event.preventDefault();
-    if (event.dataTransfer.files.length !== 1) {
+  /** The file input and both drop targets: exactly one file, or nothing is sent. */
+  const choose = (files: FileList | null) => {
+    const file = files?.[0];
+    if (files?.length !== 1 || file === undefined) {
       setOpen(true);
-      setFailure(m.receipt_invalid());
+      setFailure({ message: m.receipt_invalid(), retry: null });
       return;
     }
-    const file = event.dataTransfer.files[0];
-    if (file !== undefined) void upload(file);
+    void upload(file);
   };
-  const cancel = async () => {
-    if (view !== null) {
-      const result = await cancelReceipt({ data: { id: view.id } }).catch(() => null);
-      if (result?.ok !== true) {
-        setFailure(m.receipt_failed());
-        return;
-      }
+  const cancel = async (id: string) => {
+    setWorking('cancel');
+    const result = await cancelReceipt({ data: { id } }).catch(() => null);
+    setWorking(null);
+    if (result?.ok !== true) {
+      setFailure({ message: m.receipt_failed(), retry: null });
+      return;
     }
     setView(null);
     setManual(false);
     setOpen(false);
   };
-  const undo = async () => {
-    if (undoId === null || undoing) return;
-    setUndoing(true);
-    const result = await removeTransactions({ data: { ids: [undoId] } }).catch(() => null);
-    setUndoing(false);
+  const undo = async (id: string) => {
+    setWorking('undo');
+    const result = await removeTransactions({ data: { ids: [id] } }).catch(() => null);
+    setWorking(null);
     if (result?.ok !== true) {
-      setFailure(result === null ? m.record_save_failed() : ledgerErrorMessage(result.code, locale));
+      setFailure({
+        message: result === null ? m.record_save_failed() : ledgerErrorMessage(result.code, locale),
+        retry: null,
+      });
       return;
     }
     setSavedId(null);
@@ -179,13 +189,17 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
     void router.invalidate();
     toast({ tone: 'info', title: m.record_undone() });
   };
+  const retry = failure?.retry ?? null;
   return (
     <>
       <div
         onDragOver={(event) => {
           event.preventDefault();
         }}
-        onDrop={drop}
+        onDrop={(event) => {
+          event.preventDefault();
+          choose(event.dataTransfer.files);
+        }}
         className="flex flex-col gap-1"
       >
         <Button
@@ -212,7 +226,10 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
             onDragOver={(event) => {
               event.preventDefault();
             }}
-            onDrop={drop}
+            onDrop={(event) => {
+              event.preventDefault();
+              choose(event.dataTransfer.files);
+            }}
             className="rounded-[10px] border border-dashed border-border p-4"
           >
             <label htmlFor={inputId} className="block cursor-pointer text-[13px] font-medium text-fg">
@@ -224,25 +241,25 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
               id={inputId}
               type="file"
               accept="image/jpeg,image/png,application/pdf"
-              disabled={busy || pending || undoing}
+              disabled={working !== null || pending}
               onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
+                choose(event.currentTarget.files);
                 event.currentTarget.value = '';
-                if (file !== undefined) void upload(file);
               }}
               className="max-w-full text-[12px] text-muted-fg"
             />
           </div>
+          {loadFailed ? <FormError>{m.record_load_failed()}</FormError> : null}
           {failure === null ? null : (
             <div role="alert" className="flex flex-col items-start gap-2">
-              <FormError>{failure}</FormError>
-              {request === null ? null : (
+              <FormError>{failure.message}</FormError>
+              {retry === null ? null : (
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={busy}
+                  disabled={working !== null}
                   onClick={() => {
-                    void upload(request.file, true);
+                    void upload(retry.file, retry.id);
                   }}
                 >
                   {m.assistant_retry()}
@@ -250,7 +267,7 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
               )}
             </div>
           )}
-          {busy || pending ? (
+          {working === 'upload' || pending ? (
             <p role="status" className="text-[13px] text-muted-fg">
               {m.receipt_reading()}
             </p>
@@ -270,9 +287,10 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
               {undoId === null ? null : (
                 <Button
                   variant="secondary"
-                  pending={undoing}
+                  disabled={working !== null}
+                  pending={working === 'undo'}
                   onClick={() => {
-                    void undo();
+                    void undo(undoId);
                   }}
                 >
                   {m.record_undo()}
@@ -284,16 +302,14 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
               <p role="alert" className="text-[13px]">
                 {m.receipt_failed()}
               </p>
-              {request === null ? null : (
-                <Button
-                  disabled={busy}
-                  onClick={() => {
-                    void upload(request.file);
-                  }}
-                >
-                  {m.assistant_retry()}
-                </Button>
-              )}
+              <Button
+                disabled={working !== null}
+                onClick={() => {
+                  void upload(view.file);
+                }}
+              >
+                {m.assistant_retry()}
+              </Button>
               <Button
                 onClick={() => {
                   input.current?.click();
@@ -316,13 +332,15 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
               view={view}
               data={data}
               timeZone={timeZone}
+              working={working}
+              onWorking={setWorking}
               onCancel={() => {
-                void cancel();
+                void cancel(view.id);
               }}
               onSaved={(id, canUndo) => {
                 setSavedId(id);
                 setUndoId(canUndo ? id : null);
-                setView((current) => (current === null ? null : { ...current, status: 'attached', transactionId: id }));
+                setView({ ...view, status: 'attached', transactionId: id });
                 setDataRevision((revision) => revision + 1);
                 void router.invalidate();
               }}
@@ -338,8 +356,10 @@ export function ReceiptEntry({ timeZone }: { readonly timeZone: string }) {
           {view !== null && savedId === null && !manual && view.status !== 'ready' ? (
             <Button
               variant="secondary"
+              pending={working === 'cancel'}
+              disabled={working !== null}
               onClick={() => {
-                void cancel();
+                void cancel(view.id);
               }}
             >
               {m.record_cancel()}
@@ -354,6 +374,8 @@ function ReceiptEditor({
   view,
   data,
   timeZone,
+  working,
+  onWorking,
   onCancel,
   onSaved,
   onLedgerChanged,
@@ -361,6 +383,8 @@ function ReceiptEditor({
   view: ReceiptView;
   data: LedgerData;
   timeZone: string;
+  working: Working | null;
+  onWorking: (working: Working | null) => void;
   onCancel: () => void;
   onSaved: (id: string, canUndo: boolean) => void;
   onLedgerChanged: (id: string) => void;
@@ -369,9 +393,14 @@ function ReceiptEditor({
   const locale = preferences.locale;
   const today = toLocalDate(new Date(), timeZone);
   const draft = view.draft?.type === 'expense' ? view.draft : null;
+  // A read receipt can only be recorded to an account in its own currency.
+  const formData =
+    view.extraction === null
+      ? data
+      : { ...data, accounts: data.accounts.filter((entry) => entry.currency === view.extraction?.currency) };
   const [initial] = useState<TransactionFormValues>(() => ({
     ...emptyValues({
-      accountId: draft?.accountId ?? defaultAccountId(data.accounts),
+      accountId: draft?.accountId ?? defaultAccountId(formData.accounts),
       date: view.extraction?.date ?? today,
       time: view.extraction?.time ?? wallTime(new Date(), timeZone),
     }),
@@ -384,25 +413,32 @@ function ReceiptEditor({
           tags: draft.tags ?? [],
         }),
   }));
-  const formData =
-    view.extraction === null
-      ? data
-      : { ...data, accounts: data.accounts.filter((entry) => entry.currency === view.extraction?.currency) };
   const form = useTransactionForm({ initial, data: formData, locale });
   const [items, setItems] = useState<readonly ReceiptItem[]>(view.extraction?.items ?? []);
   const [merchant, setMerchant] = useState(draft?.merchant ?? view.extraction?.merchant ?? '');
-  const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const account = data.accounts.find((entry) => entry.id === form.values.accountId);
+  const reviewItemId = view.reviewItemId;
+  const account = formData.accounts.find((entry) => entry.id === form.values.accountId);
   const currency = account?.currency ?? view.extraction?.currency ?? data.baseCurrency;
-  const save = async (duplicateId?: string) => {
-    if (busy) return;
-    const input = duplicateId === undefined ? form.prepare({ timeZone, source: 'manual' }) : null;
-    if (duplicateId === undefined && (input === null || input.type !== 'expense')) return;
-    setBusy(true);
+  /** Clears the request; the recorded or attached transaction's id, or `null` once the failure is shown. */
+  const settle = (result: Awaited<ReturnType<typeof confirmReview>> | null): string | null => {
+    onWorking(null);
+    if (result?.ok !== true || result.value.transactionId === null) {
+      setFailure(result === null || result.ok ? m.record_save_failed() : ledgerErrorMessage(result.code, locale));
+      return null;
+    }
+    return result.value.transactionId;
+  };
+  const save = async () => {
+    // The Ctrl/⌘+Enter shortcut stays live while a request runs.
+    if (working !== null) return;
+    const input = form.prepare({ timeZone, source: 'manual' });
+    if (input === null || input.type !== 'expense') return;
+    onWorking('save');
     setFailure(null);
-    let itemId = view.reviewItemId;
-    if (itemId === null && input !== null && input.type === 'expense') {
+    let itemId = reviewItemId;
+    if (itemId === null) {
+      // Idempotent per receipt: a retry after a lost reply gets the same review item.
       const manual = await prepareManualReceipt({
         data: {
           id: view.id,
@@ -412,66 +448,59 @@ function ReceiptEditor({
           occurredAt: input.occurredAt,
           description: input.description ?? '',
           note: input.note ?? '',
-          tags: input.tags ?? [],
+          tags: [...form.values.tags],
         },
       }).catch(() => null);
-      if (manual?.ok === true) itemId = manual.value.reviewItemId;
-      else {
+      if (manual?.ok !== true) {
+        onWorking(null);
         setFailure(m.record_save_failed());
-        setBusy(false);
         return;
       }
+      itemId = manual.value.reviewItemId;
     }
-    if (itemId === null) {
-      setBusy(false);
-      return;
-    }
-    const result = await confirmReview({
-      data: {
-        itemId,
-        edits:
-          duplicateId === undefined && input !== null && input.type === 'expense'
-            ? {
-                amountMinor: input.amountMinor,
-                occurredAt: input.occurredAt,
-                accountId: input.accountId,
-                categoryId: input.categoryId,
-                description: input.description ?? null,
-                merchant: merchant.trim() || null,
-                note: input.note ?? null,
-                tags: input.tags ?? [],
-                receiptItems: [...items],
-              }
-            : { receiptDuplicateId: duplicateId },
-      },
-    }).catch(() => null);
-    setBusy(false);
-    if (result?.ok !== true || result.value.transactionId === null) {
-      setFailure(
-        result === null
-          ? m.record_save_failed()
-          : result.ok
-            ? m.record_save_failed()
-            : ledgerErrorMessage(result.code, locale),
-      );
-      return;
-    }
-    const id = result.value.transactionId;
-    if (duplicateId === undefined && input !== null && input.type === 'expense')
-      announceSaved({
-        id,
-        label: input.description ?? view.name,
-        amountMinor: -input.amountMinor,
-        currency,
-        accountName: account?.displayName ?? '',
-        locale,
-        onChange: () => {
-          onLedgerChanged(id);
+    const id = settle(
+      await confirmReview({
+        data: {
+          itemId,
+          edits: {
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            accountId: input.accountId,
+            categoryId: input.categoryId,
+            description: input.description,
+            merchant: merchant.trim() || null,
+            note: input.note,
+            tags: input.tags,
+            receiptItems: [...items],
+          },
         },
-      });
-    else toast({ tone: 'success', title: m.receipt_attached() });
-    onSaved(id, duplicateId === undefined);
+      }).catch(() => null),
+    );
+    if (id === null) return;
+    announceSaved({
+      id,
+      label: input.description ?? view.name,
+      amountMinor: -input.amountMinor,
+      currency,
+      accountName: account?.displayName,
+      locale,
+      onChange: () => {
+        onLedgerChanged(id);
+      },
+    });
+    onSaved(id, true);
   };
+  const attach = async (itemId: string, duplicateId: string) => {
+    onWorking('save');
+    setFailure(null);
+    const id = settle(
+      await confirmReview({ data: { itemId, edits: { receiptDuplicateId: duplicateId } } }).catch(() => null),
+    );
+    if (id === null) return;
+    toast({ tone: 'success', title: m.receipt_attached() });
+    onSaved(id, false);
+  };
+  const uncertain = view.extraction?.uncertain ?? [];
   const fieldLabels: Record<string, string> = {
     amount: m.record_amount(),
     date: m.record_date(),
@@ -496,10 +525,13 @@ function ReceiptEditor({
           <span className="self-start rounded-full bg-blue-tint-1 px-2 py-1 text-[11px] text-blue-fg">
             {m.receipt_badge()}
           </span>
-          {view.extraction.uncertain.length === 0 ? null : (
+          {uncertain.length === 0 ? null : (
             <p role="status" className="text-[12px] text-amber-fg">
               {m.receipt_uncertain({
-                fields: view.extraction.uncertain.map((field) => fieldLabels[field] ?? '').join(', '),
+                fields: Object.entries(fieldLabels)
+                  .filter(([field]) => uncertain.includes(field))
+                  .map(([, label]) => label)
+                  .join(', '),
               })}
             </p>
           )}
@@ -534,7 +566,7 @@ function ReceiptEditor({
           )}
         </>
       )}
-      {view.duplicates.length === 0 ? null : (
+      {view.duplicates.length === 0 || reviewItemId === null ? null : (
         <section
           aria-label={m.receipt_duplicate()}
           className="flex flex-col gap-2 rounded-[10px] border border-amber p-3"
@@ -556,11 +588,11 @@ function ReceiptEditor({
               </span>
               <Money minor={entry.amountMinor} currency={currency} context="table" locale={locale} />
               <Button
-                disabled={busy}
+                disabled={working !== null}
                 size="sm"
                 variant="secondary"
                 onClick={() => {
-                  void save(entry.id);
+                  void attach(reviewItemId, entry.id);
                 }}
               >
                 {m.receipt_attach()}
@@ -586,11 +618,12 @@ function ReceiptEditor({
       {failure === null ? null : <FormError>{failure}</FormError>}
       <div className="flex items-center justify-end gap-2">
         <ErrorSummary form={form} />
-        <Button variant="secondary" disabled={busy} onClick={onCancel}>
+        <Button variant="secondary" disabled={working !== null} onClick={onCancel}>
           {m.record_cancel()}
         </Button>
         <Button
-          pending={busy}
+          disabled={working !== null}
+          pending={working === 'save'}
           onClick={() => {
             void save();
           }}
