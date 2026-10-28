@@ -183,6 +183,24 @@ describe('request helpers', () => {
     ]);
   });
 
+  it('list and revoke devices from a session older than 15 minutes, which is not fresh but still valid (FR-A5)', async () => {
+    await h.auth.createFirstAdmin(ADMIN);
+    const laptop = h.browser();
+    const phone = h.browser({ userAgent: CHROME, ip: '198.51.100.20' });
+    for (const browser of [laptop, phone]) await browser.signIn(ADMIN.email);
+    // Better Auth measures freshness on the real clock: this session is past its 15 minutes.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 16 * 60_000 });
+    try {
+      expect(await h.auth.listDevices(laptop.headers())).toHaveLength(2);
+      const phoneId = (await h.auth.requireSession(phone.headers())).session.id;
+      await h.auth.revokeDevice(laptop.headers(), phoneId);
+      expect(await h.auth.getSession(phone.headers())).toBeNull();
+      expect(await h.auth.revokeOtherDevices(laptop.headers())).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('do not expose the session list and revocation endpoints over HTTP', async () => {
     await h.auth.createFirstAdmin(ADMIN);
     const browser = h.browser();

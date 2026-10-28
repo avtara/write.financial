@@ -454,7 +454,16 @@ export function createAuth(deps: AuthDeps): WfAuth {
     if (session === null) throw new UnauthenticatedError();
     return session;
   };
-  const listSessions = (headers: Headers) => auth.api.listSessions({ headers });
+  /**
+   * The user's live sessions, read the way Better Auth's `/list-sessions` reads them. That endpoint (disabled over
+   * HTTP here) also demands a session signed in within `freshAge`, but seeing and signing out one's devices must
+   * work from any valid session (FR-A5): only adding or removing a way to sign in needs a fresh one (FR-A9).
+   * Expiry follows Better Auth's own clock, as its session checks do.
+   */
+  const listSessions = async (userId: string) =>
+    (await (await auth.$context).internalAdapter.listSessions(userId, { onlyActiveSessions: true })).filter(
+      (s) => s.expiresAt > new Date(),
+    );
 
   return {
     handler: auth.handler,
@@ -473,8 +482,8 @@ export function createAuth(deps: AuthDeps): WfAuth {
       return session;
     },
     listDevices: async (headers) => {
-      const { session } = await requireSession(headers);
-      return (await listSessions(headers))
+      const { session, user } = await requireSession(headers);
+      return (await listSessions(user.id))
         .map((s) => ({
           id: s.id,
           // Better Auth stores an empty user agent when the request had none.
@@ -488,14 +497,14 @@ export function createAuth(deps: AuthDeps): WfAuth {
     },
     revokeDevice: async (headers, sessionId) => {
       const { user } = await requireSession(headers);
-      const target = (await listSessions(headers)).find((s) => s.id === sessionId);
+      const target = (await listSessions(user.id)).find((s) => s.id === sessionId);
       if (target === undefined) throw new DeviceNotFoundError();
       await auth.api.revokeSession({ headers, body: { token: target.token } });
       await audit.record(user.id, 'session_revoked', requestFrom(headers), { sessionId });
     },
     revokeOtherDevices: async (headers) => {
       const { user, session } = await requireSession(headers);
-      const others = (await listSessions(headers)).filter((s) => s.id !== session.id).length;
+      const others = (await listSessions(user.id)).filter((s) => s.id !== session.id).length;
       await auth.api.revokeOtherSessions({ headers });
       await audit.record(user.id, 'session_revoked', requestFrom(headers), { scope: 'others', count: others });
       return others;
