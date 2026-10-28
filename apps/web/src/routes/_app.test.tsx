@@ -73,6 +73,7 @@ const settings = vi.hoisted(() => ({
 vi.mock('../components/settings/settings-dialog.tsx', () => settings);
 // The Assistant has its own suite; this layout only needs it to be installable.
 vi.mock('../components/assistant/assistant.tsx', () => ({
+  ASSISTANT_HINT: ['mod', 'J'],
   AssistantProvider: ({ children }: { children: ReactNode }) => children,
   useAssistant: () => ({ open: () => undefined, close: () => undefined, isOpen: false }),
 }));
