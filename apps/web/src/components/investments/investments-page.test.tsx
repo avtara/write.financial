@@ -147,7 +147,8 @@ describe('InvestmentsPage', () => {
     await expect.element(sheet.getByRole('alert')).toMatchTextContent('Gagal menyimpan. Coba lagi.');
   });
 
-  it('runs every asset menu action through the page', async () => {
+  /** The page at 1440 px with the SPY menu helpers (one test per group of actions keeps each under the time limit). */
+  async function withAssetMenu() {
     await browserPage.viewport(1440, 1000);
     const { screen } = await renderApp(<InvestmentsPage {...page()} />);
     const menu = async (item: string) => {
@@ -158,6 +159,11 @@ describe('InvestmentsPage', () => {
       await screen.getByRole('button', { name: 'Menu SPY', exact: true }).click();
       await screen.getByRole('menuitem').filter({ hasText: text }).click();
     };
+    return { screen, menu, menuText };
+  }
+
+  it('opens the detail, hands its buy to the trade sheet, edits the asset, and moves it', async () => {
+    const { screen, menu } = await withAssetMenu();
     // Detail, then its buy action hands over to the trade sheet.
     await screen.getByRole('button', { name: 'SPY', exact: true }).click();
     const detail = screen.getByRole('dialog', { name: 'SPY · SPDR S&P 500 ETF' });
@@ -175,6 +181,10 @@ describe('InvestmentsPage', () => {
     const move = screen.getByRole('dialog', { name: 'Pindahkan SPY ke…' });
     await move.getByRole('button', { name: 'Pindahkan' }).click();
     expect(calls.move).toHaveBeenCalled();
+  });
+
+  it('allocates the asset to goals and turns an adjustment into a sale', async () => {
+    const { screen, menu } = await withAssetMenu();
     // Goals.
     await menu('Atur alokasi ke tujuan…');
     const goals = screen.getByRole('dialog', { name: 'Alokasi SPY ke tujuan' });
@@ -189,6 +199,10 @@ describe('InvestmentsPage', () => {
     await expect.element(sell.getByRole('tab', { name: 'Jual' })).toHaveAttribute('aria-selected', 'true');
     await screen.getByRole('button', { name: 'Tutup' }).click();
     await expect.element(sell).not.toBeInTheDocument();
+  });
+
+  it('saves allocation targets and removes the asset after confirming', async () => {
+    const { screen, menu, menuText } = await withAssetMenu();
     // Targets.
     await menuText(/^Ubah target alokasi/);
     const targets = screen.getByRole('dialog', { name: 'Target alokasi' });
