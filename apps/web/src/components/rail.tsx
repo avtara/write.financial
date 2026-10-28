@@ -4,6 +4,7 @@ import { m } from '@wf/i18n/messages';
 import { KbdHint } from '@wf/ui/kbd-hint';
 import { Tooltip } from '@wf/ui/tooltip';
 import { Search, Sparkles } from 'lucide-react';
+import { Fragment } from 'react';
 import { ASSISTANT_HINT, useAssistant } from './assistant/assistant.tsx';
 import { useCommandPalette } from './command-palette/command-palette.tsx';
 import { LogoTile } from './logo-mark.tsx';
@@ -45,23 +46,29 @@ export function Rail() {
         <NotificationBell variant="rail" unread={counts?.notifications ?? null} timeZone={viewer.timezone} />
       )}
       <div aria-hidden="true" className="my-2 h-px w-7 bg-border" />
-      <nav aria-label={m.nav_main_label()}>
-        <ul className="flex flex-col items-center gap-1">
-          {NAV_GROUPS.flatMap((group) => group.items).map((item) => (
-            <li key={item.to}>
-              <Tooltip content={item.label()} side="right">
-                <Link
-                  to={item.to}
-                  aria-label={item.label()}
-                  activeOptions={{ exact: true, includeSearch: false }}
-                  className="flex size-10 items-center justify-center rounded-[9px] text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring data-[status=active]:bg-muted data-[status=active]:text-fg"
-                >
-                  <item.railIcon aria-hidden="true" className="size-[17px]" />
-                </Link>
-              </Tooltip>
-            </li>
-          ))}
-        </ul>
+      <nav aria-label={m.nav_main_label()} className="flex flex-col items-center gap-1">
+        {NAV_GROUPS.map((group, index) => (
+          <Fragment key={group.label()}>
+            {/* The sidebar's group headings, as short dividers: the label names the list for screen readers. */}
+            {index > 0 ? <div aria-hidden="true" className="my-1.5 h-px w-5 bg-border" /> : null}
+            <ul aria-label={group.label()} className="flex flex-col items-center gap-1">
+              {group.items.map((item) => (
+                <li key={item.to}>
+                  <Tooltip content={item.label()} side="right">
+                    <Link
+                      to={item.to}
+                      aria-label={item.label()}
+                      activeOptions={{ exact: true, includeSearch: false }}
+                      className="flex size-10 items-center justify-center rounded-[9px] text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring data-[status=active]:bg-muted data-[status=active]:text-fg"
+                    >
+                      <item.railIcon aria-hidden="true" className="size-[17px]" />
+                    </Link>
+                  </Tooltip>
+                </li>
+              ))}
+            </ul>
+          </Fragment>
+        ))}
       </nav>
       <div className="mt-auto flex flex-col items-center gap-1">
         <Tooltip content={m.assistant_open()} hint={<KbdHint keys={ASSISTANT_HINT} platform={platform} />} side="right">
