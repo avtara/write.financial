@@ -54,6 +54,8 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  * - `app-lock`: the per-device PIN (FR-A6): set in Settings › Keamanan, the lock screen after five idle minutes (page
  *   clock fast-forwarded) and after a reload, wrong PINs counting down, unlocking, and "Lupa PIN?" signing out to the
  *   sign-in page with the PIN removed; 1440.
+ * - `a11y`: the M8 accessibility audit: axe-core (WCAG 2.1 A/AA) with no serious or critical violation on every main
+ *   page at 1440/1024/768, in the light theme at 1440, on the Settings sections, the Record sheet, and ⌘K.
  */
 const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependencies?: string[] }> = {
   tablet: { testMatch: 'tablet.spec.ts', use: { viewport: { width: 1024, height: 768 } } },
@@ -88,6 +90,7 @@ const FEATURES: Record<string, { testMatch: string; use?: ProjectUse; dependenci
     use: { viewport: { width: 1440, height: 1024 } },
   },
   'app-lock': { testMatch: 'app-lock.spec.ts' },
+  a11y: { testMatch: 'a11y.spec.ts' },
 };
 
 /**

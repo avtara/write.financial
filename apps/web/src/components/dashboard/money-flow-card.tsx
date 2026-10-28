@@ -151,7 +151,8 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
     }
     texts.set(node.id, {
       value: shown === 'amount' ? `${amount}  ${percent}` : percent,
-      label: `${name(node.id)}, ${shown === 'amount' ? `${amount} ` : ''}${percent}`,
+      // The visible text word for word (WCAG 2.5.3): "Gaji Rp18.500.000 71%", which the name and value lines show.
+      label: `${name(node.id)} ${shown === 'amount' ? `${amount} ` : ''}${percent}`,
       middle,
     });
   }
@@ -443,9 +444,11 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
                     dominantBaseline="middle"
                     className="fill-fg text-[12.5px] font-medium"
                   >
-                    {name(node.id)}
+                    {/* The space joins name and value for assistive technology (the label holds both, WCAG 2.5.3);
+                        at the end of a two-line label SVG does not draw it, and inline it replaces 3 px of the gap. */}
+                    {name(node.id)}{' '}
                     {inline ? (
-                      <tspan dx={8} className="fill-subtle font-mono text-[11.5px] font-normal">
+                      <tspan dx={5} className="fill-subtle font-mono text-[11.5px] font-normal">
                         {value}
                       </tspan>
                     ) : null}

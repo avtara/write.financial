@@ -58,4 +58,27 @@ describe('Tabs', () => {
     const total = tabs.reduce((sum, tab) => sum + tab.getBoundingClientRect().width, 0);
     expect(total).toBeLessThan(380);
   });
+
+  it('points each tab to its panel, and a panel-less tab to none', async () => {
+    const screen = await render(
+      <>
+        <Example />
+        <Tabs defaultValue="day">
+          <TabsList label="Tampilan">
+            <TabsTrigger value="day" panel={false}>
+              Per hari
+            </TabsTrigger>
+            <TabsTrigger value="flat" panel={false}>
+              Daftar
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </>,
+    );
+    const controlled = screen.getByRole('tab', { name: 'Pengeluaran' }).element().getAttribute('aria-controls');
+    expect(document.getElementById(controlled ?? '')).toHaveTextContent('Form keluar');
+    await expect.element(screen.getByRole('tab', { name: 'Per hari' })).not.toHaveAttribute('aria-controls');
+    await userEvent.click(screen.getByRole('tab', { name: 'Daftar' }));
+    await expect.element(screen.getByRole('tab', { name: 'Daftar' })).toHaveAttribute('aria-selected', 'true');
+  });
 });

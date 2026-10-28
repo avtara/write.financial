@@ -379,7 +379,7 @@ export function PeriodSection({ overview, payday }: PeriodSectionProps) {
             <span className="flex flex-col gap-0.5">
               <span>{suggestion}</span>
               {payday.day === null ? null : (
-                <span className="text-[11.5px] text-text-faint">{m.period_settings_payday_source()}</span>
+                <span className="text-[11.5px] text-subtle">{m.period_settings_payday_source()}</span>
               )}
             </span>
           }

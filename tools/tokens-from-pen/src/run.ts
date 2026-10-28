@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { generateTokensCss } from './generate.ts';
+import { contrastFailures } from './contrast.ts';
+import { generateTokensCss, parseSnapshot } from './generate.ts';
 
 /** The snapshot exported from the private design file, and the committed generated stylesheet. */
 export const SNAPSHOT_PATH = 'design/tokens.json';
@@ -13,8 +14,8 @@ export interface Output {
 }
 
 /**
- * `write` regenerates `tokens.css`; `check` fails when the committed file differs from the generated one.
- * Returns the process exit code.
+ * `write` regenerates `tokens.css`; `check` fails when the committed file differs from the generated one. Both fail
+ * when a text token falls below its contrast minimum ({@link contrastFailures}). Returns the process exit code.
  */
 export function run(args: readonly string[], root: string, output: Output): number {
   const [command] = args;
@@ -22,16 +23,19 @@ export function run(args: readonly string[], root: string, output: Output): numb
     output.error('Usage: tokens-from-pen <write|check>');
     return 2;
   }
-  const css = generateTokensCss(JSON.parse(readFileSync(path.join(root, SNAPSHOT_PATH), 'utf8')));
+  const snapshot: unknown = JSON.parse(readFileSync(path.join(root, SNAPSHOT_PATH), 'utf8'));
+  const css = generateTokensCss(snapshot);
+  const failures = contrastFailures(parseSnapshot(snapshot));
+  for (const failure of failures) output.error(`${SNAPSHOT_PATH}: too little contrast, ${failure}`);
   const target = path.join(root, TOKENS_CSS_PATH);
   if (command === 'write') {
     writeFileSync(target, css);
     output.log(`Wrote ${TOKENS_CSS_PATH} from ${SNAPSHOT_PATH}.`);
-    return 0;
+    return failures.length === 0 ? 0 : 1;
   }
   if (existsSync(target) && readFileSync(target, 'utf8') === css) {
     output.log(`${TOKENS_CSS_PATH} is up to date with ${SNAPSHOT_PATH}.`);
-    return 0;
+    return failures.length === 0 ? 0 : 1;
   }
   output.error(`${TOKENS_CSS_PATH} is out of date with ${SNAPSHOT_PATH}. Run \`pnpm tokens\` and commit the result.`);
   return 1;

@@ -115,8 +115,9 @@ test('a later start day previews the prorated transition and is left without sav
 
 test('the leftover move from "Perlu perhatian" is undone from the toast', async ({ page }) => {
   await openBudget(page);
+  // The button is named by its action and the limit it shows (WCAG 2.5.3).
   const limit = page.getByRole('button', { name: 'Ubah batas Belanja Online' });
-  await expect(limit).toHaveText('2.000.000');
+  await expect(limit).toHaveAccessibleName('Ubah batas Belanja Online 2.000.000');
 
   const attention = page.getByRole('region', { name: /^Perlu perhatian/ });
   await attention.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
@@ -127,33 +128,36 @@ test('the leftover move from "Perlu perhatian" is undone from the toast', async 
 
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText('Rp400.000 dipindahkan ke Belanja Online')).toBeVisible();
-  await expect(limit).toHaveText('2.400.000');
+  await expect(limit).toHaveAccessibleName('Ubah batas Belanja Online 2.400.000');
   await page.getByRole('button', { name: 'Urungkan' }).click();
   await expect(page.getByText('Pemindahan sisa dibatalkan')).toBeVisible();
-  await expect(limit).toHaveText('2.000.000');
+  await expect(limit).toHaveAccessibleName('Ubah batas Belanja Online 2.000.000');
 });
 
 test('a limit is edited inline with the keyboard only; Escape cancels', async ({ page }) => {
   await openBudget(page);
   const transport = row(page, 'Transportasi');
-  await expect(page.getByRole('button', { name: 'Ubah batas Transportasi' })).toHaveText('2.000.000');
+  const transportLimit = page.getByRole('button', { name: 'Ubah batas Transportasi' });
+  await expect(transportLimit).toHaveAccessibleName('Ubah batas Transportasi 2.000.000');
 
   await typeLimit(page, 'Transportasi', '2500000');
   await expect(transport.getByText('↵')).toBeVisible();
   await screenshot(page, 'budget-inline-edit-1440');
   await page.keyboard.press('Enter');
   await expect(page.getByText('Batas Transportasi jadi Rp2.500.000')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Ubah batas Transportasi' })).toHaveText('2.500.000');
+  await expect(transportLimit).toHaveAccessibleName('Ubah batas Transportasi 2.500.000');
 
   await typeLimit(page, 'Hiburan', '9000000');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('textbox', { name: 'Ubah batas Hiburan' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Ubah batas Hiburan' })).toHaveText('2.500.000');
+  await expect(page.getByRole('button', { name: 'Ubah batas Hiburan' })).toHaveAccessibleName(
+    'Ubah batas Hiburan 2.500.000',
+  );
 
   // Back to the seed's limit, so later specs see the persona's budget.
   await typeLimit(page, 'Transportasi', '2000000');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: 'Ubah batas Transportasi' })).toHaveText('2.000.000');
+  await expect(transportLimit).toHaveAccessibleName('Ubah batas Transportasi 2.000.000');
 });
 
 test('the Record sheet shows what an expense does to the category budget', async ({ page }) => {

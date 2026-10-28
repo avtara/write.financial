@@ -95,7 +95,8 @@ describe('BudgetList', () => {
     await expect.element(wants.getByText('lewat Rp400.000')).toHaveClass('text-red-fg');
     await expect.element(wants.getByText('belum terpakai')).toBeVisible();
     expect(wants.getByText('120%').element().parentElement?.className).toContain('text-red-fg');
-    await expect.element(list.getByRole('button', { name: 'Ubah batas Makan' })).toHaveTextContent('3.500.000');
+    // The action and the amount it shows, both in the name (WCAG 2.5.3).
+    await expect.element(list.getByRole('button', { name: 'Ubah batas Makan 3.500.000', exact: true })).toBeVisible();
 
     await list.getByRole('button', { name: 'Makan', exact: true }).click();
     expect(actions.onDetail).toHaveBeenCalledWith(FOOD);
@@ -130,7 +131,7 @@ describe('BudgetList', () => {
     const actions = actionsMock();
     actions.onSaveLimit.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     const { screen } = await renderApp(<Harness actions={actions} />);
-    await screen.getByRole('button', { name: 'Ubah batas Makan' }).click();
+    await screen.getByRole('button', { name: /^Ubah batas Makan / }).click();
     expect(actions.onEditLimit).toHaveBeenCalledWith(FOOD);
     const input = screen.getByRole('textbox', { name: 'Ubah batas Makan' });
     await expect.element(input).toHaveFocus();
@@ -149,7 +150,7 @@ describe('BudgetList', () => {
     await expect.element(input).not.toBeInTheDocument();
     expect(actions.onSaveLimit).toHaveBeenCalledTimes(2);
 
-    await screen.getByRole('button', { name: 'Ubah batas Transportasi' }).click();
+    await screen.getByRole('button', { name: /^Ubah batas Transportasi / }).click();
     const transport = screen.getByRole('textbox', { name: 'Ubah batas Transportasi' });
     await userEvent.fill(transport, '');
     await userEvent.keyboard('{Enter}');

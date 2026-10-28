@@ -54,19 +54,27 @@ const Snapshot = z.strictObject({
   variables: z.record(z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, 'Invalid variable name'), Variable),
 });
 
-/** Validates the Pencil variable snapshot and renders `tokens.css` (custom properties + Tailwind `@theme inline`). */
-export function generateTokensCss(input: unknown): string {
+export type TokenVariable = z.infer<typeof Variable>;
+
+/** The validated design variables (colors lowercased; themed ones as `{ dark, light }`). */
+export function parseSnapshot(input: unknown): Readonly<Record<string, TokenVariable>> {
   const parsed = Snapshot.safeParse(input);
   if (!parsed.success) throw new TokensInputError(z.prettifyError(parsed.error));
+  return parsed.data.variables;
+}
+
+/** Validates the Pencil variable snapshot and renders `tokens.css` (custom properties + Tailwind `@theme inline`). */
+export function generateTokensCss(input: unknown): string {
+  const variables = parseSnapshot(input);
 
   const dark = ['color-scheme: dark;'];
   const light = ['color-scheme: light;'];
   const colorKeys = ['--color-*: initial;'];
   const fontKeys: string[] = [];
   // Code-unit order keeps the output independent of the export order and of the machine locale.
-  const names = Object.keys(parsed.data.variables).sort((a, b) => (a < b ? -1 : 1));
+  const names = Object.keys(variables).sort((a, b) => (a < b ? -1 : 1));
   for (const name of names) {
-    const variable = parsed.data.variables[name] as z.infer<typeof Variable>;
+    const variable = variables[name] as TokenVariable;
     if (variable.type === 'string') {
       const role = FONT_ROLES[name];
       if (!role) {

@@ -159,7 +159,7 @@ export function Calendar({
                 const day = String(Number(date.slice(8)));
                 if (!inMonth(date)) {
                   return (
-                    <td key={date} className="h-[34px] text-center text-[12.5px] text-text-disabled">
+                    <td key={date} className="h-[34px] text-center text-[12.5px] text-subtle">
                       <span aria-hidden="true">{day}</span>
                     </td>
                   );

@@ -68,7 +68,7 @@ export function SubscriptionsCard({ overview, locale }: SubscriptionsCardProps) 
     const days = countDays(today, subscription.nextBillingDate) - 1;
     return (
       <span
-        className={`rounded-[4px] px-1.5 text-[11px] ${days <= 3 ? 'bg-amber-tint-2 text-amber-fg' : 'bg-tint-06 text-subtle'}`}
+        className={`rounded-[4px] px-1.5 text-[11px] ${days <= 3 ? 'bg-amber-tint-2 text-amber-fg' : 'bg-tint-06 text-muted-fg'}`}
       >
         {days <= 0 ? m.overview_subs_due_today() : m.overview_subs_due_in({ days })}
       </span>

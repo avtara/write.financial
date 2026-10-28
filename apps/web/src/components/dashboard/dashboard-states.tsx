@@ -263,7 +263,7 @@ export function DashboardOffline({ lastLoadedAt, onRetry, onShowLast, locale, ti
           </Button>
         )}
       </div>
-      <code className="rounded-[5px] bg-tint-06 px-2 py-0.5 font-mono text-[11px] text-subtle">{OFFLINE_CODE}</code>
+      <code className="rounded-[5px] bg-tint-06 px-2 py-0.5 font-mono text-[11px] text-muted-fg">{OFFLINE_CODE}</code>
     </section>
   );
 }

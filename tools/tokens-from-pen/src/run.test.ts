@@ -48,6 +48,21 @@ describe('run', () => {
     expect(run(['check'], root, output)).toBe(1);
   });
 
+  it('fails write and check, naming the pair, when a token loses its contrast', () => {
+    const snapshot = JSON.parse(readFileSync(path.join(root, SNAPSHOT_PATH), 'utf8')) as {
+      variables: Record<string, unknown>;
+    };
+    snapshot.variables['on-accent'] = { type: 'color', value: '#FFFFFF' };
+    writeFileSync(path.join(root, SNAPSHOT_PATH), JSON.stringify(snapshot));
+    expect(run(['write'], root, output)).toBe(1);
+    expect(output.log).toHaveBeenCalledWith(`Wrote ${TOKENS_CSS_PATH} from ${SNAPSHOT_PATH}.`);
+    expect(run(['check'], root, output)).toBe(1);
+    expect(output.error).toHaveBeenCalledWith(
+      `${SNAPSHOT_PATH}: too little contrast, dark: $on-accent on $blue 3.68 < 4.5`,
+    );
+    expect(output.error).not.toHaveBeenCalledWith(expect.stringContaining('out of date'));
+  });
+
   it('prints usage for unknown or missing commands', () => {
     expect(run([], root, output)).toBe(2);
     expect(run(['generate'], root, output)).toBe(2);

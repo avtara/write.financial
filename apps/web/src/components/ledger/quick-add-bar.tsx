@@ -161,13 +161,28 @@ export function QuickAddBar({ data, locale, timeZone, today }: QuickAddBarProps)
           }}
         >
           <TabsList label={m.record_type_label()}>
-            <TabsTrigger value="expense" icon={ArrowUpRight} iconClassName="group-data-[state=active]:text-red-fg">
+            <TabsTrigger
+              value="expense"
+              panel={false}
+              icon={ArrowUpRight}
+              iconClassName="group-data-[state=active]:text-red-fg"
+            >
               {m.quick_add_expense()}
             </TabsTrigger>
-            <TabsTrigger value="income" icon={ArrowDownLeft} iconClassName="group-data-[state=active]:text-green-fg">
+            <TabsTrigger
+              value="income"
+              panel={false}
+              icon={ArrowDownLeft}
+              iconClassName="group-data-[state=active]:text-green-fg"
+            >
               {m.quick_add_income()}
             </TabsTrigger>
-            <TabsTrigger value="transfer" icon={ArrowLeftRight} iconClassName="group-data-[state=active]:text-blue-fg">
+            <TabsTrigger
+              value="transfer"
+              panel={false}
+              icon={ArrowLeftRight}
+              iconClassName="group-data-[state=active]:text-blue-fg"
+            >
               {m.record_type_transfer()}
             </TabsTrigger>
           </TabsList>

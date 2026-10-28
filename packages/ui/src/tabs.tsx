@@ -32,12 +32,26 @@ export interface TabsTriggerProps extends ComponentProps<typeof TabsPrimitive.Tr
   icon?: LucideIcon;
   /** Extra icon classes; target the active tab with `group-data-[state=active]:` (`…:text-red` for Pengeluaran). */
   iconClassName?: string;
+  /**
+   * `false` for tabs that switch something in place without a `TabsContent` (the Quick Add bar's type, a table's
+   * view): the tab then points to no panel, since an `aria-controls` naming a missing element is invalid ARIA.
+   */
+  panel?: boolean;
 }
-export function TabsTrigger({ icon: Icon, iconClassName = '', className = '', children, ...props }: TabsTriggerProps) {
+export function TabsTrigger({
+  icon: Icon,
+  iconClassName = '',
+  className = '',
+  panel = true,
+  children,
+  ...props
+}: TabsTriggerProps) {
   return (
     <TabsPrimitive.Trigger
       className={`group inline-flex items-center justify-center gap-1.5 rounded-[6px] px-2.5 py-[7px] text-[13px] text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring data-[state=active]:bg-muted data-[state=active]:font-medium data-[state=active]:text-fg ${className}`}
       {...props}
+      // After the props: Radix sets `aria-controls` to the panel's id before spreading what it is given.
+      {...(panel ? {} : { 'aria-controls': undefined })}
     >
       {Icon === undefined ? null : (
         <Icon aria-hidden="true" className={`size-3.5 shrink-0 text-subtle ${iconClassName}`} />

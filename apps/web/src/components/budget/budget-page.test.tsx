@@ -123,13 +123,13 @@ describe('BudgetPage', () => {
   it('saves an inline limit, keeps the editor when it fails, and skips an unchanged one', async () => {
     writes.setBudgetLine.mockReturnValueOnce(failed()).mockReturnValueOnce(ok(FOOD));
     const { screen, invalidate } = await renderPage();
-    await screen.getByRole('button', { name: 'Ubah batas Makan' }).click();
+    await screen.getByRole('button', { name: /^Ubah batas Makan / }).click();
     const input = screen.getByRole('textbox', { name: 'Ubah batas Makan' });
     await userEvent.keyboard('{Enter}');
     await expect.element(input).not.toBeInTheDocument();
     expect(writes.setBudgetLine).not.toHaveBeenCalled();
 
-    await screen.getByRole('button', { name: 'Ubah batas Makan' }).click();
+    await screen.getByRole('button', { name: /^Ubah batas Makan / }).click();
     await userEvent.fill(input, '3.700.000');
     await userEvent.keyboard('{Enter}');
     await vi.waitFor(() => {
@@ -149,7 +149,7 @@ describe('BudgetPage', () => {
     expect(toasts.toast).toHaveBeenLastCalledWith({ title: 'Batas Makan jadi Rp3.700.000' });
     expect(invalidate).toHaveBeenCalledTimes(2);
 
-    await screen.getByRole('button', { name: 'Ubah batas Makan' }).click();
+    await screen.getByRole('button', { name: /^Ubah batas Makan / }).click();
     await userEvent.keyboard('{Escape}');
     await expect.element(input).not.toBeInTheDocument();
   });

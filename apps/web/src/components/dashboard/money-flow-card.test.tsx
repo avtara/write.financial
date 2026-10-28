@@ -54,10 +54,10 @@ describe('MoneyFlowCard on a desktop', () => {
     await expect
       .element(region)
       .toMatchTextContent('Pemasukan Rp26.000.000 ke Kebutuhan, Keinginan, Lainnya, dan Tabungan');
-    await expect.element(node(/^Gaji, Rp18\.500\.000 71%$/)).toBeInTheDocument();
-    await expect.element(node(/^Makan & Dapur, Rp3\.200\.000 12%$/)).toBeInTheDocument();
+    await expect.element(node(/^Gaji Rp18\.500\.000 71%$/)).toBeInTheDocument();
+    await expect.element(node(/^Makan & Dapur Rp3\.200\.000 12%$/)).toBeInTheDocument();
     // Dividends (<1%) merge into "Sumber lain" until the menu shows them.
-    await expect.element(node(/^Sumber lain, Rp210\.000 <1%$/)).toBeInTheDocument();
+    await expect.element(node(/^Sumber lain Rp210\.000 <1%$/)).toBeInTheDocument();
     await expect.element(region).toMatchTextContent('Rupiah · Transfer antar rekening tidak dihitung');
     await expect.element(region).toMatchTextContent('Diperbarui 15 Okt 2026, 16.42');
     expect(document.querySelector('svg [style]')).toBeNull();
@@ -114,8 +114,8 @@ describe('MoneyFlowCard on a desktop', () => {
     await userEvent.click(chip);
     await expect.element(screen.getByText('Kebutuhan · Rp7.700.000 · 30% dari pemasukan')).toBeVisible();
     await userEvent.click(chip);
-    await expect.element(screen.getByText(/^Pemasukan Rp26\.000\.000/)).toBeVisible();
-    const needs = node(/^Kebutuhan, Rp7\.700\.000/);
+    await expect.element(screen.getByText(/^Pemasukan Rp26\.000\.000 ke/)).toBeVisible();
+    const needs = node(/^Kebutuhan Rp7\.700\.000/);
     (needs.element() as SVGGElement).focus();
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Kebutuhan');
     await userEvent.keyboard('{Enter}');
@@ -134,13 +134,13 @@ describe('MoneyFlowCard on a desktop', () => {
     const menu = screen.getByRole('button', { name: 'Opsi arus uang' });
     await userEvent.click(menu);
     await userEvent.click(page.getByRole('menuitemradio', { name: 'Persen' }));
-    await expect.element(node(/^Gaji, 71%$/)).toBeInTheDocument();
+    await expect.element(node(/^Gaji 71%$/)).toBeInTheDocument();
     await userEvent.click(menu);
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Tampilkan sumber < 1%' }));
-    await expect.element(node(/^Dividen & bunga, <1%$/i)).toBeInTheDocument();
+    await expect.element(node(/^Dividen & bunga <1%$/i)).toBeInTheDocument();
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Hitung transfer antar rekening' }));
-    await expect.element(node(/^Bank Jago, 13%$/)).toBeInTheDocument();
-    await expect.element(node(/^Tetap di rekening, 23%$/)).toBeInTheDocument();
+    await expect.element(node(/^Bank Jago 13%$/)).toBeInTheDocument();
+    await expect.element(node(/^Tetap di rekening 23%$/)).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await expect.element(screen.getByText(/Persen dari pemasukan · Transfer antar rekening dihitung/)).toBeVisible();
     pointer(node(/^Bank Jago/).element(), 'click');
@@ -181,9 +181,9 @@ describe('MoneyFlowCard on a tablet (FR-TB2)', () => {
   it('shows sources → groups, and a group opens its categories', async () => {
     await page.viewport(1024, 768);
     const { screen } = await renderFlow();
-    await expect.element(node(/^Kebutuhan, /)).toBeInTheDocument();
+    await expect.element(node(/^Kebutuhan /)).toBeInTheDocument();
     expect(node(/^Makan & Dapur/).query()).toBeNull();
-    pointer(node(/^Kebutuhan, /).element(), 'click');
+    pointer(node(/^Kebutuhan /).element(), 'click');
     await expect.element(node(/^Makan & Dapur/)).toBeInTheDocument();
     expect(node(/^Gaji/).query()).toBeNull();
     pointer(node(/^Sewa Kos/).element(), 'mouseover');
@@ -224,6 +224,6 @@ describe('MoneyFlowCard names', () => {
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Transaksi4×');
     await userEvent.click(screen.getByRole('button', { name: 'Opsi arus uang' }));
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Hitung transfer antar rekening' }));
-    await expect.element(node(/^Rekening, Rp3\.500\.000/)).toBeInTheDocument();
+    await expect.element(node(/^Rekening Rp3\.500\.000/)).toBeInTheDocument();
   });
 });

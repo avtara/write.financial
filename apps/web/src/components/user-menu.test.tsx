@@ -27,7 +27,7 @@ async function openMenu(variant: 'sidebar' | 'rail', options: RenderAppOptions =
     </AuthActionsProvider>,
     options,
   );
-  await userEvent.click(result.screen.getByRole('button', { name: /^(Menu pengguna|User menu)$/ }));
+  await userEvent.click(result.screen.getByRole('button', { name: /^(Menu pengguna|User menu)( |$)/ }));
   const menu = page.getByRole('menu');
   await expect.element(menu).toBeVisible();
   const state = () => JSON.parse(result.screen.getByTestId('state').element().textContent) as Record<string, unknown>;
@@ -41,7 +41,9 @@ beforeEach(async () => {
 describe('UserMenu', () => {
   it('shows the guest in the sidebar trigger and the menu header', async () => {
     const { screen, menu } = await openMenu('sidebar');
-    await expect.element(screen.getByRole('button', { name: 'Menu pengguna' })).toHaveTextContent('TamuBelum masuk');
+    await expect
+      .element(screen.getByRole('button', { name: /^Menu pengguna\s*Tamu/ }))
+      .toHaveTextContent('Menu penggunaTamuBelum masuk');
     expect(menu.element().textContent).toMatch(/^TamuBelum masuk/);
   });
 
@@ -81,11 +83,14 @@ describe('UserMenu', () => {
     await expect.element(menu.getByRole('menuitemradio', { name: 'Sistem' })).toBeVisible();
   });
 
-  it('shows the signed-in user with initials, name, and email', async () => {
+  it('shows the signed-in user with initials, name, and email, all in the trigger’s name', async () => {
     const { screen, menu } = await openMenu('sidebar', {}, VIEWER);
-    await expect
-      .element(screen.getByRole('button', { name: 'Menu pengguna' }))
-      .toHaveTextContent(`AK${VIEWER.name}${VIEWER.email}`);
+    const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // The visible name and email are part of what the button is called (WCAG 2.5.3), after "Menu pengguna".
+    const trigger = screen.getByRole('button', {
+      name: new RegExp(`^Menu pengguna\\s*${literal(VIEWER.name)}\\s*${literal(VIEWER.email)}$`),
+    });
+    await expect.element(trigger).toHaveTextContent(`Menu penggunaAK${VIEWER.name}${VIEWER.email}`);
     expect(menu.element().textContent).toMatch(new RegExp(`^AK${VIEWER.name}`));
     await expect.element(menu.getByRole('menuitem', { name: /^Pengaturan/ })).toHaveTextContent('Pengaturan⌘,');
   });
