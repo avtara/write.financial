@@ -21,8 +21,8 @@ export interface AccountCardsProps {
   /** The pressed card (a filter); leave out where a card only navigates (the Overview). */
   readonly selectedId?: string | null;
   readonly onSelect: (account: AccountView) => void;
-  /** "N lainnya": e.g. scroll to the full list. */
-  readonly onShowOthers: () => void;
+  /** "N lainnya" pressed, with its card (e.g. to open a list under it, or scroll to the full list). */
+  readonly onShowOthers: (card: HTMLElement) => void;
   /** A last line under a card's balance (`[account]`) or under "N lainnya" (its accounts): "+Rp1.200.000 bulan ini". */
   readonly footer?: (accounts: readonly AccountView[]) => ReactNode;
 }
@@ -83,7 +83,13 @@ export function AccountCards({
       ))}
       {others.length === 0 ? null : (
         <li className="flex">
-          <button type="button" className={`${CARD} flex-1`} onClick={onShowOthers}>
+          <button
+            type="button"
+            className={`${CARD} flex-1`}
+            onClick={(event) => {
+              onShowOthers(event.currentTarget);
+            }}
+          >
             <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-tint-06 text-muted-fg">
               <Ellipsis aria-hidden="true" className="size-3.5" />
             </span>

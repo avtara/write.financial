@@ -73,6 +73,20 @@ describe('AccountStrip', () => {
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('opens the list right under "N lainnya", also when it is the only tile beside the balance', async () => {
+    await page.viewport(1440, 900);
+    // No account marked as a card: "2 lainnya" sits right after "Saldo tersedia", far from the strip's end.
+    const { section } = await renderStrip(undefined, [JAGO, OVO]);
+    const card = section.getByRole('button', { name: /2 lainnya/ });
+    await userEvent.click(card);
+    const list = page.getByRole('dialog', { name: 'Rekening lainnya' });
+    await expect.element(list).toBeVisible();
+    const cardBox = card.element().getBoundingClientRect();
+    const listBox = list.element().getBoundingClientRect();
+    expect(Math.abs(listBox.left - cardBox.left)).toBeLessThanOrEqual(1);
+    expect(listBox.top).toBeGreaterThanOrEqual(cardBox.bottom);
+  });
+
   it('adds "≈ Rp…" under another account in a foreign currency', async () => {
     const wise = { ...JAGO, id: 'acc-wise', displayName: 'Wise USD', currency: 'USD', balanceBaseMinor: 1_962_000n };
     const { section } = await renderStrip(undefined, [...ACCOUNTS, wise]);
