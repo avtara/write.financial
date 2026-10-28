@@ -17,6 +17,7 @@ import { formatDateTime } from '@wf/i18n/format';
 import { Download } from 'lucide-react';
 import { PageState } from '@wf/ui/page-state';
 import { shortRange } from '../dashboard/dashboard-format.ts';
+import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { PageHeader } from '../page-header.tsx';
 import { Button } from '../form.tsx';
 import { RichMessage } from '../rich-message.tsx';
@@ -55,6 +56,7 @@ function generatedAt(view: ReportView, timeZone: string, locale: Locale): string
 }
 
 export function ReportsPage({ reports, latestFinal, today, timeZone, locale }: ReportsPageProps): ReactNode {
+  const record = useRecordTransaction();
   const [selection, setSelection] = useState<ReportSelection | null>(
     latestFinal === null ? null : { kind: 'monthly', id: latestFinal.id, periodId: periodIdOf(latestFinal) },
   );
@@ -180,7 +182,13 @@ export function ReportsPage({ reports, latestFinal, today, timeZone, locale }: R
       ) : null}
       {view === null ? null : view.status === 'final' ? <ImmutabilityBanner /> : null}
       {empty ? (
-        <ReportsEmpty today={today} locale={locale} />
+        <ReportsEmpty
+          today={today}
+          locale={locale}
+          onRecord={() => {
+            record.open();
+          }}
+        />
       ) : (
         <>
           <ReportsPicker

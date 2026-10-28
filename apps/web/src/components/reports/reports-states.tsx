@@ -13,7 +13,6 @@ import { formatDate, formatDateRange } from '@wf/ui/dates';
 import { PageState } from '@wf/ui/page-state';
 import { CalendarCog, FileChartColumn, Lock, Plus } from 'lucide-react';
 import { Button } from '../form.tsx';
-import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { openSettings } from '../settings/settings-sections.ts';
 import { emptyTimeline } from './reports-model.ts';
 
@@ -57,11 +56,19 @@ export function ReportsError({ label, onRetry }: { readonly label: string; reado
 
 /**
  * The empty state (design `gyfhQ`): the timeline to the first report (recording starts today, the first period
- * closes, its report is published), when that is and why, then "Catat transaksi" / "Atur tanggal mulai".
+ * closes, its report is published), when that is and why, then "Catat transaksi" (`onRecord`: the page opens the
+ * Record sheet, so these presentational states stay free of the ledger) / "Atur tanggal mulai".
  */
-export function ReportsEmpty({ today, locale }: { readonly today: LocalDate; readonly locale: Locale }) {
+export function ReportsEmpty({
+  today,
+  locale,
+  onRecord,
+}: {
+  readonly today: LocalDate;
+  readonly locale: Locale;
+  readonly onRecord: () => void;
+}) {
   const navigate = useNavigate();
-  const record = useRecordTransaction();
   const timeline = emptyTimeline(today, locale);
   const steps = [
     { at: today, label: m.reports_empty_step_recorded(), note: m.reports_empty_step_recorded_note() },
@@ -111,12 +118,7 @@ export function ReportsEmpty({ today, locale }: { readonly today: LocalDate; rea
         })}
       </p>
       <div className="flex flex-wrap justify-center gap-2 pt-1.5">
-        <Button
-          size="sm"
-          onClick={() => {
-            record.open();
-          }}
-        >
+        <Button size="sm" onClick={onRecord}>
           <Plus aria-hidden="true" className="size-3.5" />
           {m.reports_empty_cta_record()}
         </Button>

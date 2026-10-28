@@ -23,7 +23,8 @@ vi.mock('../../server/fn/report-export.ts', () => ({
   getReportAutoSend: fake.getReportAutoSend,
   saveReportAutoSend: fake.saveReportAutoSend,
 }));
-vi.mock('../ledger/record-transaction.tsx', () => ({ useRecordTransaction: () => ({ open: vi.fn() }) }));
+const record = vi.hoisted(() => ({ open: vi.fn() }));
+vi.mock('../ledger/record-transaction.tsx', () => ({ useRecordTransaction: () => record }));
 
 const YEARLY_VIEW = { ...PROVISIONAL_VIEW, id: 'report-2026', kind: 'yearly', label: '2026' } as const;
 const deferred = () => {
@@ -268,6 +269,9 @@ describe('ReportsPage', () => {
     await expect.element(screen.getByRole('heading', { name: 'Laporan pertama terbit 1 November' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Kuartal' }).elements()).toHaveLength(0);
     expect(fake.viewReport).not.toHaveBeenCalled();
+    // "Catat transaksi" starts recording right here, in the Record sheet.
+    await screen.getByRole('button', { name: 'Catat transaksi' }).click();
+    expect(record.open).toHaveBeenCalledOnce();
   });
 
   it('opens the newest saved month on mount when no final report exists', async () => {

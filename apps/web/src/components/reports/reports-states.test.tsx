@@ -5,9 +5,6 @@ import { TODAY } from '../../../test/report-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { ImmutabilityBanner, ReportsEmpty, ReportsError, StatusBadge } from './reports-states.tsx';
 
-const record = vi.hoisted(() => ({ open: vi.fn() }));
-vi.mock('../ledger/record-transaction.tsx', () => ({ useRecordTransaction: () => record }));
-
 describe('StatusBadge', () => {
   it('marks a final report green and a provisional one amber, in both locales', async () => {
     const { screen } = await renderApp(<StatusBadge status="final" />, { preferences: { locale: 'id' } });
@@ -52,7 +49,7 @@ describe('ReportsError', () => {
 
 describe('ReportsEmpty', () => {
   it('golden gyfhQ: the timeline to the closing month’s report, when it is published, and why', async () => {
-    const { screen } = await renderApp(<ReportsEmpty today={TODAY} locale="id" />);
+    const { screen } = await renderApp(<ReportsEmpty today={TODAY} locale="id" onRecord={vi.fn()} />);
     const steps = screen.getByRole('listitem').elements();
     expect(steps.map((step) => step.textContent)).toEqual([
       '23 OktMulai mencatathari ini',
@@ -70,15 +67,18 @@ describe('ReportsEmpty', () => {
   });
 
   it('records a transaction and opens the period settings', async () => {
-    const { screen, router } = await renderApp(<ReportsEmpty today={TODAY} locale="id" />);
+    const onRecord = vi.fn();
+    const { screen, router } = await renderApp(<ReportsEmpty today={TODAY} locale="id" onRecord={onRecord} />);
     await screen.getByRole('button', { name: 'Catat transaksi' }).click();
-    expect(record.open).toHaveBeenCalledOnce();
+    expect(onRecord).toHaveBeenCalledOnce();
     await screen.getByRole('button', { name: 'Atur tanggal mulai' }).click();
     await expect.poll(() => router.state.location.search as unknown).toMatchObject({ settings: 'period' });
   });
 
   it('keeps every step when the first day is also the closing day', async () => {
-    const { screen } = await renderApp(<ReportsEmpty today={'2026-10-31' as LocalDate} locale="id" />);
+    const { screen } = await renderApp(
+      <ReportsEmpty today={'2026-10-31' as LocalDate} locale="id" onRecord={vi.fn()} />,
+    );
     expect(
       screen
         .getByRole('listitem')
@@ -88,7 +88,7 @@ describe('ReportsEmpty', () => {
   });
 
   it('switches to the English copy', async () => {
-    const { screen } = await renderApp(<ReportsEmpty today={TODAY} locale="en" />, {
+    const { screen } = await renderApp(<ReportsEmpty today={TODAY} locale="en" onRecord={vi.fn()} />, {
       preferences: { locale: 'en' },
     });
     const timeline = screen.getByRole('list');
