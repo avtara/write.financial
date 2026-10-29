@@ -262,7 +262,7 @@ describe('AssistantDialog drafts', () => {
     await expect.element(card.getByText('Makan & Dapur')).toBeVisible();
     await expect.element(card.getByText('GoPay')).toBeVisible();
     await expect.element(card.getByText('Kam, 15 Okt · 12.10')).toBeVisible();
-    await expect.element(card.getByText(/Makan & Dapur jadi 93\s*%/)).toBeVisible();
+    await expect.element(card.getByText(/Makan & Dapur jadi 92,71\s*%/)).toBeVisible();
     await expect.element(card.getByText(/saldo GoPay Rp367\.000 .*Rp500\.000/)).toBeVisible();
     expect(server.recordTransaction).not.toHaveBeenCalled();
 

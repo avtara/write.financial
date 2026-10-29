@@ -49,7 +49,7 @@ describe('HoldingsTable', () => {
     // Below 1024 px the platform joins the subtitle.
     await expect.element(table).toMatchTextContent('SPDR S&P 500 ETF · Gotrade');
     await screen.getByRole('button', { name: 'Kelas aset', exact: true }).click();
-    await expect.element(table).toMatchTextContent(/\d% · target 12%/);
+    await expect.element(table).toMatchTextContent(/\d+,\d{2}% · target 12,00%/);
   });
 
   it('keeps each group heading inside its cell on a 1024 px tablet', async () => {
@@ -157,7 +157,7 @@ describe('HoldingsTable', () => {
         onAddAsset={vi.fn()}
       />,
     );
-    await expect.element(screen.getByText('−2,8%')).toHaveClass('text-red-fg');
+    await expect.element(screen.getByText('−2,76%')).toHaveClass('text-red-fg');
   });
 
   it('marks pending and unpriced holdings, shows a zero-value portfolio, and works per platform', async () => {

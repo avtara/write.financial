@@ -104,12 +104,7 @@ export function BudgetImpact({
           message={m.record_budget_impact}
           slots={{
             name: categoryName(line),
-            used:
-              usedBps === null ? (
-                '—'
-              ) : (
-                <Percent value={usedBps / 10_000} locale={locale} decimals={0} className="text-fg" />
-              ),
+            used: usedBps === null ? '—' : <Percent value={usedBps / 10_000} locale={locale} className="text-fg" />,
             spent: (
               <Money
                 minor={afterMinor}

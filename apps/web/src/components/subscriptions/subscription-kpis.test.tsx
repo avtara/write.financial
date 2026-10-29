@@ -10,10 +10,10 @@ describe('SubscriptionKpis', () => {
       <SubscriptionKpis overview={seedOverview()} spentMinor={16_500_000n} incomeMinor={26_000_000n} locale="id" />,
     );
     const kpis = screen.getByRole('region', { name: 'Ringkasan biaya langganan' });
-    await expect.element(kpis).toMatchTextContent(/Per bulanRp904\.9005,5% dari pengeluaran/);
-    await expect.element(kpis).toMatchTextContent(/Per tahunRp11\.520\.000≈ 44% pemasukan sebulan/);
+    await expect.element(kpis).toMatchTextContent(/Per bulanRp904\.9005,48% dari pengeluaran/);
+    await expect.element(kpis).toMatchTextContent(/Per tahunRp11\.520\.000≈ 44,31% pemasukan sebulan/);
     await expect.element(kpis).toMatchTextContent(/Sisa tagihan OktRp660\.9004 tagihan · 18–28 Okt/);
-    await expect.element(kpis).toMatchTextContent(/Biaya langganan · 6 bulan\+24% sejak Mei/);
+    await expect.element(kpis).toMatchTextContent(/Biaya langganan · 6 bulan\+24,13% sejak Mei/);
     const bars = kpis.getByRole('listitem');
     expect(bars.elements()).toHaveLength(6);
     await expect.element(bars.nth(1)).toHaveTextContent('+ SpotifyJun815.900');

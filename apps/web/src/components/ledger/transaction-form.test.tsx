@@ -225,9 +225,9 @@ describe('TransactionForm', () => {
       initial: values({ amountMinor: 25_000n, categoryId: categoryId('system:food') }),
     });
     const impact = screen.getByText(/^Anggaran Makan & Dapur jadi/);
-    await expect.element(impact).toHaveTextContent('Anggaran Makan & Dapur jadi 92% · Rp3.225.000 / 3.500.000');
+    await expect.element(impact).toHaveTextContent('Anggaran Makan & Dapur jadi 92,14% · Rp3.225.000 / 3.500.000');
     await userEvent.fill(amount, '400000');
-    await expect.element(impact).toHaveTextContent('Anggaran Makan & Dapur jadi 103% · Rp3.600.000 / 3.500.000');
+    await expect.element(impact).toHaveTextContent('Anggaran Makan & Dapur jadi 102,86% · Rp3.600.000 / 3.500.000');
     await userEvent.click(screen.getByRole('button', { name: 'Lihat semua' }));
     await expect
       .element(page.getByRole('option', { name: /^Makan & Dapur/ }))

@@ -62,25 +62,25 @@ describe('GoalList', () => {
     await expect
       .element(rows.nth(0))
       .toMatchTextContent(
-        /Servis motorDana tidak rutinRp720\.000dari Rp1\.200\.00060%Rp240\.000\/bulan · tgl 25 · Des 20262 bulan lagi/,
+        /Servis motorDana tidak rutinRp720\.000dari Rp1\.200\.00060,00%Rp240\.000\/bulan · tgl 25 · Des 20262 bulan lagi/,
       );
     await expect
       .element(rows.nth(1))
-      .toMatchTextContent(/Perpanjang STNK.*80%Rp43\.000\/bulan · tgl 25 · Feb 2027Hampir tercapai/);
+      .toMatchTextContent(/Perpanjang STNK.*80,00%Rp43\.000\/bulan · tgl 25 · Feb 2027Hampir tercapai/);
     await expect
       .element(rows.nth(2))
-      .toMatchTextContent(/Liburan Bali.*35%Rp867\.000\/bulan · tgl 25 · Mar 2027Sesuai rencana/);
+      .toMatchTextContent(/Liburan Bali.*35,00%Rp867\.000\/bulan · tgl 25 · Mar 2027Sesuai rencana/);
     await expect
       .element(rows.nth(3))
       .toMatchTextContent(
-        /Dana DaruratBank Jago •• 0377Rp8\.125\.000dari Rp54\.000\.00015%Rp3\.500\.000\/bulan · tgl 1 & 14 · Nov 2027Melewati tenggat/,
+        /Dana DaruratBank Jago •• 0377Rp8\.125\.000dari Rp54\.000\.00015,05%Rp3\.500\.000\/bulan · tgl 1 & 14 · Nov 2027Melewati tenggat/,
       );
     await expect
       .element(rows.nth(4))
-      .toMatchTextContent(/DP RumahBCA Tahapan Rp5\.000\.000Rp5\.000\.000.*3%Belum ada setoran rutin$/);
+      .toMatchTextContent(/DP RumahBCA Tahapan Rp5\.000\.000Rp5\.000\.000.*3,33%Belum ada setoran rutin$/);
     await expect
       .element(rows.nth(5))
-      .toMatchTextContent(/Dana PensiunRp0dari Rp500\.000\.0000%Belum ada setoran rutin/);
+      .toMatchTextContent(/Dana PensiunRp0dari Rp500\.000\.0000,00%Belum ada setoran rutin/);
   });
 
   it('ends every progress bar at the same x below 1280 px, whatever the badge', async () => {
@@ -93,7 +93,7 @@ describe('GoalList', () => {
     const cells = rows.elements().map((_, index) => {
       let cell = rows
         .nth(index)
-        .getByText(/^\d+%$/)
+        .getByText(/^\d+,\d{2}%$/)
         .element() as HTMLElement;
       while (cell.parentElement !== null && getComputedStyle(cell.parentElement).display !== 'grid') {
         cell = cell.parentElement;

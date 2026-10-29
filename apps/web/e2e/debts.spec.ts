@@ -104,9 +104,9 @@ test('a draft 0% installment shows its impact before it is saved (v3Igd)', async
   await dialog.getByRole('textbox', { name: 'Penyedia' }).fill('Kredivo');
   const simulation = dialog.getByRole('region', { name: 'Simulasi dampak' });
   await expect(simulation).toContainText('Rp1.583.250');
-  await expect(simulation).toContainText('6,1%');
-  await expect(simulation).toContainText('36,5%');
-  await expect(simulation).toContainText('30,4%');
+  await expect(simulation).toContainText('6,09%');
+  await expect(simulation).toContainText('36,54%');
+  await expect(simulation).toContainText('30,45%');
   await expect(simulation).toContainText('sisa ruang 0,4 poin');
   await screenshot(page, 'debts-add-simulation-1440');
   await dialog.getByRole('button', { name: 'Batal' }).click();
@@ -151,7 +151,7 @@ test('Section 18: Kulkas split 3Ã—, Superindo on the bill, Rp2jt into the card â
   await expect(schedule.getByRole('row').nth(0)).toContainText('333.334');
   await expect(schedule.getByRole('row').nth(1)).toContainText('333.333');
   await expect(schedule.getByRole('row').nth(2)).toContainText('333.333');
-  await expect(plan).toContainText('67% lunas');
+  await expect(plan).toContainText(/67,\d{2}% lunas/);
   const kpis = page.getByRole('region', { name: 'Ringkasan utang' });
   await expect(kpis).toContainText('Rp2.000.000');
   await expect(kpis).toContainText('Rp1.333.334');

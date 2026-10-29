@@ -44,7 +44,7 @@ describe('CategorySpendingCard', () => {
       .toHaveAttribute('href', '/transactions?period=2026-10&uncategorized=true');
     await expect
       .element(region.getByRole('link', { name: /^Belanja Online/ }))
-      .toMatchTextContent('15% dari pengeluaran');
+      .toMatchTextContent('14,55% dari pengeluaran');
     await expect.element(region.getByRole('link', { name: 'Anggaran' })).toHaveAttribute('href', '/budget');
   });
 

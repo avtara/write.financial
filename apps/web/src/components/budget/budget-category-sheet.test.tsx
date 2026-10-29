@@ -90,7 +90,7 @@ describe('BudgetCategorySheet', () => {
     expect(server.getBudgetCategory).toHaveBeenCalledWith({ data: { periodId: 'p-okt', categoryId: 'food' } });
     await expect.element(sheet.getByRole('heading', { name: 'Makan' })).toBeVisible();
     await expect.element(sheet.getByText('Kebutuhan · Oktober 2026')).toBeVisible();
-    await expect.element(sheet.getByText('91% · ideal 48%')).toBeVisible();
+    await expect.element(sheet.getByText('91,43% · ideal 48,39%')).toBeVisible();
     await expect.element(sheet).toMatchTextContent(/SisaRp300\.00017 hari lagi/);
     await expect.element(sheet).toMatchTextContent(/Batas harianRp18\.000sisa ÷ 17 hari/);
     await expect.element(sheet.getByText('lewat Rp3.100.000')).toHaveClass('text-red-fg-soft');
@@ -141,7 +141,7 @@ describe('BudgetCategorySheet', () => {
   it('shows a fixed line without a daily limit, and a closed period without actions', async () => {
     server.getBudgetCategory.mockResolvedValue({ ok: true, value: EMPTY });
     const first = await renderSheet(RENT);
-    await expect.element(first.sheet.getByText('100%', { exact: true })).toBeVisible();
+    await expect.element(first.sheet.getByText('100,00%', { exact: true })).toBeVisible();
     await expect.element(first.sheet).toMatchTextContent(/Batas harian—anggaran tetap/);
     await expect.element(first.sheet.getByText('dalam batas')).toBeVisible();
     await expect.element(first.sheet.getByText('Belum ada transaksi di periode ini.')).toBeVisible();

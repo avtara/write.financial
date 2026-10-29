@@ -69,19 +69,9 @@ export function SpendingSection({ view, locale }: SpendingSectionProps) {
                   </span>
                 ) : null}
                 {line.usedBps === null ? (
-                  <Percent
-                    value={line.shareBps / 10_000}
-                    locale={locale}
-                    decimals={0}
-                    className="text-[11.5px] text-subtle"
-                  />
+                  <Percent value={line.shareBps / 10_000} locale={locale} className="text-[11.5px] text-subtle" />
                 ) : (
-                  <Percent
-                    value={line.usedBps / 10_000}
-                    locale={locale}
-                    decimals={0}
-                    className="text-[11.5px] text-muted-fg"
-                  />
+                  <Percent value={line.usedBps / 10_000} locale={locale} className="text-[11.5px] text-muted-fg" />
                 )}
               </div>
             </li>
@@ -100,7 +90,7 @@ export function SpendingSection({ view, locale }: SpendingSectionProps) {
                 <span className="min-w-0 truncate text-fg">{line.merchant}</span>
                 <span className="flex shrink-0 items-baseline gap-3 text-subtle">
                   {m.reports_tx_count({ count: line.count })}
-                  <Percent value={line.shareBps / 10_000} locale={locale} decimals={0} />
+                  <Percent value={line.shareBps / 10_000} locale={locale} />
                   <Money
                     minor={line.totalMinor}
                     currency={REPORTS_CURRENCY}

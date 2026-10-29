@@ -159,12 +159,7 @@ function GroupHeader({
               aria-hidden="true"
               className="h-1 w-[84px] appearance-none overflow-hidden rounded-full [&::-moz-progress-bar]:bg-[var(--wf-color,var(--subtle))] [&::-webkit-progress-bar]:bg-surface-3 [&::-webkit-progress-value]:bg-[var(--wf-color,var(--subtle))]"
             />
-            <Percent
-              value={header.shareBps / 10_000}
-              decimals={0}
-              locale={locale}
-              className="text-[12px] text-subtle"
-            />
+            <Percent value={header.shareBps / 10_000} locale={locale} className="text-[12px] text-subtle" />
           </>
         )}
         {header.type === 'transfer' ? (

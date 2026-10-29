@@ -54,8 +54,8 @@ describe('MoneyFlowCard on a desktop', () => {
     await expect
       .element(region)
       .toMatchTextContent('Pemasukan Rp26.000.000 ke Kebutuhan, Keinginan, Lainnya, dan Tabungan');
-    await expect.element(node(/^Gaji Rp18\.500\.000 71%$/)).toBeInTheDocument();
-    await expect.element(node(/^Makan & Dapur Rp3\.200\.000 12%$/)).toBeInTheDocument();
+    await expect.element(node(/^Gaji Rp18\.500\.000 71,15%$/)).toBeInTheDocument();
+    await expect.element(node(/^Makan & Dapur Rp3\.200\.000 12,31%$/)).toBeInTheDocument();
     // Dividends (<1%) merge into "Sumber lain" until the menu shows them.
     await expect.element(node(/^Sumber lain Rp210\.000 <1%$/)).toBeInTheDocument();
     await expect.element(region).toMatchTextContent('Rupiah · Transfer antar rekening tidak dihitung');
@@ -72,7 +72,7 @@ describe('MoneyFlowCard on a desktop', () => {
     await userEvent.hover(foodRect);
     const tip = screen.getByRole('tooltip');
     await expect.element(tip).toMatchTextContent('Kebutuhan → Makan & Dapur');
-    await expect.element(tip).toMatchTextContent('Porsi Kebutuhan42%');
+    await expect.element(tip).toMatchTextContent('Porsi Kebutuhan41,56%');
     await expect.element(tip).toMatchTextContent('Transaksi18× · rata² Rp177.777');
     await expect.element(tip).toMatchTextContent('AnggaranRp3.200.000 / 3.500.000');
     await expect.element(tip).toMatchTextContent('Klik untuk lihat 18 transaksi');
@@ -112,14 +112,14 @@ describe('MoneyFlowCard on a desktop', () => {
     const { screen, router } = await renderFlow();
     const chip = screen.getByRole('button', { name: 'Kebutuhan', exact: true });
     await userEvent.click(chip);
-    await expect.element(screen.getByText('Kebutuhan · Rp7.700.000 · 30% dari pemasukan')).toBeVisible();
+    await expect.element(screen.getByText('Kebutuhan · Rp7.700.000 · 29,62% dari pemasukan')).toBeVisible();
     await userEvent.click(chip);
     await expect.element(screen.getByText(/^Pemasukan Rp26\.000\.000 ke/)).toBeVisible();
     const needs = node(/^Kebutuhan Rp7\.700\.000/);
     (needs.element() as SVGGElement).focus();
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Kebutuhan');
     await userEvent.keyboard('{Enter}');
-    await expect.element(screen.getByText('Kebutuhan · Rp7.700.000 · 30% dari pemasukan')).toBeVisible();
+    await expect.element(screen.getByText('Kebutuhan · Rp7.700.000 · 29,62% dari pemasukan')).toBeVisible();
     await userEvent.keyboard('x');
     await userEvent.keyboard(' ');
     expect(router.state.location.search).toMatchObject({ category: expect.stringContaining(FOOD_ID) as string });
@@ -134,13 +134,13 @@ describe('MoneyFlowCard on a desktop', () => {
     const menu = screen.getByRole('button', { name: 'Opsi arus uang' });
     await userEvent.click(menu);
     await userEvent.click(page.getByRole('menuitemradio', { name: 'Persen' }));
-    await expect.element(node(/^Gaji 71%$/)).toBeInTheDocument();
+    await expect.element(node(/^Gaji 71,15%$/)).toBeInTheDocument();
     await userEvent.click(menu);
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Tampilkan sumber < 1%' }));
     await expect.element(node(/^Dividen & bunga <1%$/i)).toBeInTheDocument();
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Hitung transfer antar rekening' }));
-    await expect.element(node(/^Bank Jago 13%$/)).toBeInTheDocument();
-    await expect.element(node(/^Tetap di rekening 23%$/)).toBeInTheDocument();
+    await expect.element(node(/^Bank Jago 13,46%$/)).toBeInTheDocument();
+    await expect.element(node(/^Tetap di rekening 23,08%$/)).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await expect.element(screen.getByText(/Persen dari pemasukan · Transfer antar rekening dihitung/)).toBeVisible();
     pointer(node(/^Bank Jago/).element(), 'click');
@@ -194,7 +194,7 @@ describe('MoneyFlowCard on a tablet (FR-TB2)', () => {
     await page.viewport(1024, 768);
     const { screen } = await renderFlow();
     const chart = screen.getByRole('group', { name: 'Diagram arus uang' });
-    await expect.element(chart).toMatchTextContent(/Pemasukan Rp26\.000\.000\s+100%/);
+    await expect.element(chart).toMatchTextContent(/Pemasukan Rp26\.000\.000\s+100,00%/);
     await screen.unmount();
 
     await page.viewport(768, 1024);

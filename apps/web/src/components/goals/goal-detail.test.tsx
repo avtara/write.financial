@@ -102,10 +102,10 @@ describe('GoalDetail', () => {
     await expect.element(sheet.getByText('Target 3× pengeluaran bulanan')).toBeVisible();
     await expect.element(sheet.getByText('Rp11.125.000', { exact: true })).toBeVisible();
     await expect.element(sheet.getByText('dari Rp54.000.000')).toBeVisible();
-    await expect.element(sheet.getByText('21% · 0,6 bulan pengeluaran')).toBeVisible();
+    await expect.element(sheet.getByText('20,60% · 0,6 bulan pengeluaran')).toBeVisible();
     await expect.element(sheet.getByText('Tercapai Nov 2027')).toBeVisible();
-    await expect.element(sheet).toMatchTextContent(/Bank Jago•• 0377 · Seluruh saldoRp8\.125\.00073%/);
-    await expect.element(sheet).toMatchTextContent(/BibitNominal tetapRp3\.000\.00027%/);
+    await expect.element(sheet).toMatchTextContent(/Bank Jago•• 0377 · Seluruh saldoRp8\.125\.00073,03%/);
+    await expect.element(sheet).toMatchTextContent(/BibitNominal tetapRp3\.000\.00026,97%/);
     await expect.element(sheet.getByText('Tiap tgl 1 · perlu konfirmasi')).toBeVisible();
     await expect.element(sheet.getByText(`${BCA.displayName} → ${JAGO.displayName}`).first()).toBeVisible();
     await expect

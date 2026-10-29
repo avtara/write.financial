@@ -152,7 +152,6 @@ function TargetsForm({
             <td colSpan={3} className="pt-2 text-right">
               <Percent
                 value={check.totalBps / 10_000}
-                decimals={2}
                 locale={locale}
                 className={check.valid ? 'text-fg' : 'text-red-fg'}
               />

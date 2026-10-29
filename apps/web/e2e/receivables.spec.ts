@@ -45,7 +45,7 @@ test('Section 19: the active receivables, the 90-day history, and how they are c
   await expect(nadia).toContainText('Jatuh tempo Min, 18 Okt · pengingat H-1 jam 09.00');
   const raka = page.getByRole('article', { name: 'Raka Pratama' });
   await expect(raka).toContainText('Sebagian');
-  await expect(raka).toContainText('Rp300.000dari Rp400.000 · 25% kembali');
+  await expect(raka).toContainText('Rp300.000dari Rp400.000 · 25,00% kembali');
   await expect(raka).toContainText('terakhir dibayar Rp100.000 pada 10 Okt');
   const history = page.getByRole('region', { name: 'Lunas · 90 hari' });
   await expect(history).toContainText('DimasPatungan kado · Rp150.000lunas 2 Okt ke GoPay');
@@ -97,12 +97,12 @@ test('exit: Raka pays Rp200.000 into GoPay → Rp100.000 left (75%), income unch
   await expect(after).toContainText('Sisa piutang Raka300.000100.000');
   await expect(after).toContainText('Saldo GoPay412.000612.000');
   await expect(after).toContainText('Pemasukan Oktober26.000.000tetap');
-  await expect(after).toContainText('75% kembali · sisa Rp100.000 tetap jatuh tempo 31 Okt');
+  await expect(after).toContainText('75,00% kembali · sisa Rp100.000 tetap jatuh tempo 31 Okt');
   await screenshot(page, 'receivables-receive-1440');
   await dialog.getByRole('button', { name: 'Terima Rp200.000' }).click();
   await expect(dialog).not.toBeVisible();
   const raka = page.getByRole('article', { name: 'Raka Pratama' });
-  await expect(raka).toContainText('Rp100.000dari Rp400.000 · 75% kembali');
+  await expect(raka).toContainText('Rp100.000dari Rp400.000 · 75,00% kembali');
   await expect(page.getByRole('region', { name: 'Ringkasan utang' })).toContainText('PiutangRp842.500');
   await expect(await overviewKpi(page, 'Pemasukan')).toContainText('Rp26.000.000');
 });

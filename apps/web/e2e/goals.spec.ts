@@ -61,7 +61,7 @@ test('the persona’s goals: Rp39.725.000 in 6 goals, October Rp3.500.000 of Rp4
   await expect(list.getByRole('tab', { name: 'Aktif · 6' })).toHaveAttribute('aria-selected', 'true');
   await expect(goalRow(page, 'Servis motor')).toContainText('Rp240.000/bulan · tgl 25 · Des 2026');
   await expect(goalRow(page, 'Servis motor')).toContainText('2 bulan lagi');
-  await expect(goalRow(page, 'Perpanjang STNK')).toContainText('80%');
+  await expect(goalRow(page, 'Perpanjang STNK')).toContainText(/80,\d{2}%/);
   await expect(goalRow(page, 'Perpanjang STNK')).toContainText('Hampir tercapai');
   await expect(goalRow(page, 'Liburan Bali')).toContainText('Rp867.000/bulan · tgl 25 · Mar 2027');
   await expect(goalRow(page, 'Liburan Bali')).toContainText('Sesuai rencana');
@@ -82,12 +82,12 @@ test('Bibit RDPU (diproses) funds Dana Darurat: Rp11.125.000, 21%, 0,6 months, r
   await openGoals(page);
   // Design 13 q9T3oQ: Jago Rp8.125.000 + "Reksa dana pasar uang · Rp3.000.000 · Diproses" (a whole-asset source).
   await expect(goalRow(page, 'Dana Darurat')).toContainText('Rp11.125.000');
-  await expect(goalRow(page, 'Dana Darurat')).toContainText('21%');
+  await expect(goalRow(page, 'Dana Darurat')).toContainText('20,60%');
   await expect(goalRow(page, 'Dana Darurat')).toContainText('Sesuai rencana');
   await page.getByRole('button', { name: 'Dana Darurat', exact: true }).click();
   const detail = page.getByRole('dialog', { name: 'Dana Darurat' });
   await expect(detail).toContainText('Target 3× pengeluaran bulanan');
-  await expect(detail).toContainText('21% · 0,6 bulan pengeluaran');
+  await expect(detail).toContainText('20,60% · 0,6 bulan pengeluaran');
   await expect(detail).toContainText('Tercapai Nov 2027');
   await expect(detail).toContainText('Tiap tgl 1 · perlu konfirmasi');
   await expect(detail.getByRole('listitem').filter({ hasText: '14 Okt' })).toContainText('+3.000.000');
@@ -103,7 +103,7 @@ test('Setor manual Rp1.000.000: 21% → 22%, 0,6 → 0,7 months, Nov 2027 → Ok
   await menu(page, 'Dana Darurat', 'Tarik dana');
   const withdraw = page.getByRole('dialog', { name: 'Tarik dana dari Dana Darurat?' });
   await withdraw.getByRole('textbox', { name: 'Jumlah' }).fill('2.000.000');
-  await expect(withdraw).toContainText('Progres21% → 17%');
+  await expect(withdraw).toContainText('Progres20,60% → 16,90%');
   await expect(withdraw).toContainText('Ketahanan0,6 → 0,5 bulan');
   await withdraw.getByRole('button', { name: 'Batal' }).click();
 
@@ -115,7 +115,7 @@ test('Setor manual Rp1.000.000: 21% → 22%, 0,6 → 0,7 months, Nov 2027 → Ok
   await deposit.getByRole('button', { name: '1.000.000', exact: true }).click();
   await deposit.getByRole('textbox', { name: 'Catatan' }).fill('Bonus proyek freelance');
   await expect(deposit).toContainText('#dana-darurat');
-  await expect(deposit).toContainText('Progres21% → 22%');
+  await expect(deposit).toContainText('Progres20,60% → 22,45%');
   await expect(deposit).toContainText('Ketahanan0,6 → 0,7 bulan');
   await expect(deposit).toContainText('Estimasi tercapaiNov 2027 → Okt 2027');
   await screenshot(page, 'goals-deposit');
@@ -125,7 +125,7 @@ test('Setor manual Rp1.000.000: 21% → 22%, 0,6 → 0,7 months, Nov 2027 → Ok
   await expect(page.getByText('Transfer BCA Tahapan → Bank Jago dibuat di Transaksi.')).toBeVisible();
   const kpis = page.getByRole('region', { name: 'Ringkasan tabungan' });
   await expect(kpis).toContainText('Setoran OktoberRp4.500.000dari rencana Rp4.650.000');
-  await expect(goalRow(page, 'Dana Darurat')).toContainText('22%');
+  await expect(goalRow(page, 'Dana Darurat')).toContainText('22,45%');
   await expect(page.getByRole('region', { name: 'Setoran Oktober' }).getByRole('listitem')).toHaveCount(4);
 
   // Back to BCA: Rp11.125.000 again, the withdrawal labeled like the deposit.
@@ -202,7 +202,7 @@ test('STNK reached with "Pas target", completed with Urungkan, paid from, and it
   await expect(deposit).toContainText('kurang Rp170.000');
   await deposit.getByRole('button', { name: /Pas target/ }).click();
   await choose(page, deposit.getByRole('combobox', { name: 'Dari' }), 'Mandiri');
-  await expect(deposit).toContainText('Progres80% → 100%');
+  await expect(deposit).toContainText(/Progres80,\d{2}% → 100,00%/);
   await expect(deposit).toContainText('Tercapai setelah setoran ini');
   await deposit.getByRole('button', { name: 'Setor Rp170.000' }).click();
 
@@ -228,7 +228,7 @@ test('STNK reached with "Pas target", completed with Urungkan, paid from, and it
   await sheet.getByRole('button', { name: 'Transportasi' }).click();
   await sheet.getByRole('textbox', { name: 'Catatan', exact: true }).fill('Perpanjang STNK — Samsat Jaksel');
   const use = sheet.getByRole('region', { name: 'Bayar dari tujuan Perpanjang STNK' });
-  await expect(use).toContainText('100% · Rp850.000');
+  await expect(use).toContainText('100,00% · Rp850.000');
   await expect(use).toContainText('Sisa Rp38.000 bisa dipindah ke tujuan lain setelah disimpan.');
   await expect(use.getByRole('button', { name: 'Pakai dana tujuan' })).toHaveAttribute('aria-pressed', 'true');
   await screenshot(page, 'goals-pay-from');
@@ -239,11 +239,11 @@ test('STNK reached with "Pas target", completed with Urungkan, paid from, and it
   const move = page.getByRole('dialog', { name: 'Pindahkan sisa Perpanjang STNK' });
   await expect(move.getByRole('heading', { name: 'Pindahkan sisa Rp38.000' })).toBeVisible();
   await move.getByRole('radio', { name: /^Servis motor/ }).check();
-  await expect(move).toContainText('Servis motorRp720.000 → Rp758.000 dari Rp1.200.00060% → 63%');
+  await expect(move).toContainText('Servis motorRp720.000 → Rp758.000 dari Rp1.200.00060,00% → 63,17%');
   await screenshot(page, 'goals-move');
   await move.getByRole('button', { name: 'Pindahkan' }).click();
   await expect(page.getByText('Sisa dipindah ke Servis motor')).toBeVisible();
-  await expect(page.getByText('Servis motor sekarang Rp758.000 dari Rp1.200.000 (63%).')).toBeVisible();
+  await expect(page.getByText('Servis motor sekarang Rp758.000 dari Rp1.200.000 (63,17%).')).toBeVisible();
   await expect(goalRow(page, 'Servis motor')).toContainText('Rp758.000');
   // Used: STNK's Rp43.000 is no longer set aside on the 25th; October's is Liburan Bali + Servis motor.
   await expect(page.getByRole('region', { name: 'Dana tidak rutin' })).toContainText(

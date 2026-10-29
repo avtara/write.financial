@@ -79,8 +79,8 @@ export function AllocatedAccountWarning({
         {beforeBps === null || afterBps === null ? null : (
           <>
             {' '}
-            (<Percent value={beforeBps / 10_000} decimals={0} locale={locale} /> →{' '}
-            <Percent value={afterBps / 10_000} decimals={0} locale={locale} />)
+            (<Percent value={beforeBps / 10_000} locale={locale} /> →{' '}
+            <Percent value={afterBps / 10_000} locale={locale} />)
           </>
         )}
       </p>

@@ -22,7 +22,7 @@ describe('BudgetAttention', () => {
     await over.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
     expect(onCover).toHaveBeenCalledWith(SHOPPING, [{ categoryId: 'fun', amountMinor: 400_000n }]);
 
-    await expect.element(warning.getByRole('heading')).toHaveTextContent('Makan 91% di hari ke-15');
+    await expect.element(warning.getByRole('heading')).toHaveTextContent('Makan 91,43% di hari ke-15');
     await expect
       .element(warning.getByText('Proyeksi Rp6.600.000. Batasi Rp18.000/hari atau naikkan batas.'))
       .toBeVisible();

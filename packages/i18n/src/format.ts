@@ -40,17 +40,18 @@ export function formatNumber(value: number, locale: Locale, options: FormatNumbe
   });
 }
 
-/**
- * Formats a ratio as a percentage (PRD §7.1): `0.365` → `36,5%` (id) / `36.5%` (en);
- * whole values drop the decimals: `0.87` → `87%`.
- */
-export function formatPercent(ratio: number, locale: Locale, options: FormatNumberOptions = {}): string {
-  const { minimumFractionDigits = 0, maximumFractionDigits = 1, signed = false } = options;
+export interface FormatPercentOptions {
+  /** Show `+` for positive values as well (flows, differences). Zero is never signed. */
+  readonly signed?: boolean;
+}
+
+/** Formats a ratio as a percentage with two decimals: `0.365` → `36,50%` (id) / `36.50%` (en). */
+export function formatPercent(ratio: number, locale: Locale, options: FormatPercentOptions = {}): string {
   return formatWith(ratio, locale, {
     style: 'percent',
-    minimumFractionDigits,
-    maximumFractionDigits,
-    signDisplay: signed ? 'exceptZero' : 'negative',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    signDisplay: options.signed === true ? 'exceptZero' : 'negative',
   });
 }
 

@@ -321,7 +321,7 @@ describe('RecordTransactionProvider', () => {
     await userEvent.click(first.sheet.getByRole('button', { name: 'Makan & Dapur' }));
     await expect
       .element(first.sheet.getByText(/^Anggaran Makan & Dapur jadi/))
-      .toHaveTextContent('Anggaran Makan & Dapur jadi 92% · Rp3.225.000 / 3.500.000');
+      .toHaveTextContent('Anggaran Makan & Dapur jadi 92,14% · Rp3.225.000 / 3.500.000');
     await first.screen.unmount();
 
     budget.getBudgetStatus.mockRejectedValueOnce(new Error('offline'));
@@ -782,7 +782,7 @@ describe('Bayar dari tujuan (FR-G4)', () => {
     });
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue();
     const block = sheet.getByRole('region', { name: 'Bayar dari tujuan Perpanjang STNK' });
-    await expect.element(block).toMatchTextContent('100% · Rp850.000');
+    await expect.element(block).toMatchTextContent('100,00% · Rp850.000');
     await expect
       .element(block.getByRole('button', { name: 'Pakai dana tujuan' }))
       .toHaveAttribute('aria-pressed', 'true');

@@ -67,8 +67,8 @@ describe('AddDebtDialog (v3Igd)', () => {
     await expect
       .element(simulation)
       .toMatchTextContent(/Cicilan per bulan12× · 25 Nov 2026 – 25 Okt 2027Rp1\.583\.250/);
-    await expect.element(simulation).toMatchTextContent(/dari Rp26\.000\.000 · batas sehat ≤ 30%6,1%/);
-    await expect.element(simulation).toMatchTextContent(/sisa ruang 0,4 poin36,5%30,4%/);
+    await expect.element(simulation).toMatchTextContent(/dari Rp26\.000\.000 · batas sehat ≤ 30,00%6,09%/);
+    await expect.element(simulation).toMatchTextContent(/sisa ruang 0,4 poin36,54%30,45%/);
     await expect.element(simulation).toMatchTextContent(/Rp48\.060\.000Rp29\.061\.000/);
 
     await dialog.getByRole('textbox', { name: 'Tenor' }).fill('dua');
@@ -114,7 +114,7 @@ describe('AddDebtDialog (v3Igd)', () => {
     await dialog.getByRole('textbox', { name: 'Pokok' }).fill('60000000');
     const simulation = dialog.getByRole('region', { name: 'Simulasi dampak' });
     await expect.element(simulation).toMatchTextContent(/di bawah target 30%/);
-    await expect.element(simulation.getByText('50%')).toHaveClass(/text-red-fg/);
+    await expect.element(simulation.getByText('50,00%')).toHaveClass(/text-red-fg/);
     await screen.unmount();
 
     const none = debtsOverview({

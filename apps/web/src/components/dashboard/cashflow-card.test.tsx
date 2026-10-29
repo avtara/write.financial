@@ -22,7 +22,7 @@ describe('CashflowCard', () => {
     await userEvent.hover(september);
     const tip = screen.getByRole('tooltip');
     await expect.element(tip).toMatchTextContent('September 2026selisih +7.500.000');
-    await expect.element(tip).toMatchTextContent('Rasio tabung29%');
+    await expect.element(tip).toMatchTextContent('Rasio tabung29,07%');
     await userEvent.hover(region.getByRole('heading', { name: 'Pemasukan vs Pengeluaran' }));
     expect(screen.getByRole('tooltip').query()).toBeNull();
     // Keyboard: the focused column shows its card too, with the change against the month before.
@@ -34,7 +34,7 @@ describe('CashflowCard', () => {
       .element()
       .dispatchEvent(new FocusEvent('focus'));
     (region.getByRole('img', { name: /^Oktober 2026/ }).element() as SVGGElement).focus();
-    await expect.element(screen.getByRole('tooltip')).toMatchTextContent('vs September 2026 −9,8% belanja');
+    await expect.element(screen.getByRole('tooltip')).toMatchTextContent('vs September 2026 −9,84% belanja');
     (region.getByRole('img', { name: /^Oktober 2026/ }).element() as SVGGElement).blur();
     await expect.element(screen.getByRole('tooltip')).not.toBeInTheDocument();
   });
@@ -49,8 +49,8 @@ describe('CashflowCard', () => {
     const { screen } = await renderApp(
       <CashflowCard dashboard={dashboard({ trend: { ...base.trend, periods } })} locale="id" />,
     );
-    await expect.element(screen.getByText('−10% / 3 bulan')).toBeVisible();
-    expect(screen.getByText('−10% / 3 bulan').element().getAttribute('class')).toContain('text-green-fg');
+    await expect.element(screen.getByText('−10,00% / 3 bulan')).toBeVisible();
+    expect(screen.getByText('−10,00% / 3 bulan').element().getAttribute('class')).toContain('text-green-fg');
     const rising = periods.map((period, index) => ({ ...period, expenseMinor: index < 3 ? 1n : 9n }));
     const { screen: second } = await renderApp(
       <CashflowCard dashboard={dashboard({ trend: { ...base.trend, periods: rising } })} locale="id" />,

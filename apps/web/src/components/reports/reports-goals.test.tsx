@@ -12,7 +12,7 @@ describe('GoalsSection', () => {
     await expect.element(section).toMatchTextContent('Rp7.625.000');
     await expect.element(section).toMatchTextContent('/');
     await expect.element(section).toMatchTextContent('Rp54.000.000');
-    await expect.element(section).toMatchTextContent('14,1%');
+    await expect.element(section).toMatchTextContent('14,12%');
   });
 
   it('reads an honest "—" for a goal without an observation', async () => {

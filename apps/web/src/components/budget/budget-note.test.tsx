@@ -56,10 +56,10 @@ describe('BudgetImpact', () => {
     );
     await expect
       .element(screen.getByTestId('ok'))
-      .toHaveTextContent('Anggaran Transportasi jadi 83% · Rp1.660.000 / 2.000.000');
+      .toHaveTextContent('Anggaran Transportasi jadi 83,00% · Rp1.660.000 / 2.000.000');
     await expect
       .element(screen.getByTestId('over'))
-      .toHaveTextContent('Anggaran Transportasi jadi 105% · Rp2.100.000 / 2.000.000');
+      .toHaveTextContent('Anggaran Transportasi jadi 105,00% · Rp2.100.000 / 2.000.000');
     await expect.element(screen.getByTestId('over').getByRole('paragraph')).toHaveClass('text-red-fg');
     await expect.element(screen.getByTestId('ok').getByRole('paragraph')).not.toHaveClass('text-red-fg');
     await expect.element(screen.getByTestId('unlimited')).toHaveTextContent('Anggaran Zakat jadi — · Rp1.000 / 0');

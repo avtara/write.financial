@@ -60,7 +60,7 @@ function submitOnModEnter(event: KeyboardEvent<HTMLFormElement>) {
 }
 
 function Pct({ bps, locale }: { readonly bps: number | null; readonly locale: Locale }) {
-  return bps === null ? <>—</> : <Percent value={bps / 10_000} decimals={0} locale={locale} />;
+  return bps === null ? <>—</> : <Percent value={bps / 10_000} locale={locale} />;
 }
 
 function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {

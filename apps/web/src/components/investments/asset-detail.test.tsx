@@ -22,8 +22,8 @@ describe('AssetDetail', () => {
     const dialog = screen.getByRole('dialog');
     await expect.element(dialog).toMatchTextContent('DP Rumah');
     await expect.element(dialog).toMatchTextContent('Dana Pensiun');
-    await expect.element(dialog).toMatchTextContent('60%');
-    await expect.element(dialog).toMatchTextContent('40%');
+    await expect.element(dialog).toMatchTextContent('60,00%');
+    await expect.element(dialog).toMatchTextContent('40,00%');
     await expect.element(dialog).toMatchTextContent('Belum ada dividen tercatat.');
     await expect.element(dialog).toMatchTextContent('0,356');
   });

@@ -94,7 +94,7 @@ describe('BudgetList', () => {
     const wants = list.getByRole('region', { name: 'Keinginan' });
     await expect.element(wants.getByText('lewat Rp400.000')).toHaveClass('text-red-fg');
     await expect.element(wants.getByText('belum terpakai')).toBeVisible();
-    expect(wants.getByText('120%').element().parentElement?.className).toContain('text-red-fg');
+    expect(wants.getByText('120,00%').element().parentElement?.className).toContain('text-red-fg');
     // The action and the amount it shows, both in the name (WCAG 2.5.3).
     await expect.element(list.getByRole('button', { name: 'Ubah batas Makan 3.500.000', exact: true })).toBeVisible();
 
@@ -107,7 +107,7 @@ describe('BudgetList', () => {
     const { screen } = await renderApp(<Harness actions={actionsMock()} lines={[...LINES, zero]} />);
     await screen.getByRole('tab', { name: 'Keinginan' }).click();
     const panel = screen.getByRole('tabpanel');
-    await expect.element(panel.getByText('2 kategori Keinginan · Rp2.400.000 dari Rp3.000.000 (80%)')).toBeVisible();
+    await expect.element(panel.getByText('2 kategori Keinginan · Rp2.400.000 dari Rp3.000.000 (80,00%)')).toBeVisible();
     expect(names(panel)).toEqual(['Belanja Online', 'Hiburan']);
     await screen.getByRole('tab', { name: 'Biaya keuangan' }).click();
     await expect.element(screen.getByRole('tabpanel').getByText(/\(—\)$/)).toBeVisible();

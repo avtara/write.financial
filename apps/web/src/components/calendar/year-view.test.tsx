@@ -20,7 +20,7 @@ describe('YearView', () => {
     const kpis = screen.getByRole('region', { name: 'Ringkasan kalender' });
     await expect.element(kpis).toMatchTextContent(/Keluar 2026−Rp27\.390\.000rata-rata Rp13\.695\.000\/bulan/);
     await expect.element(kpis).toMatchTextContent(/Masuk 2026\+Rp43\.250\.000/);
-    await expect.element(kpis).toMatchTextContent(/DitabungRp15\.860\.00036,7% dari pemasukan/);
+    await expect.element(kpis).toMatchTextContent(/DitabungRp15\.860\.00036,67% dari pemasukan/);
     await expect.element(kpis).toMatchTextContent(/Bulan termahalSeptemberRp18\.300\.000/);
     await expect.element(kpis).toMatchTextContent(/Hari termahal12 SepRp14\.300\.000$/);
     const months = screen.getByRole('list', { name: 'Bulan-bulan 2026' }).getByRole('link');
@@ -32,7 +32,7 @@ describe('YearView', () => {
     await expect.element(months.nth(10)).toHaveAttribute('data-future', 'true');
     expect(months.nth(9).element().querySelectorAll('rect.fill-green').length).toBeGreaterThan(0);
     const trend = screen.getByRole('region', { name: 'Tren bulanan 2026' });
-    await expect.element(trend).toMatchTextContent(/Sep1,1%Okt63,3%Nov—/);
+    await expect.element(trend).toMatchTextContent(/Sep1,08%Okt63,27%Nov—/);
   });
 
   it('shows dashes for a year without data', async () => {

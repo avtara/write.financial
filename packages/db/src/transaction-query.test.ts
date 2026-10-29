@@ -318,6 +318,7 @@ describe('list', () => {
       receivedCurrency: null,
       amountBaseMinor: -50_000n,
       feeMinor: null,
+      feeBaseMinor: 0n,
       fxDiffBaseMinor: null,
       tags: ['makan'],
       hasAttachment: false,

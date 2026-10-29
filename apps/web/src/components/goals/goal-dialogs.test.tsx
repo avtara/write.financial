@@ -74,7 +74,7 @@ describe('DepositDialog', () => {
     await expect.element(dialog.getByRole('button', { name: 'Setor', exact: true })).toBeVisible();
     await dialog.getByRole('button', { name: '1.000.000' }).click();
     await expect.element(dialog.getByRole('button', { name: '1.000.000' })).toHaveAttribute('aria-pressed', 'true');
-    await expect.element(dialog).toMatchTextContent('Progres21% → 22%');
+    await expect.element(dialog).toMatchTextContent('Progres20,60% → 22,45%');
     await expect.element(dialog).toMatchTextContent('Ketahanan0,6 → 0,7 bulan');
     await expect.element(dialog).toMatchTextContent('Estimasi tercapaiNov 2027 → Okt 2027');
     await dialog.getByRole('textbox', { name: 'Catatan' }).fill('Bonus proyek freelance');
@@ -103,7 +103,7 @@ describe('DepositDialog', () => {
     await expect.element(dialog.getByRole('combobox', { name: 'Ke' })).toMatchTextContent('BCA Tahapan');
     await expect.element(dialog.getByRole('combobox', { name: 'Dari' })).toMatchTextContent('Bank Jago');
     await dialog.getByRole('button', { name: /Pas target/ }).click();
-    await expect.element(dialog).toMatchTextContent('Progres80% → 100%');
+    await expect.element(dialog).toMatchTextContent('Progres80,00% → 100,00%');
     await expect.element(dialog.getByText('Tercapai setelah setoran ini')).toBeVisible();
     await dialog.getByRole('combobox', { name: 'Dari' }).click();
     await screen.getByRole('option', { name: OVO.displayName }).click();
@@ -185,7 +185,7 @@ describe('WithdrawDialog', () => {
     await expect.element(dialog.getByRole('combobox', { name: 'Dari rekening' })).toMatchTextContent('Bank Jago');
     await expect.element(dialog.getByRole('button', { name: 'Tarik dana', exact: true })).toBeVisible();
     await dialog.getByRole('textbox', { name: 'Jumlah' }).fill('2.000.000');
-    await expect.element(dialog).toMatchTextContent('Progres21% → 17%');
+    await expect.element(dialog).toMatchTextContent('Progres20,60% → 16,90%');
     await expect.element(dialog).toMatchTextContent('Ketahanan0,6 → 0,5 bulan');
     // The design's "Des 2027" contradicts its own numbers: 44.875.000 / 3.500.000 → 13 contributions from Nov 2026.
     await expect.element(dialog).toMatchTextContent('Estimasi tercapaiNov 2027 → Nov 2027');
@@ -420,7 +420,9 @@ describe('RemainderDialog', () => {
     await expect.element(options.nth(0)).toBeChecked();
     await expect.element(options.nth(1)).toHaveAccessibleName(/^Liburan Bali/);
     await expect.element(options.nth(2)).toHaveAccessibleName(/^Lepas jadi saldo bebas/);
-    await expect.element(dialog).toMatchTextContent('Servis motorRp720.000 → Rp758.000 dari Rp1.200.00060% → 63%');
+    await expect
+      .element(dialog)
+      .toMatchTextContent('Servis motorRp720.000 → Rp758.000 dari Rp1.200.00060,00% → 63,17%');
     await expect.element(dialog.getByText('Tetap di BCA Tahapan, tidak terikat tujuan mana pun')).toBeVisible();
     await dialog.getByRole('button', { name: 'Pindahkan' }).click();
     expect(onMove).toHaveBeenCalledWith(USED, SERVIS_MOTOR.id);
