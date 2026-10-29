@@ -142,26 +142,27 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   // of the left column are pushed apart where small nodes sit close. On a portrait tablet the income total's "100%"
   // (always 100%) would run into the groups' column, so its label keeps the amount only.
   const narrow = width !== null && width < NARROW_FLOW;
-  const texts = new Map<string, { value: string; label: string; middle: number }>();
+  const texts = new Map<string, { lines: readonly string[]; label: string; middle: number }>();
   let previousLeft = -Infinity;
   for (const node of layout?.nodes ?? []) {
     const amount = money(node.valueMinor);
     const percent = share(node.shareBps);
     let middle = (node.y0 + node.y1) / 2;
     if (node.column === firstColumn) {
-      middle = Math.max(middle, previousLeft + 32);
+      middle = Math.max(middle, previousLeft + 44);
       previousLeft = middle;
     }
-    const parts = shown === 'amount' ? (narrow && node.id === 'total' ? [amount] : [amount, percent]) : [percent];
+    // The percentage sits under the amount (its own line), so a label reads: name, amount, percentage.
+    const lines = shown === 'percent' ? [percent] : narrow && node.id === 'total' ? [amount] : [amount, percent];
     texts.set(node.id, {
-      value: parts.join('  '),
-      // The visible text word for word (WCAG 2.5.3): "Gaji Rp18.500.000 71%", which the name and value lines show.
-      label: [name(node.id), ...parts].join(' '),
+      // The visible text word for word (WCAG 2.5.3): "Gaji Rp18.500.000 71%".
+      label: [name(node.id), ...lines].join(' '),
+      lines,
       middle,
     });
   }
-  // Room for the second line of the lowest pushed-down source label.
-  const drawnHeight = Math.max(height, previousLeft + 24);
+  // Room for the extra line of the lowest pushed-down source label.
+  const drawnHeight = Math.max(height, previousLeft + 40);
   /** Dimmed when a group is focused and the node or band is not on its path. */
   const dimmed = (id: string) =>
     wide && focus !== null && id !== focus && id !== 'total' && !id.startsWith('source:') && parentOf.get(id) !== focus;
@@ -398,10 +399,15 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
             {layout.nodes.map((node) => {
               const left = node.column === firstColumn;
               const tone = node.id === 'total' ? { fill: 'fill-fg' } : toneOf(node.id);
-              // Sources keep two lines (their labels sit left, where a long one would be cut); small nodes elsewhere
-              // get one line.
-              const inline = !left && (node.column === 3 || node.y1 - node.y0 < 26);
-              const { value, label, middle } = texts.get(node.id) as { value: string; label: string; middle: number };
+              // A node too thin for stacked lines keeps them inline beside its name.
+              const inline = !left && node.y1 - node.y0 < 26;
+              const { lines, label, middle } = texts.get(node.id) as {
+                lines: readonly string[];
+                label: string;
+                middle: number;
+              };
+              // Name above; one line below it (or two: the amount, then the percentage under it).
+              const offsets = lines.length === 1 ? [-8, 8] : [-14, -1, 12];
               const interactive = node.column !== 1;
               return (
                 <g
@@ -444,31 +450,39 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
                   />
                   <text
                     x={left ? node.x0 - 10 : node.x1 + 10}
-                    y={inline ? middle : middle - 8}
+                    y={inline ? middle : middle + (offsets[0] as number)}
                     textAnchor={left ? 'end' : 'start'}
                     dominantBaseline="middle"
                     className="fill-fg text-[12.5px] font-medium"
                   >
                     {/* The space joins name and value for assistive technology (the label holds both, WCAG 2.5.3);
-                        at the end of a two-line label SVG does not draw it, and inline it replaces 3 px of the gap. */}
+                        at the end of a stacked label SVG does not draw it, and inline it replaces 3 px of the gap. */}
                     {name(node.id)}{' '}
                     {inline ? (
-                      <tspan dx={5} className="fill-subtle font-mono text-[11.5px] font-normal">
-                        {value}
+                      <tspan dx={5} className="fill-muted-fg font-mono text-[11.5px] font-normal">
+                        {lines.join('  ')}
                       </tspan>
                     ) : null}
                   </text>
-                  {inline ? null : (
-                    <text
-                      x={left ? node.x0 - 10 : node.x1 + 10}
-                      y={middle + 9}
-                      textAnchor={left ? 'end' : 'start'}
-                      dominantBaseline="middle"
-                      className="fill-subtle font-mono text-[11.5px]"
-                    >
-                      {value}
-                    </text>
-                  )}
+                  {inline
+                    ? null
+                    : lines.map((line, index) => (
+                        <text
+                          key={line}
+                          x={left ? node.x0 - 10 : node.x1 + 10}
+                          y={middle + (offsets[index + 1] as number)}
+                          textAnchor={left ? 'end' : 'start'}
+                          dominantBaseline="middle"
+                          className={
+                            index === 0
+                              ? 'fill-muted-fg font-mono text-[11.5px]'
+                              : 'fill-muted-fg font-mono text-[11px] opacity-80'
+                          }
+                        >
+                          {line}
+                          {index === 0 ? ' ' : null}
+                        </text>
+                      ))}
                 </g>
               );
             })}
