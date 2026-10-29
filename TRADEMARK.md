@@ -110,6 +110,9 @@ Every catalog record has a locally bundled mark in `apps/web/public/catalog-logo
 | `canva.png` | Canva | <https://static.canva.com/domain-assets/canva/static/images/android-192x192-2.png> |
 | `invesco.png` | XNAS:QQQ | <https://www.invesco.com/etc.clientlibs/invesco/clientlibs/main/resources/images/apple-touch-icon.png> |
 | `yieldmax.png` | ARCX:AMDY, ARCX:MSTY, ARCX:NVDY | <https://yieldmaxetfs.com/wp-content/uploads/2025/09/fav.png> |
+| `dssa.svg` | XIDX:DSSA | <https://www.dssa.co.id/favicon.svg> (unmodified SVG) |
+
+**Crypto asset icons.** BTC, ETH, USDT, USDC, DAI, BNB, SOL, XRP, DOGE, ADA, TRX, AVAX, DOT, LINK, POL, LTC, BCH, UNI, ATOM, XLM use unmodified SVGs from [spothq/cryptocurrency-icons](https://github.com/spothq/cryptocurrency-icons) 0.18.1 (CC0-1.0), files `coin-*.svg`. NEAR uses [Near logo.svg](https://commons.wikimedia.org/wiki/File:Near_logo.svg) (public domain, uploaded by Frolvlad). TON, APT, ARB (SVG) and SUI, OP, PEPE, SHIB (PNG resized to 128 × 128) are the projects' own published icons, downloaded from: TON <https://ton.org/assets/favicon.svg>; SHIB <https://shib.io/favicon.ico>; SUI <https://cdn.prod.website-files.com/68e8e0120513ba12c5cd12e0/6943eb0c5363694f8af7eac7_webclipsui.png>; APT <https://aptoslabs.com/favicons/favicon.svg>; ARB <https://docs.arbitrum.io/img/logo.svg>; OP <https://cdn.sanity.io/images/y6ka751a/production/b5455d6825417cb9be16dfda5471a72360102118-64x64.png>; PEPE <https://www.pepe.vip/>. These are trademarks used nominatively, like the brand-published icons above.
 
 
 ## Questions and permission

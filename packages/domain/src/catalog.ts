@@ -101,6 +101,40 @@ const stock = (
   dataLicense: DATA_LICENSE,
   ...mark,
 });
+/** An unmodified icon from spothq/cryptocurrency-icons 0.18.1 (CC0-1.0). */
+const cryptoIcon = (slug: string, file: string): Mark => ({
+  logoPath: `/catalog-logos/coin-${slug}.svg`,
+  logoSourceUrl: `https://github.com/spothq/cryptocurrency-icons/blob/v0.18.1/svg/color/${file}.svg`,
+  logoLicense: `CC0-1.0 (spothq/cryptocurrency-icons 0.18.1); ${TRADEMARK}`,
+});
+/** The project's own published icon; `ext` is the bundled file's format. */
+const coinIcon = (slug: string, sourceUrl: string, ext: 'svg' | 'png'): Mark => ({
+  ...official(`coin-${slug}`, sourceUrl),
+  logoPath: `/catalog-logos/coin-${slug}.${ext}`,
+});
+/** A crypto asset: priced by symbol (no venue); stablecoins sit in the "Kas & SGOV" class. */
+const coin = (
+  symbol: string,
+  name: string,
+  aliases: readonly string[],
+  sourceUrl: string,
+  mark: Mark,
+  assetClass: AssetClass = 'crypto',
+): CatalogRecord => ({
+  id: `crypto:${symbol.toLowerCase()}`,
+  kind: 'instrument',
+  name,
+  aliases,
+  sourceUrl,
+  accountTypes: [],
+  symbol,
+  venue: null,
+  currency: null,
+  assetClass,
+  market: 'crypto',
+  dataLicense: DATA_LICENSE,
+  ...mark,
+});
 const BANK: readonly AccountType[] = ['bank', 'credit_card'];
 const WALLET: readonly AccountType[] = ['ewallet'];
 const BROKER: readonly AccountType[] = ['investment'];
@@ -392,6 +426,17 @@ export const CATALOG: readonly CatalogRecord[] = [
     commons('astra', 'ASTRA international.svg'),
   ),
   stock(
+    'XIDX',
+    'DSSA',
+    'Dian Swastatika Sentosa',
+    ['PT Dian Swastatika Sentosa Tbk', 'Sinar Mas', 'DDSA'],
+    'https://www.dssa.co.id/',
+    {
+      ...official('dssa', 'https://www.dssa.co.id/favicon.svg'),
+      logoPath: '/catalog-logos/dssa.svg',
+    },
+  ),
+  stock(
     'XNAS',
     'AAPL',
     'Apple',
@@ -546,6 +591,96 @@ export const CATALOG: readonly CatalogRecord[] = [
     official('yieldmax', 'https://yieldmaxetfs.com/wp-content/uploads/2025/09/fav.png'),
     'income',
   ),
+  coin('BTC', 'Bitcoin', ['bitcoin'], 'https://bitcoin.org/', cryptoIcon('btc', 'btc')),
+  coin('ETH', 'Ethereum', ['ether'], 'https://ethereum.org/', cryptoIcon('eth', 'eth')),
+  coin(
+    'USDT',
+    'Tether USDt',
+    ['Tether', 'USD Tether', 'stablecoin'],
+    'https://tether.to/',
+    cryptoIcon('usdt', 'usdt'),
+    'cash',
+  ),
+  coin(
+    'USDC',
+    'USD Coin',
+    ['Circle USD', 'stablecoin'],
+    'https://www.circle.com/usdc',
+    cryptoIcon('usdc', 'usdc'),
+    'cash',
+  ),
+  coin('DAI', 'Dai', ['MakerDAO', 'Sky', 'stablecoin'], 'https://sky.money/', cryptoIcon('dai', 'dai'), 'cash'),
+  coin('BNB', 'BNB', ['Binance Coin'], 'https://www.bnbchain.org/', cryptoIcon('bnb', 'bnb')),
+  coin('SOL', 'Solana', ['solana'], 'https://solana.com/', cryptoIcon('sol', 'sol')),
+  coin('XRP', 'XRP', ['Ripple'], 'https://xrpl.org/', cryptoIcon('xrp', 'xrp')),
+  coin('DOGE', 'Dogecoin', ['doge'], 'https://dogecoin.com/', cryptoIcon('doge', 'doge')),
+  coin('ADA', 'Cardano', ['cardano'], 'https://cardano.org/', cryptoIcon('ada', 'ada')),
+  coin('TRX', 'TRON', ['Tron'], 'https://tron.network/', cryptoIcon('trx', 'trx')),
+  coin(
+    'TON',
+    'Toncoin',
+    ['TON', 'The Open Network'],
+    'https://ton.org/',
+    coinIcon('ton', 'https://ton.org/assets/favicon.svg', 'svg'),
+  ),
+  coin('AVAX', 'Avalanche', ['avalanche'], 'https://www.avax.network/', cryptoIcon('avax', 'avax')),
+  coin('DOT', 'Polkadot', ['polkadot'], 'https://polkadot.com/', cryptoIcon('dot', 'dot')),
+  coin('LINK', 'Chainlink', ['chainlink'], 'https://chain.link/', cryptoIcon('link', 'link')),
+  coin(
+    'POL',
+    'Polygon',
+    ['MATIC', 'Polygon Ecosystem Token'],
+    'https://polygon.technology/',
+    cryptoIcon('pol', 'matic'),
+  ),
+  coin('SHIB', 'Shiba Inu', ['shiba'], 'https://shib.io/', coinIcon('shib', 'https://shib.io/favicon.ico', 'png')),
+  coin('LTC', 'Litecoin', ['litecoin'], 'https://litecoin.org/', cryptoIcon('ltc', 'ltc')),
+  coin('BCH', 'Bitcoin Cash', ['bitcoin cash'], 'https://bitcoincash.org/', cryptoIcon('bch', 'bch')),
+  coin('NEAR', 'NEAR Protocol', ['near'], 'https://near.org/', {
+    logoPath: '/catalog-logos/coin-near.svg',
+    logoSourceUrl: 'https://commons.wikimedia.org/wiki/File:Near_logo.svg',
+    logoLicense: `Public domain (Wikimedia Commons); ${TRADEMARK}`,
+  }),
+  coin('UNI', 'Uniswap', ['uniswap'], 'https://uniswap.org/', cryptoIcon('uni', 'uni')),
+  coin(
+    'SUI',
+    'Sui',
+    ['sui'],
+    'https://sui.io/',
+    coinIcon(
+      'sui',
+      'https://cdn.prod.website-files.com/68e8e0120513ba12c5cd12e0/6943eb0c5363694f8af7eac7_webclipsui.png',
+      'png',
+    ),
+  ),
+  coin(
+    'APT',
+    'Aptos',
+    ['aptos'],
+    'https://aptosnetwork.com/',
+    coinIcon('apt', 'https://aptoslabs.com/favicons/favicon.svg', 'svg'),
+  ),
+  coin(
+    'ARB',
+    'Arbitrum',
+    ['arbitrum'],
+    'https://arbitrum.io/',
+    coinIcon('arb', 'https://docs.arbitrum.io/img/logo.svg', 'svg'),
+  ),
+  coin(
+    'OP',
+    'Optimism',
+    ['optimism'],
+    'https://www.optimism.io/',
+    coinIcon(
+      'op',
+      'https://cdn.sanity.io/images/y6ka751a/production/b5455d6825417cb9be16dfda5471a72360102118-64x64.png',
+      'png',
+    ),
+  ),
+  coin('ATOM', 'Cosmos', ['cosmos hub'], 'https://cosmos.network/', cryptoIcon('atom', 'atom')),
+  coin('XLM', 'Stellar', ['stellar lumens'], 'https://stellar.org/', cryptoIcon('xlm', 'xlm')),
+  coin('PEPE', 'Pepe', ['pepe coin'], 'https://www.pepe.vip/', coinIcon('pepe', 'https://www.pepe.vip/', 'png')),
   service(
     'netflix',
     'Netflix',

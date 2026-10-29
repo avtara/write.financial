@@ -183,6 +183,20 @@
       "when": 1793273441354,
       "tag": "0025_catalog_etfs",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793273668725,
+      "tag": "0026_catalog_dssa",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793273832973,
+      "tag": "0027_catalog_crypto",
+      "breakpoints": true
     }
   ]
 }
