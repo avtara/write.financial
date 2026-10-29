@@ -102,7 +102,6 @@ function AssetFields({
   };
   const platform = platforms.find((candidate) => candidate.accountId === accountId);
   const reference = getCatalogRecord(catalogId);
-  const quoteCurrency = platform?.currency ?? asset?.quoteCurrency ?? '';
   const selectListing = (record: CatalogRecord) => {
     // All descriptive fields remain editable. Price, quantity and monetary fields are deliberately untouched.
     setCatalogId(record.id);
@@ -146,7 +145,6 @@ function AssetFields({
                 aria-describedby={describedBy}
                 aria-invalid={invalid}
                 kind="instrument"
-                currency={quoteCurrency}
                 onValueChange={(value) => {
                   setSymbol(value);
                   setCatalogId(null);
@@ -165,7 +163,6 @@ function AssetFields({
               aria-describedby={describedBy}
               aria-invalid={invalid}
               kind="instrument"
-              currency={quoteCurrency}
               onValueChange={setName}
               onSelect={selectListing}
             />
@@ -181,16 +178,7 @@ function AssetFields({
               <Select
                 id={id}
                 value={accountId}
-                onValueChange={(value) => {
-                  setAccountId(value);
-                  if (
-                    reference !== null &&
-                    reference.currency !==
-                      (platforms.find((candidate) => candidate.accountId === value) as PlatformView).currency
-                  ) {
-                    setCatalogId(null);
-                  }
-                }}
+                onValueChange={setAccountId}
                 placeholder={m.invest_trade_account_pick()}
                 options={platforms.map((candidate) => ({ value: candidate.accountId, label: candidate.name }))}
               />
@@ -273,7 +261,7 @@ function AssetFields({
       </div>
       {reference?.venue != null ? (
         <p className="text-[12px] text-muted-fg">
-          {m.catalog_listing({ venue: reference.venue, currency: quoteCurrency })}
+          {m.catalog_listing({ venue: reference.venue, currency: reference.currency as string })}
         </p>
       ) : null}
       <p className="text-[12px] text-subtle">{m.invest_asset_note()}</p>
