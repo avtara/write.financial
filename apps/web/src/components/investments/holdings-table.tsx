@@ -95,6 +95,7 @@ function Gain({
         quoteCurrency={quoteCurrency}
         display={display}
         context="signed"
+        className="text-[13px]"
       />
       {bps === null ? null : (
         <Percent
