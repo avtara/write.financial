@@ -211,6 +211,44 @@ describe('list and get', () => {
   });
 });
 
+describe('catalog providers', () => {
+  it('persists a provider independently of balances and uploaded logos, and permits returning to manual entry', async () => {
+    const created = await asApp(() =>
+      repo.create(alice, plain({ providerName: 'BCA', catalogId: 'provider:bca', logoKey: 'custom-logo' })),
+    );
+    expect(await asApp(() => repo.get(alice, created.id))).toMatchObject({
+      catalogId: 'provider:bca',
+      openingBalanceMinor: 1_000_000n,
+      balanceMinor: 1_000_000n,
+      logoKey: 'custom-logo',
+    });
+    const renamed = await asApp(() => repo.update(alice, created.id, { displayName: 'Dana harian' }));
+    expect(renamed.catalogId).toBe('provider:bca');
+    await expect(asApp(() => repo.update(alice, created.id, { type: 'ewallet' }))).rejects.toMatchObject({
+      code: 'INVALID_ACCOUNT',
+    });
+    const manual = await asApp(() =>
+      repo.update(alice, created.id, { type: 'ewallet', providerName: 'Dompet sendiri', catalogId: null }),
+    );
+    expect(manual).toMatchObject({
+      catalogId: null,
+      type: 'ewallet',
+      balanceMinor: 1_000_000n,
+      logoKey: 'custom-logo',
+    });
+  });
+
+  it('rejects unknown, wrong-kind, and incompatible provider references', async () => {
+    for (const catalogId of ['missing', 'service:netflix', 'provider:gopay']) {
+      await expect(asApp(() => repo.create(alice, plain({ catalogId })))).rejects.toMatchObject({
+        code: 'INVALID_ACCOUNT',
+      });
+    }
+    const card = await asApp(() => repo.create(alice, plain({ type: 'credit_card', catalogId: 'provider:bca' })));
+    expect(card).toMatchObject({ type: 'credit_card', catalogId: 'provider:bca' });
+  });
+});
+
 describe('create', () => {
   it('makes the first account the default and keeps a single default', async () => {
     const first = await asApp(() => repo.create(alice, plain({ displayName: 'First' })));

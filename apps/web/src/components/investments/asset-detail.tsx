@@ -6,6 +6,7 @@
  */
 import type { AssetView, PortfolioView, TradeView } from '@wf/db/investments';
 import { ratioBps } from '@wf/domain/budget';
+import { getCatalogRecord } from '@wf/domain/catalog';
 import { goalImpact } from '@wf/domain/goal-assets';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
@@ -20,6 +21,7 @@ import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { PROVIDER_NAMES } from '../../lib/market-sources.ts';
 import { getAssetTrades } from '../../server/fn/investments.ts';
 import { Button } from '../form.tsx';
+import { AssetLogo } from './asset-logo.tsx';
 import type { AssetAction } from './holdings-table.tsx';
 import { ChangeChip } from './investment-kpis.tsx';
 import { assetSources, CLASS_TONE, classLabel, formatUnits, priceMinor, quoteLabel } from './investments-model.ts';
@@ -134,6 +136,7 @@ function DetailBody({
   const trades: Trades = loaded?.key === key ? loaded.trades : { status: 'loading' };
   const base = portfolio.baseCurrency;
   const { value, quote } = asset;
+  const reference = getCatalogRecord(asset.catalogId);
   const share = value === null ? null : ratioBps(value.valueBaseMinor, portfolio.summary.valueBaseMinor);
   const classRow = portfolio.allocation?.rows.find((row) => row.key === asset.assetClass);
   const todayMinor = value === null ? null : value.todayBaseMinor;
@@ -175,6 +178,14 @@ function DetailBody({
 
   return (
     <div className="flex flex-col gap-5">
+      <div className="flex items-center gap-2">
+        <AssetLogo asset={asset} />
+        {reference?.venue == null ? null : (
+          <span className="font-mono text-[12px] text-muted-fg">
+            {m.catalog_listing({ venue: reference.venue, currency: asset.quoteCurrency })}
+          </span>
+        )}
+      </div>
       <div className="flex flex-col gap-1.5">
         <span className="flex items-center gap-1.5 text-[12px] text-muted-fg">
           <span aria-hidden="true" className={`size-1.5 rounded-full ${CLASS_TONE[asset.assetClass].dot}`} />

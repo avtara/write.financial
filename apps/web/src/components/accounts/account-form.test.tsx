@@ -5,11 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { accountView } from '../../../test/accounts.ts';
 import { renderApp } from '../../../test/render.tsx';
+import type { AccountFields } from '../../server/fn/accounts.ts';
 import { AccountForm, draftOf, validateDraft, type AccountFormProps } from './account-form.tsx';
 
 const server = vi.hoisted(() => ({
   createAccount: vi.fn(),
-  updateAccount: vi.fn(),
+  updateAccount: vi.fn<(input: { data: { id: string; patch: Partial<AccountFields> } }) => Promise<unknown>>(),
   setAccountLogo: vi.fn(),
   removeAccountLogo: vi.fn(),
 }));
@@ -118,7 +119,7 @@ describe('AccountForm', () => {
   it('adds a bank account and reports it', async () => {
     const { screen, submit, onSaved } = await renderForm();
     await expect.element(screen.getByRole('radio', { name: 'Bank' })).toBeChecked();
-    await userEvent.fill(screen.getByRole('textbox', { name: 'Nama bank / penyedia' }), 'SeaBank');
+    await userEvent.fill(screen.getByRole('combobox', { name: 'Nama bank / penyedia' }), 'SeaBank');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Nama tampilan' }), 'SeaBank');
     await userEvent.fill(screen.getByRole('textbox', { name: '4 digit akhir' }), '77a1');
     await expect.element(screen.getByRole('textbox', { name: '4 digit akhir' })).toHaveValue('771');
@@ -133,6 +134,7 @@ describe('AccountForm', () => {
       data: {
         type: 'bank',
         providerName: 'SeaBank',
+        catalogId: null,
         displayName: 'SeaBank',
         currency: 'IDR',
         openingBalanceMinor: 1_500_000n,
@@ -184,12 +186,12 @@ describe('AccountForm', () => {
   it('asks for what each type needs', async () => {
     const { screen } = await renderForm();
     await userEvent.click(screen.getByRole('radio', { name: 'E-Wallet' }));
-    await expect.element(screen.getByRole('textbox', { name: 'Penyedia e-wallet' })).toBeVisible();
+    await expect.element(screen.getByRole('combobox', { name: 'Penyedia e-wallet' })).toBeVisible();
     await userEvent.fill(screen.getByRole('textbox', { name: 'Nomor HP' }), '0812 3456 7818');
     await expect.element(screen.getByRole('region', { name: 'Pratinjau kartu' }).getByText('0812•• 18')).toBeVisible();
 
     await userEvent.click(screen.getByRole('radio', { name: 'Tunai' }));
-    await expect.element(screen.getByRole('textbox', { name: /penyedia/i })).not.toBeInTheDocument();
+    await expect.element(screen.getByRole('combobox', { name: /penyedia/i })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('radio', { name: 'Investasi' }));
     await expect.element(screen.getByRole('textbox', { name: 'Nilai saat ini' })).toBeVisible();
@@ -197,7 +199,7 @@ describe('AccountForm', () => {
     await expect.element(screen.getByText('Masuk kekayaan bersih · tidak masuk saldo tersedia')).toBeVisible();
 
     await userEvent.click(screen.getByRole('radio', { name: 'Kartu kredit' }));
-    await expect.element(screen.getByRole('textbox', { name: 'Penerbit' })).toBeVisible();
+    await expect.element(screen.getByRole('combobox', { name: 'Penerbit' })).toBeVisible();
     await expect.element(screen.getByRole('textbox', { name: 'Nama kartu' })).toBeVisible();
     await expect.element(screen.getByRole('switch', { name: /Kurangi tagihan berjalan/ })).toBeChecked();
     await userEvent.fill(screen.getByRole('textbox', { name: 'Limit kredit' }), '15jt');
@@ -207,7 +209,7 @@ describe('AccountForm', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tanggal tagihan' }), '');
     await expect.element(screen.getByRole('textbox', { name: 'Batas saldo rendah' })).not.toBeInTheDocument();
     await userEvent.fill(screen.getByRole('textbox', { name: 'Tagihan berjalan' }), '250.000');
-    await userEvent.fill(screen.getByRole('textbox', { name: 'Penerbit' }), 'BCA');
+    await userEvent.fill(screen.getByRole('combobox', { name: 'Penerbit' }), 'BCA');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Nama kartu' }), 'BCA Visa');
     await userEvent.click(screen.getByRole('button', { name: 'Tambah rekening' }));
     expect(server.createAccount).toHaveBeenCalledWith({
@@ -223,7 +225,7 @@ describe('AccountForm', () => {
 
   it('sets the flags, the threshold, a custom color, the currency, and the date', async () => {
     const { screen } = await renderForm({ cardHolders: ['BCA Tahapan'] });
-    await userEvent.fill(screen.getByRole('textbox', { name: 'Nama bank / penyedia' }), 'Wise');
+    await userEvent.fill(screen.getByRole('combobox', { name: 'Nama bank / penyedia' }), 'Wise');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Nama tampilan' }), 'Wise');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Saldo awal' }), '100');
     await userEvent.click(screen.getByRole('switch', { name: /Hitung dalam total saldo/ }));
@@ -384,5 +386,73 @@ describe('AccountForm', () => {
     const click = vi.spyOn(input, 'click').mockImplementation(() => undefined);
     await userEvent.click(screen.getByRole('button', { name: 'Unggah PNG' }));
     expect(click).toHaveBeenCalled();
+  });
+  it('prefills a provider without financial defaults and clears incompatible references on type changes', async () => {
+    const { screen, submit } = await renderForm();
+    const provider = screen.getByRole('combobox', { name: 'Nama bank / penyedia' });
+    await provider.fill('Bank Central Asia');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    await expect.element(provider).toHaveValue('BCA');
+    await expect.element(screen.getByRole('textbox', { name: 'Nama tampilan' })).toHaveValue('BCA');
+    await expect.element(screen.getByRole('textbox', { name: 'Saldo awal' })).toHaveValue('');
+    expect(screen.container.querySelector('img')?.getAttribute('src')).toBe('/catalog-logos/bca.svg');
+    await screen.getByRole('textbox', { name: 'Saldo awal' }).fill('1.000');
+    await submit.click();
+    expect(server.createAccount.mock.lastCall?.[0]).toMatchObject({
+      data: {
+        providerName: 'BCA',
+        displayName: 'BCA',
+        catalogId: 'provider:bca',
+        currency: 'IDR',
+        openingBalanceMinor: 1_000n,
+        openingDate: TODAY,
+      },
+    });
+    await screen.getByRole('button', { name: 'Pakai ikon' }).click();
+    expect(screen.container.querySelector('img')).toBeNull();
+    await provider.fill('BCA');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    await screen.getByRole('radio', { name: 'Kartu kredit' }).click();
+    await screen.getByRole('radio', { name: 'Bank', exact: true }).click();
+    await provider.fill('Mandiri');
+    await screen.getByRole('option', { name: 'Bank Mandiri', exact: true }).click();
+    await expect.element(screen.getByRole('textbox', { name: 'Nama tampilan' })).toHaveValue('BCA');
+    await screen.getByRole('radio', { name: 'E-Wallet' }).click();
+    await submit.click();
+    expect(server.createAccount.mock.lastCall?.[0]).toMatchObject({
+      data: {
+        type: 'ewallet',
+        catalogId: null,
+        openingBalanceMinor: 1_000n,
+      },
+    });
+  });
+
+  it('keeps uploaded logos, customized names, and locked money when selecting or manually overriding a provider', async () => {
+    const account = accountView({
+      locked: true,
+      currency: 'USD',
+      displayName: 'My emergency fund',
+      catalogId: 'provider:mandiri',
+      logoKey: 'u/x/0000000000c1',
+    });
+    const { screen } = await renderForm({ account, submitLabel: 'Simpan perubahan' });
+    const provider = screen.getByRole('combobox', { name: 'Nama bank / penyedia' });
+    await provider.fill('BCA');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    await expect.element(screen.getByRole('textbox', { name: 'Nama tampilan' })).toHaveValue('My emergency fund');
+    expect(screen.container.querySelector('img')?.getAttribute('src')).toContain('/api/account-logo/');
+    await screen.getByRole('button', { name: 'Simpan perubahan' }).click();
+    const patch = server.updateAccount.mock.lastCall?.[0].data.patch;
+    expect(patch).toMatchObject({ catalogId: 'provider:bca', providerName: 'BCA', displayName: 'My emergency fund' });
+    expect(patch).not.toHaveProperty('currency');
+    expect(patch).not.toHaveProperty('openingBalanceMinor');
+    expect(patch).not.toHaveProperty('openingDate');
+    expect(server.removeAccountLogo).not.toHaveBeenCalled();
+    await provider.fill('An unlisted bank');
+    await screen.getByRole('button', { name: 'Simpan perubahan' }).click();
+    expect(server.updateAccount.mock.lastCall?.[0]).toMatchObject({
+      data: { id: account.id, patch: { providerName: 'An unlisted bank', catalogId: null } },
+    });
   });
 });

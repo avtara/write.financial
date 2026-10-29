@@ -7,6 +7,7 @@
  * `locked` (FR-R3: currency, opening balance and opening date fixed) while it has postings of non-deleted
  * transactions; soft-deleted ones (Undo window) do not lock it.
  */
+import { getCatalogRecord } from '@wf/domain/catalog';
 import type { FxRate } from '@wf/domain/fx';
 import { availableBalance, type AccountType } from '@wf/domain/ledger';
 import { parseLocalDate, type LocalDate, type YearMonth } from '@wf/domain/period';
@@ -24,6 +25,7 @@ const ACCOUNT_COLUMNS = {
   id: accounts.id,
   type: accounts.type,
   providerName: accounts.providerName,
+  catalogId: accounts.catalogId,
   logoKey: accounts.logoKey,
   displayName: accounts.displayName,
   last4: accounts.last4,
@@ -83,6 +85,7 @@ export interface AccountsOverview {
 export interface AccountInput {
   readonly type: AccountType;
   readonly providerName: string;
+  readonly catalogId?: string | null;
   /** 1–40 characters after trimming. */
   readonly displayName: string;
   /** ISO 4217 code. */
@@ -206,6 +209,7 @@ const MAX_SERIES_MONTHS = 120;
 const INPUT_KEYS = [
   'type',
   'providerName',
+  'catalogId',
   'displayName',
   'currency',
   'openingBalanceMinor',
@@ -259,6 +263,15 @@ function normalize(input: Partial<AccountInput>): Partial<AccountInput> {
   }
   if (result.ccLimitMinor != null && result.ccLimitMinor < 0n) throw invalid('The credit limit is negative');
   return result;
+}
+
+/** A custom account has no reference; a selected provider must support the account type. */
+function checkCatalog(input: Pick<AccountInput, 'type' | 'catalogId'>): void {
+  if (input.catalogId == null) return;
+  const entry = getCatalogRecord(input.catalogId);
+  if (entry?.kind !== 'provider' || !entry.accountTypes.includes(input.type)) {
+    throw invalid('The catalog provider does not support this account type');
+  }
 }
 
 /** Postgres `sum`/`count` results as `bigint`. */
@@ -437,6 +450,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
     create: (userId, input) =>
       withUser(db, userId, async (tx) => {
         const values = normalize(input) as AccountInput;
+        checkCatalog(values);
         await checkParentIn(tx, values.parentAccountId);
         const rows = await lockAllIn(tx);
         if (values.showAsCard === true) checkCards(rows);
@@ -464,6 +478,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         const rows = await lockAllIn(tx);
         const current = findLocked(rows, id);
         const before = await viewIn(tx, userId, id, now());
+        checkCatalog({ ...before, ...values });
         if (before.locked && LOCKED_KEYS.some((key) => values[key] !== undefined && values[key] !== before[key])) {
           throw new LedgerError('ACCOUNT_LOCKED');
         }

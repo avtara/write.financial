@@ -237,3 +237,10 @@ describe('BillSchedule', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 });
+
+it('retains service branding on the scheduled bill after loading a saved catalog association', async () => {
+  const overview = seedOverview({ subscriptions: [{ ...S_NETFLIX, catalogId: 'service:netflix' }] });
+  const { screen } = await renderSchedule({ overview });
+  const bill = screen.getByRole('button', { name: 'Netflix, 18 Okt, Akan ditagih' }).element();
+  expect(bill.querySelector('img')?.getAttribute('src')).toBe('/catalog-logos/netflix.svg');
+});

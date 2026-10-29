@@ -70,7 +70,7 @@ describe('SubscriptionForm', () => {
     await expect.element(dialog.getByText('Isi harga lebih dari 0.')).toBeVisible();
     expect(fns.createSubscription).not.toHaveBeenCalled();
 
-    await dialog.getByRole('textbox', { name: 'Layanan' }).fill('  Disney+ Hotstar ');
+    await dialog.getByRole('combobox', { name: 'Layanan' }).fill('  Disney+ Hotstar ');
     await dialog.getByRole('textbox', { name: 'Paket' }).fill('Premium');
     await dialog.getByRole('textbox', { name: 'Harga' }).fill('39.000');
     await dialog.getByRole('radio', { name: 'Tahunan' }).click();
@@ -87,6 +87,7 @@ describe('SubscriptionForm', () => {
     expect(fns.createSubscription).toHaveBeenCalledWith({
       data: {
         name: 'Disney+ Hotstar',
+        catalogId: null,
         plan: 'Premium',
         icon: null,
         description: 'Akun keluarga',
@@ -107,7 +108,7 @@ describe('SubscriptionForm', () => {
   it('converts a USD price paid from an IDR account, with the estimate at the reference rate', async () => {
     fns.createSubscription.mockReturnValue(ok({ id: 'n' }));
     const { dialog } = await renderForm();
-    await dialog.getByRole('textbox', { name: 'Layanan' }).fill('Notion Plus');
+    await dialog.getByRole('combobox', { name: 'Layanan' }).fill('Notion Plus');
     await dialog.getByRole('combobox', { name: 'Mata uang' }).selectOptions('USD');
     await expect.element(dialog.getByText(/^Dikonversi saat ditagih/)).toBeVisible();
     await expect.element(dialog.getByText(/≈/)).not.toBeInTheDocument();
@@ -154,7 +155,7 @@ describe('SubscriptionForm', () => {
   it('starts a free trial: 7/14 days, a month, or until a date, and the first bill follows it', async () => {
     fns.createSubscription.mockReturnValue(ok({ id: 'n' }));
     const { dialog } = await renderForm();
-    await dialog.getByRole('textbox', { name: 'Layanan' }).fill('Trial');
+    await dialog.getByRole('combobox', { name: 'Layanan' }).fill('Trial');
     await dialog.getByRole('textbox', { name: 'Harga' }).fill('50.000');
     await dialog.getByRole('switch', { name: /Masa uji coba gratis/ }).click();
     await expect.element(dialog.getByText('Kamis, 22 Okt')).toBeVisible();
@@ -195,7 +196,7 @@ describe('SubscriptionForm', () => {
 
   it('needs a paying account', async () => {
     const { dialog, onSaved } = await renderForm({ accounts: [] });
-    await dialog.getByRole('textbox', { name: 'Layanan' }).fill('X');
+    await dialog.getByRole('combobox', { name: 'Layanan' }).fill('X');
     await dialog.getByRole('textbox', { name: 'Harga' }).fill('1.000');
     await dialog.getByRole('button', { name: 'Simpan langganan' }).click();
     await expect.element(dialog.getByText('Pilih rekening pembayar.')).toBeVisible();
@@ -243,7 +244,7 @@ describe('SubscriptionForm', () => {
     });
     await expect.element(page.getByRole('dialog', { name: 'Edit langganan' })).toBeVisible();
     await expect.element(dialog.getByText('20 tagihan tercatat sejak Mar 2025')).toBeVisible();
-    await expect.element(dialog.getByRole('textbox', { name: 'Layanan' })).toHaveValue('ChatGPT');
+    await expect.element(dialog.getByRole('combobox', { name: 'Layanan' })).toHaveValue('ChatGPT');
     await expect.element(dialog.getByText('Logo diunggah')).toBeVisible();
     await expect.element(dialog.getByText(/^Rp299\.000 → Rp329\.000 · \+Rp30\.000 · \+10%$/)).toBeVisible();
     await expect.element(dialog.getByRole('switch', { name: /Masa uji coba gratis/ })).not.toBeInTheDocument();
@@ -291,5 +292,53 @@ describe('SubscriptionForm', () => {
     const click = vi.spyOn(input, 'click').mockImplementation(() => undefined);
     await dialog.getByRole('button', { name: 'Unggah PNG' }).click();
     expect(click).toHaveBeenCalled();
+  });
+  it('selects a local service without changing price, billing date, account, or an uploaded logo', async () => {
+    const subscription = { ...S_YOUTUBE, catalogId: 'service:youtube-premium', logoKey: 'u/x/0000000000c1' };
+    fns.updateSubscription.mockReturnValue(ok(subscription));
+    const { dialog } = await renderForm({ subscription });
+    await dialog.getByRole('combobox', { name: 'Layanan' }).fill('Netflix');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    expect(dialog.element().querySelector('img')?.getAttribute('src')).toContain('/api/subscription-logo/');
+    await dialog.getByRole('button', { name: 'Simpan perubahan' }).click();
+    expect(fns.updateSubscription.mock.lastCall?.[0]).toMatchObject({
+      data: {
+        id: subscription.id,
+        patch: {
+          name: 'Netflix',
+          catalogId: 'service:netflix',
+          priceMinor: subscription.priceMinor,
+          nextBillingDate: subscription.nextBillingDate,
+          payFromAccountId: subscription.payFromAccountId,
+          currency: subscription.currency,
+        },
+      },
+    });
+    expect(fns.removeSubscriptionLogo).not.toHaveBeenCalled();
+    await dialog.getByRole('combobox', { name: 'Layanan' }).fill('My local service');
+    await dialog.getByRole('button', { name: 'Simpan perubahan' }).click();
+    expect(fns.updateSubscription.mock.lastCall?.[0]).toMatchObject({
+      data: { id: subscription.id, patch: { name: 'My local service', catalogId: null } },
+    });
+  });
+
+  it('offers common service aliases and persists branding only after the user supplies a charge', async () => {
+    fns.createSubscription.mockReturnValue(ok({ ...S_YOUTUBE, name: 'Spotify', catalogId: 'service:spotify' }));
+    const { dialog } = await renderForm();
+    await dialog.getByRole('combobox', { name: 'Layanan' }).fill('Spotify Premium');
+    await dialog.getByRole('option', { name: 'Spotify', exact: true }).click();
+    await expect.element(dialog.getByText('Logo referensi lokal')).toBeVisible();
+    await expect.element(dialog.getByRole('textbox', { name: 'Harga' })).toHaveValue('');
+    expect(dialog.element().querySelector('img')?.getAttribute('src')).toBe('/catalog-logos/spotify.svg');
+    await dialog.getByRole('textbox', { name: 'Harga' }).fill('10.000');
+    await dialog.getByRole('button', { name: 'Simpan langganan' }).click();
+    expect(fns.createSubscription.mock.lastCall?.[0]).toMatchObject({
+      data: {
+        name: 'Spotify',
+        catalogId: 'service:spotify',
+        priceMinor: 10_000n,
+        nextBillingDate: TODAY,
+      },
+    });
   });
 });

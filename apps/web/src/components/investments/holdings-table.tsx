@@ -7,6 +7,7 @@
  */
 import type { AssetView, PortfolioView } from '@wf/db/investments';
 import { ratioBps } from '@wf/domain/budget';
+import { getCatalogRecord } from '@wf/domain/catalog';
 import type { AssetClass } from '@wf/domain/investments';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
@@ -40,6 +41,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { Button } from '../form.tsx';
 import { ApproxBase, DisplayMoney, type AmountDisplay } from './display-money.tsx';
+import { AssetLogo } from './asset-logo.tsx';
 import {
   CLASS_TONE,
   classLabel,
@@ -213,6 +215,7 @@ function AssetRow({
   readonly onAction: (action: AssetAction, asset: AssetView) => void;
 }) {
   const { value, holding } = asset;
+  const reference = getCatalogRecord(asset.catalogId);
   const goals = asset.goals.map((goal) =>
     goal.mode === 'whole' ? goal.goalName : `${goal.goalName} ${formatShare(goal.bps, display.locale)}`,
   );
@@ -220,12 +223,7 @@ function AssetRow({
     <tr className="border-t border-border">
       <td className={`${CELL} ${nested ? 'pl-12' : ''}`}>
         <span className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-surface-2 font-mono text-[9.5px] text-muted-fg"
-          >
-            {asset.symbol.slice(0, 5)}
-          </span>
+          <AssetLogo asset={asset} />
           <span className="flex min-w-0 flex-col">
             <button
               type="button"
@@ -239,6 +237,7 @@ function AssetRow({
             {/* Below 1024 px the Platform column is hidden, so the platform joins the subtitle. */}
             <span className="truncate text-[11.5px] text-subtle">
               {asset.name}
+              {reference?.venue == null ? null : ` · ${reference.venue}`}
               <span className="lg:hidden">
                 {' · '}
                 {asset.platformName}

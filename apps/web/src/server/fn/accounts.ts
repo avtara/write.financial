@@ -37,6 +37,7 @@ const nonNegative = z.bigint().nonnegative();
 const accountFields = z.object({
   type: z.enum(ACCOUNT_TYPES),
   providerName: z.string().trim().min(1).max(80),
+  catalogId: z.string().trim().min(1).max(80).nullable().optional(),
   displayName: z.string().trim().min(1).max(40),
   currency,
   openingBalanceMinor: z.bigint(),

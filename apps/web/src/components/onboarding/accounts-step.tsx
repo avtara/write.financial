@@ -184,6 +184,7 @@ export function AccountsStep({ view, onSaved }: { view: OnboardingView; onSaved:
                       type: row.type,
                       color: row.color,
                       logoKey: row.account?.logoKey ?? null,
+                      catalogId: row.account?.catalogId ?? null,
                     }}
                   />
                   <div className="flex min-w-0 flex-1 flex-col">

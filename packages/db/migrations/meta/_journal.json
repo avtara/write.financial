@@ -162,6 +162,13 @@
       "when": 1793160156917,
       "tag": "0022_transactions_list_order",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793266832810,
+      "tag": "0023_reference_catalog",
+      "breakpoints": true
     }
   ]
 }

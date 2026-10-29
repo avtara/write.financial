@@ -25,7 +25,22 @@ This policy exists so that users can always tell whether they are using the offi
 
 ## Third-party trademarks
 
-Bank, e-wallet, and asset logos in `images/logos/` are trademarks of their respective owners. They are included only to identify accounts in the app and are not covered by this policy or by the code license. Their owners do not endorse write.financial.
+Bank, e-wallet, broker, issuer, and subscription names and marks belong to their respective owners. Catalog marks are used only to identify a user's accounts, holdings, or subscriptions; their owners do not endorse write.financial. Neither this policy nor the AGPL grants trademark rights.
+
+### Bundled catalog marks and provenance
+
+The runtime catalog is a deliberately small Indonesian-first selection with international examples, **not a worldwide database**. The original factual curation in `packages/domain/src/catalog.ts` is AGPL-3.0-only; each record links its official identity source. These links are provenance, not permission to copy website content. No directory, prices, website text, or Simple Icons collection has been imported.
+
+Only these four original SVG files are bundled in `apps/web/public/catalog-logos/`. The linked Wikimedia Commons file descriptions were reviewed on 29 October 2026 and classify each artwork as **public domain, PD-textlogo** (simple text/geometric shapes below the copyright threshold), separately from the **reserved trademark rights**. That classification is not a worldwide legal opinion or a grant of brand endorsement:
+
+| Local file | Identifies | Artwork / vector attribution | Reviewed source and version |
+|---|---|---|---|
+| `bca.svg` | BCA accounts and XIDX:BBCA holdings | PT Bank Central Asia Tbk; vector uploaded by Alex Neman | [Bank Central Asia.svg](https://commons.wikimedia.org/wiki/File:Bank_Central_Asia.svg), 18 March 2020, 08:28 UTC ([reviewed description](https://commons.wikimedia.org/w/index.php?title=File:Bank_Central_Asia.svg&oldid=1233474185)) |
+| `netflix.svg` | Netflix subscriptions | Netflix Inc.; extracted by Goo16, modified by Corkythehornetfan | [Netflix 2015 logo.svg](https://commons.wikimedia.org/wiki/File:Netflix_2015_logo.svg), 6 February 2019, 12:31 UTC ([reviewed description](https://commons.wikimedia.org/w/index.php?title=File:Netflix_2015_logo.svg&oldid=1233471576)) |
+| `spotify.svg` | Spotify subscriptions | Spotify; uploaded by Totie (the file description does not supply a machine-readable author/source) | [Spotify logo without text.svg](https://commons.wikimedia.org/wiki/File:Spotify_logo_without_text.svg), 23 January 2016, 21:25 UTC ([reviewed description](https://commons.wikimedia.org/w/index.php?title=File:Spotify_logo_without_text.svg&oldid=1262650585)) |
+| `youtube.svg` | YouTube Premium subscriptions | Google/YouTube; vector credited to Logopedia, uploaded by Yayan550 | [YouTube full-color icon (2024).svg](https://commons.wikimedia.org/wiki/File:YouTube_full-color_icon_(2024).svg), 18 October 2024, 20:29 UTC |
+
+The originals are served from the same origin, unmodified, without logo-provider requests, hotlinking, embedded trackers, or an API key. Records lacking a reviewed mark deliberately use a generic account icon, holding ticker, or subscription icon/initial; they do not receive fabricated logos. User-uploaded images take precedence. Operators remain responsible for applicable trademark restrictions and should reassess provenance before adding or replacing artwork. A repository-wide CC0 label (for example Simple Icons) alone is **not** sufficient clearance for an individual brand mark.
 
 ## Questions and permission
 

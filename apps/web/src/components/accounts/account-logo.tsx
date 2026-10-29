@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * An account's logo tile (FR-R1): the logo the user uploaded, or the account type's icon in the account color. No
- * third-party logo catalog ships with the app (trademark licensing), so "Pakai ikon" is the default.
+ * An account's decorative logo tile: uploaded image, then licensed local catalog mark, then the account type icon.
  */
 import type { AccountView } from '@wf/db/accounts';
+import { getCatalogRecord } from '@wf/domain/catalog';
 import type { AccountType } from '@wf/domain/ledger';
 import { Banknote, CreditCard, Landmark, Smartphone, TrendingUp, type LucideIcon } from 'lucide-react';
 import { colorProps } from '../../lib/colors.ts';
@@ -23,7 +23,7 @@ const SIZES = {
 } as const;
 
 export interface AccountLogoProps {
-  readonly account: Pick<AccountView, 'id' | 'type' | 'color' | 'logoKey'>;
+  readonly account: Pick<AccountView, 'id' | 'type' | 'color' | 'logoKey' | 'catalogId'>;
   readonly size?: keyof typeof SIZES;
 }
 
@@ -38,6 +38,10 @@ export function AccountLogo({ account, size = 'md' }: AccountLogoProps) {
         className={`shrink-0 border border-border bg-white object-contain ${tile}`}
       />
     );
+  }
+  const mark = getCatalogRecord(account.catalogId)?.logoPath;
+  if (mark != null) {
+    return <img src={mark} alt="" className={`shrink-0 border border-border bg-white object-contain p-1 ${tile}`} />;
   }
   const Glyph = ACCOUNT_TYPE_ICONS[account.type];
   return (

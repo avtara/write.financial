@@ -300,7 +300,7 @@ describe('SubscriptionsPage', () => {
     expect(onConsumeSearch).toHaveBeenCalledOnce();
     schedules.createSubscription.mockReturnValueOnce(ok({ ...S_NETFLIX, id: 'n', name: 'Vidio' }));
     const form = page.getByRole('dialog', { name: 'Langganan baru' });
-    await form.getByRole('textbox', { name: 'Layanan' }).fill('Vidio');
+    await form.getByRole('combobox', { name: 'Layanan' }).fill('Vidio');
     await form.getByRole('textbox', { name: 'Harga' }).fill('39.000');
     await form.getByRole('button', { name: 'Simpan langganan' }).click();
     expect(toasts.toast).toHaveBeenLastCalledWith({ tone: 'success', title: 'Vidio ditambahkan' });

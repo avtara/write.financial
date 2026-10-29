@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * "Langganan baru" / "Edit langganan" (FR-SUB1, design `sN6Eh`, `yuefQ`, `JZBFF`): the service (free text, with an
- * uploaded logo or one of the icons), plan, price and currency, cycle, next bill, paying account — "Dikonversi saat
+ * "Langganan baru" / "Edit langganan" (FR-SUB1, design `sN6Eh`, `yuefQ`, `JZBFF`): the service (local reference
+ * search or manual text, uploaded logo or icon), plan, price and currency, cycle, next bill, paying account — "Dikonversi saat
  * ditagih" with an estimate when its currency differs —, category, description, the reminder (default 3 days before)
  * and, for a new one, a free trial (7/14 days, 1 month, or until a date; the first bill follows it). Editing shows a
  * price increase since the last bill.
@@ -9,6 +9,7 @@
 import type { AccountView } from '@wf/db/accounts';
 import type { CategoryView } from '@wf/db/categories';
 import type { SubscriptionView } from '@wf/db/schedules';
+import { getCatalogRecord } from '@wf/domain/catalog';
 import { convert, type FxRate } from '@wf/domain/fx';
 import type { LocalDate } from '@wf/domain/period';
 import { trialFirstBill, type SubscriptionCycle, type TrialLength } from '@wf/domain/subscriptions';
@@ -32,6 +33,7 @@ import {
   updateSubscription,
 } from '../../server/fn/schedules.ts';
 import { Button, Field, FormError, INPUT_FRAME, Select, TextInput } from '../form.tsx';
+import { CatalogInput } from '../catalog-input.tsx';
 import { IconPicker } from '../icon-picker.tsx';
 import { AccountPicker, AccountTrigger } from '../ledger/account-picker.tsx';
 import { CategorySelect } from '../ledger/category-picker.tsx';
@@ -55,6 +57,7 @@ const TRIAL_LABEL: Readonly<Record<TrialChoice, () => string>> = {
 
 export interface SubscriptionDraft {
   readonly name: string;
+  readonly catalogId: string | null;
   readonly plan: string;
   readonly icon: string | null;
   readonly description: string;
@@ -80,6 +83,7 @@ export function draftOf(
 ): SubscriptionDraft {
   return {
     name: subscription?.name ?? '',
+    catalogId: subscription?.catalogId ?? null,
     plan: subscription?.plan ?? '',
     icon: subscription?.icon ?? null,
     description: subscription?.description ?? '',
@@ -237,6 +241,7 @@ function FormBody({
     setFailure(null);
     const fields = {
       name: draft.name.trim(),
+      catalogId: draft.catalogId,
       plan: draft.plan.trim() === '' ? null : draft.plan.trim(),
       icon: draft.icon,
       description: draft.description.trim() === '' ? null : draft.description.trim(),
@@ -282,9 +287,11 @@ function FormBody({
     id: subscription?.id ?? 'new',
     name: draft.name === '' ? '?' : draft.name,
     icon: draft.icon,
+    catalogId: draft.catalogId,
     logoKey: logo === null ? (subscription?.logoKey ?? null) : null,
   };
   const hasLogo = logo !== null ? logo !== 'remove' : subscription?.logoKey != null;
+  const catalogLogo = getCatalogRecord(draft.catalogId)?.logoPath;
   const increase = subscription?.priceIncrease ?? null;
 
   return (
@@ -296,7 +303,11 @@ function FormBody({
         hint={
           <span className="flex flex-wrap items-center gap-x-3">
             <span className="flex-1">
-              {hasLogo ? m.subscriptions_form_logo_set() : m.subscriptions_form_logo_none()}
+              {hasLogo
+                ? m.subscriptions_form_logo_set()
+                : catalogLogo == null
+                  ? m.subscriptions_form_logo_none()
+                  : m.catalog_logo()}
             </span>
             <button
               type="button"
@@ -313,6 +324,7 @@ function FormBody({
               onClick={() => {
                 setIconGrid((shown) => !shown);
                 if (hasLogo) setLogo(subscription?.logoKey == null ? null : 'remove');
+                set({ catalogId: null });
               }}
             >
               {m.subscriptions_form_use_icon()}
@@ -335,16 +347,19 @@ function FormBody({
             ) : (
               <SubscriptionAvatar subscription={preview} size="lg" />
             )}
-            <TextInput
+            <CatalogInput
               id={id}
               aria-describedby={describedBy}
               aria-invalid={invalid}
               value={draft.name}
               maxLength={40}
-              autoComplete="off"
+              kind="service"
               placeholder={m.subscriptions_form_name_placeholder()}
-              onChange={(event) => {
-                set({ name: event.target.value });
+              onValueChange={(name) => {
+                set({ name, catalogId: null });
+              }}
+              onSelect={(record) => {
+                set({ name: record.name, catalogId: record.id });
               }}
             />
             <input
@@ -367,7 +382,7 @@ function FormBody({
           value={draft.icon ?? ''}
           color={avatarColor(preview.id)}
           onValueChange={(icon) => {
-            set({ icon });
+            set({ icon, catalogId: null });
           }}
         />
       ) : null}

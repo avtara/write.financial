@@ -114,7 +114,13 @@ export function DetectionPanel({
                 >
                   <div className="flex items-start gap-3">
                     <SubscriptionAvatar
-                      subscription={{ id: candidate.id, name: candidate.merchant, icon: null, logoKey: null }}
+                      subscription={{
+                        id: candidate.id,
+                        name: candidate.merchant,
+                        icon: null,
+                        logoKey: null,
+                        catalogId: null,
+                      }}
                     />
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="text-[13px] font-medium text-fg">{candidate.merchant}</span>

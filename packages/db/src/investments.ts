@@ -17,6 +17,7 @@
  * other goals keep their units (`sellAllocation`; two or more goals need `reduceGoalId`, FR-G5).
  */
 import { randomUUID } from 'node:crypto';
+import { getCatalogRecord } from '@wf/domain/catalog';
 import type { BuiltInCategoryKey } from '@wf/domain/categories';
 import { formatDecimal, parseDecimal } from '@wf/domain/decimal';
 import { formatRate, parseRate } from '@wf/domain/fx';
@@ -90,6 +91,7 @@ export interface AssetInput {
   /** Ticker, 1–20 characters, unique per platform. */
   readonly symbol: string;
   readonly name: string;
+  readonly catalogId?: string | null;
   readonly assetClass: AssetClass;
   readonly market: Market;
   readonly categoryId?: string | null;
@@ -230,6 +232,7 @@ export interface AssetView {
   readonly platformName: string;
   readonly symbol: string;
   readonly name: string;
+  readonly catalogId: string | null;
   readonly quoteCurrency: string;
   readonly assetClass: AssetClass;
   readonly market: Market;
@@ -464,6 +467,7 @@ const inputOf = (row: AssetRow): AssetInput => ({
   accountId: row.accountId,
   symbol: row.symbol,
   name: row.name,
+  catalogId: row.catalogId,
   assetClass: row.assetClass,
   market: row.market,
   categoryId: row.categoryId,
@@ -478,6 +482,7 @@ const inputOf = (row: AssetRow): AssetInput => ({
 async function assetValuesOf(
   tx: Transaction,
   input: AssetInput,
+  quoteCurrency: string,
 ): Promise<Omit<typeof assets.$inferInsert, 'userId' | 'accountId' | 'quoteCurrency'>> {
   const symbol = input.symbol.trim().toUpperCase();
   if (symbol.length === 0 || symbol.length > SYMBOL_MAX) throw invalidAsset('Invalid symbol');
@@ -485,6 +490,18 @@ async function assetValuesOf(
   if (name.length === 0 || name.length > NAME_MAX) throw invalidAsset('Invalid name');
   if (!ASSET_CLASSES.includes(input.assetClass)) throw invalidAsset('Invalid asset class');
   if (!MARKETS.includes(input.market)) throw invalidAsset('Invalid market');
+  if (input.catalogId != null) {
+    const entry = getCatalogRecord(input.catalogId);
+    if (
+      entry?.kind !== 'instrument' ||
+      entry.symbol !== symbol ||
+      entry.assetClass !== input.assetClass ||
+      entry.market !== input.market ||
+      entry.currency !== quoteCurrency
+    ) {
+      throw invalidAsset('The catalog listing does not match this asset or platform currency');
+    }
+  }
   const categoryId = input.categoryId ?? null;
   if (categoryId !== null) {
     const [category] = await tx
@@ -506,6 +523,7 @@ async function assetValuesOf(
   return {
     symbol,
     name,
+    catalogId: input.catalogId ?? null,
     assetClass: input.assetClass,
     market: input.market,
     categoryId,
@@ -770,6 +788,7 @@ function assetView(valuation: AssetValuation, platformName: string, sources: rea
     platformName,
     symbol: asset.symbol,
     name: asset.name,
+    catalogId: asset.catalogId,
     quoteCurrency: asset.quoteCurrency,
     assetClass: asset.assetClass,
     market: asset.market,
@@ -1029,7 +1048,7 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
       withUser(db, userId, async (tx) => {
         const platform = await platformIn(tx, input.accountId);
         const values = {
-          ...(await assetValuesOf(tx, input)),
+          ...(await assetValuesOf(tx, input, platform.currency)),
           accountId: platform.id,
           quoteCurrency: platform.currency,
         };
@@ -1055,7 +1074,7 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
     updateAsset: (userId, id, patch) =>
       withUser(db, userId, async (tx) => {
         const current = await lockedAssetIn(tx, id);
-        const values = await assetValuesOf(tx, { ...inputOf(current), ...patch });
+        const values = await assetValuesOf(tx, { ...inputOf(current), ...patch }, current.quoteCurrency);
         const [duplicate] = await tx
           .select({ id: assets.id })
           .from(assets)

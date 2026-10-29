@@ -36,6 +36,7 @@ export function account(overrides: Partial<AccountView> & Pick<AccountView, 'id'
     type: 'bank',
     providerName: overrides.displayName,
     logoKey: null,
+    catalogId: null,
     last4: null,
     phoneMasked: null,
     currency: 'IDR',

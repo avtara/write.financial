@@ -468,6 +468,7 @@ export function BillSchedule({
                                 name: bill.name,
                                 icon: bill.icon,
                                 logoKey: subscription?.logoKey ?? null,
+                                catalogId: subscription?.catalogId ?? null,
                               }}
                               size="sm"
                             />

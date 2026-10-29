@@ -65,4 +65,4 @@ Report vulnerabilities privately to **security@write.financial** or through GitH
 
 ## License
 
-[AGPL-3.0-only](LICENSE). The write.financial name and logo are not covered by the code license; see [TRADEMARK.md](TRADEMARK.md). Bank, e-wallet, and asset logos in `images/logos/` are trademarks of their respective owners and are used only to identify accounts.
+[AGPL-3.0-only](LICENSE). The write.financial name and logo are not covered by the code license; see [TRADEMARK.md](TRADEMARK.md). The small local reference catalog includes bank/e-wallet/broker, stock-listing, and subscription identities with manual entry always available. Its four bundled marks in `apps/web/public/catalog-logos/` are public-domain artwork per the individually reviewed sources in the trademark policy; trademark rights remain with their owners. No runtime third-party catalog or logo requests are made.

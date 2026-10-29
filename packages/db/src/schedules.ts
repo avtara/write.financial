@@ -5,6 +5,7 @@
  * occurrences become transactions only through the Review queue (`@wf/db/review`). Every change to a rule prunes the
  * future `scheduled` occurrences it affects and materializes them again (`@wf/db/occurrences`).
  */
+import { getCatalogRecord } from '@wf/domain/catalog';
 import { convert, type FxRate } from '@wf/domain/fx';
 import { checkPlanMonths } from '@wf/domain/goals';
 import { addDays, countDays, type LocalDate, type YearMonth } from '@wf/domain/period';
@@ -169,6 +170,7 @@ export interface RecurrenceView {
 export interface SubscriptionInput {
   /** 1–40 characters after trimming. */
   readonly name: string;
+  readonly catalogId?: string | null;
   readonly plan?: string | null;
   readonly icon?: string | null;
   readonly logoKey?: string | null;
@@ -192,6 +194,7 @@ export interface SubscriptionInput {
 export interface SubscriptionView {
   readonly id: string;
   readonly name: string;
+  readonly catalogId: string | null;
   readonly plan: string | null;
   readonly icon: string | null;
   readonly logoKey: string | null;
@@ -894,6 +897,7 @@ async function subscriptionViewsIn(
     return {
       id: row.id,
       name: row.name,
+      catalogId: row.catalogId,
       plan: row.plan,
       icon: row.icon,
       logoKey: row.logoKey,
@@ -935,6 +939,9 @@ type SubscriptionValues = Omit<typeof subscriptions.$inferInsert, 'userId'>;
 async function subscriptionValuesIn(tx: Transaction, input: SubscriptionInput): Promise<SubscriptionValues> {
   const name = clean(input.name);
   if (name === null || name.length > NAME_MAX) throw invalidSubscription('Name must be 1–40 characters');
+  if (input.catalogId != null && getCatalogRecord(input.catalogId)?.kind !== 'service') {
+    throw invalidSubscription('The catalog entry is not a subscription service');
+  }
   const plan = clean(input.plan);
   if (plan !== null && plan.length > NAME_MAX) throw invalidSubscription('Plan must be at most 40 characters');
   if (input.priceMinor <= 0n) throw invalidSubscription('Price must be positive');
@@ -961,6 +968,7 @@ async function subscriptionValuesIn(tx: Transaction, input: SubscriptionInput): 
   if (nextBillingDate < input.startedOn) throw invalidSubscription('The next bill is before the start');
   return {
     name,
+    catalogId: input.catalogId ?? null,
     plan,
     icon: clean(input.icon),
     logoKey: clean(input.logoKey),
@@ -981,6 +989,7 @@ async function subscriptionValuesIn(tx: Transaction, input: SubscriptionInput): 
 function inputOf(row: SubscriptionRow): SubscriptionInput {
   return {
     name: row.name,
+    catalogId: row.catalogId,
     plan: row.plan,
     icon: row.icon,
     logoKey: row.logoKey,
