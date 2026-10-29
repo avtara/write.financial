@@ -5,23 +5,15 @@
  * chosen on the other side of a transfer disabled with the reason. Archived accounts are never offered.
  */
 import type { AccountView } from '@wf/db/accounts';
-import { ACCOUNT_TYPES, type AccountType } from '@wf/domain/ledger';
+import { ACCOUNT_TYPES } from '@wf/domain/ledger';
 import type { Locale } from '@wf/domain/money';
 import { m } from '@wf/i18n/messages';
 import { Combobox, type ComboboxGroup } from '@wf/ui/command';
 import { Money } from '@wf/ui/money';
-import { Banknote, ChevronsUpDown, CreditCard, Landmark, TrendingUp, Wallet, type LucideIcon } from 'lucide-react';
+import { ChevronsUpDown } from 'lucide-react';
 import type { ComponentProps, ReactElement } from 'react';
-import { colorProps } from '../../lib/colors.ts';
 import { accountTypeLabel } from '../../lib/ledger-labels.ts';
-
-const TYPE_ICONS: Readonly<Record<AccountType, LucideIcon>> = {
-  bank: Landmark,
-  ewallet: Wallet,
-  cash: Banknote,
-  investment: TrendingUp,
-  credit_card: CreditCard,
-};
+import { AccountLogo } from '../accounts/account-logo.tsx';
 
 export interface AccountPickerProps {
   /** The user's accounts; archived ones are left out. */
@@ -64,7 +56,7 @@ export function AccountPicker({
           value: account.id,
           label: account.displayName,
           keywords: [account.providerName, ...(account.last4 === null ? [] : [account.last4])],
-          icon: TYPE_ICONS[type],
+          media: <AccountLogo account={account} size="sm" />,
           disabled,
           aside:
             disabled && disabledReason !== undefined ? (
@@ -99,15 +91,13 @@ export function AccountPicker({
   );
 }
 
-/** The account's color square (logos arrive with the Accounts screen). */
-export function AccountSwatch({ account }: { readonly account: Pick<AccountView, 'color'> }) {
-  return (
-    <span
-      {...colorProps(account.color)}
-      aria-hidden="true"
-      className="size-[18px] shrink-0 rounded-[5px] bg-[var(--wf-color,var(--subtle))]"
-    />
-  );
+/** The account's logo (uploaded, catalog, or its type icon in the account color). */
+export function AccountSwatch({
+  account,
+}: {
+  readonly account: Pick<AccountView, 'id' | 'type' | 'color' | 'logoKey' | 'catalogId'>;
+}) {
+  return <AccountLogo account={account} size="sm" />;
 }
 
 export interface AccountTriggerProps extends ComponentProps<'button'> {
