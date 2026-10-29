@@ -8,7 +8,16 @@
  * "Hentikan pengulangan" and Urungkan in the transaction detail.
  */
 import type { Page } from '@playwright/test';
-import { cardBalance, expect, projectUser, runScheduleJobs, screenshot, setUpProjectUser, test } from './support.ts';
+import {
+  cardBalance,
+  expect,
+  pressUntil,
+  projectUser,
+  runScheduleJobs,
+  screenshot,
+  setUpProjectUser,
+  test,
+} from './support.ts';
 
 const user = projectUser('review');
 test.describe.configure({ mode: 'serial' });
@@ -102,8 +111,9 @@ test('September\'s proposal: "Terapkan" changes nothing until "Konfirmasi"', asy
 
 test('keyboard only: ⌘K finds the iCloud+ bill, and Enter marks it paid', async ({ page }) => {
   const before = await bcaBalance(page);
-  await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Cari atau jalankan perintah' });
+  // Right after a navigation the shortcut may not be bound yet (hydration): press until the palette opens.
+  await pressUntil(page, 'Control+k', () => palette.isVisible());
   // The palette's content loads on first open; type once its field has the focus.
   await expect(palette.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('icloud');

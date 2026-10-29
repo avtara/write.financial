@@ -6,7 +6,7 @@
  * opening their pages.
  */
 import type { Locator, Page } from '@playwright/test';
-import { expect, projectUser, setUpProjectUser, test } from './support.ts';
+import { expect, pressUntil, projectUser, setUpProjectUser, test } from './support.ts';
 
 const user = projectUser('cmdk');
 test.use({ storageState: user.state });
@@ -38,8 +38,9 @@ test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', 
   await page.setViewportSize({ width: 1440, height: 900 });
   await visit(page, '/');
   await expect(page.getByRole('button', { name: 'Cari… Ctrl K' })).toBeVisible();
-  await page.keyboard.press('Control+k');
   const dialog = page.getByRole('dialog', { name: PALETTE });
+  // Right after a navigation the shortcut may not be bound yet (hydration): press until the palette opens.
+  await pressUntil(page, 'Control+k', () => dialog.isVisible());
   const input = dialog.getByRole('combobox');
   await expect(input).toBeFocused();
   await expect(dialog.getByRole('group', { name: 'Halaman' }).getByRole('option', { name: /Ringkasan/ })).toBeVisible();
@@ -67,8 +68,8 @@ test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', 
 test('records what matches nothing as a transaction', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await visit(page, '/');
-  await page.keyboard.press('Control+k');
   const dialog = page.getByRole('dialog', { name: PALETTE });
+  await pressUntil(page, 'Control+k', () => dialog.isVisible());
   await expect(dialog.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('cicilan motor');
   await expect(dialog.getByRole('listbox').getByText('Tidak ada hasil untuk “cicilan motor”')).toBeVisible();

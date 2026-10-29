@@ -9,7 +9,7 @@
 import type { Page } from '@playwright/test';
 import postgres from 'postgres';
 import { e2eEnv } from './env.ts';
-import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
+import { expect, pressUntil, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
 const user = projectUser('subscriptions');
 test.describe.configure({ mode: 'serial' });
@@ -145,8 +145,9 @@ test('adds a subscription with the keyboard only, then pauses Netflix for a mont
 
 test('⌘K finds a subscription and opens its detail', async ({ page }) => {
   await openSubscriptions(page);
-  await page.keyboard.press('ControlOrMeta+k');
   const palette = page.getByRole('dialog', { name: 'Cari atau jalankan perintah' });
+  // Right after a navigation the shortcut may not be bound yet (hydration): press until the palette opens.
+  await pressUntil(page, 'ControlOrMeta+k', () => palette.isVisible());
   await palette.getByRole('combobox').fill('chatgpt');
   await palette.getByRole('option', { name: /^ChatGPT/ }).click();
   const detail = page.getByRole('dialog', { name: 'ChatGPT' });
