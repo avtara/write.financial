@@ -24,6 +24,8 @@ import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 
 export type HoldingsGrouping = 'list' | 'class' | 'platform';
+/** The holdings tabs: open positions (with cash and assets not bought yet), or closed ones. */
+export type HoldingsView = 'open' | 'closed';
 export type DisplayCurrency = 'base' | 'usd';
 
 /** Design 09 colours of the asset classes (allocation donut, dots, bars). */
@@ -135,6 +137,11 @@ export function isHeld(asset: AssetView): boolean {
   return asset.holding.units !== '0' || asset.holding.costBaseMinor !== 0n || asset.pendingMinor !== 0n;
 }
 
+/** A closed position: nothing held any more, but trades left a realized gain or dividends behind. */
+export function isClosed(asset: AssetView): boolean {
+  return !isHeld(asset) && (asset.holding.realizedMinor !== 0n || asset.holding.dividendMinor !== 0n);
+}
+
 export interface QuoteStatus {
   /** The newest quote of a held asset ("harga 16.42 WIB"); `null` without any. */
   readonly newest: ResolvedQuote | null;
@@ -231,8 +238,13 @@ function group(
   };
 }
 
-/** Every asset (also one just added and not bought yet, so it can be bought from its row) and every platform's cash. */
-export function holdingItems(portfolio: PortfolioView): HoldingItem[] {
+/**
+ * The open tab: every asset not closed (also one just added and not bought yet, so it can be bought from its row) and
+ * every platform's cash. The closed tab: the closed assets only.
+ */
+export function holdingItems(portfolio: PortfolioView, view: HoldingsView = 'open'): HoldingItem[] {
+  if (view === 'closed')
+    return portfolio.assets.filter(isClosed).map((asset): HoldingItem => ({ kind: 'asset', asset }));
   const cash = portfolio.platforms.flatMap((platform): HoldingItem[] => {
     const position = portfolio.summary.positions.find((candidate) => candidate.key === `cash:${platform.accountId}`);
     return position === undefined
@@ -249,7 +261,8 @@ export function holdingItems(portfolio: PortfolioView): HoldingItem[] {
           },
         ];
   });
-  return [...portfolio.assets.map((asset): HoldingItem => ({ kind: 'asset', asset })), ...cash];
+  const open = portfolio.assets.filter((asset) => !isClosed(asset));
+  return [...open.map((asset): HoldingItem => ({ kind: 'asset', asset })), ...cash];
 }
 
 /** Whether `item` matches the search ("yield": ticker, name, or its category's name). */
@@ -267,9 +280,14 @@ function matches(item: HoldingItem, query: string, categoryName: (id: string | n
  * FR-I4 groups of the holdings table. "Daftar saya": single assets first, then each category; "Kelas aset": one
  * group per class (design order); "Platform": one group per platform with its cash. Cash rows belong to class "Kas".
  */
-export function holdingGroups(portfolio: PortfolioView, grouping: HoldingsGrouping, query = ''): HoldingGroup[] {
+export function holdingGroups(
+  portfolio: PortfolioView,
+  grouping: HoldingsGrouping,
+  query = '',
+  view: HoldingsView = 'open',
+): HoldingGroup[] {
   const categoryName = (id: string | null) => portfolio.categories.find((category) => category.id === id)?.name ?? '';
-  const items = holdingItems(portfolio).filter((item) => matches(item, query, categoryName));
+  const items = holdingItems(portfolio, view).filter((item) => matches(item, query, categoryName));
   const classOf = (item: HoldingItem): AssetClass => (item.kind === 'cash' ? 'cash' : item.asset.assetClass);
   const platformOf = (item: HoldingItem) => (item.kind === 'cash' ? item.accountId : item.asset.accountId);
   if (grouping === 'class') {
