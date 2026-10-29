@@ -65,6 +65,8 @@ export function CommandSeparator({ className = '', ...props }: ComponentProps<ty
 
 export interface CommandItemProps extends ComponentProps<typeof Cmdk.Item> {
   icon?: LucideIcon;
+  /** A custom leading visual (an account logo) shown instead of `icon`. */
+  media?: ReactNode;
   /** At the end of the row: a budget note, a balance (`<Money>`), or a shortcut (`<KbdHint>`). */
   aside?: ReactNode;
   /** Marks the current choice with a check. */
@@ -73,6 +75,7 @@ export interface CommandItemProps extends ComponentProps<typeof Cmdk.Item> {
 
 export function CommandItem({
   icon: Icon,
+  media,
   aside,
   selected = false,
   className = '',
@@ -84,7 +87,7 @@ export function CommandItem({
       className={`flex min-h-9 cursor-default items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-[13.5px] text-text-secondary outline-none select-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-surface-4 data-[selected=true]:text-fg ${className}`}
       {...props}
     >
-      {Icon === undefined ? null : <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-fg" />}
+      {media ?? (Icon === undefined ? null : <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-fg" />)}
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {aside === undefined ? null : <span className="shrink-0 font-mono text-[11.5px] text-subtle">{aside}</span>}
       {selected ? <Check aria-hidden="true" className="size-3.5 shrink-0 text-violet" /> : null}
@@ -141,6 +144,8 @@ export interface ComboboxOption {
   /** Extra search terms, e.g. "makan" for "Makan & Dapur". */
   keywords?: readonly string[];
   icon?: LucideIcon;
+  /** Shown instead of `icon`, e.g. an account logo. */
+  media?: ReactNode;
   aside?: ReactNode;
   disabled?: boolean;
 }
@@ -213,6 +218,7 @@ export function Combobox({
                     disabled={option.disabled ?? false}
                     selected={option.value === value}
                     {...(option.icon === undefined ? {} : { icon: option.icon })}
+                    {...(option.media === undefined ? {} : { media: option.media })}
                     aside={option.aside}
                     onSelect={() => {
                       onValueChange(option.value);
