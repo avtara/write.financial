@@ -263,8 +263,10 @@ jobs:
           # Only the full lane completes setup; staging deliberately runs no Playwright install proof.
           if [ "$FULL_CI" = true ]; then
             test "$(curl -sk -o /dev/null -w '%{http_code}' "https://localhost/setup?token=$WF_SELFHOST_SETUP_TOKEN")" = 404
+            test "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost/sign-in)" = 200
+          else
+            test "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost/sign-in)" = 307
           fi
-          test "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost/sign-in)" = 200
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
