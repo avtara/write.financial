@@ -496,10 +496,9 @@ async function assetValuesOf(
       entry?.kind !== 'instrument' ||
       entry.symbol !== symbol ||
       entry.assetClass !== input.assetClass ||
-      entry.market !== input.market ||
-      entry.currency !== quoteCurrency
+      entry.market !== input.market
     ) {
-      throw invalidAsset('The catalog listing does not match this asset or platform currency');
+      throw invalidAsset('The catalog listing does not match this asset');
     }
   }
   const categoryId = input.categoryId ?? null;

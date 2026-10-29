@@ -59,7 +59,7 @@ Every catalog record has a locally bundled mark in `apps/web/public/catalog-logo
 | `gate.svg` | Gate | [Gateio logo.svg](https://commons.wikimedia.org/wiki/File:Gateio_logo.svg) | CC BY-SA 4.0, by Diongui | Diongui |
 | `mexc.svg` | MEXC | [Mexcglobal.svg](https://commons.wikimedia.org/wiki/File:Mexcglobal.svg) | CC BY-SA 4.0, by MEXC Global | MEXC GLOBAL |
 | `ibkr.svg` | Interactive Brokers | [Interactive Brokers Logo (2014).svg](https://commons.wikimedia.org/wiki/File:Interactive_Brokers_Logo_(2014).svg) | Public domain | Interactive Brokers LLC. |
-| `schwab.svg` | Charles Schwab | [Charles Schwab Corporation logo.svg](https://commons.wikimedia.org/wiki/File:Charles_Schwab_Corporation_logo.svg) | Public domain | Charles Schwab & Co., Inc |
+| `schwab.svg` | Charles Schwab, ARCX:SCHD | [Charles Schwab Corporation logo.svg](https://commons.wikimedia.org/wiki/File:Charles_Schwab_Corporation_logo.svg) | Public domain | Charles Schwab & Co., Inc |
 | `chase.svg` | Chase | [Chase logo 2007.svg](https://commons.wikimedia.org/wiki/File:Chase_logo_2007.svg) | Public domain | Original:  JPMorgan Chase Vectorization:  en:User:Closeapple |
 | `hsbc.svg` | HSBC | [HSBC logo (2018).svg](https://commons.wikimedia.org/wiki/File:HSBC_logo_(2018).svg) | Public domain | HSBC |
 | `wise.svg` | Wise | [Wise Logo 512x124.svg](https://commons.wikimedia.org/wiki/File:Wise_Logo_512x124.svg) | Public domain | Wise PLC |
@@ -82,6 +82,11 @@ Every catalog record has a locally bundled mark in `apps/web/public/catalog-logo
 | `microsoft-365.svg` | Microsoft 365 | [Microsoft 365 (2022).svg](https://commons.wikimedia.org/wiki/File:Microsoft_365_(2022).svg) | Public domain | Microsoft Corporation |
 | `notion.svg` | Notion | [Notion-logo.svg](https://commons.wikimedia.org/wiki/File:Notion-logo.svg) | Public domain | Notion Labs, Inc. |
 | `prime-video.svg` | Prime Video | [Amazon Prime Video logo (2024).svg](https://commons.wikimedia.org/wiki/File:Amazon_Prime_Video_logo_(2024).svg) | Public domain | Amazon.com, Inc. |
+| `vanguard.svg` | ARCX:VWO, ARCX:VEA | [Vanguard.svg](https://commons.wikimedia.org/wiki/File:Vanguard.svg) | Public domain | The Vanguard Group |
+| `vaneck.svg` | ARCX:GDX | [Vaneck.svg](https://commons.wikimedia.org/wiki/File:Vaneck.svg) | Public domain | VanEck Associates Corp. |
+| `goldman-sachs.svg` | XNYS:GS | [Goldman Sachs.svg](https://commons.wikimedia.org/wiki/File:Goldman_Sachs.svg) | Public domain | The Goldman Sachs Group, Inc.; uploaded by Weatherman1126 |
+| `ishares.svg` | ARCX:SGOV | [Logo-ishares 2019.svg](https://commons.wikimedia.org/wiki/File:Logo-ishares_2019.svg) | Public domain | BlackRock |
+| `ssga.svg` | ARCX:SPY, ARCX:GLD | [State Street Global Advisors.svg](https://commons.wikimedia.org/wiki/File:State_Street_Global_Advisors.svg) | Public domain | State Street Global Advisors |
 
 **Brand-published icons** (no Commons file was available; the icon the brand publishes on its own website or official App Store listing, resized to 128 × 128 PNG, no other change). These are **not** under an open license: they are trademarks used nominatively to identify the user's account, and must be removed if the owner objects:
 
@@ -103,6 +108,8 @@ Every catalog record has a locally bundled mark in `apps/web/public/catalog-logo
 | `cryptocom.png` | Crypto.com | <https://apps.apple.com/id/app/id1569309855> |
 | `dbs.png` | DBS | <https://apps.apple.com/id/app/id1170988769> |
 | `canva.png` | Canva | <https://static.canva.com/domain-assets/canva/static/images/android-192x192-2.png> |
+| `invesco.png` | XNAS:QQQ | <https://www.invesco.com/etc.clientlibs/invesco/clientlibs/main/resources/images/apple-touch-icon.png> |
+| `yieldmax.png` | ARCX:AMDY, ARCX:MSTY, ARCX:NVDY | <https://yieldmaxetfs.com/wp-content/uploads/2025/09/fav.png> |
 
 
 ## Questions and permission
