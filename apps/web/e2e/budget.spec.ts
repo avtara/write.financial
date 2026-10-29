@@ -41,13 +41,13 @@ test('October shows the spending against the plan on day 15', async ({ page }) =
   await expect(page.getByText('Hari ke-15 dari 31 · 16 hari lagi menuju gajian berikutnya')).toBeVisible();
 
   const hero = page.getByRole('region', { name: 'Sisa anggaran Oktober' });
-  await expect(hero.getByText('Hari ini · ideal 48%')).toBeVisible();
-  await expect(hero.getByText('88% · ideal 48%')).toBeVisible();
+  await expect(hero.getByText('Hari ini · ideal 48,39%')).toBeVisible();
+  await expect(hero.getByText('88,00% · ideal 48,39%')).toBeVisible();
   await expect(hero).toContainText(/Batas aman harian\s*Rp140\.000/);
 
   const groups = page.getByRole('region', { name: 'Kebutuhan & Keinginan' });
-  await expect(groups).toContainText(/Kebutuhan\s*87%/);
-  await expect(groups).toContainText(/Keinginan\s*90%/);
+  await expect(groups).toContainText(/Kebutuhan\s*86,67%/);
+  await expect(groups).toContainText(/Keinginan\s*90,37%/);
 
   // Nothing spent draws no bar and no marker; the note says so. A used line has its track and fill.
   const bar = 'svg[viewBox="0 0 1000 10"]';
@@ -174,7 +174,7 @@ test('the Record sheet shows what an expense does to the category budget', async
   await expect(page.getByRole('option', { name: /^Transportasi/ })).toContainText('sisa Rp600.000');
   await page.keyboard.press('Enter');
 
-  await expect(sheet.getByText('Anggaran Transportasi jadi 78% · Rp1.550.000 / 2.000.000')).toBeVisible();
+  await expect(sheet.getByText('Anggaran Transportasi jadi 77,50% · Rp1.550.000 / 2.000.000')).toBeVisible();
   await screenshot(page, 'record-budget-impact-1440');
   await page.keyboard.press('Escape');
   await page.getByRole('dialog', { name: 'Buang transaksi ini?' }).getByRole('button', { name: 'Buang' }).click();

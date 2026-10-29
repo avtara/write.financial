@@ -246,7 +246,7 @@ describe('SubscriptionForm', () => {
     await expect.element(dialog.getByText('20 tagihan tercatat sejak Mar 2025')).toBeVisible();
     await expect.element(dialog.getByRole('combobox', { name: 'Layanan' })).toHaveValue('ChatGPT');
     await expect.element(dialog.getByText('Logo diunggah')).toBeVisible();
-    await expect.element(dialog.getByText(/^Rp299\.000 → Rp329\.000 · \+Rp30\.000 · \+10%$/)).toBeVisible();
+    await expect.element(dialog.getByText(/^Rp299\.000 → Rp329\.000 · \+Rp30\.000 · \+10,03%$/)).toBeVisible();
     await expect.element(dialog.getByRole('switch', { name: /Masa uji coba gratis/ })).not.toBeInTheDocument();
     await dialog.getByRole('button', { name: 'Pakai ikon' }).click();
     await dialog.getByRole('button', { name: 'Simpan perubahan' }).click();

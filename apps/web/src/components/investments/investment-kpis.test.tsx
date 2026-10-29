@@ -14,9 +14,9 @@ describe('InvestmentKpis', () => {
     await expect.element(kpis).toMatchTextContent(/Nilai portofolioRp61\.420\.000≈ US\$3\.756,57/);
     await expect.element(kpis).toMatchTextContent(/ModalRp53\.931\.000total yang disetor/);
     // Gains are signed and keep their currency symbol (design 09: "+Rp7.489.000").
-    await expect.element(kpis).toMatchTextContent(/Untung belum terealisasi\+Rp7\.489\.000\+13,9%/);
+    await expect.element(kpis).toMatchTextContent(/Untung belum terealisasi\+Rp7\.489\.000\+13,89%/);
     await expect.element(kpis).toMatchTextContent(/Hari ini—belum ada harga penutupan kemarin/);
-    await expect.element(kpis).toMatchTextContent(/Dividen 12 bulanRp0bersih setelah pajak · yield 0%/);
+    await expect.element(kpis).toMatchTextContent(/Dividen 12 bulanRp0bersih setelah pajak · yield 0,00%/);
   });
 
   it('puts the five KPIs in one row from 1280 px and three over two on a tablet, each amount clear of its dividers', async () => {
@@ -49,7 +49,7 @@ describe('InvestmentKpis', () => {
     );
     const kpis = screen.getByRole('region', { name: 'Investment summary' });
     await expect.element(kpis).toMatchTextContent(/Portfolio valueUS\$3,756\.57≈ Rp61,420,000/);
-    await expect.element(kpis).toMatchTextContent(/Today−US\$11\.85−0\.3%/);
+    await expect.element(kpis).toMatchTextContent(/Today−US\$11\.85−0\.31%/);
     const loss = await renderApp(
       <InvestmentKpis
         portfolio={portfolioView({ assets: [{ ...SPY, quote: manualQuote('500') }], dividends12m: 0n })}

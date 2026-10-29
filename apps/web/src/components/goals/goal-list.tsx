@@ -394,11 +394,7 @@ function GoalRow({
       <div className="grid grid-cols-[minmax(0,220px)_auto_minmax(0,1fr)_auto] items-center gap-3 pl-12 text-[12px] text-muted-fg max-xl:grid-cols-[minmax(0,1fr)_7.5rem] max-xl:pl-0">
         <GoalBar color={goal.color} progressBps={snapshot.progressBps} />
         <span className="font-mono text-text-secondary max-xl:text-right">
-          {snapshot.progressBps === null ? (
-            '—'
-          ) : (
-            <Percent value={snapshot.progressBps / 10_000} decimals={0} locale={locale} />
-          )}
+          {snapshot.progressBps === null ? '—' : <Percent value={snapshot.progressBps / 10_000} locale={locale} />}
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
           <Repeat aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />

@@ -219,8 +219,8 @@ describe('TransactionsTable', () => {
   it('groups by category with shares and totals, transfers last', async () => {
     const { table } = await renderTable(view(), { view: 'category' });
     const list = table.getByRole('list');
-    await expect.element(list.getByText('60%')).toBeVisible();
-    await expect.element(list.getByText('40%')).toBeVisible();
+    await expect.element(list.getByText('60,00%')).toBeVisible();
+    await expect.element(list.getByText('40,00%')).toBeVisible();
     await expect.element(list.getByText('−Rp42.000').first()).toBeVisible();
     const headers = list
       .getByText('1 transaksi')

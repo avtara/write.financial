@@ -223,7 +223,7 @@ export function CardBillCard({ bill, state, account, locale, onPay, onConvert }:
           <BudgetBar usedBps={status.usedBps} tone="warning" idealBps={null} />
           <div className="flex justify-between gap-2 text-[11.5px] text-subtle">
             <span>
-              <Percent value={status.usedBps / 10_000} decimals={0} locale={locale} /> {m.debts_card_of_limit()}{' '}
+              <Percent value={status.usedBps / 10_000} locale={locale} /> {m.debts_card_of_limit()}{' '}
               <Money minor={bill.limitMinor} currency={bill.currency} context="amount" locale={locale} />
             </span>
             <span>

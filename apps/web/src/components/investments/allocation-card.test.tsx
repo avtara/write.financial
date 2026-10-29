@@ -9,7 +9,7 @@ describe('AllocationCard', () => {
     const { screen } = await renderApp(
       <AllocationCard portfolio={portfolioView()} locale="id" onEditTargets={vi.fn()} />,
     );
-    await expect.element(screen.getByRole('region', { name: 'Alokasi aset' })).toMatchTextContent('3,8%');
+    await expect.element(screen.getByRole('region', { name: 'Alokasi aset' })).toMatchTextContent('3,81%');
   });
 
   it('keeps every legend label whole in the 380 px side card', async () => {

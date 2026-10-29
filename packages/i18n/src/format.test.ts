@@ -44,25 +44,25 @@ describe('formatNumber', () => {
 });
 
 describe('formatPercent', () => {
-  it('matches the PRD §7.1 goldens: decimal comma in id, point in en, integers when whole', () => {
-    expect(formatPercent(0.365, 'id')).toBe('36,5%');
-    expect(formatPercent(0.365, 'en')).toBe('36.5%');
-    expect(formatPercent(0.87, 'id')).toBe('87%');
-    expect(formatPercent(0.87, 'en')).toBe('87%');
-    expect(formatPercent(15 / 31, 'id')).toBe('48,4%');
-    expect(formatPercent(0.031, 'id')).toBe('3,1%');
+  it('matches the PRD §7.1 goldens: decimal comma in id, point in en, always two decimals', () => {
+    expect(formatPercent(0.365, 'id')).toBe('36,50%');
+    expect(formatPercent(0.365, 'en')).toBe('36.50%');
+    expect(formatPercent(0.87, 'id')).toBe('87,00%');
+    expect(formatPercent(0.87, 'en')).toBe('87.00%');
+    expect(formatPercent(15 / 31, 'id')).toBe('48,39%');
+    expect(formatPercent(0.031, 'id')).toBe('3,10%');
   });
 
-  it('rounds to the requested precision', () => {
-    expect(formatPercent(15 / 31, 'id', { maximumFractionDigits: 0 })).toBe('48%');
-    expect(formatPercent(0.2, 'en', { minimumFractionDigits: 1 })).toBe('20.0%');
-    expect(formatPercent(-0.0001, 'id')).toBe('0%');
+  it('always rounds to two decimals, with no fraction-digit override', () => {
+    expect(formatPercent(15 / 31, 'id')).toBe('48,39%');
+    expect(formatPercent(0.2, 'en')).toBe('20.00%');
+    expect(formatPercent(-0.0001, 'id')).toBe(`${MINUS}0,01%`);
   });
 
   it('signs differences when asked and uses U+2212', () => {
-    expect(formatPercent(0.139, 'id', { signed: true })).toBe('+13,9%');
-    expect(formatPercent(-0.139, 'en', { signed: true })).toBe(`${MINUS}13.9%`);
-    expect(formatPercent(-0.036, 'id')).toBe(`${MINUS}3,6%`);
+    expect(formatPercent(0.139, 'id', { signed: true })).toBe('+13,90%');
+    expect(formatPercent(-0.139, 'en', { signed: true })).toBe(`${MINUS}13.90%`);
+    expect(formatPercent(-0.036, 'id')).toBe(`${MINUS}3,60%`);
     expect(() => formatPercent(Number.NaN, 'en')).toThrow(RangeError);
   });
 });

@@ -58,7 +58,7 @@ export function LargestSection({ view, locale }: LargestSectionProps) {
             message={m.reports_largest_share}
             slots={{
               count: String(largest.length),
-              pct: <Percent value={largestShareBps / 10_000} locale={locale} decimals={0} />,
+              pct: <Percent value={largestShareBps / 10_000} locale={locale} />,
             }}
           />
         </p>

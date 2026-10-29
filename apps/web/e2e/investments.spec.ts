@@ -28,7 +28,7 @@ test('golden valuation, honest missing returns, USD toggle, search and class gro
   // Gains keep their currency (mixed-currency holdings): "+Rp7.489.000".
   await expect(summary).toContainText('+Rp7.489.000');
   await expect(summary).toContainText('Dividen 12 bulanRp0');
-  await expect(page.getByRole('region', { name: 'Alokasi aset' })).toContainText('3,8%');
+  await expect(page.getByRole('region', { name: 'Alokasi aset' })).toContainText('3,81%');
   await expect(page.getByRole('region', { name: 'Pertumbuhan portofolio' })).toContainText('Portofolio—SPY—IHSG—');
   await page.getByRole('button', { name: 'USD', exact: true }).click();
   await expect(summary).toContainText('Nilai portofolioUS$3.756,57');
@@ -94,8 +94,8 @@ test('buy with fee/tax from platform cash, DCA split, and persisted history', as
   const detail = page.getByRole('dialog', { name: 'SPY · SPDR S&P 500 ETF' });
   // The history renders units to 3 decimals: US$50 @ US$690,10 = 0,07245 → "0,072 unit".
   await expect(detail).toContainText('0,072 unit');
-  await expect(detail).toContainText('60%');
-  await expect(detail).toContainText('40%');
+  await expect(detail).toContainText('60,00%');
+  await expect(detail).toContainText('40,00%');
   await screenshot(page, 'investments-spy-detail');
 });
 
@@ -103,12 +103,12 @@ test('partial sale requires a goal, validates its capacity and persists the chos
   await open(page);
   await assetMenu(page, 'Jual');
   const sheet = page.getByRole('dialog', { name: 'Catat transaksi investasi' });
-  await sheet.getByRole('button', { name: '50%', exact: true }).click();
+  await sheet.getByRole('button', { name: '50,00%', exact: true }).click();
   await sheet.getByRole('button', { name: 'Simpan jual' }).click();
   await expect(sheet.getByRole('alert')).toContainText('Pilih tujuan yang dikurangi');
   await sheet.getByRole('radio', { name: 'Kurangi dari Dana Pensiun' }).check();
   await expect(sheet.getByRole('alert')).toContainText('Penjualan melebihi unit tujuan yang dipilih');
-  await sheet.getByRole('button', { name: '25%', exact: true }).click();
+  await sheet.getByRole('button', { name: '25,00%', exact: true }).click();
   await expect(sheet.getByRole('alert')).toBeHidden();
   await screenshot(page, 'investments-sell-goal-choice');
   await sheet.getByRole('button', { name: 'Simpan jual' }).click();
@@ -116,8 +116,8 @@ test('partial sale requires a goal, validates its capacity and persists the chos
   await page.reload();
   await assetMenu(page, 'Lihat detail');
   const detail = page.getByRole('dialog', { name: 'SPY · SPDR S&P 500 ETF' });
-  await expect(detail).toContainText('80%');
-  await expect(detail).toContainText('20%');
+  await expect(detail).toContainText('80,00%');
+  await expect(detail).toContainText('20,00%');
   await expect(detail).toContainText('Jual & koreksi');
 });
 
@@ -127,7 +127,7 @@ test('targets cannot exceed 100%, and goal asset sources cannot exceed other goa
   const targets = page.getByRole('dialog', { name: 'Target alokasi' });
   await targets.getByRole('textbox', { name: 'Target Kripto', exact: true }).fill('8');
   await expect(targets.getByRole('button', { name: 'Simpan target' })).toBeDisabled();
-  await targets.getByRole('button', { name: 'Ambil 1,0% dari Saham AS' }).click();
+  await targets.getByRole('button', { name: 'Ambil 1,00% dari Saham AS' }).click();
   await targets.getByRole('button', { name: 'Simpan target' }).click();
   await expect(targets).toBeHidden();
   await page.goto('/goals');
@@ -136,7 +136,7 @@ test('targets cannot exceed 100%, and goal asset sources cannot exceed other goa
   const form = page.getByRole('dialog');
   await form.getByRole('textbox', { name: 'Persentase SPY', exact: true }).fill('90');
   await form.getByRole('button', { name: 'Simpan', exact: true }).click();
-  await expect(form).toContainText('Melebihi 100%');
+  await expect(form).toContainText('Melebihi 100,00%');
   await screenshot(page, 'investments-goal-source-validation');
 });
 

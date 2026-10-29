@@ -123,10 +123,10 @@ describe('BudgetHero', () => {
     await expect.element(region.getByRole('heading', { name: 'Sisa anggaran Oktober' })).toBeVisible();
     await expect.element(region).toMatchTextContent(/Rp1\.300\.000dari Rp12\.500\.000/);
     await expect.element(region.getByText('Lebih cepat dari rencana')).toBeVisible();
-    await expect.element(region.getByText('Hari ini · ideal 48%')).toBeVisible();
+    await expect.element(region.getByText('Hari ini · ideal 48,39%')).toBeVisible();
     await expect.element(region.getByText('Terpakai Rp11.200.000')).toBeVisible();
     await expect.element(region.getByText('Sisa Rp1.300.000')).toBeVisible();
-    await expect.element(region.getByText('90% · ideal 48%')).toBeVisible();
+    await expect.element(region.getByText('89,60% · ideal 48,39%')).toBeVisible();
     await expect.element(region.getByText('Batas aman harian')).toBeVisible();
     await expect.element(region.getByText('sisa ÷ 17 hari')).toBeVisible();
     await expect.element(region.getByText('lewat Rp10.500.000')).toHaveClass('text-red-fg-soft');
@@ -154,8 +154,8 @@ describe('BudgetHero', () => {
     const region = await hero({ ...status, totals: { ...status.totals, unbudgetedSpentMinor: 700_000n } });
     await expect.element(region.getByRole('heading', { name: 'Hasil September' })).toBeVisible();
     await expect.element(region.getByText('Sesuai rencana')).toBeVisible();
-    await expect.element(region.getByText('Selesai · 102% terpakai')).toBeVisible();
-    await expect.element(region.getByText('102% · +Rp700.000 tanpa anggaran')).toBeVisible();
+    await expect.element(region.getByText('Selesai · 102,22% terpakai')).toBeVisible();
+    await expect.element(region.getByText('102,22% · +Rp700.000 tanpa anggaran')).toBeVisible();
     await expect.element(region.getByText('setelah rollover')).toBeVisible();
     await expect.element(region.getByText('Batas aman harian')).not.toBeInTheDocument();
     await expect.element(region.getByText('Proyeksi akhir bulan')).not.toBeInTheDocument();
@@ -164,7 +164,7 @@ describe('BudgetHero', () => {
 
   it('shows only the share used for a closed period without unbudgeted spending', async () => {
     const region = await hero(budgetStatus({ period: SEPTEMBER, readOnly: true }));
-    await expect.element(region.getByText('90%', { exact: true }).first()).toBeVisible();
+    await expect.element(region.getByText('89,60%', { exact: true }).first()).toBeVisible();
     await expect.element(region.getByText(/tanpa anggaran/)).not.toBeInTheDocument();
   });
 });
@@ -195,7 +195,7 @@ describe('BudgetGroupsCard', () => {
     const card = screen.getByRole('region', { name: 'Kebutuhan & Keinginan' });
     await expect.element(card.getByText('Terpakai dari batas Oktober')).toBeVisible();
     await expect.element(card.getByText('Kebutuhan', { exact: true })).toBeVisible();
-    await expect.element(card.getByText('93%')).toBeVisible();
+    await expect.element(card.getByText('92,63%')).toBeVisible();
     await expect.element(card.getByText('sisa Rp700.000')).toHaveClass('text-subtle');
     await expect.element(card.getByText('sisa Rp600.000')).toHaveClass('text-amber-fg');
     await expect.element(card.getByText('lewat Rp200.000')).toHaveClass('text-red-fg');

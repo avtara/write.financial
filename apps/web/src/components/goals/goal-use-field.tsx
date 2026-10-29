@@ -39,7 +39,7 @@ export function GoalUseField({ goal, amountMinor, using, locale, onUse, onPlain 
         <PiggyBank aria-hidden="true" className="size-4 text-violet" />
         {m.record_goal_title({ name: goal.name })}
         <span className="rounded-[5px] bg-violet-tint-2 px-1.5 py-px text-[11px] font-normal text-violet">
-          {progress === null ? null : <Percent value={progress / 10_000} decimals={0} locale={locale} />}
+          {progress === null ? null : <Percent value={progress / 10_000} locale={locale} />}
           {' · '}
           <Money minor={goal.savedMinor} currency={goal.currency} context="amount" locale={locale} />
         </span>

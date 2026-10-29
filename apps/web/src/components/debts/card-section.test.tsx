@@ -103,7 +103,7 @@ describe('CardBillCard', () => {
     const card = screen.getByRole('article', { name: 'Tagihan BCA Visa' });
     await expect.element(card).toMatchTextContent(/•• 7710 · tagihan tgl 20 · bayar tgl 5/);
     await expect.element(card).toMatchTextContent(/Rp1\.250\.000bayar paling lambat 5 Nov/);
-    await expect.element(card).toMatchTextContent(/8% dari limit Rp15\.000\.000sisa limit Rp13\.750\.000/);
+    await expect.element(card).toMatchTextContent(/8,33% dari limit Rp15\.000\.000sisa limit Rp13\.750\.000/);
     await expect
       .element(card.getByRole('list'))
       .toHaveTextContent(

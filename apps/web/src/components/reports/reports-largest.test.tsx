@@ -11,22 +11,22 @@ describe('LargestSection', () => {
     await expect.element(section).toMatchTextContent('Sewa Kos');
     await expect.element(section).toMatchTextContent('1 Sep');
     await expect.element(section).toMatchTextContent('4.500.000');
-    await expect.element(section).toMatchTextContent('24,6%');
+    await expect.element(section).toMatchTextContent('24,59%');
     await expect.element(section).toMatchTextContent('Laptop baru · Tokopedia');
     await expect.element(section).toMatchTextContent('14 Sep');
   });
 
   it('summarises the share of the top transactions', async () => {
     const { screen } = await renderApp(<LargestSection view={FINAL_VIEW} locale="id" />);
-    await expect.element(screen.getByText('3 transaksi = 40% dari pengeluaran')).toBeVisible();
+    await expect.element(screen.getByText('3 transaksi = 40,00% dari pengeluaran')).toBeVisible();
   });
 
   it('uses the English copy', async () => {
     const { screen } = await renderApp(<LargestSection view={FINAL_VIEW} locale="en" />, {
       preferences: { locale: 'en' },
     });
-    await expect.element(screen.getByRole('region', { name: 'Largest transactions' })).toMatchTextContent('24.6%');
-    await expect.element(screen.getByText('3 transactions = 40% of spending')).toBeVisible();
+    await expect.element(screen.getByRole('region', { name: 'Largest transactions' })).toMatchTextContent('24.59%');
+    await expect.element(screen.getByText('3 transactions = 40.00% of spending')).toBeVisible();
   });
 
   it('keeps a bare provisional report honest: no rows and no share line', async () => {

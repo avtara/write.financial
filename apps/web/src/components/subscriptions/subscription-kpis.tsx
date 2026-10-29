@@ -81,7 +81,7 @@ export function SubscriptionKpis({ overview, spentMinor, incomeMinor, locale }: 
             <RichMessage
               message={m.subscriptions_kpi_of_income}
               slots={{
-                share: <Percent value={incomeShare} decimals={0} locale={locale} />,
+                share: <Percent value={incomeShare} locale={locale} />,
               }}
             />
           </span>
@@ -112,7 +112,7 @@ export function SubscriptionKpis({ overview, spentMinor, incomeMinor, locale }: 
               <RichMessage
                 message={m.subscriptions_chart_growth}
                 slots={{
-                  change: <Percent value={growth} decimals={0} signed locale={locale} />,
+                  change: <Percent value={growth} signed locale={locale} />,
                   month: monthName(first.month, 'short'),
                 }}
               />

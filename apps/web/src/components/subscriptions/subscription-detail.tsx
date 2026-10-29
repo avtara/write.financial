@@ -271,7 +271,7 @@ function DetailBody({
         aside={
           increase === null ? null : (
             <span className="rounded-[4px] bg-red-tint-2 px-1.5 font-mono text-[11px] text-red-fg">
-              <Percent value={increase.increaseBps / 10_000} decimals={0} signed locale={locale} />{' '}
+              <Percent value={increase.increaseBps / 10_000} signed locale={locale} />{' '}
               {m.subscriptions_detail_since_month({
                 month: new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(
                   new Date(`${increase.since}T00:00:00Z`),

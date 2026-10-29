@@ -588,7 +588,7 @@ describe('AiSection', () => {
     await expect.poll(() => log.query()?.textContent).toMatch(/\$1,24 \/ \$5,00/);
     await expect
       .poll(() => log.query()?.textContent)
-      .toMatch(/Gagal 50% dari permintaan yang cocok dalam 30 hari terakhir/);
+      .toMatch(/Gagal 50,00% dari permintaan yang cocok dalam 30 hari terakhir/);
     const timeoutRow = log.getByRole('listitem').nth(1);
     await expect.poll(() => timeoutRow.query()?.textContent).toMatch(/—/);
     await expect.poll(() => timeoutRow.query()?.textContent).not.toMatch(/\$0,00/);

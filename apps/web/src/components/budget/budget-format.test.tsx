@@ -13,7 +13,7 @@ describe('budget formats', () => {
     );
     await expect.element(screen.getByText('Rp3.500.000')).toBeVisible();
     await expect.element(screen.getByText('3.500.000', { exact: true })).toHaveClass('!inline', 'text-subtle');
-    await expect.element(screen.getByText('88%')).toBeVisible();
+    await expect.element(screen.getByText('88,00%')).toBeVisible();
     await expect.element(screen.getByText('—')).toHaveClass('text-red-fg');
   });
 
@@ -26,6 +26,6 @@ describe('budget formats', () => {
       </BudgetFormatProvider>,
     );
     await expect.element(screen.getByText('US$52.00')).toBeVisible();
-    await expect.element(screen.getByText('48%')).toHaveClass('text-fg');
+    await expect.element(screen.getByText('48.39%')).toHaveClass('text-fg');
   });
 });

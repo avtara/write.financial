@@ -18,7 +18,7 @@ describe('AuthLayout', () => {
     );
     await expect.element(screen.getByRole('complementary')).toBeVisible();
     await expect.element(screen.getByText('Dicatat manual, tanpa login ke bank.', { exact: false })).toBeVisible();
-    await expect.element(screen.getByText('36,5%')).toBeInTheDocument();
+    await expect.element(screen.getByText('36,50%')).toBeInTheDocument();
     const main = screen.getByRole('main');
     await expect.element(main.getByRole('heading', { level: 1, name: 'Judul' })).toBeVisible();
     await expect.element(main.getByText('Deskripsi')).toBeVisible();

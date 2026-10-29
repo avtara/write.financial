@@ -313,7 +313,7 @@ export function GoalsPage({
                     target: (
                       <Money minor={target.targetMinor} currency={target.currency} context="amount" locale={locale} />
                     ),
-                    pct: pct === null ? '—' : <Percent value={pct / 10_000} decimals={0} locale={locale} />,
+                    pct: pct === null ? '—' : <Percent value={pct / 10_000} locale={locale} />,
                   }}
                 />
               ),

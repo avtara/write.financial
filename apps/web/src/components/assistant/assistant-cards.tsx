@@ -43,9 +43,7 @@ export function AssistantCards({ cards }: { readonly cards: readonly AssistantCa
                   <span className="flex shrink-0 items-baseline gap-2">
                     <Money minor={line.spentMinor} currency={card.currency} context="table" locale={locale} />
                     <span className="w-[74px] text-right tabular-nums text-subtle">
-                      {line.usedBps === null
-                        ? '—'
-                        : formatPercent(line.usedBps / 10_000, locale, { maximumFractionDigits: 0 })}
+                      {line.usedBps === null ? '—' : formatPercent(line.usedBps / 10_000, locale, {})}
                     </span>
                   </span>
                 </div>
@@ -215,7 +213,7 @@ export function AssistantDraftCard({
               message={m.assistant_draft_budget_impact}
               slots={{
                 category: categoryName({ name: draft.categoryName, builtInKey: draft.categoryBuiltInKey }),
-                percent: formatPercent(draft.budget.usedBps / 10_000, locale, { maximumFractionDigits: 0 }),
+                percent: formatPercent(draft.budget.usedBps / 10_000, locale, {}),
               }}
             />
           </p>

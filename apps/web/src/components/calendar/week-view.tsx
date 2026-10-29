@@ -81,7 +81,7 @@ export function WeekView({ week, today, safeDailyMinor, categories, baseCurrency
         />
         <Kpi
           label={m.calendar_week_vs({ days: passedNames })}
-          value={change === null ? '—' : <Percent value={change} decimals={0} signed locale={locale} />}
+          value={change === null ? '—' : <Percent value={change} signed locale={locale} />}
           note={
             week.previousMinor === null || first === undefined ? null : (
               <>

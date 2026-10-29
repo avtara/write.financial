@@ -284,7 +284,7 @@ describe('TransferFields — cross currency', () => {
     const screen = await renderTransfer(cross({ rateMode: 'manual', manualRate: '16.500' }));
     await expect
       .element(screen.getByRole('textbox', { name: '1 USD = IDR' }))
-      .toHaveAccessibleDescription('Manual · +0,9% dari acuan Rp16.350');
+      .toHaveAccessibleDescription('Manual · +0,92% dari acuan Rp16.350');
     await expect.element(screen.getByRole('textbox', { name: '1 USD = IDR' })).toHaveAttribute('aria-invalid', 'false');
     await userEvent.click(screen.getByRole('radio', { name: 'Acuan' }));
     expect(latest?.rateMode).toBe('reference');

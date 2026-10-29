@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * M2 exit goldens (plan §8) on the design seed, through the repositories on PGlite with every migration applied:
- * 88% / 48% / Rp140.000 / 87% / 90% / 36,5%, the transition 1–24 Nov = Rp15.000.000, September read-only, and
+ * 88,00% / 48,39% / Rp140.000 / 86,67% / 90,37% / 36,54%, the transition 1–24 Nov = Rp15.000.000, September read-only, and
  * 14 Sep – 13 Okt = "30 hari · melintasi 2 periode".
  */
 import { generateDek } from '@wf/crypto/envelope';
@@ -23,8 +23,7 @@ const now = () => NOW;
 const dek = generateDek();
 const getDek = () => Promise.resolve(dek);
 const d = (value: string) => value as LocalDate;
-const pct = (bps: number | null, digits = 0) =>
-  formatPercent((bps as number) / 10_000, 'id', { maximumFractionDigits: digits });
+const pct = (bps: number | null) => formatPercent((bps as number) / 10_000, 'id');
 
 let test: TestDatabase;
 let userId: string;
@@ -41,7 +40,7 @@ afterAll(async () => {
 });
 
 describe('M2 exit on the design seed', () => {
-  it('budget page Oktober: 88% used, ideal 48%, safe daily Rp140.000, Needs 87%, Wants 90%', async () => {
+  it('budget page Oktober: 88,00% used, ideal 48,39%, safe daily Rp140.000, Needs 86,67%, Wants 90,37%', async () => {
     const status = await asApp(() => createBudgets(test.db, { now }).status(userId));
     expect(status.period).toMatchObject({ label: '2026-10', start: '2026-10-01', end: '2026-10-31', days: 31 });
     expect(status.totals).toMatchObject({
@@ -55,13 +54,13 @@ describe('M2 exit on the design seed', () => {
       overCount: 1,
       unbudgetedSpentMinor: 0n,
     });
-    expect(pct(status.totals.usedBps)).toBe('88%');
-    expect(pct(status.totals.idealBps)).toBe('48%');
+    expect(pct(status.totals.usedBps)).toBe('88,00%');
+    expect(pct(status.totals.idealBps)).toBe('48,39%');
     const groups = Object.fromEntries(status.groups.map((group) => [group.group, group]));
     expect(groups.needs).toMatchObject({ limitMinor: 12_000_000n, spentMinor: 10_400_000n });
     expect(groups.wants).toMatchObject({ limitMinor: 6_750_000n, spentMinor: 6_100_000n });
-    expect(pct(groups.needs?.usedBps ?? null)).toBe('87%');
-    expect(pct(groups.wants?.usedBps ?? null)).toBe('90%');
+    expect(pct(groups.needs?.usedBps ?? null)).toBe('86,67%');
+    expect(pct(groups.wants?.usedBps ?? null)).toBe('90,37%');
     expect(status.readOnly).toBe(false);
     const byKey = new Map(status.lines.map((line) => [line.builtInKey, line]));
     expect(byKey.get('system:shopping')).toMatchObject({ state: 'over', remainingMinor: -400_000n });
@@ -69,7 +68,7 @@ describe('M2 exit on the design seed', () => {
     expect(byKey.get('system:food')).toMatchObject({ state: 'warning', safeDailyMinor: 18_000n, count: 18 });
   });
 
-  it('dashboard Oktober: saving rate 36,5% vs Sep 29,1%', async () => {
+  it('dashboard Oktober: saving rate 36,54% vs Sep 29,07%', async () => {
     const dashboard = await asApp(() => createDashboard(test.db, { now }).get(userId, { scope: 'month' }));
     expect(dashboard.kpis.current).toEqual({
       incomeMinor: 26_000_000n,
@@ -77,15 +76,15 @@ describe('M2 exit on the design seed', () => {
       savedMinor: 9_500_000n,
       savingRateBps: 3654,
     });
-    expect(pct(dashboard.kpis.current.savingRateBps, 1)).toBe('36,5%');
+    expect(pct(dashboard.kpis.current.savingRateBps)).toBe('36,54%');
     expect(dashboard.kpis.previous).toEqual({
       incomeMinor: 25_800_000n,
       expenseMinor: 18_300_000n,
       savedMinor: 7_500_000n,
       savingRateBps: 2907,
     });
-    expect(pct(dashboard.kpis.previous.savingRateBps, 1)).toBe('29,1%');
-    expect(pct(dashboard.kpis.change.expenseBps, 1)).toBe('−9,8%');
+    expect(pct(dashboard.kpis.previous.savingRateBps)).toBe('29,07%');
+    expect(pct(dashboard.kpis.change.expenseBps)).toBe('−9,84%');
     expect(dashboard.ranges.current).toEqual({ from: '2026-10-01', to: '2026-10-15' });
   });
 
@@ -98,7 +97,7 @@ describe('M2 exit on the design seed', () => {
     );
     expect(status.readOnly).toBe(true);
     expect(status.totals).toMatchObject({ spentMinor: 17_600_000n, unbudgetedSpentMinor: 700_000n });
-    expect(pct(status.totals.usedBps)).toBe('94%');
+    expect(pct(status.totals.usedBps)).toBe('93,87%');
     expect(status.close.leftoverMinor).toBe(1_150_000n);
 
     const categories = await asApp(() => createCategories(test.db, { getDek }).list(userId));

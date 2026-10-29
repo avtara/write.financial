@@ -52,7 +52,5 @@ export function Amount({
 export function Pct({ bps, className }: { bps: number | null; className?: string }) {
   const { locale } = useBudgetFormat();
   if (bps === null) return <span className={className}>—</span>;
-  return (
-    <Percent value={bps / 10_000} locale={locale} decimals={0} {...(className === undefined ? {} : { className })} />
-  );
+  return <Percent value={bps / 10_000} locale={locale} {...(className === undefined ? {} : { className })} />;
 }

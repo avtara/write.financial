@@ -25,7 +25,7 @@ describe('InstallmentCard', () => {
     await expect.element(card).toMatchTextContent(/Rp1\.000\.000sisa dari Rp3\.000\.000/);
     await expect
       .element(card)
-      .toMatchTextContent(/67% lunas · Rp2\.000\.000 dilunasi lebih awal0 dari 3 cicilan tertagih/);
+      .toMatchTextContent(/66,66% lunas · Rp2\.000\.000 dilunasi lebih awal0 dari 3 cicilan tertagih/);
     await expect.element(card).toMatchTextContent(/Jadwal cicilan · dihitung ulang 10 Nov/i);
     const rows = card.getByRole('row');
     await expect

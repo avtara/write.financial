@@ -440,7 +440,7 @@ function Simulation({
                     income: (
                       <Money minor={overview.month.incomeMinor} currency={currency} context="amount" locale={locale} />
                     ),
-                    limit: <Percent value={HEALTHY_DEBT_RATIO_BPS / 10_000} decimals={0} locale={locale} />,
+                    limit: <Percent value={HEALTHY_DEBT_RATIO_BPS / 10_000} locale={locale} />,
                   }}
                 />
               )

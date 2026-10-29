@@ -110,7 +110,7 @@ export function InstallmentCard({ debt, card, accounts, locale }: InstallmentCar
         <BudgetBar usedBps={paidBps} tone="ok" idealBps={null} />
         <div className="flex flex-wrap justify-between gap-2 text-[11.5px]">
           <span className="text-green-fg">
-            <Percent value={paidBps / 10_000} decimals={0} locale={locale} /> {m.debts_item_paid()}
+            <Percent value={paidBps / 10_000} locale={locale} /> {m.debts_item_paid()}
             {debt.paidEarlyMinor > 0n ? (
               <>
                 {' · '}

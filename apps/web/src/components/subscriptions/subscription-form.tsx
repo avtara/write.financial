@@ -670,7 +670,7 @@ function FormBody({
               {' · +'}
               <Money minor={increase.increaseMinor} currency={draft.currency} context="amount" locale={locale} />
               {' · '}
-              <Percent value={increase.increaseBps / 10_000} decimals={0} signed locale={locale} />
+              <Percent value={increase.increaseBps / 10_000} signed locale={locale} />
             </span>
           </span>
         </p>

@@ -202,7 +202,7 @@ export function SubscriptionTable({
         {subscription.priceIncrease === null ? null : (
           <span className="inline-flex items-center gap-0.5 rounded-[4px] bg-red-tint-2 px-1 font-mono text-[10.5px] text-red-fg">
             <TrendingUp aria-hidden="true" className="size-3" />
-            <Percent value={subscription.priceIncrease.increaseBps / 10_000} decimals={0} signed locale={locale} />
+            <Percent value={subscription.priceIncrease.increaseBps / 10_000} signed locale={locale} />
           </span>
         )}
         <span className="text-[13px] font-medium text-fg">
@@ -588,7 +588,7 @@ export function SubscriptionTable({
                   {' · '}
                   <RichMessage
                     message={m.subscriptions_filter_share}
-                    slots={{ share: <Percent value={share.shareBps / 10_000} decimals={0} locale={locale} /> }}
+                    slots={{ share: <Percent value={share.shareBps / 10_000} locale={locale} /> }}
                   />
                   {' · '}
                   <Money minor={share.monthlyMinor} currency={baseCurrency} context="amount" locale={locale} />

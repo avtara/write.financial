@@ -52,7 +52,7 @@ describe('ReceivePaymentDialog (ivnWw)', () => {
     await expect.element(after).toMatchTextContent(/Sisa piutang Raka300\.000100\.000/);
     await expect.element(after).toMatchTextContent(/Saldo GoPay412\.000612\.000/);
     await expect.element(after).toMatchTextContent(/Pemasukan Oktober26\.000\.000tetap/);
-    await expect.element(after).toMatchTextContent(/75% kembali · sisa Rp100\.000 tetap jatuh tempo 31 Okt/);
+    await expect.element(after).toMatchTextContent(/75,00% kembali · sisa Rp100\.000 tetap jatuh tempo 31 Okt/);
     await dialog.getByRole('button', { name: 'Terima Rp200.000' }).click();
     await vi.waitFor(() => {
       expect(onSaved).toHaveBeenCalledWith('paid');
@@ -107,7 +107,7 @@ describe('ReceivePaymentDialog (ivnWw)', () => {
     await dialog.getByRole('button', { name: 'Rp100.000' }).click();
     await expect
       .element(dialog.getByRole('region', { name: 'Setelah disimpan' }))
-      .toMatchTextContent(/50% kembali · sisa Rp200\.000$/);
+      .toMatchTextContent(/50,00% kembali · sisa Rp200\.000$/);
     await dialog.getByRole('button', { name: 'Terima Rp100.000' }).click();
     await expect.element(dialog.getByText('Pilih rekening', { exact: true }).last()).toBeVisible();
     expect(fake.receiveReceivablePayment).not.toHaveBeenCalled();

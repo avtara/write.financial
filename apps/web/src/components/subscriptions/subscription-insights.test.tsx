@@ -88,7 +88,7 @@ describe('SavingsCard', () => {
       .toMatchTextContent(/^Fungsi dobel: musikSpotify, YouTube Premium punya fungsi yang sama\.Bandingkan$/);
     await expect
       .element(items.nth(2))
-      .toMatchTextContent(/^ChatGPT naik 10%Rp299\.000 → Rp329\.000 sejak SeptemberRiwayat harga$/);
+      .toMatchTextContent(/^ChatGPT naik 10,03%Rp299\.000 → Rp329\.000 sejak SeptemberRiwayat harga$/);
     await expect
       .element(items.nth(3))
       .toMatchTextContent(
@@ -149,11 +149,13 @@ describe('CategoryShareCard', () => {
     await expect.element(card).toMatchTextContent(/7layanan/);
     const legend = card.getByRole('list', { name: 'Saring tabel per kategori' });
     await expect
-      .element(legend.getByRole('button', { name: 'Tanpa kategori 65%' }))
+      .element(legend.getByRole('button', { name: 'Tanpa kategori 65,43%' }))
       .toHaveAttribute('aria-pressed', 'false');
-    await expect.element(legend.getByRole('button', { name: 'Hiburan 35%' })).toHaveAttribute('aria-pressed', 'true');
+    await expect
+      .element(legend.getByRole('button', { name: 'Hiburan 34,57%' }))
+      .toHaveAttribute('aria-pressed', 'true');
     expect(card.element().querySelectorAll('circle')).toHaveLength(3);
-    await legend.getByRole('button', { name: 'Tanpa kategori 65%' }).click();
+    await legend.getByRole('button', { name: 'Tanpa kategori 65,43%' }).click();
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 
@@ -180,6 +182,6 @@ describe('CategoryShareCard', () => {
         onSelect={vi.fn()}
       />,
     );
-    await expect.element(unknown.screen.getByRole('button', { name: 'Tanpa kategori 100%' })).toBeVisible();
+    await expect.element(unknown.screen.getByRole('button', { name: 'Tanpa kategori 100,00%' })).toBeVisible();
   });
 });

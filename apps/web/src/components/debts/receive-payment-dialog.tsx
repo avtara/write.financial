@@ -265,7 +265,7 @@ function ReceiveForm({
                     receivable.dueDate === null ? m.receivables_receive_progress : m.receivables_receive_progress_due
                   }
                   slots={{
-                    percent: <Percent value={after.progressBps / 10_000} decimals={0} locale={locale} />,
+                    percent: <Percent value={after.progressBps / 10_000} locale={locale} />,
                     remaining: (
                       <Money minor={after.remainingMinor} currency={currency} context="amount" locale={locale} />
                     ),

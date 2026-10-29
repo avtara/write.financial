@@ -11,12 +11,12 @@ describe('SpendingSection', () => {
     await expect.element(section).toMatchTextContent('Sewa Kos');
     await expect.element(section).toMatchTextContent('4.500.000');
     await expect.element(section).toMatchTextContent('/ 4.500.000');
-    await expect.element(section).toMatchTextContent('100%');
+    await expect.element(section).toMatchTextContent('100,00%');
     await expect.element(section).toMatchTextContent('Belanja Online');
     await expect.element(section).toMatchTextContent('2.600.000');
     await expect.element(section).toMatchTextContent('/ 2.000.000');
     await expect.element(section).toMatchTextContent('lewat Rp600.000');
-    await expect.element(section).toMatchTextContent('130%');
+    await expect.element(section).toMatchTextContent('130,00%');
   });
 
   it('shows the uncategorized line by its share of the spending', async () => {
@@ -33,7 +33,7 @@ describe('SpendingSection', () => {
     await expect.element(section.getByRole('heading', { name: 'Merchant' })).toBeVisible();
     await expect.element(section).toMatchTextContent('GoPay');
     await expect.element(section).toMatchTextContent('34 transaksi');
-    await expect.element(section).toMatchTextContent('17%');
+    await expect.element(section).toMatchTextContent('17,49%');
     await expect.element(section).toMatchTextContent('3.200.000');
     await expect.element(section.getByRole('heading', { name: 'Tag' })).toBeVisible();
     await expect.element(section).toMatchTextContent('#akhir-pekan');

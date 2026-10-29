@@ -87,7 +87,7 @@ describe('SubscriptionTable', () => {
         /^NetflixPremium 4K · Hiburan18 Okt 20263 hari lagiBCA TahapanKadangRp186\.000Rp2\.230\.000\/tahun/,
       );
     await expect.element(rows.nth(4)).toMatchTextContent(/YouTube Premium.*22 Okt 20267 hari lagi.*Belum dinilai/);
-    await expect.element(rows.nth(5)).toMatchTextContent(/ChatGPT.*Bank Jago.*\+10%Rp329\.000Rp3\.950\.000\/tahun/);
+    await expect.element(rows.nth(5)).toMatchTextContent(/ChatGPT.*Bank Jago.*\+10,03%Rp329\.000Rp3\.950\.000\/tahun/);
     await expect.element(rows.nth(6)).toMatchTextContent(/Fit Hub.*3 Nov 2026lunas bulan ini.*Jarang/);
     await expect
       .element(rows.nth(7))
@@ -187,14 +187,16 @@ describe('SubscriptionTable', () => {
   it('narrows the rows to a category or compared subscriptions, until cleared', async () => {
     const fun = categoryId('system:entertainment');
     const { screen } = await renderTable({ initialFilter: { categoryId: fun } });
-    await expect.element(screen.getByText(/^3 langganan Hiburan · 35% dari total · Rp331\.900\/bulan$/)).toBeVisible();
+    await expect
+      .element(screen.getByText(/^3 langganan Hiburan · 34,57% dari total · Rp331\.900\/bulan$/))
+      .toBeVisible();
     expect(screen.getByRole('row').elements()).toHaveLength(4);
     await screen.getByRole('button', { name: 'Hapus filter kategori' }).click();
     expect(screen.getByRole('row').elements()).toHaveLength(8);
     await screen.unmount();
 
     const none = await renderTable({ initialFilter: { categoryId: null } });
-    await expect.element(none.screen.getByText(/^4 langganan Tanpa kategori · 65% dari total/)).toBeVisible();
+    await expect.element(none.screen.getByText(/^4 langganan Tanpa kategori · 65,43% dari total/)).toBeVisible();
     await none.screen.unmount();
     const unknown = await renderTable({ initialFilter: { categoryId: 'gone' } });
     await expect.element(unknown.screen.getByText('0 langganan')).toBeVisible();

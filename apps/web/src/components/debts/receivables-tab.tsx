@@ -270,7 +270,7 @@ function ReceivableItem({
                   principal: (
                     <Money minor={receivable.principalMinor} currency={currency} context="amount" locale={locale} />
                   ),
-                  percent: <Percent value={receivable.repaidBps / 10_000} decimals={0} locale={locale} />,
+                  percent: <Percent value={receivable.repaidBps / 10_000} locale={locale} />,
                 }}
               />
             )}

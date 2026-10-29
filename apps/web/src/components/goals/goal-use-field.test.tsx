@@ -14,7 +14,7 @@ describe('GoalUseField', () => {
       <GoalUseField goal={STNK} amountMinor={812_000n} using={false} locale="id" onUse={onUse} onPlain={onPlain} />,
     );
     const field = screen.getByRole('region', { name: 'Bayar dari tujuan Perpanjang STNK' });
-    await expect.element(field).toMatchTextContent('100% · Rp850.000');
+    await expect.element(field).toMatchTextContent('100,00% · Rp850.000');
     await expect
       .element(field)
       .toMatchTextContent(

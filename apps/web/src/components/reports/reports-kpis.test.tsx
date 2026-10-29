@@ -46,15 +46,15 @@ describe('ReportsKpis', () => {
     const { screen } = await renderApp(<ReportsKpis view={FINAL_VIEW} locale="id" today={TODAY} />);
     const strip = screen.getByRole('group', { name: 'Pemasukan' });
     await expect.element(strip).toMatchTextContent('Rp25.800.000');
-    await expect.element(strip).toMatchTextContent('+3,6%');
+    await expect.element(strip).toMatchTextContent('+3,61%');
     await expect.element(strip).toMatchTextContent('vs Agustus 2026');
     await expect.element(screen.getByRole('group', { name: 'Pengeluaran' })).toMatchTextContent('Rp18.300.000');
-    await expect.element(screen.getByRole('group', { name: 'Pengeluaran' })).toMatchTextContent('+8,3%');
+    await expect.element(screen.getByRole('group', { name: 'Pengeluaran' })).toMatchTextContent('+8,28%');
     const saved = screen.getByRole('group', { name: 'Ditabung & Investasi' });
     await expect.element(saved).toMatchTextContent('+7.500.000');
-    await expect.element(saved).toMatchTextContent('−6,3%');
+    await expect.element(saved).toMatchTextContent('−6,25%');
     const rate = screen.getByRole('group', { name: 'Saving Rate' });
-    await expect.element(rate).toMatchTextContent('29,1%');
+    await expect.element(rate).toMatchTextContent('29,07%');
     await expect.element(rate).toMatchTextContent('−3,1 poin');
     await expect.element(screen.getByRole('group', { name: 'Kekayaan bersih' })).toMatchTextContent('Rp112.200.000');
     await expect.element(screen.getByRole('group', { name: 'Kekayaan bersih' })).toMatchTextContent('per 30 Sep 2026');
@@ -65,7 +65,7 @@ describe('ReportsKpis', () => {
       preferences: { locale: 'en' },
     });
     await expect.element(screen.getByRole('group', { name: 'Income' })).toMatchTextContent('vs August 2026');
-    await expect.element(screen.getByRole('group', { name: 'Income' })).toMatchTextContent('+3.6%');
+    await expect.element(screen.getByRole('group', { name: 'Income' })).toMatchTextContent('+3.61%');
     await expect.element(screen.getByRole('group', { name: 'Saving rate' })).toMatchTextContent('−3.1 pts');
     await expect.element(screen.getByRole('group', { name: 'Net worth' })).toMatchTextContent('as of Sep 30, 2026');
   });
@@ -76,7 +76,7 @@ describe('ReportsKpis', () => {
     await expect.element(income).toMatchTextContent('Rp70.000.000');
     await expect.element(income).toMatchTextContent('vs 1 Apr – 30 Jun');
     await expect.element(income).not.toMatchTextContent('%');
-    await expect.element(screen.getByRole('group', { name: 'Saving Rate' })).toMatchTextContent('28,6%');
+    await expect.element(screen.getByRole('group', { name: 'Saving Rate' })).toMatchTextContent('28,57%');
     const netWorth = screen.getByRole('group', { name: 'Kekayaan bersih' });
     await expect.element(netWorth).toMatchTextContent('—');
     await expect.element(netWorth).not.toMatchTextContent('per');
@@ -87,7 +87,7 @@ describe('ReportsKpis', () => {
     const income = screen.getByRole('group', { name: 'Pemasukan' });
     await expect.element(income).toMatchTextContent('vs Agustus 2026');
     await expect.element(income).not.toMatchTextContent('%');
-    await expect.element(screen.getByRole('group', { name: 'Saving Rate' })).toMatchTextContent('29,1%');
+    await expect.element(screen.getByRole('group', { name: 'Saving Rate' })).toMatchTextContent('29,07%');
     await expect.element(screen.getByRole('group', { name: 'Saving Rate' })).not.toMatchTextContent('poin');
   });
 });

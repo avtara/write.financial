@@ -227,11 +227,7 @@ function DetailBody({
         <GoalBar color={goal.color} progressBps={snapshot.progressBps} size="lg" />
         <div className="flex items-center justify-between gap-2 text-[12.5px]">
           <span className="text-muted-fg">
-            {snapshot.progressBps === null ? (
-              '—'
-            ) : (
-              <Percent value={snapshot.progressBps / 10_000} decimals={0} locale={locale} />
-            )}
+            {snapshot.progressBps === null ? '—' : <Percent value={snapshot.progressBps / 10_000} locale={locale} />}
             {snapshot.coverageBps === null
               ? null
               : ` · ${m.goals_detail_coverage({ months: formatMonths(snapshot.coverageBps, locale) })}`}
@@ -331,12 +327,7 @@ function DetailBody({
                         className="text-[13px] text-fg"
                       />
                       {share === null ? null : (
-                        <Percent
-                          value={share / 10_000}
-                          decimals={0}
-                          locale={locale}
-                          className="text-[11px] text-subtle"
-                        />
+                        <Percent value={share / 10_000} locale={locale} className="text-[11px] text-subtle" />
                       )}
                     </span>
                   </li>

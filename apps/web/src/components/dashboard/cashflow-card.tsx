@@ -103,7 +103,7 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
       : {
           label: m.overview_cashflow_trend(),
           value: m.overview_cashflow_trend_value({
-            change: formatPercent(trendBps / 10_000, locale, { signed: true, maximumFractionDigits: 1 }),
+            change: formatPercent(trendBps / 10_000, locale, { signed: true }),
           }),
           tone: trendBps <= 0 ? 'text-green-fg' : 'text-red-fg',
         },
@@ -353,7 +353,7 @@ function CashflowTooltip({ columns, index, x, width, currency, locale }: Cashflo
         {rate === null ? null : (
           <div className="flex justify-between gap-2">
             <dt className="text-muted-fg">{m.overview_cashflow_tip_rate()}</dt>
-            <dd className="font-mono text-fg">{formatPercent(rate, locale, { maximumFractionDigits: 0 })}</dd>
+            <dd className="font-mono text-fg">{formatPercent(rate, locale, {})}</dd>
           </div>
         )}
       </dl>
@@ -361,7 +361,7 @@ function CashflowTooltip({ columns, index, x, width, currency, locale }: Cashflo
         <p className="border-t border-border pt-2 text-[11px] text-subtle">
           {m.overview_cashflow_tip_vs({
             what: previous.title,
-            change: formatPercent(spendBps / 10_000, locale, { signed: true, maximumFractionDigits: 1 }),
+            change: formatPercent(spendBps / 10_000, locale, { signed: true }),
           })}
         </p>
       )}

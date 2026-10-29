@@ -32,7 +32,7 @@ describe('FlowSection', () => {
     const income = screen.getByRole('region', { name: 'Arus uang' }).getByRole('heading', { name: 'Pemasukan' });
     await expect.element(income).toBeVisible();
     await expect.element(section).toMatchTextContent('Gaji');
-    await expect.element(section).toMatchTextContent('77,5%');
+    await expect.element(section).toMatchTextContent('77,52%');
     await expect.element(section).toMatchTextContent('20.000.000');
     await expect.element(section).toMatchTextContent('5.800.000');
   });

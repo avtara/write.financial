@@ -112,8 +112,7 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   };
   const money = (minor: bigint, context: 'amount' | 'table' = 'amount') =>
     formatMoney(minor, currency, { locale, context, privacy: hidden });
-  const share = (bps: number) =>
-    bps > 0 && bps < 100 ? '<1%' : formatPercent(bps / 10_000, locale, { maximumFractionDigits: 0 });
+  const share = (bps: number) => (bps > 0 && bps < 100 ? '<1%' : formatPercent(bps / 10_000, locale, {}));
   const toneOf = (id: string) => GROUP_TONE[id.startsWith('group:') ? id : (parentOf.get(id) ?? '')] ?? NEUTRAL;
 
   /** `/transactions` for a node: a category, every category of a group, transfers for savings, else all. */

@@ -37,7 +37,7 @@ describe('MoveLeftoverDialog', () => {
     await expect.element(dialog.getByRole('checkbox', { name: /^Hiburan/ })).toBeChecked();
     await expect.element(dialog.getByText('sisa Rp1.000.000 → sisa Rp600.000')).toBeVisible();
     const result = dialog.getByRole('region', { name: 'Hasil' });
-    await expect.element(result).toMatchTextContent(/Belanja Online120%100%/);
+    await expect.element(result).toMatchTextContent(/Belanja Online120,00%100,00%/);
     await expect.element(result.getByText('Batas Rp2.000.000 → Rp2.400.000 · terpakai Rp2.400.000')).toBeVisible();
     await expect
       .element(result.getByText('Belanja Online jadi pas di batas — transaksi berikutnya akan lewat lagi.'))
@@ -47,7 +47,7 @@ describe('MoveLeftoverDialog', () => {
 
     await dialog.getByRole('checkbox', { name: /^Transportasi/ }).click();
     await expect.element(dialog.getByRole('textbox', { name: 'Jumlah dari Transportasi' })).toHaveValue('400.000');
-    await expect.element(result).toMatchTextContent(/120%86%/);
+    await expect.element(result).toMatchTextContent(/120,00%85,71%/);
     await expect.element(result.getByText(/jadi pas di batas/)).not.toBeInTheDocument();
     await dialog.getByRole('checkbox', { name: /^Transportasi/ }).click();
     await expect.element(dialog.getByRole('textbox', { name: 'Jumlah dari Transportasi' })).toHaveValue('');
@@ -94,7 +94,7 @@ describe('MoveLeftoverDialog', () => {
     await expect.element(dialog.getByRole('region', { name: 'Hasil' })).not.toBeInTheDocument();
     await expect.element(dialog.getByRole('button', { name: 'Pindahkan Rp400.000' })).toBeDisabled();
     await target.selectOptions('food');
-    await expect.element(dialog.getByRole('region', { name: 'Hasil' })).toMatchTextContent(/Makan91%82%/);
+    await expect.element(dialog.getByRole('region', { name: 'Hasil' })).toMatchTextContent(/Makan91,43%82,05%/);
     await expect.element(dialog.getByRole('checkbox', { name: /^Makan/ })).not.toBeInTheDocument();
     onMove.mockResolvedValue(true);
     await dialog.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
@@ -108,7 +108,7 @@ describe('MoveLeftoverDialog', () => {
       targetId: 'shopping',
       sources: [{ categoryId: 'transport', amountMinor: 100_000n }],
     });
-    await expect.element(first.screen.getByRole('region', { name: 'Hasil' })).toMatchTextContent(/120%114%/);
+    await expect.element(first.screen.getByRole('region', { name: 'Hasil' })).toMatchTextContent(/120,00%114,29%/);
     expect(first.screen.getByRole('region', { name: 'Hasil' }).element().querySelector('rect.fill-red')).not.toBeNull();
     await first.screen.unmount();
 

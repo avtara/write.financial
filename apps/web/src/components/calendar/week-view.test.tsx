@@ -34,7 +34,7 @@ describe('WeekView', () => {
     const { screen } = await renderWeek('2026-10-12', 140_000n);
     const kpis = screen.getByRole('region', { name: 'Ringkasan kalender' });
     await expect.element(kpis).toMatchTextContent(/Keluar minggu ini−Rp200\.0004 hari · rata-rata Rp50\.000/);
-    await expect.element(kpis).toMatchTextContent(/vs Sen–Kam lalu−84%5–8 Okt: Rp1\.250\.000/);
+    await expect.element(kpis).toMatchTextContent(/vs Sen–Kam lalu−84,00%5–8 Okt: Rp1\.250\.000/);
     await expect.element(kpis).toMatchTextContent(/Masuk\+Rp6\.250\.000Studio Arunika · 14 Okt/);
     await expect.element(kpis).toMatchTextContent(/TerjadwalRp186\.000Netflix · Minggu, 18 Okt/);
     await expect.element(kpis).toMatchTextContent(/Batas aman sisa mingguRp420\.000Rp140\.000 × 3 hari$/);

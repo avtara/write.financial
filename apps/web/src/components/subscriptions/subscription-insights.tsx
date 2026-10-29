@@ -217,7 +217,7 @@ export function SavingsCard({ overview, detected, locale, onCancel, onCompare, o
           message={m.subscriptions_save_increase}
           slots={{
             name: subscription.name,
-            change: <Percent value={increase.increaseBps / 10_000} decimals={0} locale={locale} />,
+            change: <Percent value={increase.increaseBps / 10_000} locale={locale} />,
           }}
         />
       ),
@@ -380,7 +380,7 @@ export function CategoryShareCard({ overview, categories, locale, selected, onSe
                     <span className="min-w-0 flex-1 truncate">
                       {category === undefined ? m.subscriptions_uncategorized() : categoryName(category)}
                     </span>
-                    <Percent value={share.shareBps / 10_000} decimals={0} locale={locale} className="text-subtle" />
+                    <Percent value={share.shareBps / 10_000} locale={locale} className="text-subtle" />
                   </button>
                 </li>
               );

@@ -71,7 +71,7 @@ function BrandPanel() {
           <Money minor={9_500_000n} currency="IDR" context="amount" locale={preferences.locale} />
         </Stat>
         <Stat label={m.auth_brand_emergency_fund()}>
-          <Percent value={0.21} decimals={0} locale={preferences.locale} className="text-blue-fg" />
+          <Percent value={0.21} locale={preferences.locale} className="text-blue-fg" />
         </Stat>
       </div>
     </aside>

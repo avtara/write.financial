@@ -20,7 +20,7 @@ describe('TradeSheet', () => {
     const { screen } = await renderApp(
       <TradeSheet {...props} open={{ tab: 'sell', assetId: SPY.id }} onSubmit={onSubmit} />,
     );
-    await screen.getByRole('button', { name: '50%', exact: true }).click();
+    await screen.getByRole('button', { name: '50,00%', exact: true }).click();
     await screen.getByRole('button', { name: 'Simpan jual', exact: true }).click();
     await expect.element(screen.getByRole('alert')).toMatchTextContent('Pilih tujuan yang dikurangi');
     expect(onSubmit).not.toHaveBeenCalled();
@@ -118,7 +118,7 @@ describe('TradeSheet', () => {
       <TradeSheet {...props} accounts={ACCOUNTS} open={{ tab: 'sell', assetId: BBCA.id }} onSubmit={onSubmit} />,
     );
     await screen.getByRole('textbox', { name: 'Harga per unit (IDR)' }).fill('8025');
-    await screen.getByRole('button', { name: '25%', exact: true }).click();
+    await screen.getByRole('button', { name: '25,00%', exact: true }).click();
     await screen.getByRole('textbox', { name: 'Harga per unit (IDR)' }).fill('');
     await screen.getByRole('textbox', { name: 'Harga per unit (IDR)' }).fill('8025');
     await screen.getByRole('radio', { name: 'Tarik ke rekening' }).click();
@@ -236,7 +236,7 @@ describe('TradeSheet', () => {
     await screen.getByRole('button', { name: 'Simpan jual' }).click();
     await expect.element(screen.getByText('Masukkan harga per unit')).toBeVisible();
     await screen.getByRole('textbox', { name: 'Harga per unit (IDR)' }).fill('8025');
-    await screen.getByRole('button', { name: '25%', exact: true }).click();
+    await screen.getByRole('button', { name: '25,00%', exact: true }).click();
     await screen.getByRole('textbox', { name: 'Harga per unit (IDR)' }).fill('');
     await screen.getByRole('textbox', { name: 'Harga per unit (IDR)' }).fill('8025');
     await screen.getByRole('radio', { name: 'Tarik ke rekening' }).click();
@@ -305,7 +305,7 @@ describe('TradeSheet', () => {
       />,
       { preferences: { locale: 'en' } },
     );
-    await screen.getByRole('button', { name: '50%', exact: true }).click();
+    await screen.getByRole('button', { name: '50.00%', exact: true }).click();
     await expect.element(screen.getByRole('dialog')).toMatchTextContent('50% of the position');
   });
 

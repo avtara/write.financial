@@ -91,7 +91,7 @@ describe('SubscriptionDetail', () => {
     await expect.element(sheet).toMatchTextContent(/BerikutnyaRabu, 28 Okt13 hari lagi/);
     await expect.element(sheet).toMatchTextContent(/DariBank JagoGantiSaldo cukup/);
     await expect.element(sheet).toMatchTextContent(/Total dibayarRp6\.040\.00020 tagihan/);
-    await expect.element(sheet).toMatchTextContent(/Riwayat harga\+10% sejak Sep/);
+    await expect.element(sheet).toMatchTextContent(/Riwayat harga\+10,03% sejak Sep/);
     await expect.element(sheet.getByText(/Rp299\.000 → Rp329\.000 · naik mulai tagihan September 2026/)).toBeVisible();
     const bills = sheet.getByRole('list').last().getByRole('listitem');
     await expect.element(bills.nth(0)).toMatchTextContent(/^28 Sep 2026Bank Jago · dikonfirmasi 28 Sep−Rp329\.000$/);

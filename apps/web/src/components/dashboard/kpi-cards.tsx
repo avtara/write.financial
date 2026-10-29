@@ -46,7 +46,7 @@ function Change({ bps, kind, locale }: { bps: number; kind: Kind; locale: Locale
       className={`inline-flex items-center gap-1 rounded-[4px] px-1.5 py-px font-mono text-[11px] ${bps === 0 ? 'bg-tint-06 text-muted-fg' : good ? 'bg-green-tint-2 text-green-fg' : 'bg-red-tint-2 text-red-fg'}`}
     >
       <Icon aria-hidden="true" className="size-3" />
-      {formatPercent(bps / 10_000, locale, { signed: true, maximumFractionDigits: Math.abs(bps) < 1000 ? 1 : 0 })}
+      {formatPercent(bps / 10_000, locale, { signed: true })}
     </span>
   );
 }
@@ -115,13 +115,13 @@ export function KpiCards({ kpis, comparison, currency, locale }: KpiCardsProps) 
           {m.overview_kpi_saving_rate()}
         </span>
         <span className="font-mono text-[24px] leading-tight font-medium text-fg tabular-nums">
-          {rateBps === null ? '—' : formatPercent(rateBps / 10_000, locale, { maximumFractionDigits: 1 })}
+          {rateBps === null ? '—' : formatPercent(rateBps / 10_000, locale, {})}
         </span>
         {kpis === null ? null : (
           <span className="flex min-h-5 items-center">
             <span className="rounded-[4px] bg-blue-tint-2 px-1.5 py-px font-mono text-[11px] text-blue-fg">
               {m.overview_kpi_target({
-                target: formatPercent(kpis.savingRateTargetBps / 10_000, locale, { maximumFractionDigits: 0 }),
+                target: formatPercent(kpis.savingRateTargetBps / 10_000, locale, {}),
               })}
             </span>
           </span>

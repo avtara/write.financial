@@ -118,7 +118,7 @@ describe('AccountDetailPanel', () => {
     await expect.element(screen.getByText('+1.200.000')).toBeVisible();
     expect(server.getAccountDetail).toHaveBeenCalledWith({ data: { id: BCA.id } });
     await expect.element(screen.getByRole('img', { name: 'Saldo 6 bulan' })).toBeVisible();
-    await expect.element(screen.getByText('+2,9%')).toBeVisible();
+    await expect.element(screen.getByText('+2,88%')).toBeVisible();
     await expect.element(screen.getByText('Rp30.000.000')).toBeVisible();
     await expect.element(screen.getByText('+24.700.000')).toBeVisible();
     await expect.element(screen.getByText('Transfer masuk')).not.toBeInTheDocument();
@@ -208,7 +208,7 @@ describe('AccountDetailPanel', () => {
   it('shows a falling balance in red and no change from zero', async () => {
     server.getAccountDetail.mockResolvedValue(detail({ series: [point('2026-09', 200n), point('2026-10', 100n)] }));
     const { screen } = await renderPanel();
-    await expect.element(screen.getByText('−50%')).toHaveClass(/text-red-fg/);
+    await expect.element(screen.getByText('−50,00%')).toHaveClass(/text-red-fg/);
     await screen.unmount();
     server.getAccountDetail.mockResolvedValue(detail({ series: [] }));
     const empty = await renderPanel();

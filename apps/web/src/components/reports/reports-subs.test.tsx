@@ -10,7 +10,7 @@ describe('SubsSection', () => {
     const { screen } = await renderApp(<SubsSection view={FINAL_VIEW} locale="id" />);
     const section = screen.getByRole('region', { name: 'Langganan' });
     await expect.element(section).toMatchTextContent('5 aktif · Rp845.900/bulan ≈ Rp10.150.800/tahun');
-    await expect.element(section).toMatchTextContent('4,6%');
+    await expect.element(section).toMatchTextContent('4,62%');
     await expect.element(section).toMatchTextContent('1 langganan tanpa kurs pada akhir periode.');
   });
 
@@ -35,7 +35,7 @@ describe('SubsSection', () => {
     });
     const section = screen.getByRole('region', { name: 'Subscriptions' });
     await expect.element(section).toMatchTextContent('5 active · Rp845,900/month ≈ Rp10,150,800/year');
-    await expect.element(section).toMatchTextContent('4.6%');
+    await expect.element(section).toMatchTextContent('4.62%');
   });
 });
 

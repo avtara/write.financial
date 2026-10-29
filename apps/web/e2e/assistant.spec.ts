@@ -190,7 +190,7 @@ test('records the confirmed "45.000 GoPay" draft with source=assistant', async (
   await expect(draft.getByText('GoPay', { exact: true }).first()).toBeVisible();
   await expect(draft.getByText('Makan & Dapur', { exact: true })).toBeVisible();
   // The impact: the budget line of Makan & Dapur (3.200.000 spent + 45.000 of 3.500.000) and GoPay's balance.
-  await expect(draft.getByText('Makan & Dapur jadi 93%')).toBeVisible();
+  await expect(draft.getByText(/Makan & Dapur jadi 93,\d{2}%/)).toBeVisible();
   await expect(draft.getByText(/saldo GoPay Rp367\.000/)).toBeVisible();
   await expect(draft.getByText(/di bawah batas Rp500\.000/)).toBeVisible();
   await expect(draft.getByText(/Kam, 15 Okt · 12\.10/)).toBeVisible();

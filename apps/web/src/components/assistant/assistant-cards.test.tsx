@@ -52,7 +52,7 @@ describe('AssistantCards', () => {
     const card = page.getByRole('region', { name: 'Anggaran periode ini' });
     await expect.element(card.getByText('Makan & Dapur')).toBeVisible();
     await expect.element(card.getByText(/3\.200\.000/)).toBeVisible();
-    await expect.element(card.getByText(/91\s*%/)).toBeVisible();
+    await expect.element(card.getByText(/91,43\s*%/)).toBeVisible();
     await expect.element(card.getByText(/1–31 Okt 2026/)).toBeVisible();
   });
 
@@ -128,7 +128,7 @@ describe('AssistantDraftCard', () => {
     );
     const card = page.getByRole('group', { name: 'Draft transaksi' });
     await expect.element(card.getByText('belum disimpan')).toBeVisible();
-    await expect.element(card.getByText(/Makan & Dapur jadi 93\s*%/)).toBeVisible();
+    await expect.element(card.getByText(/Makan & Dapur jadi 92,71\s*%/)).toBeVisible();
     await expect.element(card.getByRole('button', { name: 'Simpan' })).toBeVisible();
 
     await renderApp(
@@ -199,7 +199,7 @@ describe('Assistant financial boundaries', () => {
     const text = region.element().textContent;
     expect(text.indexOf('Over budget')).toBeLessThan(text.indexOf('Uncapped A'));
     expect(text.indexOf('Uncapped A')).toBeLessThan(text.indexOf('Uncapped B'));
-    await expect.element(region.getByText(/120\s*%/)).toBeVisible();
+    await expect.element(region.getByText(/120,00\s*%/)).toBeVisible();
     expect(region.getByText('—', { exact: true }).elements()).toHaveLength(2);
   });
 

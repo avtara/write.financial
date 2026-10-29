@@ -38,8 +38,8 @@ test('October shows the persona’s KPIs, accounts, money flow, budget, calendar
   await expect(kpis.getByRole('group', { name: 'Pemasukan' })).toContainText('Rp26.000.000');
   await expect(kpis.getByRole('group', { name: 'Pengeluaran' })).toContainText('Rp16.500.000');
   await expect(kpis.getByRole('group', { name: 'Ditabung & Investasi' })).toContainText('Rp9.500.000');
-  await expect(kpis.getByRole('group', { name: 'Saving Rate' })).toContainText('36,5%');
-  await expect(kpis.getByRole('group', { name: 'Saving Rate' })).toContainText('Target 30%');
+  await expect(kpis.getByRole('group', { name: 'Saving Rate' })).toContainText('36,54%');
+  await expect(kpis.getByRole('group', { name: 'Saving Rate' })).toContainText('Target 30,00%');
   await expect(kpis.getByRole('group', { name: 'Pengeluaran' })).toContainText('vs Sep');
 
   await expect(page.getByRole('region', { name: 'Rekening & dompet' })).toContainText('Rp55.023.000');

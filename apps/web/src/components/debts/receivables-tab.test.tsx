@@ -59,7 +59,7 @@ describe('ReceivablesTab', () => {
     await expect
       .element(raka)
       .toMatchTextContent(
-        /RPRaka PratamaSebagianDipinjam tunai · 2 Okt · dari GoPayRp300\.000dari Rp400\.000 · 25% kembaliJatuh tempo Sab, 31 Okt · terakhir dibayar Rp100\.000 pada 10 Okt/,
+        /RPRaka PratamaSebagianDipinjam tunai · 2 Okt · dari GoPayRp300\.000dari Rp400\.000 · 25,00% kembaliJatuh tempo Sab, 31 Okt · terakhir dibayar Rp100\.000 pada 10 Okt/,
       );
     await raka.getByRole('button', { name: 'Terima pembayaran' }).click();
     expect(onReceive).toHaveBeenCalledWith(RAKA);
