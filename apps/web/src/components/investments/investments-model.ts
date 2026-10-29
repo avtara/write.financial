@@ -231,7 +231,7 @@ function group(
   };
 }
 
-/** Every held asset and every platform's cash, in the portfolio's order. */
+/** Every asset (also one just added and not bought yet, so it can be bought from its row) and every platform's cash. */
 export function holdingItems(portfolio: PortfolioView): HoldingItem[] {
   const cash = portfolio.platforms.flatMap((platform): HoldingItem[] => {
     const position = portfolio.summary.positions.find((candidate) => candidate.key === `cash:${platform.accountId}`);
@@ -249,7 +249,7 @@ export function holdingItems(portfolio: PortfolioView): HoldingItem[] {
           },
         ];
   });
-  return [...portfolio.assets.filter(isHeld).map((asset): HoldingItem => ({ kind: 'asset', asset })), ...cash];
+  return [...portfolio.assets.map((asset): HoldingItem => ({ kind: 'asset', asset })), ...cash];
 }
 
 /** Whether `item` matches the search ("yield": ticker, name, or its category's name). */
