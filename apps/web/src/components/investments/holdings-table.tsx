@@ -322,14 +322,18 @@ function AssetRow({
         {realized === null ? (
           <span className="text-subtle">—</span>
         ) : (
-          <Gain
-            baseMinor={realized.baseMinor}
-            quoteMinor={realized.minor}
-            quoteCurrency={asset.quoteCurrency}
-            costBaseMinor={0n}
-            display={display}
-            percent={false}
-          />
+          <span className="flex flex-col items-end">
+            <Gain
+              baseMinor={realized.baseMinor}
+              quoteMinor={realized.minor}
+              quoteCurrency={asset.quoteCurrency}
+              costBaseMinor={0n}
+              display={display}
+              percent={false}
+            />
+            {/* A realized gain shown in the quote currency keeps its rupiah value below. */}
+            <ApproxBase baseMinor={realized.baseMinor} currency={asset.quoteCurrency} display={display} />
+          </span>
         )}
       </td>
       <td className={`${CELL} w-10`}>
