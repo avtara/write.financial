@@ -160,6 +160,27 @@ describe('HoldingsTable', () => {
     await expect.element(screen.getByText('−2,76%')).toHaveClass('text-red-fg');
   });
 
+  it('shows a quote-currency realized gain with its rupiah value below', async () => {
+    await page.viewport(1440, 1000);
+    const realized = {
+      ...SPY,
+      holding: { ...SPY.holding, realizedMinor: 100_000n, realizedBaseMinor: 1_630_000n },
+    };
+    const { screen } = await renderApp(
+      <HoldingsTable
+        portfolio={portfolioView({ assets: [realized] })}
+        display="base"
+        usdRate="16350"
+        locale="id"
+        onAction={vi.fn()}
+        onTopUp={vi.fn()}
+        onAddAsset={vi.fn()}
+      />,
+    );
+    const table = screen.getByRole('table');
+    await expect.element(table).toMatchTextContent(/\+US\$1\.000,00≈ Rp1\.630\.000/);
+  });
+
   it('marks pending and unpriced holdings, shows a zero-value portfolio, and works per platform', async () => {
     await page.viewport(1440, 1000);
     const base = portfolioView();
