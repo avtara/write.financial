@@ -793,3 +793,42 @@ export function searchCatalog(query: string, options: CatalogSearchOptions): rea
     .slice(0, limit)
     .map(({ record }) => record);
 }
+
+/** The only record of `candidates` whose name or an alias is exactly `name` (case and spacing ignored), else `null`. */
+function exactlyOne(name: string, candidates: readonly CatalogRecord[]): string | null {
+  const needle = normalize(name);
+  if (needle === '') return null;
+  const found = candidates.filter((record) =>
+    [record.name, ...record.aliases].some((term) => normalize(term) === needle),
+  );
+  return found.length === 1 ? (found[0] as CatalogRecord).id : null;
+}
+
+/** The provider an account typed by hand refers to ("BCA" → `provider:bca`), when its name is unambiguous. */
+export function matchProvider(providerName: string, accountType: AccountType): string | null {
+  return exactlyOne(
+    providerName,
+    CATALOG.filter((record) => record.kind === 'provider' && record.accountTypes.includes(accountType)),
+  );
+}
+
+/** The service a subscription typed by hand refers to ("Netflix" → `service:netflix`), when unambiguous. */
+export function matchService(name: string): string | null {
+  return exactlyOne(
+    name,
+    CATALOG.filter((record) => record.kind === 'service'),
+  );
+}
+
+/** The single listing with this exact ticker, asset class, and price market, else `null`. */
+export function matchInstrument(symbol: string, assetClass: AssetClass, market: Market): string | null {
+  const ticker = symbol.trim().toUpperCase();
+  const found = CATALOG.filter(
+    (record) =>
+      record.kind === 'instrument' &&
+      record.symbol === ticker &&
+      record.assetClass === assetClass &&
+      record.market === market,
+  );
+  return found.length === 1 ? (found[0] as CatalogRecord).id : null;
+}

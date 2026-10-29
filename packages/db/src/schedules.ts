@@ -5,7 +5,7 @@
  * occurrences become transactions only through the Review queue (`@wf/db/review`). Every change to a rule prunes the
  * future `scheduled` occurrences it affects and materializes them again (`@wf/db/occurrences`).
  */
-import { getCatalogRecord } from '@wf/domain/catalog';
+import { getCatalogRecord, matchService } from '@wf/domain/catalog';
 import { convert, type FxRate } from '@wf/domain/fx';
 import { checkPlanMonths } from '@wf/domain/goals';
 import { addDays, countDays, type LocalDate, type YearMonth } from '@wf/domain/period';
@@ -968,7 +968,7 @@ async function subscriptionValuesIn(tx: Transaction, input: SubscriptionInput): 
   if (nextBillingDate < input.startedOn) throw invalidSubscription('The next bill is before the start');
   return {
     name,
-    catalogId: input.catalogId ?? null,
+    catalogId: input.catalogId ?? matchService(name),
     plan,
     icon: clean(input.icon),
     logoKey: clean(input.logoKey),

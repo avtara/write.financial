@@ -7,7 +7,7 @@
  * `locked` (FR-R3: currency, opening balance and opening date fixed) while it has postings of non-deleted
  * transactions; soft-deleted ones (Undo window) do not lock it.
  */
-import { getCatalogRecord } from '@wf/domain/catalog';
+import { getCatalogRecord, matchProvider } from '@wf/domain/catalog';
 import type { FxRate } from '@wf/domain/fx';
 import { availableBalance, type AccountType } from '@wf/domain/ledger';
 import { parseLocalDate, type LocalDate, type YearMonth } from '@wf/domain/period';
@@ -274,6 +274,11 @@ function checkCatalog(input: Pick<AccountInput, 'type' | 'catalogId'>): void {
   }
 }
 
+/** A provider typed by hand that names exactly one catalog provider of this type ("BCA") gets its reference. */
+function linkedCatalog(input: Pick<AccountInput, 'type' | 'providerName' | 'catalogId'>): string | null {
+  return input.catalogId ?? matchProvider(input.providerName, input.type);
+}
+
 /** Postgres `sum`/`count` results as `bigint`. */
 const bigintSql = (expression: SQL) => sql<bigint>`(${expression})::bigint`.mapWith(BigInt);
 
@@ -449,7 +454,8 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
 
     create: (userId, input) =>
       withUser(db, userId, async (tx) => {
-        const values = normalize(input) as AccountInput;
+        const normalized = normalize(input) as AccountInput;
+        const values = { ...normalized, catalogId: linkedCatalog(normalized) };
         checkCatalog(values);
         await checkParentIn(tx, values.parentAccountId);
         const rows = await lockAllIn(tx);
@@ -474,10 +480,13 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
 
     update: (userId, id, patch) =>
       withUser(db, userId, async (tx) => {
-        const values = normalize(patch);
+        const patched = normalize(patch);
         const rows = await lockAllIn(tx);
         const current = findLocked(rows, id);
         const before = await viewIn(tx, userId, id, now());
+        const relinks =
+          patched.providerName !== undefined || patched.type !== undefined || patched.catalogId !== undefined;
+        const values = relinks ? { ...patched, catalogId: linkedCatalog({ ...before, ...patched }) } : patched;
         checkCatalog({ ...before, ...values });
         if (before.locked && LOCKED_KEYS.some((key) => values[key] !== undefined && values[key] !== before[key])) {
           throw new LedgerError('ACCOUNT_LOCKED');
