@@ -154,8 +154,9 @@ export function NotificationsSection({ settings: saved, email }: NotificationsSe
         </SettingsRow>
       </SettingsGroup>
 
-      {/* Sticky edges sit inside the scroller's 22px padding, so `-bottom-[22px]` puts the bar on the dialog's edge. */}
-      <footer className="sticky -bottom-[22px] z-10 -mx-7 -mb-[22px] flex flex-wrap items-center gap-2 border-t border-border bg-dialog px-7 py-3">
+      {/* Sticky edges sit inside the scroller's 22px padding, so `-bottom-[22px]` puts the bar on the dialog's edge;
+          `mt-auto` keeps it there when the section is shorter than the dialog. */}
+      <footer className="sticky -bottom-[22px] z-10 -mx-7 mt-auto -mb-[22px] flex flex-wrap items-center gap-2 border-t border-border bg-dialog px-7 py-3">
         <span
           role="status"
           className={`flex flex-1 items-center gap-1.5 text-[12px] ${dirty ? 'text-amber-fg' : 'text-subtle'}`}
