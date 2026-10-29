@@ -100,8 +100,10 @@ export interface TransactionRow {
   readonly receivedCurrency: string | null;
   /** `amountMinor` in the base currency, signed. */
   readonly amountBaseMinor: bigint;
-  /** Transfers with a fee: the fee (positive) in `currency`. */
+  /** Fee and tax postings (positive) in `currency`; `null` when the transaction has none. */
   readonly feeMinor: bigint | null;
+  /** `feeMinor` in the base currency, positive. */
+  readonly feeBaseMinor: bigint;
   /** Transfers: the FX difference in the base currency (0 within one currency). */
   readonly fxDiffBaseMinor: bigint | null;
   /** Slugs, sorted. */
@@ -458,6 +460,7 @@ export function createTransactionQuery(
             fee: sql<
               string | null
             >`(select (-sum(${postings.amountMinor}))::text from ${postings} where ${postings.transactionId} = ${transactions.id} and ${postings.role} = 'fee')`,
+            feeBase: sql<string>`(select coalesce(-sum(${postings.amountBaseMinor}), 0)::text from ${postings} where ${postings.transactionId} = ${transactions.id} and ${postings.role} = 'fee')`,
             fxDiffBaseMinor: transferMeta.fxDiffBaseMinor,
             hasAttachment: sql<boolean>`exists (select 1 from ${attachments} where ${attachments.transactionId} = ${transactions.id})`,
             hasNote: sql<boolean>`${transactions.noteEnc} is not null`,
@@ -490,9 +493,10 @@ export function createTransactionQuery(
           )
           .orderBy(asc(tags.slug));
         return {
-          rows: rows.map(({ fee, ...row }) => ({
+          rows: rows.map(({ fee, feeBase, ...row }) => ({
             ...row,
             feeMinor: fee === null ? null : BigInt(fee),
+            feeBaseMinor: BigInt(feeBase),
             tags: tagRows.filter((tag) => tag.transactionId === row.id).map((tag) => tag.slug),
           })),
           total,

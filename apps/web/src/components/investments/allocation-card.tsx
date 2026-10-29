@@ -96,27 +96,30 @@ export function AllocationCard({ portfolio, locale, onEditTargets }: AllocationC
         // Legend columns follow the card's width, not the viewport: one in the 380 px side card, two once each column
         // keeps about 190 px beside the 132 px donut.
         <div className="@container flex flex-wrap items-center gap-5">
-          <div className="relative size-[132px] shrink-0">
-            <svg aria-hidden="true" viewBox="0 0 42 42" className="size-full -rotate-90">
-              <circle cx="21" cy="21" r={RADIUS} fill="none" strokeWidth="6" className="stroke-tint-06" />
-              {segments.map((segment) => (
-                <circle
-                  key={segment.key}
-                  cx="21"
-                  cy="21"
-                  r={RADIUS}
-                  fill="none"
-                  strokeWidth="6"
-                  strokeDasharray={`${String(segment.length)} ${String(100 - segment.length)}`}
-                  strokeDashoffset={-segment.start}
-                  className={CLASS_TONE[segment.key].stroke}
-                />
-              ))}
-            </svg>
-            <span className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-mono text-[20px] font-medium text-fg">{rows.length}</span>
-              <span className="text-[10.5px] text-subtle">{m.invest_allocation_classes()}</span>
-            </span>
+          {/* Centered on its own line in the narrow side card; beside the legend once both fit. */}
+          <div className="flex w-full justify-center @[560px]:w-auto">
+            <div className="relative size-[132px] shrink-0">
+              <svg aria-hidden="true" viewBox="0 0 42 42" className="size-full -rotate-90">
+                <circle cx="21" cy="21" r={RADIUS} fill="none" strokeWidth="6" className="stroke-tint-06" />
+                {segments.map((segment) => (
+                  <circle
+                    key={segment.key}
+                    cx="21"
+                    cy="21"
+                    r={RADIUS}
+                    fill="none"
+                    strokeWidth="6"
+                    strokeDasharray={`${String(segment.length)} ${String(100 - segment.length)}`}
+                    strokeDashoffset={-segment.start}
+                    className={CLASS_TONE[segment.key].stroke}
+                  />
+                ))}
+              </svg>
+              <span className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-mono text-[20px] font-medium text-fg">{rows.length}</span>
+                <span className="text-[10.5px] text-subtle">{m.invest_allocation_classes()}</span>
+              </span>
+            </div>
           </div>
           <ul className="grid min-w-[220px] flex-1 grid-cols-1 gap-x-5 gap-y-1.5 @[560px]:grid-cols-2">
             {rows.map((row) => (

@@ -30,6 +30,7 @@ function row(id: string, patch: Partial<TransactionRow> = {}): TransactionRow {
     receivedCurrency: null,
     amountBaseMinor: -10_000n,
     feeMinor: null,
+    feeBaseMinor: 0n,
     fxDiffBaseMinor: null,
     tags: [],
     hasAttachment: false,

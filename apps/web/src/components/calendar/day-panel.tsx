@@ -218,7 +218,34 @@ export function DayPanel({
                 {row.type === 'transfer' ? (
                   <Money minor={abs(row.amountMinor)} currency={row.currency} context="amount" locale={locale} />
                 ) : (
-                  <SignedMoney amountMinor={row.amountMinor} currency={row.currency} locale={locale} />
+                  <span className="flex flex-col items-end gap-0.5">
+                    <SignedMoney amountMinor={row.amountMinor} currency={row.currency} locale={locale} />
+                    {/* A dividend's tax and its rupiah value: the day's total is in the base currency and net of it. */}
+                    {row.feeMinor === null ? null : (
+                      <span className="text-[11px] text-subtle">
+                        {m.calendar_day_fee()}{' '}
+                        <Money
+                          minor={-row.feeMinor}
+                          currency={row.currency}
+                          context="signed"
+                          locale={locale}
+                          className="text-red-fg"
+                        />
+                        {row.currency === baseCurrency ? null : (
+                          <>
+                            {' · '}
+                            {m.calendar_day_approx()}{' '}
+                            <Money
+                              minor={row.amountBaseMinor - row.feeBaseMinor}
+                              currency={baseCurrency}
+                              context="amount"
+                              locale={locale}
+                            />
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </span>
                 )}
               </li>
             );

@@ -137,6 +137,31 @@ describe('DayPanel', () => {
       .toMatchTextContent(/^Starbucks[^·]+· 10\.20−Rp48\.000$/);
   });
 
+  it('shows a dividend’s tax and its rupiah value beside the amount', async () => {
+    const studio = dayOf('2026-10-14');
+    const dividend = {
+      ...(studio.rows[0] as (typeof studio.rows)[number]),
+      type: 'dividend' as const,
+      currency: 'USD',
+      amountMinor: 614n,
+      amountBaseMinor: 110_734n,
+      feeMinor: 92n,
+      feeBaseMinor: 16_600n,
+    };
+    const feeInBase = {
+      ...dividend,
+      currency: 'IDR',
+      amountMinor: 48_000n,
+      amountBaseMinor: 48_000n,
+      feeMinor: 16_000n,
+      feeBaseMinor: 16_000n,
+    };
+    const { screen } = await renderPanel({ ...studio, rows: [dividend, feeInBase] });
+    const items = screen.getByRole('list', { name: 'Transaksi & jadwal' }).getByRole('listitem');
+    await expect.element(items.nth(0)).toMatchTextContent(/\+US\$6,14pajak & biaya −US\$0,92 · ≈ Rp94\.134$/);
+    await expect.element(items.nth(1)).toMatchTextContent(/\+Rp48\.000pajak & biaya −Rp16\.000$/);
+  });
+
   it('shows a projected payday of a month to come', async () => {
     const november = monthGrid('2026-11' as YearMonth, octoberInputs({ days: [], rows: [] }), octoberInputs()).flat();
     const first = november.find((detail) => detail.date === '2026-11-01') as DayDetail;
