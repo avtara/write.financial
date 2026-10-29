@@ -158,8 +158,8 @@ describe('DayPanel', () => {
     };
     const { screen } = await renderPanel({ ...studio, rows: [dividend, feeInBase] });
     const items = screen.getByRole('list', { name: 'Transaksi & jadwal' }).getByRole('listitem');
-    await expect.element(items.nth(0)).toMatchTextContent(/\+US\$6,14pajak & biaya −US\$0,92 · ≈ Rp94\.134$/);
-    await expect.element(items.nth(1)).toMatchTextContent(/\+Rp48\.000pajak & biaya −Rp16\.000$/);
+    await expect.element(items.nth(0)).toMatchTextContent(/pajak & biaya −US\$0,92 · ≈ Rp94\.134\+US\$6,14$/);
+    await expect.element(items.nth(1)).toMatchTextContent(/pajak & biaya −Rp16\.000\+Rp48\.000$/);
   });
 
   it('shows a projected payday of a month to come', async () => {
