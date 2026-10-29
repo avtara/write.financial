@@ -16,8 +16,12 @@ describe('UnsupportedScreen', () => {
     await setLocale('id', { reload: false });
     await page.viewport(390, 844);
     const screen = await render(<UnsupportedScreen />);
-    await expect.element(screen.getByRole('heading', { name: 'Ups! Layarnya kurang lebar' })).toBeVisible();
-    await expect.element(screen.getByText(/layar yang lebih lebar \(minimal 768 piksel\)/)).toBeVisible();
+    await expect
+      .element(screen.getByRole('heading', { name: 'Untuk sementara hanya di desktop atau tablet' }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByText('write.financial dibuat untuk desktop. Versi mobile sedang disiapkan.'))
+      .toBeVisible();
     expect(screen.getByRole('button').query()).toBeNull();
   });
 

@@ -32,14 +32,18 @@ describe('AppShell', () => {
     await expect.element(screen.getByRole('main')).toHaveTextContent('page content');
     await expect.element(screen.getByRole('navigation', { name: 'Navigasi utama' })).toBeVisible();
     await expect
-      .element(screen.getByRole('heading', { name: 'Ups! Layarnya kurang lebar', includeHidden: true }))
+      .element(
+        screen.getByRole('heading', { name: 'Untuk sementara hanya di desktop atau tablet', includeHidden: true }),
+      )
       .not.toBeVisible();
   });
 
   it('replaces the app with the unsupported-screen page on phones', async () => {
     await page.viewport(600, 900);
     const { screen } = await renderApp(shell);
-    await expect.element(screen.getByRole('heading', { name: 'Ups! Layarnya kurang lebar' })).toBeVisible();
+    await expect
+      .element(screen.getByRole('heading', { name: 'Untuk sementara hanya di desktop atau tablet' }))
+      .toBeVisible();
     await expect.element(screen.getByRole('main', { includeHidden: true })).not.toBeVisible();
   });
 
