@@ -218,6 +218,12 @@ function AssetRow({
   readonly onAction: (action: AssetAction, asset: AssetView) => void;
 }) {
   const { value, holding } = asset;
+  // Realized profit: what the sales left plus the dividends that went out in cash.
+  const realizedMinor = holding.realizedMinor + asset.dividendCashMinor;
+  const realized =
+    realizedMinor === 0n
+      ? null
+      : { minor: realizedMinor, baseMinor: holding.realizedBaseMinor + asset.dividendCashBaseMinor };
   const reference = getCatalogRecord(asset.catalogId);
   const goals = asset.goals.map((goal) =>
     goal.mode === 'whole' ? goal.goalName : `${goal.goalName} ${formatShare(goal.bps, display.locale)}`,
@@ -285,12 +291,12 @@ function AssetRow({
         )}
       </td>
       <td className={`${CELL} text-right max-lg:hidden`}>
-        {holding.realizedMinor === 0n ? (
+        {realized === null ? (
           <span className="text-subtle">—</span>
         ) : (
           <Gain
-            baseMinor={holding.realizedBaseMinor}
-            quoteMinor={holding.realizedMinor}
+            baseMinor={realized.baseMinor}
+            quoteMinor={realized.minor}
             quoteCurrency={asset.quoteCurrency}
             bps={null}
             display={display}

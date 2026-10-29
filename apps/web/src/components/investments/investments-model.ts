@@ -201,8 +201,9 @@ export interface HoldingGroup {
 const itemValue = (item: HoldingItem): bigint =>
   item.kind === 'cash' ? item.position.valueBaseMinor : (item.asset.value?.valueBaseMinor ?? 0n);
 
-/** Realized gain of an asset in the base currency (cash has none). */
-const itemRealized = (item: HoldingItem): bigint => (item.kind === 'cash' ? 0n : item.asset.holding.realizedBaseMinor);
+/** Realized gain of an asset in the base currency: sales plus dividends paid out in cash (cash has none). */
+const itemRealized = (item: HoldingItem): bigint =>
+  item.kind === 'cash' ? 0n : item.asset.holding.realizedBaseMinor + item.asset.dividendCashBaseMinor;
 
 function itemCurrency(item: HoldingItem): string {
   return item.kind === 'cash' ? item.currency : item.asset.quoteCurrency;

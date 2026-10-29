@@ -159,6 +159,8 @@ const SEED_ASSETS: readonly AssetView[] = investments.assets.map((seed): AssetVi
     premiumBps: null,
     meta: {},
     holding,
+    dividendCashMinor: holding.dividendMinor,
+    dividendCashBaseMinor: holding.dividendBaseMinor,
     pendingMinor,
     pendingBaseMinor: pendingMinor,
     averagePrice: averagePrice(holding, currency),

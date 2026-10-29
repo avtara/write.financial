@@ -599,6 +599,10 @@ describe('recordTrade (FR-I2)', () => {
     const portfolio = await asApp(() => repo().portfolio(userId));
     // Each at its trade-date rate: 94.830 + 16.350 + 9.974.
     expect(portfolio.dividends.totalMinor).toBe(121_154n);
+    // Realized profit counts the dividends that went out in cash (kept on the platform or paid into an account), not
+    // the reinvested one: its value is already in the units.
+    const holding = portfolio.assets.find((asset) => asset.id === vea.id);
+    expect([holding?.dividendCashMinor, holding?.dividendCashBaseMinor]).toEqual([680n, 94_830n + 16_350n]);
   });
 
   it('cash top-up: a transfer into the platform, idempotent', async () => {

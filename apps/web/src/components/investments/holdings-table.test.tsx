@@ -135,6 +135,8 @@ describe('HoldingsTable', () => {
     const realized = {
       ...SPY,
       holding: { ...SPY.holding, realizedMinor: 100_000n, realizedBaseMinor: 1_630_000n },
+      dividendCashMinor: 700n,
+      dividendCashBaseMinor: 1_630_000n,
     };
     const unpriced = {
       ...BBCA,
@@ -164,6 +166,8 @@ describe('HoldingsTable', () => {
     await expect.element(table).toMatchTextContent('diproses');
     await expect.element(table).toMatchTextContent('dinilai harga modal');
     await expect.element(table).toMatchTextContent('—');
+    // Realized = the sales' gain plus the dividends that went out in cash.
+    await expect.element(table).toMatchTextContent('+US$1.007,00');
     await screen.getByRole('button', { name: 'Platform', exact: true }).click();
     // A platform group has no class tag, no platform column text, and shows its realized gain.
     await screen.getByRole('button', { name: 'Menu BBCA', exact: true }).click();

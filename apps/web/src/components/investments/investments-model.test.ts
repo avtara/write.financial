@@ -151,6 +151,10 @@ describe('holdings', () => {
       2198,
       0n,
     ]);
+    // Realized: the sales' gain plus the dividends that went out in cash.
+    const dividend = { ...SPY, dividendCashMinor: 700n, dividendCashBaseMinor: 1_163_000n };
+    const [only] = holdingGroups(portfolioView({ assets: [dividend] }), 'list');
+    expect(only?.realizedBaseMinor).toBe(1_163_000n);
   });
 
   it('searches tickers, names and category names (“yield” → 4 YieldMax assets + SCHD)', () => {

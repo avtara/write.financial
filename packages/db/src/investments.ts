@@ -243,6 +243,12 @@ export interface AssetView {
   readonly premiumBps: number | null;
   readonly meta: JsonObject;
   readonly holding: Holding;
+  /**
+   * Dividends paid out in cash (kept on the platform or paid into an account), quote and base minor units. A dividend
+   * kept as cash is realized profit; a reinvested one (DRIP) stays in the units instead, realized when sold.
+   */
+  readonly dividendCashMinor: bigint;
+  readonly dividendCashBaseMinor: bigint;
   readonly pendingMinor: bigint;
   readonly pendingBaseMinor: bigint;
   /** Quote major units; `null` without units. */
@@ -776,7 +782,12 @@ async function existingTradeIn(tx: Transaction, clientId: string): Promise<Trade
   return row === undefined ? null : tradeView(row);
 }
 
-function assetView(valuation: AssetValuation, platformName: string, sources: readonly AssetSourceRow[]): AssetView {
+function assetView(
+  valuation: AssetValuation,
+  platformName: string,
+  sources: readonly AssetSourceRow[],
+  dividendCash: { readonly minor: bigint; readonly baseMinor: bigint },
+): AssetView {
   const { asset, holding } = valuation;
   const domain = sources.map(domainSource);
   const shares = goalShares((valuation.value?.valueBaseMinor ?? 0n) + valuation.pendingBaseMinor, domain);
@@ -799,6 +810,8 @@ function assetView(valuation: AssetValuation, platformName: string, sources: rea
     premiumBps: asset.premiumBps,
     meta: asset.meta,
     holding,
+    dividendCashMinor: dividendCash.minor,
+    dividendCashBaseMinor: dividendCash.baseMinor,
     pendingMinor: valuation.pendingMinor,
     pendingBaseMinor: valuation.pendingBaseMinor,
     averagePrice: averagePrice(holding, asset.quoteCurrency),
@@ -842,11 +855,31 @@ export async function portfolioIn(tx: Transaction, userId: string, now: Date): P
     .where(isNotNull(goalFundingSources.assetId))
     .orderBy(asc(goalFundingSources.sortOrder), asc(goalFundingSources.createdAt), asc(goalFundingSources.id));
   const names = new Map(views.map((view) => [view.id, view.displayName]));
+  // Dividends paid out in cash are realized profit; reinvested ones (DRIP) are in the units, realized when sold.
+  const cashDividends = await tx
+    .select({
+      assetId: investmentTrades.assetId,
+      minor: sql<string>`coalesce(sum(${investmentTrades.dividendMinor}), 0)`,
+      baseMinor: sql<string>`coalesce(sum(${investmentTrades.dividendBaseMinor}), 0)`,
+    })
+    .from(investmentTrades)
+    .where(
+      and(
+        isNotNull(investmentTrades.assetId),
+        eq(investmentTrades.kind, 'dividend'),
+        ne(investmentTrades.dividendMode, 'reinvest'),
+      ),
+    )
+    .groupBy(investmentTrades.assetId);
+  const cashByAsset = new Map(
+    cashDividends.map((row) => [row.assetId as string, { minor: BigInt(row.minor), baseMinor: BigInt(row.baseMinor) }]),
+  );
   const assetViews = values.assets.map((valuation) =>
     assetView(
       valuation,
       names.get(valuation.asset.accountId) as string,
       sources.filter((source) => source.assetId === valuation.asset.id),
+      cashByAsset.get(valuation.asset.id) ?? { minor: 0n, baseMinor: 0n },
     ),
   );
   const missing = new Set(values.missingRates);
