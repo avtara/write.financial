@@ -7,6 +7,7 @@
  * currency and opening balance locked (FR-R3; the server enforces it too).
  */
 import type { AccountView } from '@wf/db/accounts';
+import { getCatalogRecord } from '@wf/domain/catalog';
 import type { AccountType } from '@wf/domain/ledger';
 import { ACCOUNT_TYPES } from '@wf/domain/ledger';
 import type { LocalDate } from '@wf/domain/period';
@@ -31,6 +32,7 @@ import {
   type AccountFields,
 } from '../../server/fn/accounts.ts';
 import { Button, Field, FormError, INPUT_FRAME, Select, TextInput } from '../form.tsx';
+import { CatalogInput } from '../catalog-input.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { ACCOUNT_TYPE_ICONS, AccountLogo } from './account-logo.tsx';
 
@@ -48,6 +50,7 @@ const DAYS = Array.from({ length: 31 }, (_, index) => index + 1);
 export interface AccountDraft {
   readonly type: AccountType;
   readonly providerName: string;
+  readonly catalogId: string | null;
   readonly displayName: string;
   readonly last4: string;
   /** A newly typed phone number; empty keeps the stored masked one. */
@@ -71,6 +74,7 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
     return {
       type,
       providerName: '',
+      catalogId: null,
       displayName: '',
       last4: '',
       phone: '',
@@ -90,6 +94,7 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
   return {
     type: account.type,
     providerName: account.providerName,
+    catalogId: account.catalogId,
     displayName: account.displayName,
     last4: account.last4 ?? '',
     phone: '',
@@ -129,6 +134,7 @@ export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input
     input: {
       type: draft.type,
       providerName,
+      catalogId: draft.type === 'cash' ? null : draft.catalogId,
       displayName,
       currency: draft.currency,
       openingBalanceMinor: card ? -draft.openingMinor : draft.openingMinor,
@@ -192,6 +198,7 @@ export function AccountForm({
   const [pending, setPending] = useState(false);
   const [logo, setLogo] = useState<LogoChange>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const catalogLogo = getCatalogRecord(draft.catalogId)?.logoPath;
   const locked = account?.locked === true;
   const cardsFull = cardHolders.length >= MAX_CARDS && account?.showAsCard !== true;
   const set = (patch: Partial<AccountDraft>) => {
@@ -258,6 +265,7 @@ export function AccountForm({
     id: account?.id ?? 'new',
     type: draft.type,
     color: draft.color,
+    catalogId: draft.catalogId,
     logoKey: logo === null ? (account?.logoKey ?? null) : null,
   };
 
@@ -279,7 +287,12 @@ export function AccountForm({
           fill
           value={draft.type}
           onValueChange={(type) => {
-            set({ type, includeInAvailable: type !== 'investment' });
+            const reference = getCatalogRecord(draft.catalogId);
+            set({
+              type,
+              includeInAvailable: type !== 'investment',
+              catalogId: reference?.accountTypes.includes(type) === true ? draft.catalogId : null,
+            });
           }}
           options={ACCOUNT_TYPES.map((type) => ({
             value: type,
@@ -306,12 +319,15 @@ export function AccountForm({
                 {m.accounts_form_logo_upload()}
               </button>
               {logo !== null && logo !== 'remove' ? <span>{logo.file.name}</span> : null}
-              {(account?.logoKey != null && logo !== 'remove') || (logo !== null && logo !== 'remove') ? (
+              {(account?.logoKey != null && logo !== 'remove') ||
+              (logo !== null && logo !== 'remove') ||
+              catalogLogo != null ? (
                 <button
                   type="button"
                   className="font-medium text-fg underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => {
                     setLogo(account?.logoKey == null ? null : 'remove');
+                    set({ catalogId: null });
                   }}
                 >
                   {m.accounts_form_logo_icon()}
@@ -331,15 +347,23 @@ export function AccountForm({
               ) : (
                 <AccountLogo account={previewAccount} size="lg" />
               )}
-              <TextInput
+              <CatalogInput
                 id={id}
                 aria-describedby={describedBy}
                 aria-invalid={invalid}
                 value={draft.providerName}
                 maxLength={80}
-                autoComplete="off"
-                onChange={(event) => {
-                  set({ providerName: event.target.value });
+                kind="provider"
+                accountType={draft.type}
+                onValueChange={(providerName) => {
+                  set({ providerName, catalogId: null });
+                }}
+                onSelect={(record) => {
+                  set({
+                    providerName: record.name,
+                    catalogId: record.id,
+                    ...(draft.displayName.trim() === '' ? { displayName: record.name.slice(0, 40) } : {}),
+                  });
                 }}
               />
               <input

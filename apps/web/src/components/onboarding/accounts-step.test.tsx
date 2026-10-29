@@ -128,7 +128,12 @@ describe('AccountsStep', () => {
   });
 
   it('keeps saved accounts: locked ones read-only, foreign ones at their base value, investments outside the total', async () => {
-    const bca = accountView({ displayName: 'BCA Tahapan', providerName: 'BCA', openingBalanceMinor: 1_000_000n });
+    const bca = accountView({
+      displayName: 'BCA Tahapan',
+      providerName: 'BCA',
+      catalogId: 'provider:bca',
+      openingBalanceMinor: 1_000_000n,
+    });
     const locked = accountView({
       displayName: 'Mandiri',
       locked: true,
@@ -147,6 +152,7 @@ describe('AccountsStep', () => {
     const noRate = accountView({ displayName: 'Rupee', currency: 'INR', balanceBaseMinor: null, locked: true });
     const { screen } = await renderStep([bca, locked, card, usd, fund, archived, noRate]);
     await expect.element(screen.getByRole('textbox', { name: 'Saldo hari ini BCA Tahapan' })).toHaveValue('1.000.000');
+    expect(screen.container.querySelector('img[src="/catalog-logos/bca.svg"]')).not.toBeNull();
     expect(screen.getByRole('textbox', { name: 'Saldo hari ini Mandiri' }).query()).toBeNull();
     await expect.element(screen.getByText('Rp2.000.000')).toBeVisible();
     expect(screen.getByText('Lama').query()).toBeNull();
@@ -203,7 +209,7 @@ describe('AccountsStep', () => {
     expect(dialog.query()).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: 'Lainnya…' }));
-    await userEvent.fill(dialog.getByRole('textbox', { name: 'Nama bank / penyedia' }), 'SeaBank');
+    await userEvent.fill(dialog.getByRole('combobox', { name: 'Nama bank / penyedia' }), 'SeaBank');
     await userEvent.fill(dialog.getByRole('textbox', { name: 'Nama tampilan' }), 'SeaBank');
     await userEvent.fill(dialog.getByRole('textbox', { name: 'Saldo awal' }), '300.000');
     await userEvent.click(dialog.getByRole('button', { name: 'Tambah rekening' }));

@@ -253,8 +253,8 @@ describe('InvestmentsPage', () => {
     );
     await screen.getByRole('button', { name: 'Tambah aset', exact: true }).click();
     const form = screen.getByRole('dialog', { name: 'Tambah aset' });
-    await form.getByRole('textbox', { name: 'Ticker', exact: true }).fill('aapl');
-    await form.getByRole('textbox', { name: 'Nama', exact: true }).fill('Apple');
+    await form.getByRole('combobox', { name: 'Ticker', exact: true }).fill('aapl');
+    await form.getByRole('combobox', { name: 'Nama', exact: true }).fill('Apple');
     await form.getByRole('textbox', { name: /^Harga manual/ }).fill('210,5');
     await form.getByRole('button', { name: 'Simpan', exact: true }).click();
     expect(calls.create).toHaveBeenCalledWith(
@@ -414,8 +414,8 @@ describe('InvestmentsPage', () => {
     );
     await screen.getByRole('button', { name: 'Tambah aset', exact: true }).click();
     const form = screen.getByRole('dialog', { name: 'Tambah aset' });
-    await form.getByRole('textbox', { name: 'Ticker', exact: true }).fill('aapl');
-    await form.getByRole('textbox', { name: 'Nama', exact: true }).fill('Apple');
+    await form.getByRole('combobox', { name: 'Ticker', exact: true }).fill('aapl');
+    await form.getByRole('combobox', { name: 'Nama', exact: true }).fill('Apple');
     await form.getByRole('combobox', { name: 'Sumber harga' }).click();
     await screen.getByRole('option', { name: 'Bawaan server' }).click();
     await form.getByRole('button', { name: 'Simpan', exact: true }).click();
@@ -465,7 +465,7 @@ describe('InvestmentsPage', () => {
     const opener = screen.getByRole('button', { name: 'Tambah aset', exact: true });
     await opener.click();
     const dialog = screen.getByRole('dialog', { name: 'Tambah aset' });
-    await expect.element(dialog.getByRole('textbox', { name: 'Ticker', exact: true })).toHaveFocus();
+    await expect.element(dialog.getByRole('combobox', { name: 'Ticker', exact: true })).toHaveFocus();
     await userEvent.keyboard('{Escape}');
     await expect.element(dialog).not.toBeInTheDocument();
     await expect.element(opener).toHaveFocus();

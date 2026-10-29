@@ -118,6 +118,46 @@ const allocate = async (assetId: string, rows: [string, string, number | null][]
 };
 
 describe('assets (FR-I1)', () => {
+  it('persists a venue-qualified listing and its manual price, and requires clearing it for a different symbol', async () => {
+    const apple = await createSpy({ symbol: ' aapl ', name: 'Apple', catalogId: 'stock:xnas:aapl' });
+    const renamed = await asApp(() => repo().updateAsset(userId, apple.id, { name: 'Apple jangka panjang' }));
+    expect(await asApp(() => repo().asset(userId, renamed.id))).toMatchObject({
+      catalogId: 'stock:xnas:aapl',
+      symbol: 'AAPL',
+      name: 'Apple jangka panjang',
+      quoteCurrency: 'USD',
+      manualPrice: '690.1',
+    });
+    await expect(asApp(() => repo().updateAsset(userId, apple.id, { symbol: 'MSFT' }))).rejects.toMatchObject({
+      code: 'INVALID_ASSET',
+    });
+    const manual = await asApp(() => repo().updateAsset(userId, apple.id, { symbol: 'MSFT', catalogId: null }));
+    expect(manual).toMatchObject({ catalogId: null, symbol: 'MSFT', manualPrice: '690.1' });
+  });
+
+  it('refuses a catalog reference from another domain, listing, class, market or quote currency', async () => {
+    const apple: Partial<AssetInput> = { symbol: 'AAPL', name: 'Apple', catalogId: 'stock:xnas:aapl' };
+    for (const overrides of [
+      { catalogId: 'missing' },
+      { catalogId: 'provider:bca' },
+      { symbol: 'MSFT' },
+      { assetClass: 'indonesia' as const },
+      { market: 'idx_equity' as const },
+      { accountId: bibit },
+    ]) {
+      await expect(createSpy({ ...apple, ...overrides })).rejects.toMatchObject({ code: 'INVALID_ASSET' });
+    }
+    const local = await createSpy({
+      accountId: bibit,
+      symbol: 'BBCA',
+      name: 'Bank Central Asia',
+      assetClass: 'indonesia',
+      market: 'idx_equity',
+      catalogId: 'stock:xidx:bbca',
+    });
+    expect(local).toMatchObject({ catalogId: 'stock:xidx:bbca', quoteCurrency: 'IDR' });
+  });
+
   it('creates an asset in its platform’s currency, normalized, priced manually', async () => {
     const spy = await createSpy();
     expect(spy).toMatchObject({

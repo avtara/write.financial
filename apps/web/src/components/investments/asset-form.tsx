@@ -5,6 +5,7 @@
  * class decides the asset's place in the allocation targets and the rebalancing.
  */
 import type { AssetView, CategoryView, PlatformView } from '@wf/db/investments';
+import { getCatalogRecord, type CatalogRecord } from '@wf/domain/catalog';
 import { ASSET_CLASSES, PRICE_MODES, type AssetClass, type PriceMode } from '@wf/domain/investments';
 import { MARKETS, type Market } from '@wf/domain/market';
 import type { Locale } from '@wf/i18n/locale';
@@ -12,6 +13,8 @@ import { m } from '@wf/i18n/messages';
 import { Select } from '@wf/ui/select';
 import { useState, type SyntheticEvent } from 'react';
 import { Button, Field, FormError, TextInput } from '../form.tsx';
+import { CatalogInput } from '../catalog-input.tsx';
+import { AssetLogo } from './asset-logo.tsx';
 import { Modal } from '../modal.tsx';
 import { classLabel, decimalInput, decimalText, marketLabel, priceModeLabel } from './investments-model.ts';
 
@@ -21,6 +24,7 @@ const SINGLE = 'single';
 export interface AssetDraft {
   readonly accountId: string | null;
   readonly symbol: string;
+  readonly catalogId: string | null;
   readonly name: string;
   readonly assetClass: AssetClass;
   readonly market: Market;
@@ -74,6 +78,7 @@ function AssetFields({
 }) {
   const [accountId, setAccountId] = useState<string | null>(asset?.accountId ?? platforms[0]?.accountId ?? null);
   const [symbol, setSymbol] = useState(asset?.symbol ?? '');
+  const [catalogId, setCatalogId] = useState<string | null>(asset?.catalogId ?? null);
   const [name, setName] = useState(asset?.name ?? '');
   const [assetClass, setAssetClass] = useState<AssetClass>(asset?.assetClass ?? 'us_stocks');
   const [market, setMarket] = useState<Market>(asset?.market ?? 'us_equity');
@@ -96,6 +101,16 @@ function AssetFields({
           : null,
   };
   const platform = platforms.find((candidate) => candidate.accountId === accountId);
+  const reference = getCatalogRecord(catalogId);
+  const quoteCurrency = platform?.currency ?? asset?.quoteCurrency ?? '';
+  const selectListing = (record: CatalogRecord) => {
+    // All descriptive fields remain editable. Price, quantity and monetary fields are deliberately untouched.
+    setCatalogId(record.id);
+    setSymbol(record.symbol as string);
+    setName(record.name);
+    setAssetClass(record.assetClass as AssetClass);
+    setMarket(record.market as Market);
+  };
 
   const submit = async (event: SyntheticEvent) => {
     event.preventDefault();
@@ -105,6 +120,7 @@ function AssetFields({
     const failed = await onSubmit({
       accountId: asset === null ? accountId : null,
       symbol: symbol.trim().toUpperCase(),
+      catalogId,
       name: name.trim(),
       assetClass,
       market,
@@ -121,29 +137,37 @@ function AssetFields({
       <div className="grid grid-cols-2 gap-3">
         <Field label={m.invest_asset_symbol()} error={showErrors ? errors.symbol : null}>
           {({ id, describedBy, invalid }) => (
-            <TextInput
-              id={id}
-              value={symbol}
-              maxLength={20}
-              aria-describedby={describedBy}
-              aria-invalid={invalid}
-              onChange={(event) => {
-                setSymbol(event.currentTarget.value);
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <AssetLogo asset={{ symbol, catalogId }} />
+              <CatalogInput
+                id={id}
+                value={symbol}
+                maxLength={20}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
+                kind="instrument"
+                currency={quoteCurrency}
+                onValueChange={(value) => {
+                  setSymbol(value);
+                  setCatalogId(null);
+                }}
+                onSelect={selectListing}
+              />
+            </div>
           )}
         </Field>
         <Field label={m.invest_asset_name()} error={showErrors ? errors.name : null}>
           {({ id, describedBy, invalid }) => (
-            <TextInput
+            <CatalogInput
               id={id}
               value={name}
               maxLength={80}
               aria-describedby={describedBy}
               aria-invalid={invalid}
-              onChange={(event) => {
-                setName(event.currentTarget.value);
-              }}
+              kind="instrument"
+              currency={quoteCurrency}
+              onValueChange={setName}
+              onSelect={selectListing}
             />
           )}
         </Field>
@@ -157,7 +181,16 @@ function AssetFields({
               <Select
                 id={id}
                 value={accountId}
-                onValueChange={setAccountId}
+                onValueChange={(value) => {
+                  setAccountId(value);
+                  if (
+                    reference !== null &&
+                    reference.currency !==
+                      (platforms.find((candidate) => candidate.accountId === value) as PlatformView).currency
+                  ) {
+                    setCatalogId(null);
+                  }
+                }}
                 placeholder={m.invest_trade_account_pick()}
                 options={platforms.map((candidate) => ({ value: candidate.accountId, label: candidate.name }))}
               />
@@ -172,7 +205,10 @@ function AssetFields({
               id={id}
               placeholder={m.invest_pick()}
               value={assetClass}
-              onValueChange={setAssetClass}
+              onValueChange={(value) => {
+                setAssetClass(value);
+                setCatalogId(null);
+              }}
               options={ASSET_CLASSES.map((value) => ({ value, label: classLabel(value) }))}
             />
           )}
@@ -183,7 +219,10 @@ function AssetFields({
               id={id}
               placeholder={m.invest_pick()}
               value={market}
-              onValueChange={setMarket}
+              onValueChange={(value) => {
+                setMarket(value);
+                setCatalogId(null);
+              }}
               options={MARKETS.filter((value) => value !== 'fx').map((value) => ({ value, label: marketLabel(value) }))}
             />
           )}
@@ -232,6 +271,11 @@ function AssetFields({
           )}
         </Field>
       </div>
+      {reference?.venue != null ? (
+        <p className="text-[12px] text-muted-fg">
+          {m.catalog_listing({ venue: reference.venue, currency: quoteCurrency })}
+        </p>
+      ) : null}
       <p className="text-[12px] text-subtle">{m.invest_asset_note()}</p>
       {failure === null ? null : <FormError>{failure}</FormError>}
       <div className="flex items-center justify-end gap-2">

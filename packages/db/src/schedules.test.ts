@@ -523,6 +523,24 @@ describe('recurrences', () => {
 });
 
 describe('subscriptions', () => {
+  it('keeps the selected service when editing price, without replacing an uploaded logo or billing dates', async () => {
+    const created = await app((s) =>
+      s.createSubscription(fx.userId, netflix({ catalogId: 'service:netflix', logoKey: 'custom-logo' })),
+    );
+    const updated = await app((s) => s.updateSubscription(fx.userId, created.id, { priceMinor: 199_000n }));
+    expect(await app((s) => s.getSubscription(fx.userId, updated.id))).toMatchObject({
+      catalogId: 'service:netflix',
+      logoKey: 'custom-logo',
+      nextBillingDate: d('2026-10-18'),
+      priceMinor: 199_000n,
+    });
+    expect(await app((s) => s.updateSubscription(fx.userId, created.id, { catalogId: null }))).toMatchObject({
+      catalogId: null,
+      logoKey: 'custom-logo',
+      priceMinor: 199_000n,
+    });
+  });
+
   it('creates Netflix with its next bill and the H-1 09.00 reminder', async () => {
     const view = await app((s) => s.createSubscription(fx.userId, netflix({ description: ' ', logoKey: 'netflix' })));
     expect(view).toMatchObject({
@@ -566,6 +584,9 @@ describe('subscriptions', () => {
       netflix({ name: '  ' }),
       netflix({ name: 'x'.repeat(41) }),
       netflix({ plan: 'x'.repeat(41) }),
+      netflix({ catalogId: 'provider:bca' }),
+      netflix({ catalogId: 'stock:xnas:aapl' }),
+      netflix({ catalogId: 'missing' }),
       netflix({ priceMinor: 0n }),
       netflix({ currency: 'idr' }),
       netflix({ cycle: 'daily' as SubscriptionInput['cycle'] }),

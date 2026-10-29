@@ -122,7 +122,7 @@ test('adds a subscription with the keyboard only, then pauses Netflix for a mont
   await page.getByRole('button', { name: 'Tambah langganan' }).focus();
   await page.keyboard.press('Enter');
   const form = page.getByRole('dialog', { name: 'Langganan baru' });
-  await expect(form.getByRole('textbox', { name: 'Layanan' })).toBeFocused();
+  await expect(form.getByRole('combobox', { name: 'Layanan' })).toBeFocused();
   await page.keyboard.type('Disney+ Hotstar');
   await form.getByRole('textbox', { name: 'Harga' }).focus();
   await page.keyboard.type('39000');

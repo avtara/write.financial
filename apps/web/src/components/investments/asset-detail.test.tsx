@@ -235,3 +235,19 @@ describe('AssetDetail', () => {
     expect(fake.trades).toHaveBeenCalledTimes(2);
   });
 });
+
+it('shows the saved listing venue and locally bundled logo after loading a customized asset', async () => {
+  fake.trades.mockResolvedValue({ ok: true, value: [] });
+  const { screen } = await renderApp(
+    <AssetDetail
+      asset={{ ...BBCA, catalogId: 'stock:xidx:bbca' }}
+      portfolio={portfolioView()}
+      timeZone="Asia/Jakarta"
+      locale="id"
+      onOpenChange={vi.fn()}
+      onAction={vi.fn()}
+    />,
+  );
+  await expect.element(screen.getByText('XIDX · IDR', { exact: true })).toBeVisible();
+  expect(screen.getByRole('dialog').element().querySelector('img')?.getAttribute('src')).toBe('/catalog-logos/bca.svg');
+});

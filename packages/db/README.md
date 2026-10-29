@@ -92,6 +92,19 @@ observation on the day immediately before the range. Missing asset FX makes the 
 cost-based estimates remain labeled `cost`. Historical seed observations are explicit design data, not backfilled from
 today's allocations.
 
+The shared `reference_catalog` contains release-versioned provider, instrument, and service metadata, including
+aliases, listing venue/currency, and source/license provenance. Migration `0023` installs the curated snapshot from
+`@wf/domain/catalog`; the client searches the same bundled snapshot without contacting third parties. App and worker
+roles can read but cannot mutate it. Catalog updates ship as a domain-data change plus a new migration; keep existing
+IDs stable so saved references continue to resolve.
+
+`accounts`, `assets`, and `subscriptions` store an optional `catalog_id` foreign key; `NULL` is a manual entry. Repository
+writes validate provider/account-type compatibility, service kind, and instrument symbol/class/market/quote currency.
+An instrument ID includes its MIC venue; a ticker alone is not its identity. Catalog selection does not supply monetary
+amounts or billing dates, and never replaces an uploaded logo object. Catalog associations are included with the user's
+rows in data exports; the public reference table is not user-owned data.
+
+
 **Better Auth** (auth module): Drizzle adapter with this schema; model names `users`, `sessions`, `accounts_auth`,
 `verifications`, `two_factors`, `passkeys`; `advanced.database.generateId: 'uuid'` (ids default to `uuidv7()`); the extra
 `users` columns as `additionalFields` (`role`, `onboardingCompletedAt`, `deletionRequestedAt` with `input: false`);
@@ -115,6 +128,7 @@ without a user context matches no user-owned row. `U(…)` = column-level UPDATE
 | `instance_settings` (one row)                              | S, U(setup columns²)           | S            | S                 | S(all but secrets³)      | read: all; update: admins only; `wf_migrate`: all        |
 | `invitations`                                              | S I U D                        | –            | S, U(`used_at`)   | –                        | app: admins only; auth: all                              |
 | `plans`, `entitlements` (no RLS)                           | S                              | S            | –                 | S                        | –                                                        |
+| `reference_catalog` | S | S | – | – | public metadata; only `wf_migrate` may write |
 | ledger: `accounts`, `categories`, `tags`, `tag_aliases`, `transaction_tags`, `transactions`, `postings`, `transfer_meta`, `balance_adjustments`, `attachments`, `goals` | S I U D | S (D14) | – | – | own rows |
 | `drafts`, `recent_items`                                   | S I U D                        | –            | –                 | –                        | own rows                                                 |
 | `activity_log`                                             | S I                            | –            | –                 | –                        | own rows                                                 |

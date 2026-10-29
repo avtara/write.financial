@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * A subscription's mark (design: tinted letter tiles "N", "S"): its uploaded logo, else its icon, else the first
- * letter of its name. Decorative: the name is always shown next to it.
+ * A subscription's decorative mark: uploaded image, licensed local catalog mark, custom icon, then initial.
  */
 import type { SubscriptionView } from '@wf/db/schedules';
+import { getCatalogRecord } from '@wf/domain/catalog';
 import { colorProps } from '../../lib/colors.ts';
 import { CATEGORY_ICONS } from '../category-icon.tsx';
 import { avatarColor } from './subscriptions-model.ts';
@@ -15,7 +15,7 @@ const SIZES = {
 } as const;
 
 export interface SubscriptionAvatarProps {
-  readonly subscription: Pick<SubscriptionView, 'id' | 'name' | 'icon' | 'logoKey'>;
+  readonly subscription: Pick<SubscriptionView, 'id' | 'name' | 'icon' | 'logoKey' | 'catalogId'>;
   readonly size?: keyof typeof SIZES;
 }
 
@@ -29,6 +29,10 @@ export function SubscriptionAvatar({ subscription, size = 'md' }: SubscriptionAv
         className={`${box} shrink-0 border border-border bg-white object-contain`}
       />
     );
+  }
+  const mark = getCatalogRecord(subscription.catalogId)?.logoPath;
+  if (mark != null) {
+    return <img src={mark} alt="" className={`${box} shrink-0 border border-border bg-white object-contain p-1`} />;
   }
   const Glyph = subscription.icon === null ? undefined : CATEGORY_ICONS[subscription.icon]?.glyph;
   return (

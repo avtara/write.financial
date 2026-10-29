@@ -14,6 +14,7 @@ export function accountView(overrides: Partial<AccountView> = {}): AccountView {
     type: 'bank',
     providerName: 'Bank Central Asia',
     logoKey: null,
+    catalogId: null,
     displayName: `Rekening ${next}`,
     last4: '4821',
     phoneMasked: null,

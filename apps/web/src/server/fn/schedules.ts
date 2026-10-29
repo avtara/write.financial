@@ -81,6 +81,7 @@ function recurrenceInput({ template: proposal, ...rule }: z.output<typeof recurr
 
 const subscription = z.object({
   name: z.string().trim().min(1).max(40),
+  catalogId: z.string().trim().min(1).max(80).nullable().optional(),
   plan: z.string().trim().max(40).nullable().optional(),
   icon: z.string().max(40).nullable().optional(),
   description: z.string().trim().max(200).nullable().optional(),

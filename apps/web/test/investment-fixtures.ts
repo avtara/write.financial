@@ -147,6 +147,7 @@ const SEED_ASSETS: readonly AssetView[] = investments.assets.map((seed): AssetVi
     accountId: PLATFORM_IDS[seed.accountKey] as string,
     platformName: platformAccounts.find((account) => account.key === seed.accountKey)?.displayName as string,
     symbol: seed.symbol,
+    catalogId: null,
     name: seed.name,
     quoteCurrency: currency,
     assetClass: seed.assetClass,

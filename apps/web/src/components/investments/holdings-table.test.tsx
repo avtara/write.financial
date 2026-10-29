@@ -189,3 +189,19 @@ describe('HoldingsTable', () => {
     await expect.element(screen.getByText('Belum ada aset yang dimiliki.')).toBeVisible();
   });
 });
+
+it('renders persisted listing branding and venue while keeping a customized holding name', async () => {
+  const { screen } = await renderApp(
+    <HoldingsTable
+      portfolio={portfolioView({ assets: [{ ...BBCA, catalogId: 'stock:xidx:bbca', name: 'My Indonesian bank' }] })}
+      display="base"
+      usdRate="16350"
+      locale="id"
+      onAction={vi.fn()}
+      onTopUp={vi.fn()}
+      onAddAsset={vi.fn()}
+    />,
+  );
+  await expect.element(screen.getByRole('table')).toMatchTextContent('My Indonesian bank · XIDX');
+  expect(screen.container.querySelector('img')?.getAttribute('src')).toBe('/catalog-logos/bca.svg');
+});

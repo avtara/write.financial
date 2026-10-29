@@ -158,6 +158,7 @@ export function subscription(
     plan: null,
     icon: null,
     logoKey: null,
+    catalogId: null,
     description: null,
     priceMinor: 100_000n,
     currency: 'IDR',

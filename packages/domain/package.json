@@ -10,6 +10,7 @@
     "./assistant": "./src/assistant.ts",
     "./budget": "./src/budget.ts",
     "./categories": "./src/categories.ts",
+    "./catalog": "./src/catalog.ts",
     "./creditcard": "./src/creditcard.ts",
     "./dashboard": "./src/dashboard.ts",
     "./debt": "./src/debt.ts",

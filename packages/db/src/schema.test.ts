@@ -56,4 +56,22 @@ describe('schema', () => {
       .returning({ updatedAt: schema.users.updatedAt });
     expect(updated?.updatedAt.getTime()).toBeGreaterThanOrEqual(before);
   });
+
+  it('makes catalog metadata readable but immutable to application and worker roles', async () => {
+    for (const role of ['wf_app', 'wf_worker'] as const) {
+      const rows = await test.as(role, () =>
+        test.query<{ id: string; name: string }>(`SELECT id, name FROM reference_catalog WHERE id = 'provider:bca'`),
+      );
+      expect(rows).toEqual([{ id: 'provider:bca', name: 'BCA' }]);
+      for (const statement of [
+        `UPDATE reference_catalog SET name = 'Replaced' WHERE id = 'provider:bca'`,
+        `DELETE FROM reference_catalog WHERE id = 'provider:bca'`,
+        `INSERT INTO reference_catalog SELECT 'forged', kind, name, aliases, account_types, symbol, venue, currency,
+           asset_class, market, logo_path, source_url, data_license, logo_source_url, logo_license
+           FROM reference_catalog WHERE id = 'provider:bca'`,
+      ]) {
+        await expect(test.as(role, () => test.query(statement))).rejects.toThrow(/permission denied/);
+      }
+    }
+  });
 });

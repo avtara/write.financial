@@ -189,6 +189,7 @@ export function InvestmentsPage({ overview, accounts, timeZone }: InvestmentsPag
   const saveAsset = (draft: AssetDraft) => {
     const fields = {
       symbol: draft.symbol,
+      catalogId: draft.catalogId,
       name: draft.name,
       assetClass: draft.assetClass,
       market: draft.market,

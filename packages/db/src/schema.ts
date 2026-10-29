@@ -11,6 +11,7 @@
  */
 import { AI_FEATURES, AI_LOG_STATUSES, AI_PROVIDERS } from '@wf/domain/ai';
 import type { AiConnectionStatus, AiCostSource, AiPricing } from '@wf/domain/ai';
+import type { CatalogKind, CatalogRecord } from '@wf/domain/catalog';
 import { ACCOUNT_TYPES } from '@wf/domain/ledger';
 import { CATEGORY_GROUPS, CATEGORY_KINDS } from '@wf/domain/categories';
 import { POSTING_ROLES, TRANSACTION_SOURCES, TRANSACTION_TYPES } from '@wf/domain/transactions';
@@ -431,6 +432,32 @@ const localDate = (name: string) => date(name, { mode: 'string' }).$type<LocalDa
 const rate = (name: string) => numeric(name, { precision: 20, scale: 8 });
 const currencyCheck = (name: string, column: unknown) => check(name, sql`${column} ~ '^[A-Z]{3}$'`);
 
+/** Public, release-versioned reference data. Only migrations write it; it never contains user information. */
+export const referenceCatalog = pgTable(
+  'reference_catalog',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').$type<CatalogKind>().notNull(),
+    name: text('name').notNull(),
+    aliases: jsonb('aliases').$type<CatalogRecord['aliases']>().notNull(),
+    accountTypes: jsonb('account_types').$type<CatalogRecord['accountTypes']>().notNull(),
+    symbol: text('symbol'),
+    venue: text('venue'),
+    currency: currency('currency'),
+    assetClass: text('asset_class').$type<CatalogRecord['assetClass']>(),
+    market: text('market').$type<CatalogRecord['market']>(),
+    logoPath: text('logo_path'),
+    sourceUrl: text('source_url').notNull(),
+    dataLicense: text('data_license').notNull(),
+    logoSourceUrl: text('logo_source_url'),
+    logoLicense: text('logo_license'),
+  },
+  (table) => [
+    check('reference_catalog_kind_check', sql`${table.kind} in ('provider', 'instrument', 'service')`),
+    index('reference_catalog_kind_name_idx').on(table.kind, table.name),
+  ],
+);
+
 export const accountType = pgEnum('account_type', ACCOUNT_TYPES);
 export const accountStatus = pgEnum('account_status', ['active', 'archived']);
 
@@ -442,6 +469,7 @@ export const accounts = pgTable(
     userId: ownerId(),
     type: accountType('type').notNull(),
     providerName: text('provider_name').notNull(),
+    catalogId: text('catalog_id').references(() => referenceCatalog.id),
     logoKey: text('logo_key'),
     displayName: varchar('display_name', { length: 40 }).notNull(),
     last4: char('last4', { length: 4 }),
@@ -1344,6 +1372,7 @@ export const subscriptions = pgTable(
     id: id(),
     userId: ownerId(),
     name: varchar('name', { length: 40 }).notNull(),
+    catalogId: text('catalog_id').references(() => referenceCatalog.id),
     plan: varchar('plan', { length: 40 }),
     icon: text('icon'),
     logoKey: text('logo_key'),
@@ -2070,6 +2099,7 @@ export const assets = pgTable(
     accountId: uuid('account_id').notNull(),
     symbol: varchar('symbol', { length: 20 }).notNull(),
     name: varchar('name', { length: 80 }).notNull(),
+    catalogId: text('catalog_id').references(() => referenceCatalog.id),
     quoteCurrency: currency('quote_currency').notNull(),
     assetClass: assetClass('asset_class').notNull(),
     market: market('market').notNull(),

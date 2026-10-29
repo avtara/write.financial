@@ -41,7 +41,11 @@ export function CardStrip({ bill, state, account, heldNames, locale }: CardSecti
       className="grid grid-cols-2 items-center gap-4 rounded-[12px] border border-border bg-card px-5 py-4 lg:flex lg:flex-wrap"
     >
       <div className="col-span-2 flex min-w-[220px] flex-1 items-center gap-3">
-        <AccountLogo account={account ?? { id: bill.accountId, type: 'credit_card', color: 'blue', logoKey: null }} />
+        <AccountLogo
+          account={
+            account ?? { id: bill.accountId, type: 'credit_card', color: 'blue', logoKey: null, catalogId: null }
+          }
+        />
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-[14px] font-semibold text-fg">{cardLabel(bill.name, account)}</span>
           <span className="text-[12px] text-subtle">{m.debts_card_kind_note()}</span>
@@ -185,7 +189,11 @@ export function CardBillCard({ bill, state, account, locale, onPay, onConvert }:
       className="flex flex-col gap-4 rounded-[12px] border border-border bg-card p-5"
     >
       <header className="flex items-start gap-3">
-        <AccountLogo account={account ?? { id: bill.accountId, type: 'credit_card', color: 'blue', logoKey: null }} />
+        <AccountLogo
+          account={
+            account ?? { id: bill.accountId, type: 'credit_card', color: 'blue', logoKey: null, catalogId: null }
+          }
+        />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h2 className="flex flex-wrap items-center gap-2 text-[16px] font-semibold text-fg">
             {m.debts_card_bill_title({ name: bill.name })}

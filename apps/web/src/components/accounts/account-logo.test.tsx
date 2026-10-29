@@ -15,10 +15,21 @@ describe('AccountLogo', () => {
   });
 
   it('shows the uploaded logo, linked with a cache-busting version', async () => {
-    const account = accountView({ logoKey: 'u/x/0192a6c4-0000-7000-8000-0000000000c1' });
+    const account = accountView({ catalogId: 'provider:bca', logoKey: 'u/x/0192a6c4-0000-7000-8000-0000000000c1' });
     const { screen } = await renderApp(<AccountLogo account={account} size="lg" />);
     const image = screen.container.querySelector('img');
     expect(image?.getAttribute('src')).toBe(`/api/account-logo/${account.id}?v=0000000000c1`);
     expect(image?.getAttribute('alt')).toBe('');
+  });
+  it('renders a persisted local reference without using the editable provider name as identity', async () => {
+    const { screen } = await renderApp(
+      <AccountLogo
+        account={accountView({
+          catalogId: 'provider:bca',
+          providerName: 'My bank nickname',
+        })}
+      />,
+    );
+    expect(screen.container.querySelector('img')?.getAttribute('src')).toBe('/catalog-logos/bca.svg');
   });
 });

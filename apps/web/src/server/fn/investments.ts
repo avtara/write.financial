@@ -28,6 +28,7 @@ const bps = z.number().int().min(0).max(10_000);
 const assetFields = {
   symbol: z.string().trim().min(1).max(20),
   name: z.string().trim().min(1).max(80),
+  catalogId: z.string().trim().min(1).max(80).nullable().optional(),
   assetClass: z.enum(ASSET_CLASSES),
   market: z.enum(MARKETS),
   categoryId: id.nullable().optional(),

@@ -7,10 +7,26 @@ describe('SubscriptionAvatar', () => {
   it('shows the uploaded logo, else the icon, else the first letter', async () => {
     const { screen } = await renderApp(
       <>
-        <SubscriptionAvatar subscription={{ id: 'a', name: 'Netflix', icon: 'tv', logoKey: 'u/x/0000000000c1' }} />
-        <SubscriptionAvatar subscription={{ id: 'b', name: 'Spotify', icon: 'music', logoKey: null }} size="lg" />
-        <SubscriptionAvatar subscription={{ id: 'c', name: 'vidio', icon: null, logoKey: null }} size="sm" />
-        <SubscriptionAvatar subscription={{ id: 'd', name: 'Other', icon: 'unknown-glyph', logoKey: null }} />
+        <SubscriptionAvatar
+          subscription={{
+            id: 'a',
+            name: 'Netflix',
+            icon: 'tv',
+            logoKey: 'u/x/0000000000c1',
+            catalogId: 'service:netflix',
+          }}
+        />
+        <SubscriptionAvatar
+          subscription={{ id: 'b', name: 'Spotify', icon: 'music', logoKey: null, catalogId: null }}
+          size="lg"
+        />
+        <SubscriptionAvatar
+          subscription={{ id: 'c', name: 'vidio', icon: null, logoKey: null, catalogId: null }}
+          size="sm"
+        />
+        <SubscriptionAvatar
+          subscription={{ id: 'd', name: 'Other', icon: 'unknown-glyph', logoKey: null, catalogId: null }}
+        />
       </>,
     );
     const root = screen.container;
@@ -21,5 +37,19 @@ describe('SubscriptionAvatar', () => {
     expect(tiles[0]?.getAttribute('data-color')).not.toBeNull();
     expect(tiles[1]?.textContent).toBe('V');
     expect(tiles[2]?.textContent).toBe('O');
+  });
+  it('renders saved service associations locally, with generic fallback for a service with no licensed mark', async () => {
+    const { screen } = await renderApp(
+      <>
+        <SubscriptionAvatar
+          subscription={{ id: 'n', name: 'Family streaming', icon: 'tv', logoKey: null, catalogId: 'service:netflix' }}
+        />
+        <SubscriptionAvatar
+          subscription={{ id: 'v', name: 'Vidio', icon: null, logoKey: null, catalogId: 'service:vidio' }}
+        />
+      </>,
+    );
+    expect(screen.container.querySelector('img')?.getAttribute('src')).toBe('/catalog-logos/netflix.svg');
+    await expect.element(screen.getByText('V')).toBeVisible();
   });
 });
