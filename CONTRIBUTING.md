@@ -24,21 +24,24 @@ cp .env.example .env
 pnpm dev:up        # Postgres, Valkey, SeaweedFS, and Mailpit in Docker (stop with pnpm dev:down, wipe with pnpm dev:reset)
 pnpm --filter @wf/db db:bootstrap   # database roles, once per database (uses DATABASE_URL_SUPERUSER from .env)
 pnpm --filter @wf/db db:migrate     # tables, Row-Level Security, seed rows
-pnpm ci:fast       # the CI fast lane: static checks and the unit tests of your changes
+pnpm ci:fast       # local feedback: static checks and unit tests of your changes; CI runs the complete staging lane
 ```
 
 `.env` is for local development only and is gitignored. Never put real production credentials in it.
 
 ## Branches and pull requests
 
-`main` is protected: nobody pushes to it directly, and every change goes through a pull request.
+`dev` is the staging branch; `main` is the release branch. Both require a pull request and the **CI gate** check.
 
-1. Create a branch from the latest `main`, for example `feat/budget-rollover` or `fix/period-boundary`.
+1. Create a feature branch from the latest `dev`, for example `feat/budget-rollover` or `fix/period-boundary`.
 2. Make small, focused commits, each signed off (`git commit -s`, see [DCO](#developer-certificate-of-origin-dco)).
-3. Run `pnpm ci:fast` (and the other test commands that apply, see [Commands](#commands)) before pushing.
-4. Push and open a pull request against `main`. Describe what changed, why, and how you tested it; link the issue if there is one.
-5. CI runs the [fast lane](#ci-lanes) on every push; the single required check, **CI gate**, passes when it (and the data lane, when it applies) is green. The pull request that closes a phase gets the `full-ci` label and must pass the full lane.
-6. Keep your branch up to date by **rebasing** onto `main` (`git fetch origin && git rebase origin/main`), never by merging `main` into it. `main` requires a linear history, and pull requests are merged with **rebase merge**, so every commit lands on `main` as you wrote it. Squash fixup commits (`git rebase -i origin/main`) before the pull request is merged, so each commit on `main` is meaningful and passes CI on its own.
+3. Run `pnpm ci:fast` for local feedback and exercise the changed behavior before pushing.
+4. Push and open a pull request against `dev`. Describe what changed, why, and how you tested it.
+5. Pull requests and pushes to `dev` run the **staging lane**: every check except mutation and E2E, including the full unit suite with 100% per-file coverage, integration, Docker build/boot, and backup restore.
+6. Keep feature branches up to date by **rebasing** onto `dev` (`git fetch origin && git rebase origin/dev`), not by merging it into them. Merge with **rebase merge** to preserve linear history.
+7. Promote staging through a **`dev` → `main` pull request**. Every PR targeting `main` runs the full lane automatically, including mutation, every E2E project, and the Docker setup/2FA install proof. A label is not required and cannot reduce these checks.
+
+After a rebase-merged promotion, synchronize `dev` with `main` through a `main` → `dev` PR before starting the next release cycle. Do not force-push protected branches.
 
 Rebase conflicts in generated or ordered files:
 
@@ -47,19 +50,18 @@ Rebase conflicts in generated or ordered files:
 
 ## CI lanes
 
-One workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) with two lanes; its first job, "Lane and changed paths", picks the lane.
+One workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) with two target-based lanes; its first job, "CI lane", selects the lane.
 
 | Lane | Runs on | Jobs |
 |---|---|---|
-| **Fast** | every push to a pull request | format, lint, typecheck, repo checks (SPDX, test files, tokens, i18n, migration order); unit tests of the changed code (`vitest --changed`, no coverage gate; includes the D14 architecture test when worker code changes); E2E core (Playwright projects `m0`, `tablet`, `app` against the production build); gitleaks; DCO |
-| **Data** (added to the fast lane) | pull requests whose diff touches `packages/db`, `packages/auth`, `packages/crypto`, `apps/worker`, `apps/web/src/server`, or `deploy` | integration tests (Testcontainers) and the backup restore |
-| **Full** | pushes to `main`, manual runs (`workflow_dispatch`), and pull requests labelled `full-ci` | everything: unit tests with the 100% per-file coverage gate, mutation tests (domain + crypto, incremental on pull requests), integration, every E2E project, the Docker image build + boot with the install proof, and the backup restore |
+| **Staging** | pull requests targeting `dev`, pushes to `dev`, and manual runs on `dev` | format, lint, typecheck, repo checks (SPDX, test files, tokens, i18n, migration order), **all unit tests with 100% per-file coverage**, integration tests (Testcontainers), Docker image build/boot/restart, encrypted backup restore, gitleaks, DCO on PRs |
+| **Full** | every pull request targeting `main`, pushes to `main`, and manual runs on other branches | all staging checks **plus mutation** (domain + crypto, ≥90%), **every E2E project**, and the Docker setup wizard → admin sign-in with 2FA install proof |
 
-- **CI gate** is the only required check. It needs every job and passes when every job of the run's lane succeeded: the fast lane plus the data lane when it applies, or with `full-ci` the full lane (it lists the failed or skipped jobs otherwise).
-- **Unit tests are still required for every change**: the fast lane runs the tests of the changed code and the co-located test-file check. **The 100% per-file coverage gate is enforced at phase end**: the pull request that closes a phase gets the `full-ci` label and merges only after the full lane. Every push to `main` also runs the full lane; that run is informational (nothing waits for it), and a red run on `main` is fixed in the next pull request.
-- **The `full-ci` label** switches the pull request to the full lane: adding it starts a full run, and every later push runs full too while the label stays; removing it goes back to the fast lane. Any label change or push cancels the pull request's run in progress and starts a new one.
-- **Mutation tests** reuse Stryker's incremental results cached per base branch: a pull request re-tests the mutants in changed domain/crypto files, and every mutant when a domain/crypto test, the mutation config, or the lockfile changed. Pushes to `main` re-test every mutant.
-- **`pnpm ci:fast`** reproduces the fast lane locally with laptop-sized limits (ESLint with a 6 GB heap, two typecheck and Vitest workers, one command at a time): static checks, DCO, and the unit tests of the code changed since the merge base with `origin/main`. It regenerates i18n messages before lint/typecheck so pulls and rebases do not use stale generated exports. `pnpm ci:fast --e2e` adds the production build and E2E core (start the dev services first with `pnpm dev:up`).
+- **CI gate** is the only required check on both branches. A failed/cancelled job or an unexpectedly skipped required job blocks the merge. Only mutation and E2E may be skipped in staging; the Docker job skips its Playwright install proof there too.
+- **100% per-file unit coverage is required on every PR and push to `dev` and `main`**, not just milestone exits.
+- Lane selection uses the **target branch**, never a label or PR source. A `dev` → `main` PR always runs full, even without `full-ci`; feature branches targeting `main` also run full. Changing a PR's base triggers a fresh run. Push runs on protected branches finish without cancellation.
+- **Mutation tests** reuse Stryker's incremental results cached per base branch. Pull requests re-test changed mutants; a changed domain/crypto test, mutation config, or lockfile invalidates the cache. Pushes to `main` re-test every mutant.
+- **`pnpm ci:fast`** is a local feedback helper, **not** the complete staging lane: static checks, DCO, and changed-code unit tests against `origin/dev` (override with `WF_CI_BASE=main`). It regenerates i18n messages before lint/typecheck. `pnpm ci:fast --e2e` optionally adds a production build and E2E core; CI on `dev` never runs E2E.
 
 ## Developer Certificate of Origin (DCO)
 
@@ -87,7 +89,7 @@ For just the last commit, `git commit --amend --no-edit -s` works too. If the au
 Every change ships with unit tests, and CI blocks the merge otherwise ([PRD D27](docs/PRD.md#12-default-decisions--questions-for-the-product-owner), [plan §9](docs/IMPLEMENTATION_PLAN.md#9-testing-strategy)).
 
 - **Co-located tests.** Every source file `src/**/*.ts(x)` in `apps/*`, `packages/*`, and `tools/*` has a test file next to it: `foo.ts` → `foo.test.ts`, `Foo.tsx` → `Foo.test.tsx`. `pnpm check:test-files` fails when one is missing.
-- **100% coverage per file.** Lines, branches, functions, and statements, enforced per file by Vitest (v8 provider). Every source file is included in the coverage report, so a file without tests counts as 0%. Keep every file you touch at 100%: the full CI lane enforces it at phase end (`full-ci`) and reports it on every push to `main` (see [CI lanes](#ci-lanes)), and a file below 100% blocks the phase.
+- **100% coverage per file.** Lines, branches, functions, and statements, enforced per file by Vitest (v8 provider). Every source file is included in the coverage report, so a file without tests counts as 0%. Both staging and full CI enforce the gate on every run.
 - **Integration tests** are named `*.integration.test.ts` and run against real Postgres/Valkey/SeaweedFS through Testcontainers (Docker required). They prove what unit tests fake (RLS, S3, queues), do not count toward coverage, and never replace the co-located unit test.
 - **Tenant isolation.** New server function: add its case to `apps/web/test/isolation/cases/<module>.ts`. New server-function module: add it to `FUNCTIONS` in `apps/web/test/isolation/harness.ts`, create `cases/<module>.ts`, and add one spread line to `MATRIX` in `apps/web/src/server/fn/isolation.integration.test.ts`; the completeness guard still fails on a missing case.
 - **Browser RPC boundaries.** When a route or component imports a new server-function module, update every affected browser test's RPC mock and loader fixture, including parent providers and layouts. Follow the existing module mocks: importing the real server module can pull database/auth/native Argon2 code into Vite and leave an error overlay blocking unrelated tests. Fix the missing boundary; do not disable the overlay, install a browser password-hashing fallback, or increase click timeouts to hide it.
@@ -101,7 +103,7 @@ Every change ships with unit tests, and CI blocks the merge otherwise ([PRD D27]
 
 | Command | What it does |
 |---|---|
-| `pnpm ci:fast` | The CI fast lane locally (see [CI lanes](#ci-lanes)); `--e2e` adds E2E core. Run before every push. |
+| `pnpm ci:fast` | Local static/DCO/changed-code feedback against `origin/dev` (`WF_CI_BASE=main` to override); `--e2e` optionally adds E2E core. Does not replace staging CI. |
 | `pnpm check` | Format check, lint, typecheck, SPDX header, test-file, token, and migration-order checks, and unit tests with the coverage gate (the whole suite: needs a lot of RAM). |
 | `pnpm check:migrations` | `packages/db/migrations` is numbered consecutively without gaps or duplicates and matches `meta/_journal.json` (after a rebase, renumber yours after the newest one on `main`). |
 | `pnpm test` | Unit tests in watch mode. |

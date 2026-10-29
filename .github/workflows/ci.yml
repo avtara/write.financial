@@ -1,58 +1,50 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Two lanes (CONTRIBUTING.md › CI lanes). `changes` picks the lane and the data paths; `CI gate` is the one required check.
-# - fast (every pull request push): static checks, unit tests of the changed code (no coverage gate), E2E core
-#   (projects m0, tablet, app), gitleaks, DCO; plus the data lane — integration tests and the backup restore — when the
-#   diff touches the database, worker, server functions, auth, crypto, or deploy files.
-# - full (push to main, workflow_dispatch, or a pull request labelled `full-ci`, used on the pull request that closes a
-#   phase): everything — unit tests with the 100% per-file coverage gate (D27), mutation tests (incremental), integration,
-#   every E2E project, the Docker image boot with the install proof, and the backup restore. The jobs run in parallel.
-#   On main the run is informational (nothing waits for it); a red run there is fixed in the next pull request.
+# Two lanes (CONTRIBUTING.md › CI lanes); `CI gate` is the one required check on dev and main.
+# - staging (pushes and pull requests targeting dev): every check except mutation and E2E, including the
+#   100% per-file unit coverage gate, integration tests, Docker build/boot, and backup restore.
+# - full (all other targets, including every pull request to main): everything, including mutation,
+#   every E2E project, and the Docker setup/2FA install proof. Labels cannot bypass either branch policy.
 name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, edited]
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A new push or label change supersedes the pull request's running CI; every push to main is checked to the end.
+# New PR revisions supersede their running CI; every push to a protected branch is checked to the end.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
-    name: Lane and changed paths
+    name: CI lane
     runs-on: ubuntu-24.04
     outputs:
       mode: ${{ steps.lane.outputs.mode }}
-      data: ${{ steps.lane.outputs.data }}
+      full: ${{ steps.lane.outputs.full }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - id: lane
         env:
           EVENT: ${{ github.event_name }}
-          FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "$EVENT" != pull_request ] || [ "$FULL_LABEL" = true ]; then mode=full; else mode=fast; fi
-          data=true
-          if [ "$EVENT" = pull_request ]; then
-            # The pull request's own changes: the diff from the merge base with its base branch.
-            changed="$(git diff --name-only "$BASE...$HEAD")"
-            echo "$changed"
-            echo "$changed" | grep -qE '^(packages/(db|auth|crypto)/|apps/worker/|apps/web/src/server/|deploy/)' || data=false
-          fi
+          # Fail closed: only dev gets the staging exclusions, never a main PR (regardless of source or labels).
+          target="$REF_NAME"
+          if [ "$EVENT" = pull_request ]; then target="$BASE_REF"; fi
+          if [ "$target" = dev ]; then mode=staging; full=false; else mode=full; full=true; fi
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "data=$data" >> "$GITHUB_OUTPUT"
-          echo "Lane: **$mode**, data lane (integration + backup restore): **$data**" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Lane: **$mode**, target: **$target**. Mutation and E2E: **$full**." >> "$GITHUB_STEP_SUMMARY"
 
   static:
     name: Lint, format, typecheck, repo checks
@@ -75,14 +67,11 @@ jobs:
       - run: pnpm check:migrations
 
   unit:
-    name: ${{ needs.changes.outputs.mode == 'full' && 'Unit tests (100% per-file coverage, D27)' || 'Unit tests (changed code)' }}
+    name: Unit tests (100% per-file coverage, D27)
     needs: changes
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # The fast lane compares with the base branch (`vitest --changed`).
-          fetch-depth: ${{ needs.changes.outputs.mode == 'full' && 1 || 0 }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -97,17 +86,9 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
       - name: Unit tests with the coverage gate
-        if: needs.changes.outputs.mode == 'full'
         run: pnpm test:unit
-      # Tests related to the files the pull request changes (module graph), every test when a config or package.json
-      # changed. The D14 architecture test is a unit test, so it runs whenever worker code changes.
-      - name: Unit tests of the changed code
-        if: needs.changes.outputs.mode == 'fast'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: pnpm exec vitest run --project unit --project unit-browser --changed "origin/$BASE_REF" --passWithNoTests
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always() && needs.changes.outputs.mode == 'full'
+        if: always()
         with:
           name: coverage
           path: coverage/
@@ -116,7 +97,7 @@ jobs:
   mutation:
     name: Mutation tests (domain + crypto, ≥ 90%)
     needs: changes
-    if: needs.changes.outputs.mode == 'full'
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -149,7 +130,6 @@ jobs:
   integration:
     name: Integration tests (Testcontainers)
     needs: changes
-    if: needs.changes.outputs.mode == 'full' || needs.changes.outputs.data == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -162,8 +142,9 @@ jobs:
       - run: pnpm test:integration
 
   e2e:
-    name: ${{ needs.changes.outputs.mode == 'full' && 'E2E smoke (Playwright)' || 'E2E core (Playwright m0, tablet, app)' }}
+    name: E2E smoke (Playwright)
     needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -182,11 +163,7 @@ jobs:
       # Against the production build: `node .output/server/index.mjs`, started by Playwright's webServer.
       - run: pnpm --filter @wf/web build
       - name: Every E2E project
-        if: needs.changes.outputs.mode == 'full'
         run: pnpm --filter @wf/web test:e2e
-      - name: E2E core (setup, 2FA, tablet, app shell)
-        if: needs.changes.outputs.mode == 'fast'
-        run: pnpm --filter @wf/web test:e2e --project m0 --project tablet --project app
       - name: Service logs
         if: failure()
         run: docker compose -f deploy/dev/compose.yaml logs --no-color
@@ -200,7 +177,6 @@ jobs:
   docker:
     name: Docker image (build + boot)
     needs: changes
-    if: needs.changes.outputs.mode == 'full'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -212,6 +188,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Install Playwright Chromium
+        if: needs.changes.outputs.full == 'true'
         run: pnpm exec playwright install --with-deps chromium
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build the image (linux/amd64)
@@ -256,6 +233,7 @@ jobs:
           test "$published" = caddy
       # The token is masked before anything else sees it, and only travels through the job environment.
       - name: Read the setup token
+        if: needs.changes.outputs.full == 'true'
         working-directory: deploy/compose
         run: |
           token="$(docker compose logs --no-color --no-log-prefix init | grep -o 'https://localhost/setup?token=[^[:space:]]*' | tail -n 1 | cut -d= -f2-)"
@@ -264,6 +242,7 @@ jobs:
           echo "WF_SELFHOST_SETUP_TOKEN=$token" >> "$GITHUB_ENV"
       # M0 exit (plan §8): setup wizard → admin with TOTP → sign-in with 2FA, in Chromium through Caddy.
       - name: Install proof (setup wizard → admin login + 2FA in ≤ 15 minutes)
+        if: needs.changes.outputs.full == 'true'
         env:
           WF_SELFHOST_URL: https://localhost
         run: |
@@ -273,14 +252,18 @@ jobs:
           test "$elapsed" -le 900
       - name: Second start reuses the secrets
         working-directory: deploy/compose
+        env:
+          FULL_CI: ${{ needs.changes.outputs.full }}
         run: |
           digest() { docker compose exec -T web sh -c 'find /run/wf-secrets -type f | sort | xargs cat | sha256sum'; }
           before="$(digest)"
           docker compose up -d --wait --wait-timeout 300
           test "$(digest)" = "$before"
           docker compose logs init | grep -q 'Secrets: using the existing ones'
-          # The completed setup survives the restart: the wizard stays closed and the sign-in page answers.
-          test "$(curl -sk -o /dev/null -w '%{http_code}' "https://localhost/setup?token=$WF_SELFHOST_SETUP_TOKEN")" = 404
+          # Only the full lane completes setup; staging deliberately runs no Playwright install proof.
+          if [ "$FULL_CI" = true ]; then
+            test "$(curl -sk -o /dev/null -w '%{http_code}' "https://localhost/setup?token=$WF_SELFHOST_SETUP_TOKEN")" = 404
+          fi
           test "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost/sign-in)" = 200
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
@@ -301,7 +284,6 @@ jobs:
   backup-restore:
     name: Backup restore (compose)
     needs: changes
-    if: needs.changes.outputs.mode == 'full' || needs.changes.outputs.data == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -364,8 +346,7 @@ jobs:
           done
           exit $status
 
-  # The one required check (branch protection). Green when every job of the run's lane succeeded: the fast lane (+ the
-  # data lane when it applies) or, with `full-ci`, the full lane. DCO runs only on pull requests.
+  # The one required check on dev and main. Unexpected skipped jobs fail closed.
   gate:
     name: CI gate
     if: always()
@@ -375,20 +356,17 @@ jobs:
       - name: Every job of the lane succeeded
         env:
           MODE: ${{ needs.changes.outputs.mode }}
-          DATA: ${{ needs.changes.outputs.data }}
+          FULL: ${{ needs.changes.outputs.full }}
           EVENT: ${{ github.event_name }}
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          required='changes static unit e2e secrets'
+          required='changes static unit integration docker backup-restore secrets'
           if [ "$EVENT" = pull_request ]; then required="$required dco"; fi
-          if [ "$MODE" = full ]; then
-            required="$required mutation integration docker backup-restore"
-            lane='full lane'
-          elif [ "$DATA" = true ]; then
-            required="$required integration backup-restore"
-            lane='fast lane + data lane'
-          else
-            lane='fast lane'
+          if [ "$FULL" = true ]; then
+            required="$required mutation e2e"
+          elif [ "$MODE" != staging ]; then
+            echo "::error::Missing or invalid CI lane"
+            exit 1
           fi
           # Every failed or cancelled job, and every required job that did not succeed (e.g. skipped).
           failed="$(jq -r --arg required "$required" '($required | split(" ")) as $r
@@ -400,7 +378,4 @@ jobs:
             echo "### CI gate: failed jobs: $failed" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          echo "### CI gate: $lane green" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$MODE" != full ]; then
-            echo "The 100% coverage gate, mutation tests, every E2E project, and the Docker boot run with the full-ci label (the pull request that closes a phase) and on main." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "### CI gate: $MODE lane green" >> "$GITHUB_STEP_SUMMARY"
