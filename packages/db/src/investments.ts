@@ -17,7 +17,7 @@
  * other goals keep their units (`sellAllocation`; two or more goals need `reduceGoalId`, FR-G5).
  */
 import { randomUUID } from 'node:crypto';
-import { getCatalogRecord } from '@wf/domain/catalog';
+import { getCatalogRecord, matchInstrument } from '@wf/domain/catalog';
 import type { BuiltInCategoryKey } from '@wf/domain/categories';
 import { formatDecimal, parseDecimal } from '@wf/domain/decimal';
 import { formatRate, parseRate } from '@wf/domain/fx';
@@ -522,7 +522,7 @@ async function assetValuesOf(
   return {
     symbol,
     name,
-    catalogId: input.catalogId ?? null,
+    catalogId: input.catalogId ?? matchInstrument(symbol, input.assetClass, input.market),
     assetClass: input.assetClass,
     market: input.market,
     categoryId,
