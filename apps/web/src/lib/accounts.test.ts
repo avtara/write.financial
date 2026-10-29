@@ -51,7 +51,7 @@ describe('accountValueBaseMinor', () => {
 });
 
 describe('accountTotals', () => {
-  it('sums investments (cash + holdings) and all accounts, lists foreign currencies, and counts spending accounts', () => {
+  it('sums every account (a platform’s holdings included), lists foreign currencies, and counts spending accounts', () => {
     const totals = accountTotals(
       [
         accountView({ balanceBaseMinor: 1_000n }),
@@ -68,8 +68,6 @@ describe('accountTotals', () => {
       'IDR',
     );
     expect(totals).toEqual({
-      investmentsMinor: 45_420_000n,
-      investmentCount: 2,
       totalMinor: 45_420_500n,
       foreignCurrencies: ['EUR', 'USD'],
       spendingCount: 2,

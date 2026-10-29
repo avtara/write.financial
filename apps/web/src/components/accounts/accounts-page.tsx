@@ -17,7 +17,7 @@ import { Money } from '@wf/ui/money';
 import { Sheet } from '@wf/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wf/ui/tabs';
 import { toast } from '@wf/ui/toast';
-import { Archive, Building2, Landmark, Lock, Plus, Scale, TrendingUp, Wallet, type LucideIcon } from 'lucide-react';
+import { Archive, Building2, Landmark, Lock, Plus, Scale, Wallet, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { accountTotals, byCheckAge, MAX_CARDS, STALE_AFTER_DAYS } from '../../lib/accounts.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
@@ -153,7 +153,6 @@ export function AccountsPage({
           : m.accounts_summary({
               count: active.length,
               spending: totals.spendingCount,
-              platforms: totals.investmentCount,
             })
       }
       secondaryActions={
@@ -323,7 +322,7 @@ export function AccountsPage({
       {header}
       <section
         aria-label={m.accounts_kpis()}
-        className="grid grid-cols-2 divide-border rounded-[12px] border border-border bg-card xl:grid-cols-4 xl:divide-x [&>*]:border-border max-xl:[&>*:nth-child(-n+2)]:border-b max-xl:[&>*:nth-child(odd)]:border-r"
+        className="grid grid-cols-2 divide-border rounded-[12px] border border-border bg-card xl:grid-cols-3 xl:divide-x [&>*]:border-border max-xl:[&>*:nth-child(-n+2)]:border-b max-xl:[&>*:nth-child(odd)]:border-r"
       >
         <Kpi icon={Wallet} label={m.accounts_kpi_available()}>
           <Money minor={overview.availableMinor} currency={baseCurrency} context="amount" locale={locale} />
@@ -331,24 +330,17 @@ export function AccountsPage({
             {m.accounts_kpi_available_note({ count: totals.spendingCount })}
           </span>
         </Kpi>
-        <Kpi icon={TrendingUp} label={m.accounts_kpi_investments()}>
-          <span>
-            {totals.investmentCount > 0 && approx}
-            <Money minor={totals.investmentsMinor} currency={baseCurrency} context="amount" locale={locale} />
-          </span>
-          <span className="text-[12px] font-normal text-subtle">
-            {m.accounts_kpi_investments_note({ count: totals.investmentCount })}
-            {totals.foreignCurrencies.length === 0
-              ? null
-              : ` · ${m.accounts_kpi_foreign({ currencies: totals.foreignCurrencies.join(', ') })}`}
-          </span>
-        </Kpi>
         <Kpi icon={Landmark} label={m.accounts_kpi_total()}>
           <span>
             {approx}
             <Money minor={totals.totalMinor} currency={baseCurrency} context="amount" locale={locale} />
           </span>
-          <span className="text-[12px] font-normal text-subtle">{m.accounts_kpi_total_note()}</span>
+          <span className="text-[12px] font-normal text-subtle">
+            {m.accounts_kpi_total_note()}
+            {totals.foreignCurrencies.length === 0
+              ? null
+              : ` · ${m.accounts_kpi_foreign({ currencies: totals.foreignCurrencies.join(', ') })}`}
+          </span>
         </Kpi>
         <Kpi icon={Scale} label={m.accounts_kpi_stale()}>
           <button

@@ -14,7 +14,6 @@ import { getProfile } from '../../server/fn/account.ts';
 import { getBudgetStatus, getDashboard, listPeriods } from '../../server/fn/budget.ts';
 import { getDashboardLayout } from '../../server/fn/dashboard-layout.ts';
 import { listGoals } from '../../server/fn/goals.ts';
-import { getInvestments } from '../../server/fn/investments.ts';
 import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
 import { listAutoRules } from '../../server/fn/rules.ts';
 import { listScheduled, listSubscriptions } from '../../server/fn/schedules.ts';
@@ -46,14 +45,13 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
     const cards = (layout.ok ? layout.value : DEFAULT_DASHBOARD_LAYOUT).cards;
     const shows = (id: DashboardCard) => cards.some((card) => card.id === id && card.visible);
     const today = dashboard.ok ? dashboard.value.today : null;
-    const [shownBudget, scheduled, investments, goals, bills] = await Promise.all([
+    const [shownBudget, scheduled, goals, bills] = await Promise.all([
       shownPeriod === undefined || (periods.ok && shownPeriod === periods.value.current.id)
         ? null
         : getBudgetStatus({ data: { periodId: shownPeriod } }),
       dashboard.ok
         ? listScheduled({ data: { from: dashboard.value.ranges.full.from, to: dashboard.value.ranges.full.to } })
         : null,
-      shows('investments') ? getInvestments({ data: {} }) : null,
       shows('goals') ? listGoals({ data: { status: 'active' } }) : null,
       shows('bills') && today !== null ? listScheduled({ data: { from: today, to: addDays(today, 6) } }) : null,
     ]);
@@ -71,7 +69,6 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
       subscriptions,
       scheduled,
       layout,
-      investments,
       goals,
       bills,
       loadedAt: new Date(),

@@ -15,14 +15,13 @@ export const DASHBOARD_CARDS = [
   'budget',
   'calendar',
   'subscriptions',
-  'investments',
   'goals',
   'bills',
 ] as const;
 export type DashboardCard = (typeof DASHBOARD_CARDS)[number];
 
 /** "Kartu lain yang bisa ditambahkan": off until added; hiding one puts it back there. */
-export const ADDABLE_CARDS: readonly DashboardCard[] = ['investments', 'goals', 'bills'];
+export const ADDABLE_CARDS: readonly DashboardCard[] = ['goals', 'bills'];
 
 export const CARD_WIDTHS = ['third', 'twoThirds', 'full'] as const;
 export type CardWidth = (typeof CARD_WIDTHS)[number];
@@ -44,7 +43,6 @@ const DEFAULT_WIDTH: Readonly<Record<DashboardCard, CardWidth>> = {
   budget: 'third',
   calendar: 'twoThirds',
   subscriptions: 'third',
-  investments: 'third',
   goals: 'third',
   bills: 'third',
 };

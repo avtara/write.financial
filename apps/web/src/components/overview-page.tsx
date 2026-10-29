@@ -2,7 +2,7 @@
 /**
  * Overview (`/`, FR-D1/D2/D4): the header with the span switch and pickers, the Quick Add bar (FR-T1), and the
  * dashboard cards — KPIs on top, then accounts, money flow, spending per category, income vs spending, budget,
- * spending calendar, subscriptions, and the addable investments, goals, and bills cards in the user's layout (FR-D3,
+ * spending calendar, subscriptions, and the addable goals and bills cards in the user's layout (FR-D3,
  * "Atur dashboard": reorder, hide, ⅓/⅔/full width, saved to the account with "Reset ke default" and "Urungkan"). A user
  * without transactions gets the 3-step setup instead (design `olRpH`); while another span loads the cards stay,
  * dimmed, under "Memperbarui ringkasan…" (`IKIBD`); offline data shown from the last load says so.
@@ -35,7 +35,6 @@ import { adjacentSearch } from '../lib/dashboard-search.ts';
 import { ledgerErrorMessage } from '../lib/ledger-errors.ts';
 import type { Result } from '../server/access.ts';
 import { saveDashboardLayout } from '../server/fn/dashboard-layout.ts';
-import type { InvestmentsOverview } from '../server/fn/investments.ts';
 import { AccountsCard } from './dashboard/accounts-card.tsx';
 import { BudgetCard } from './dashboard/budget-card.tsx';
 import { CalendarCard } from './dashboard/calendar-card.tsx';
@@ -52,7 +51,7 @@ import {
   summaryLine,
 } from './dashboard/dashboard-format.ts';
 import { DashboardSetup, loadedAtLabel } from './dashboard/dashboard-states.tsx';
-import { BillsCard, GoalsCard, InvestmentsMiniCard } from './dashboard/extra-cards.tsx';
+import { BillsCard, GoalsCard } from './dashboard/extra-cards.tsx';
 import { KpiCards } from './dashboard/kpi-cards.tsx';
 import { MoneyFlowCard } from './dashboard/money-flow-card.tsx';
 import { SubscriptionsCard } from './dashboard/subscriptions-card.tsx';
@@ -81,7 +80,6 @@ export interface OverviewData {
   /** The saved card layout (FR-D3); the defaults when it could not be read. */
   readonly layout: Result<DashboardLayout>;
   /** The addable cards' data, read only while the card is shown (`null` otherwise). */
-  readonly investments: Result<InvestmentsOverview> | null;
   readonly goals: Result<GoalView[]> | null;
   /** Scheduled items from today through 6 days later. */
   readonly bills: Result<ScheduledItem[]> | null;
@@ -252,12 +250,6 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
           );
         case 'subscriptions':
           return subscriptions === null ? null : <SubscriptionsCard overview={subscriptions} locale={locale} />;
-        case 'investments':
-          return data.investments === null ? (
-            <PendingCard id={id} />
-          ) : (
-            <InvestmentsMiniCard overview={valueOf(data.investments)} locale={locale} />
-          );
         case 'goals':
           return data.goals === null ? (
             <PendingCard id={id} />

@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The cards "Atur dashboard" can add (FR-D3, design `GcXr5` "Bisa ditambahkan"): "Investasi ringkas" (the portfolio
- * value and today's change), "Tujuan tabungan" (each active goal's progress), and "Pengingat tagihan" (unpaid bills
- * in the next 7 days). Each links to the page that holds the details; a part that failed to load says so in place.
+ * The cards "Atur dashboard" can add (FR-D3, design `GcXr5` "Bisa ditambahkan"): "Tujuan tabungan" (each active
+ * goal's progress) and "Pengingat tagihan" (unpaid bills in the next 7 days). Each links to the page that holds the
+ * details; a part that failed to load says so in place. Investments live only on their own page.
  */
 import { Link } from '@tanstack/react-router';
 import type { GoalView } from '@wf/db/goals';
 import type { ScheduledItem } from '@wf/db/schedules';
 import { ratioBps } from '@wf/domain/budget';
 import { addDays, countDays, type LocalDate } from '@wf/domain/period';
-import { formatPercent } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { formatDate } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import type { ReactNode } from 'react';
-import type { InvestmentsOverview } from '../../server/fn/investments.ts';
 
 /** Goals and bills listed; the rest are on their pages. */
 const MAX_ROWS = 4;
@@ -55,51 +53,6 @@ function MiniCard({ id, title, caption, to, children }: MiniCardProps) {
 }
 
 const Note = ({ children }: { children: ReactNode }) => <p className="text-[13px] text-subtle">{children}</p>;
-
-export interface InvestmentsMiniCardProps {
-  /** `null`: the portfolio could not be loaded. */
-  readonly overview: InvestmentsOverview | null;
-  readonly locale: Locale;
-}
-
-/** "Investasi ringkas": the portfolio value and "Hari ini" (absent without a previous close). */
-export function InvestmentsMiniCard({ overview, locale }: InvestmentsMiniCardProps) {
-  const summary = overview?.portfolio.summary;
-  const currency = overview?.portfolio.baseCurrency ?? 'IDR';
-  return (
-    <MiniCard
-      id="overview-card-investments"
-      title={m.overview_card_investments_title()}
-      caption={m.overview_card_investments_caption()}
-      to="/investments"
-    >
-      {overview === null || summary === undefined ? (
-        <Note>{m.overview_card_failed()}</Note>
-      ) : overview.portfolio.assets.length === 0 ? (
-        <Note>{m.overview_card_investments_empty()}</Note>
-      ) : (
-        <div className="flex flex-col gap-1">
-          <Money
-            minor={summary.valueBaseMinor}
-            currency={currency}
-            context="amount"
-            locale={locale}
-            className="text-[24px] leading-tight font-medium text-fg"
-          />
-          {summary.todayBps === null ? null : (
-            <p
-              className={`text-[12.5px] ${summary.todayBaseMinor < 0n ? 'text-red-fg' : summary.todayBaseMinor > 0n ? 'text-green-fg' : 'text-muted-fg'}`}
-            >
-              {m.overview_card_investments_today()}{' '}
-              <Money minor={summary.todayBaseMinor} currency={currency} context="delta" locale={locale} />
-              {` · ${formatPercent(summary.todayBps / 10_000, locale, { signed: true, maximumFractionDigits: 2 })}`}
-            </p>
-          )}
-        </div>
-      )}
-    </MiniCard>
-  );
-}
 
 export interface GoalsCardProps {
   /** Active goals; `null`: they could not be loaded. */

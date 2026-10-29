@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * "Kekayaan bersih" (design `ogfhy`/PDF page 1): the total with its cash, investments, and debt breakdown, the
- * honest notes about what could not be valued, and the six month-end history as bars — a missing month is a gap,
- * never zero.
+ * "Kekayaan bersih" (design `ogfhy`/PDF page 1): the total with its cash and debt breakdown (investments are shown
+ * only on their own page), the honest notes about what could not be valued, and the six month-end history as bars — a
+ * missing month is a gap, never zero.
  */
 import type { ReportView } from '@wf/db/reports';
 import type { YearMonth } from '@wf/domain/period';
@@ -110,18 +110,6 @@ export function NetWorthSection({ view, locale }: NetWorthSectionProps) {
               <dd>
                 <Money
                   minor={netWorth.cashMinor}
-                  currency={REPORTS_CURRENCY}
-                  context="amount"
-                  locale={locale}
-                  className="font-medium"
-                />
-              </dd>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <dt className="text-muted-fg">{m.reports_networth_investments()}</dt>
-              <dd>
-                <Money
-                  minor={netWorth.investmentsMinor}
                   currency={REPORTS_CURRENCY}
                   context="amount"
                   locale={locale}

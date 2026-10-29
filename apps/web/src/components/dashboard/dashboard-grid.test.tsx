@@ -98,7 +98,7 @@ describe('DashboardEditor', () => {
     const onChange = vi.fn();
     const { screen } = await renderApp(<Harness onChange={onChange} />);
     const addable = screen.getByRole('region', { name: 'Kartu lain yang bisa ditambahkan' });
-    await expect.element(addable).toMatchTextContent(/Investasi ringkas.*Tujuan tabungan.*Pengingat tagihan/);
+    await expect.element(addable).toMatchTextContent(/Tujuan tabungan.*Pengingat tagihan/);
     await userEvent.click(addable.getByRole('button', { name: 'Tambah Tujuan tabungan' }));
     expect(onChange).toHaveBeenLastCalledWith(updateCard(DEFAULT_DASHBOARD_LAYOUT, 'goals', { visible: true }));
     await expect.element(screen.getByRole('button', { name: 'Pindahkan Tujuan tabungan' })).toBeVisible();
@@ -152,7 +152,7 @@ describe('ManageCards', () => {
     const sheet = screen.getByRole('dialog', { name: 'Kelola kartu dashboard' });
     await expect.element(sheet).toMatchTextContent('Bar Catat Cepat dan Ringkasan KPI tetap paling atas.');
     const addable = sheet.getByRole('region', { name: 'Bisa ditambahkan' });
-    await expect.element(addable.getByRole('switch', { name: /Investasi ringkas/ })).not.toBeChecked();
+    await expect.element(addable.getByRole('switch', { name: /Tujuan tabungan/ })).not.toBeChecked();
 
     await userEvent.click(sheet.getByRole('switch', { name: /Langganan/ }));
     expect(onChange).toHaveBeenLastCalledWith(
@@ -164,10 +164,10 @@ describe('ManageCards', () => {
       .element(sheet.getByRole('region', { name: 'Urutan di dashboard' }).getByRole('switch', { name: /Pengingat/ }))
       .toBeChecked();
     await userEvent.click(
-      sheet.getByRole('radiogroup', { name: 'Lebar Investasi ringkas' }).getByRole('radio', { name: '⅔' }),
+      sheet.getByRole('radiogroup', { name: 'Lebar Pengingat tagihan' }).getByRole('radio', { name: '⅔' }),
     );
     expect(onChange.mock.lastCall?.[0]).toMatchObject({
-      cards: expect.arrayContaining([{ id: 'investments', visible: false, width: 'twoThirds' }]) as unknown,
+      cards: expect.arrayContaining([{ id: 'bills', visible: true, width: 'twoThirds' }]) as unknown,
     });
 
     const handle = sheet.getByRole('button', { name: 'Pindahkan Rekening & dompet' });

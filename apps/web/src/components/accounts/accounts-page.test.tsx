@@ -172,13 +172,15 @@ describe('AccountsPage', () => {
   it('shows the totals, the cards, the list, and the first account’s details', async () => {
     const { screen, onConsumeSearch } = await renderPage();
     await expect.element(screen.getByRole('heading', { level: 1, name: 'Rekening & dompet' })).toBeVisible();
-    await expect.element(screen.getByText('5 rekening · 4 untuk belanja, 1 platform investasi')).toBeVisible();
+    await expect.element(screen.getByText('5 rekening · 4 untuk belanja')).toBeVisible();
     const kpis = screen.getByRole('region', { name: 'Ringkasan rekening' });
     const text = kpis.element().textContent;
     expect(text).toContain('Rp55.023.000');
     expect(text).toContain('dari 4 rekening siap pakai');
-    expect(text).toContain('≈ Rp45.420.300');
-    expect(text).toContain('1 platform · dalam USD');
+    // The investment platform is counted in the total but its own value is not shown here.
+    expect(text).not.toContain('≈ Rp45.420.300');
+    expect(text).toContain('≈ Rp91.230.300');
+    expect(text).toContain('dalam USD');
     expect(text).toContain('kekayaan bersih');
     expect(text).toContain('OVO');
     await expect.element(kpis.getByRole('button', { name: '1 rekening' })).toHaveClass(/text-amber-fg/);

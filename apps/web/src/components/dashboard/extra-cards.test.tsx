@@ -3,64 +3,11 @@ import type { LocalDate } from '@wf/domain/period';
 import { describe, expect, it } from 'vitest';
 import { scheduledItem } from '../../../test/dashboard-fixtures.ts';
 import { goalView } from '../../../test/goal-fixtures.ts';
-import { investmentsOverview, portfolioView } from '../../../test/investment-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
-import { billsAhead, BillsCard, GoalsCard, InvestmentsMiniCard } from './extra-cards.tsx';
+import { billsAhead, BillsCard, GoalsCard } from './extra-cards.tsx';
 
 const TODAY = '2026-10-15' as LocalDate;
 const d = (value: string) => value as LocalDate;
-
-function overview(summary: { todayBaseMinor: bigint; todayBps: number | null }) {
-  const portfolio = portfolioView();
-  return investmentsOverview({
-    portfolio: { ...portfolio, summary: { ...portfolio.summary, valueBaseMinor: 61_420_000n, ...summary } },
-  });
-}
-
-describe('InvestmentsMiniCard', () => {
-  it("shows the portfolio value and today's change, signed and coloured, linking to Investasi", async () => {
-    const { screen } = await renderApp(
-      <InvestmentsMiniCard overview={overview({ todayBaseMinor: 312_000n, todayBps: 51 })} locale="id" />,
-    );
-    const card = screen.getByRole('region', { name: 'Investasi ringkas' });
-    await expect.element(card).toMatchTextContent(/Rp61\.420\.000/);
-    await expect.element(card.getByText(/Hari ini/)).toMatchTextContent(/Hari ini \+312\.000 · \+0,51%/);
-    await expect.element(card.getByText(/Hari ini/)).toHaveClass('text-green-fg');
-    await expect.element(card.getByRole('link', { name: 'Lihat semua' })).toHaveAttribute('href', '/investments');
-  });
-
-  it('colours a loss red, a flat day neutral, and leaves today out without a previous close', async () => {
-    const { screen } = await renderApp(
-      <>
-        <InvestmentsMiniCard overview={overview({ todayBaseMinor: -40_000n, todayBps: -7 })} locale="id" />
-      </>,
-    );
-    await expect.element(screen.getByText(/Hari ini/)).toHaveClass('text-red-fg');
-    await screen.unmount();
-    const flat = await renderApp(
-      <InvestmentsMiniCard overview={overview({ todayBaseMinor: 0n, todayBps: 0 })} locale="id" />,
-    );
-    await expect.element(flat.screen.getByText(/Hari ini/)).toHaveClass('text-muted-fg');
-    await flat.screen.unmount();
-    const unpriced = await renderApp(
-      <InvestmentsMiniCard overview={overview({ todayBaseMinor: 0n, todayBps: null })} locale="id" />,
-    );
-    await expect.element(unpriced.screen.getByText(/Rp61\.420\.000/)).toBeVisible();
-    expect(unpriced.screen.getByText(/Hari ini/).query()).toBeNull();
-  });
-
-  it('says when there is nothing to show or the portfolio could not load', async () => {
-    const empty = investmentsOverview({ portfolio: portfolioView({ assets: [] }) });
-    const { screen } = await renderApp(
-      <>
-        <InvestmentsMiniCard overview={empty} locale="id" />
-        <InvestmentsMiniCard overview={null} locale="en" />
-      </>,
-    );
-    await expect.element(screen.getByText('Belum ada aset investasi.')).toBeVisible();
-    await expect.element(screen.getByText('Kartu ini tidak bisa dimuat.')).toBeVisible();
-  });
-});
 
 describe('GoalsCard', () => {
   it('shows each goal saved against its target, capped at full, four at most', async () => {

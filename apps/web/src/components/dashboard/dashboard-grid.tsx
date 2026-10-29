@@ -50,7 +50,6 @@ export const CARD_NAME: Readonly<Record<DashboardCard, () => string>> = {
   budget: m.overview_budget_title,
   calendar: m.overview_calendar_title,
   subscriptions: m.overview_subs_title,
-  investments: m.overview_card_investments_title,
   goals: m.overview_card_goals_title,
   bills: m.overview_card_bills_title,
 };
@@ -64,7 +63,6 @@ const CARD_CAPTION: Readonly<Record<DashboardCard, () => string>> = {
   budget: m.dashboard_caption_budget,
   calendar: m.dashboard_caption_calendar,
   subscriptions: m.dashboard_caption_subscriptions,
-  investments: m.overview_card_investments_caption,
   goals: m.overview_card_goals_caption,
   bills: m.overview_card_bills_caption,
 };

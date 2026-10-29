@@ -22,11 +22,9 @@ const fns = vi.hoisted(() => ({
   listScheduled: vi.fn(),
   listAutoRules: vi.fn(),
   getDashboardLayout: vi.fn(),
-  getInvestments: vi.fn(),
   listGoals: vi.fn(),
 }));
 vi.mock('../../server/fn/dashboard-layout.ts', () => ({ getDashboardLayout: fns.getDashboardLayout }));
-vi.mock('../../server/fn/investments.ts', () => ({ getInvestments: fns.getInvestments }));
 vi.mock('../../server/fn/goals.ts', () => ({ listGoals: fns.listGoals }));
 vi.mock('../../server/fn/budget.ts', () => ({
   listPeriods: fns.listPeriods,
@@ -72,7 +70,6 @@ function answer() {
   fns.listScheduled.mockResolvedValue(ok([]));
   fns.listAutoRules.mockResolvedValue(ok([]));
   fns.getDashboardLayout.mockResolvedValue(ok(DEFAULT_DASHBOARD_LAYOUT));
-  fns.getInvestments.mockResolvedValue(ok('portfolio'));
   fns.listGoals.mockResolvedValue(ok(['goal']));
 }
 
@@ -140,8 +137,7 @@ describe('/ (Overview) loader', () => {
   it('reads the addable cards only while the saved layout shows them', async () => {
     answer();
     const none = (await loader({ deps: {} })) as OverviewData;
-    expect(none).toMatchObject({ layout: ok(DEFAULT_DASHBOARD_LAYOUT), investments: null, goals: null, bills: null });
-    expect(fns.getInvestments).not.toHaveBeenCalled();
+    expect(none).toMatchObject({ layout: ok(DEFAULT_DASHBOARD_LAYOUT), goals: null, bills: null });
     expect(fns.listGoals).not.toHaveBeenCalled();
     // Only the dashboard's own span.
     expect(fns.listScheduled).toHaveBeenCalledOnce();
@@ -153,7 +149,7 @@ describe('/ (Overview) loader', () => {
     fns.getDashboardLayout.mockResolvedValue(ok(all));
     fns.listScheduled.mockResolvedValueOnce(ok(['span'])).mockResolvedValueOnce(ok(['week']));
     const shown = (await loader({ deps: {} })) as OverviewData;
-    expect(shown).toMatchObject({ investments: ok('portfolio'), goals: ok(['goal']), bills: ok(['week']) });
+    expect(shown).toMatchObject({ goals: ok(['goal']), bills: ok(['week']) });
     expect(fns.listGoals).toHaveBeenLastCalledWith({ data: { status: 'active' } });
     // The dashboard's today (15 Oct) through 6 days later.
     expect(fns.listScheduled).toHaveBeenLastCalledWith({ data: { from: '2026-10-15', to: '2026-10-21' } });
