@@ -20,7 +20,7 @@ export function IconPicker({ value, onValueChange, color, label }: IconPickerPro
   return (
     <fieldset {...colorProps(color)} className="flex min-w-0 flex-col gap-1.5">
       <legend className="pb-1.5 text-[12.5px] font-medium text-muted-fg">{label}</legend>
-      <div className="grid max-h-[172px] grid-cols-6 gap-2 overflow-y-auto p-0.5">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] gap-2 p-0.5">
         {Object.entries(CATEGORY_ICONS).map(([icon, { glyph: Glyph, label: iconLabel }]) => (
           <label
             key={icon}

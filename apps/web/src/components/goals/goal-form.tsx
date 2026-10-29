@@ -405,7 +405,7 @@ function GoalFormBody({
           />
         )}
       </Field>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 max-md:grid-cols-1">
+      <div className="flex flex-col gap-4">
         <IconPicker value={icon} onValueChange={setIcon} color={color} label={m.goals_form_icon()} />
         <ColorPicker value={color} onValueChange={setColor} label={m.goals_form_color()} />
       </div>
