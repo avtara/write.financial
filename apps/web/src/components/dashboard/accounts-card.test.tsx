@@ -3,7 +3,7 @@ import type { AccountsOverview } from '@wf/db/accounts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { dashboard, weekDashboard } from '../../../test/dashboard-fixtures.ts';
-import { account, ACCOUNTS, BCA, CARD, GOTRADE, JAGO, OVO } from '../../../test/ledger-fixtures.ts';
+import { account, ACCOUNTS, BCA, CARD, JAGO, OVO } from '../../../test/ledger-fixtures.ts';
 import { renderApp } from '../../../test/render.tsx';
 import { AccountsCard } from './accounts-card.tsx';
 
@@ -14,7 +14,6 @@ const OVERVIEW: AccountsOverview = {
   missingRates: [],
 };
 
-// The investments card shows from 1280 px.
 beforeEach(async () => {
   await page.viewport(1440, 900);
 });
@@ -32,7 +31,7 @@ describe('AccountsCard', () => {
       .toHaveAttribute('href', '/transactions?period=2026-10');
   });
 
-  it('opens the transactions of a card, of "N lainnya", of the available accounts, and of the investments', async () => {
+  it('opens the transactions of a card, of "N lainnya", and of the available accounts', async () => {
     const { screen, router } = await renderApp(<AccountsCard overview={OVERVIEW} dashboard={weekDashboard()} />);
     await userEvent.click(screen.getByRole('button', { name: /BCA Visa/ }));
     expect(router.state.location.search).toEqual({ range: '2026-10-12..2026-10-15', account: CARD.id });
@@ -40,23 +39,24 @@ describe('AccountsCard', () => {
     expect(router.state.location.search).toMatchObject({ account: [BCA.id, JAGO.id, OVO.id].join(',') });
     await userEvent.click(screen.getByRole('button', { name: /Saldo tersedia/ }));
     expect(router.state.location.search).toMatchObject({ account: expect.stringContaining(BCA.id) as string });
-    await userEvent.click(screen.getByRole('button', { name: /Investasi/ }));
-    expect(router.state.location.search).toMatchObject({ account: GOTRADE.id });
+    // Investments live on their own page: the strip has no tile for them.
+    expect(screen.getByRole('button', { name: /Investasi/ }).query()).toBeNull();
   });
 
-  it('adds up only base-currency flows, hides directions in privacy mode, and marks foreign investments "≈"', async () => {
+  it('adds up only base-currency flows, hides directions in privacy mode, and leaves investments off the strip', async () => {
     const usd = account({ id: 'acc-usd', displayName: 'Wise USD', currency: 'USD', showAsCard: false, type: 'bank' });
     const overview = { ...OVERVIEW, accounts: [usd, ...OVERVIEW.accounts.filter((a) => a.type !== 'investment')] };
     const flows = dashboard({ accounts: [{ accountId: 'acc-usd', inflowMinor: 99_900n, outflowMinor: 0n }] });
     const { screen } = await renderApp(<AccountsCard overview={overview} dashboard={flows} />);
     expect(screen.getByRole('button', { name: /Investasi/ }).query()).toBeNull();
     await expect.element(screen.getByRole('button', { name: /lainnya/ })).toMatchTextContent('+0bulan ini');
+    // A foreign platform adds no tile either: no amount of it is shown outside the investments page.
     const foreign = account({ id: 'acc-us', displayName: 'Gotrade US', type: 'investment', currency: 'USD' });
     const { screen: second } = await renderApp(
       <AccountsCard overview={{ ...OVERVIEW, accounts: [...OVERVIEW.accounts, foreign] }} dashboard={dashboard()} />,
       { preferences: { balancesHidden: true } },
     );
-    await expect.element(second.getByRole('button', { name: /Investasi/ })).toMatchTextContent('≈');
+    expect(second.getByRole('button', { name: /Investasi/ }).query()).toBeNull();
     expect(
       second
         .getByRole('button', { name: /lainnya/ })
@@ -66,8 +66,7 @@ describe('AccountsCard', () => {
     ).toBeNull();
   });
 
-  it('shows outflows with an up arrow and IDR investments without "≈"', async () => {
-    // A platform's balance is its cash; the card adds the holdings on it (Bibit: no cash, IDX30 + ORI Rp2.500.000).
+  it('shows outflows with an up arrow, and no platform balance anywhere on the strip', async () => {
     const local = account({
       id: 'acc-bibit',
       displayName: 'Bibit',
@@ -86,9 +85,7 @@ describe('AccountsCard', () => {
     const others = screen.getByRole('button', { name: /lainnya/ });
     await expect.element(others).toMatchTextContent('−400.000bulan ini');
     expect(others.element().querySelector('.text-red-fg')).not.toBeNull();
-    const investments = screen.getByRole('button', { name: /Investasi/ });
-    await expect.element(investments).not.toMatchTextContent('≈');
-    await expect.element(investments).toMatchTextContent('Rp2.500.000');
+    expect(screen.getByRole('region', { name: 'Rekening & dompet' })).not.toMatchTextContent('Rp2.500.000');
   });
 
   it('adds "≈ Rp…" under a card in another currency', async () => {

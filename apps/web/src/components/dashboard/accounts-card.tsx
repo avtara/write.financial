@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * "Rekening & dompet · Klik kartu untuk melihat transaksinya" on the Overview (FR-D2, FR-TB2): the available balance,
- * at most three account cards and "N lainnya" (FR-R2), and the investments, each with its net flow in what the
+ * at most three account cards and "N lainnya" (FR-R2), each with its net flow in what the
  * dashboard shows ("+Rp1.200.000 bulan ini"). A card opens its transactions for the same dates.
  */
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -10,8 +10,8 @@ import type { Dashboard } from '@wf/db/dashboard';
 import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
 import { usePrivacy } from '@wf/ui/privacy';
-import { ArrowDownLeft, ArrowUpRight, ChartLine, Minus, Wallet } from 'lucide-react';
-import { accountTotals, cardSlots } from '../../lib/accounts.ts';
+import { ArrowDownLeft, ArrowUpRight, Minus, Wallet } from 'lucide-react';
+import { cardSlots } from '../../lib/accounts.ts';
 import { transactionsDatesOf } from '../../lib/dashboard-search.ts';
 import { listParamOf } from '../../lib/transactions-search.ts';
 import { AccountCards } from '../accounts/account-cards.tsx';
@@ -66,8 +66,6 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
   };
 
   const available = active.filter((account) => account.includeInAvailable);
-  const investments = active.filter((account) => account.type === 'investment');
-  const totals = accountTotals(investments, baseCurrency);
   return (
     <section aria-labelledby="overview-accounts" className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
@@ -124,32 +122,6 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
             footer={footer}
           />
         </div>
-        {investments.length === 0 ? null : (
-          <button
-            type="button"
-            className={`${CARD} max-xl:hidden`}
-            onClick={() => {
-              open(investments.map((account) => account.id));
-            }}
-          >
-            <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-green-tint-2 text-green-fg">
-              <ChartLine aria-hidden="true" className="size-3.5" />
-            </span>
-            <span className="flex flex-col">
-              <span className="text-[13px] font-medium text-fg">{m.account_type_investment()}</span>
-              <span className="font-mono text-[11px] text-subtle">
-                {m.overview_accounts_platforms({ count: totals.investmentCount })}
-              </span>
-            </span>
-            <span className="flex items-baseline gap-1 text-[17px] font-semibold text-fg">
-              {totals.foreignCurrencies.length > 0 ? (
-                <span aria-hidden="true">{m.overview_accounts_approx()}</span>
-              ) : null}
-              <Money minor={totals.investmentsMinor} currency={baseCurrency} context="amount" locale={locale} />
-            </span>
-            {footer(investments)}
-          </button>
-        )}
       </div>
     </section>
   );

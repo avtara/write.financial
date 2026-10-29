@@ -41,9 +41,6 @@ export function groupByType(accounts: readonly AccountView[]): AccountGroup[] {
 }
 
 export interface AccountTotals {
-  /** Σ base-currency values of the investment accounts: cash + holdings. */
-  readonly investmentsMinor: bigint;
-  readonly investmentCount: number;
   /** Total assets: Σ base-currency values of every account (credit-card bills are negative). */
   readonly totalMinor: bigint;
   /** Currencies other than the base one among the accounts, sorted ("≈" in front of converted totals). */
@@ -54,11 +51,8 @@ export interface AccountTotals {
 
 /** The page's summary figures over the active `accounts`. */
 export function accountTotals(accounts: readonly AccountView[], baseCurrency: string): AccountTotals {
-  const investments = accounts.filter((account) => account.type === 'investment');
   const sum = (list: readonly AccountView[]) => list.reduce((total, a) => total + accountValueBaseMinor(a), 0n);
   return {
-    investmentsMinor: sum(investments),
-    investmentCount: investments.length,
     totalMinor: sum(accounts),
     foreignCurrencies: [...new Set(accounts.map((a) => a.currency))].filter((c) => c !== baseCurrency).sort(),
     spendingCount: accounts.filter((account) => account.includeInAvailable).length,

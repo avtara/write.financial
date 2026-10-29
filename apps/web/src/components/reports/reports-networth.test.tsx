@@ -16,8 +16,9 @@ describe('NetWorthSection', () => {
     await expect.element(section).toMatchTextContent('per 30 Sep 2026');
     await expect.element(section).toMatchTextContent('Kas & rekening');
     await expect.element(section).toMatchTextContent('Rp54.500.000');
-    await expect.element(section).toMatchTextContent('Investasi');
-    await expect.element(section).toMatchTextContent('Rp57.700.000');
+    // Investments are shown on their own page only, but their value stays in the total.
+    await expect.element(section).not.toMatchTextContent('Investasi');
+    await expect.element(section).not.toMatchTextContent('Rp57.700.000');
     await expect.element(section).not.toMatchTextContent('Utang');
     await expect.element(section).toMatchTextContent('USD tidak dihitung karena tidak ada kurs pada akhir periode.');
   });

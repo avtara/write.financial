@@ -142,8 +142,6 @@
   "accounts_kpi_available": "Available balance",
   "accounts_kpi_available_note": "from {count} spending accounts",
   "accounts_kpi_foreign": "in {currencies}",
-  "accounts_kpi_investments": "Investments",
-  "accounts_kpi_investments_note": "{count} platforms",
   "accounts_kpi_stale": "Needs adjusting",
   "accounts_kpi_stale_item": "{name} {days} days",
   "accounts_kpi_stale_none": "All checked within 14 days",
@@ -197,7 +195,7 @@
   "accounts_save": "Save changes",
   "accounts_saved": "{name} saved",
   "accounts_stale_warning": "Needs adjusting · not checked for {days} days",
-  "accounts_summary": "{count} accounts · {spending} for spending, {platforms} investment platforms",
+  "accounts_summary": "{count} accounts · {spending} for spending",
   "accounts_tab_active": "Active {count}",
   "accounts_tab_archived": "Archived {count}",
   "accounts_tabs": "Account status",
@@ -2933,16 +2931,6 @@
   "overview_accounts_all": "All transactions",
   "overview_accounts_approx": "≈",
   "overview_accounts_hint": "Click a card to see its transactions",
-  "overview_accounts_platforms": [
-    {
-      "declarations": ["input count", "local countPlural = count: plural"],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{count} platform",
-        "countPlural=*": "{count} platforms"
-      }
-    }
-  ],
   "overview_budget_all": "See the whole budget",
   "overview_budget_caption": "Used of the monthly limits",
   "overview_budget_caption_week": "The week's share of the monthly limits",
@@ -3021,10 +3009,6 @@
   "overview_card_goals_caption": "Progress toward each target",
   "overview_card_goals_empty": "No active goals.",
   "overview_card_goals_title": "Savings goals",
-  "overview_card_investments_caption": "Portfolio value and today",
-  "overview_card_investments_empty": "No investments yet.",
-  "overview_card_investments_title": "Investments at a glance",
-  "overview_card_investments_today": "Today",
   "overview_card_see_all": "See all",
   "overview_cashflow_title": "Income vs spending",
   "overview_cashflow_trend": "Spending trend",
@@ -3776,7 +3760,6 @@
   "reports_networth_asof": "as of {date}",
   "reports_networth_cash": "Cash & accounts",
   "reports_networth_debt": "Debt",
-  "reports_networth_investments": "Investments",
   "reports_networth_missing": "Some values cannot be calculated for this date.",
   "reports_networth_title": "Net worth",
   "reports_networth_unvalued": "{currencies} are excluded because no rate covers the period end.",

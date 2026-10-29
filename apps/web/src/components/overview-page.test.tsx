@@ -65,7 +65,6 @@ function data(patch: Partial<OverviewData> = {}): OverviewData {
     subscriptions: ok(subscriptionsOverview()),
     scheduled: ok([]),
     layout: ok(DEFAULT_DASHBOARD_LAYOUT),
-    investments: null,
     goals: null,
     bills: null,
     loadedAt: new Date('2026-10-15T02:42:00Z'),
@@ -180,21 +179,15 @@ describe('OverviewPage dashboard layout (FR-D3)', () => {
   });
 
   it('arranges the cards by the saved layout, with the addable ones that are on', async () => {
-    const layout = updateCard(
-      updateCard(updateCard(subscriptionsOff, 'goals', { visible: true }), 'investments', { visible: true }),
-      'bills',
-      { visible: true },
-    );
+    const layout = updateCard(updateCard(subscriptionsOff, 'goals', { visible: true }), 'bills', { visible: true });
     const { screen } = await renderOverview(
       data({
         layout: ok(layout),
         goals: ok([goalView({ id: 'g1', name: 'Dana Darurat' })]),
-        investments: failed,
         bills: ok([scheduledItem({ sourceId: 'netflix', dueDate: '2026-10-16' as never })]),
       }),
     );
     await expect.element(screen.getByText('goals ok')).toBeVisible();
-    await expect.element(screen.getByText('investments failed')).toBeVisible();
     await expect.element(screen.getByText('bills ok 2026-10-15')).toBeVisible();
     expect(screen.getByRole('region', { name: 'Langganan' }).query()).toBeNull();
     // Without the subscriptions, the card is left out too, whatever the layout says.
@@ -240,10 +233,10 @@ describe('OverviewPage dashboard layout (FR-D3)', () => {
     const { screen, router } = await renderOverview(data());
     const invalidate = vi.spyOn(router, 'invalidate').mockResolvedValue();
     await customize();
-    for (const name of ['Investasi ringkas', 'Tujuan tabungan', 'Pengingat tagihan']) {
+    for (const name of ['Tujuan tabungan', 'Pengingat tagihan']) {
       await userEvent.click(screen.getByRole('button', { name: `Tambah ${name}` }));
     }
-    await expect.poll(() => screen.getByText('Isinya tampil setelah tata letak disimpan.').all()).toHaveLength(3);
+    await expect.poll(() => screen.getByText('Isinya tampil setelah tata letak disimpan.').all()).toHaveLength(2);
     await userEvent.click(saveButton());
     await vi.waitFor(() => {
       expect(invalidate).toHaveBeenCalledOnce();
