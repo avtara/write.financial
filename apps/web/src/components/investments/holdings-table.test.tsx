@@ -129,6 +129,37 @@ describe('HoldingsTable', () => {
     expect(onAction).toHaveBeenLastCalledWith('remove', expect.objectContaining({ symbol: 'SPY' }));
   });
 
+  it('takes a row’s percentage in the currency its amount is shown in', async () => {
+    await page.viewport(1440, 1000);
+    // The rupiah value gained (the rate moved) while the dollar value lost: the row shows dollars, so the
+    // percentage must be the dollar's, negative and red.
+    const mixed = {
+      ...SPY,
+      value: {
+        ...(SPY.value as NonNullable<typeof SPY.value>),
+        valueMinor: 62_040n,
+        gainMinor: -1_760n,
+        valueBaseMinor: 11_277_011n,
+        gainBaseMinor: 210_000n,
+      },
+    };
+    const { screen } = await renderApp(
+      <HoldingsTable
+        portfolio={{
+          ...portfolioView({ assets: [mixed] }),
+          summary: { ...portfolioView().summary, valueBaseMinor: 11_277_011n },
+        }}
+        display="base"
+        usdRate="16350"
+        locale="id"
+        onAction={vi.fn()}
+        onTopUp={vi.fn()}
+        onAddAsset={vi.fn()}
+      />,
+    );
+    await expect.element(screen.getByText('−2,8%')).toHaveClass('text-red-fg');
+  });
+
   it('marks pending and unpriced holdings, shows a zero-value portfolio, and works per platform', async () => {
     await page.viewport(1440, 1000);
     const base = portfolioView();

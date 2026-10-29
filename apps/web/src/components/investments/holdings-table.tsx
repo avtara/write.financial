@@ -47,6 +47,7 @@ import {
   classLabel,
   holdingGroups,
   isClosed,
+  toUsd,
   type DisplayCurrency,
   type HoldingGroup,
   type HoldingItem,
@@ -75,20 +76,46 @@ const GROUPINGS: readonly { readonly value: HoldingsGrouping; readonly label: ()
 
 const CELL = 'px-3 py-2.5 align-middle';
 
-/** A gain in the display currency with its percentage below. */
+/**
+ * A gain in the display currency with its percentage below. The percentage is taken in the same currency as the
+ * amount (the quote when the row shows one, USD in the USD mode, else the base), so a loss never shows a plus.
+ */
 function Gain({
   baseMinor,
   quoteMinor,
   quoteCurrency,
-  bps,
+  costBaseMinor,
+  costMinor,
   display,
+  percent = true,
 }: {
   readonly baseMinor: bigint;
   readonly quoteMinor?: bigint | undefined;
   readonly quoteCurrency?: string | undefined;
-  readonly bps: number | null;
+  /** The cost behind `baseMinor` and `quoteMinor`: `ratioBps` needs it for the percentage. */
+  readonly costBaseMinor: bigint;
+  readonly costMinor?: bigint | undefined;
   readonly display: AmountDisplay;
+  readonly percent?: boolean;
 }) {
+  const { base, usdRate } = display;
+  const quoted = quoteMinor !== undefined && quoteCurrency !== undefined && quoteCurrency !== base;
+  const inUsd = usdRate !== null;
+  const shownMinor = inUsd
+    ? quoteCurrency === 'USD' && quoteMinor !== undefined
+      ? quoteMinor
+      : toUsd(baseMinor, base, usdRate)
+    : quoted
+      ? quoteMinor
+      : baseMinor;
+  const shownCost = inUsd
+    ? quoteCurrency === 'USD' && costMinor !== undefined
+      ? costMinor
+      : toUsd(costBaseMinor, base, usdRate)
+    : quoted
+      ? (costMinor ?? costBaseMinor)
+      : costBaseMinor;
+  const bps = percent ? ratioBps(shownMinor, shownCost) : null;
   return (
     <span className="flex flex-col items-end">
       <DisplayMoney
@@ -183,7 +210,7 @@ function CashRow({
         <ShareBar shareBps={shareBps} target={null} locale={display.locale} />
       </td>
       <td className={`${CELL} text-right`}>
-        <Gain baseMinor={item.position.gainBaseMinor} bps={null} display={display} />
+        <Gain baseMinor={item.position.gainBaseMinor} costBaseMinor={0n} display={display} percent={false} />
       </td>
       <td className={`${CELL} text-right text-subtle max-lg:hidden`}>—</td>
       <td className={`${CELL} w-10`}>
@@ -285,7 +312,8 @@ function AssetRow({
             baseMinor={value.gainBaseMinor}
             quoteMinor={value.gainMinor}
             quoteCurrency={asset.quoteCurrency}
-            bps={value.gainBps}
+            costBaseMinor={value.valueBaseMinor - value.gainBaseMinor}
+            costMinor={value.valueMinor - value.gainMinor}
             display={display}
           />
         )}
@@ -298,8 +326,9 @@ function AssetRow({
             baseMinor={realized.baseMinor}
             quoteMinor={realized.minor}
             quoteCurrency={asset.quoteCurrency}
-            bps={null}
+            costBaseMinor={0n}
             display={display}
+            percent={false}
           />
         )}
       </td>
@@ -322,7 +351,6 @@ function GroupRow({
   readonly onToggle: () => void;
 }) {
   const symbols = entry.items.map((item) => (item.kind === 'cash' ? item.currency : item.asset.symbol));
-  const gainBps = ratioBps(entry.gainBaseMinor, entry.costBaseMinor);
   const platforms = [
     ...new Set(entry.items.map((item) => (item.kind === 'cash' ? item.platformName : item.asset.platformName))),
   ];
@@ -382,13 +410,20 @@ function GroupRow({
         <ShareBar shareBps={entry.shareBps} target={entry.targetBps} locale={display.locale} />
       </td>
       <td className={`${CELL} text-right`}>
-        <Gain baseMinor={entry.gainBaseMinor} bps={gainBps} display={display} />
+        <Gain
+          baseMinor={entry.gainBaseMinor}
+          quoteMinor={entry.valueMinor ?? undefined}
+          quoteCurrency={entry.currency ?? undefined}
+          costBaseMinor={entry.costBaseMinor}
+          costMinor={entry.costMinor ?? undefined}
+          display={display}
+        />
       </td>
       <td className={`${CELL} text-right max-lg:hidden`}>
         {entry.realizedBaseMinor === 0n ? (
           <span className="text-subtle">—</span>
         ) : (
-          <Gain baseMinor={entry.realizedBaseMinor} bps={null} display={display} />
+          <Gain baseMinor={entry.realizedBaseMinor} costBaseMinor={0n} display={display} percent={false} />
         )}
       </td>
       <td className={CELL} />
@@ -421,6 +456,7 @@ export function HoldingsTable({
   const shownValue = groups.reduce((sum, entry) => sum + entry.valueBaseMinor, 0n);
   const shownGain = groups.reduce((sum, entry) => sum + entry.gainBaseMinor, 0n);
   const shownRealized = groups.reduce((sum, entry) => sum + entry.realizedBaseMinor, 0n);
+  const shownCost = groups.reduce((sum, entry) => sum + entry.costBaseMinor, 0n);
   const shownShare = ratioBps(shownValue, total.valueBaseMinor);
 
   const row = (item: HoldingItem, nested: boolean) => {
@@ -625,12 +661,15 @@ export function HoldingsTable({
             <td className={`${CELL} text-right`}>
               <Gain
                 baseMinor={partial ? shownGain : total.gainBaseMinor}
-                bps={partial ? null : total.gainBps}
+                costBaseMinor={partial ? shownCost : total.costBaseMinor}
                 display={display}
+                percent={!partial}
               />
             </td>
             <td className={`${CELL} text-right max-lg:hidden`}>
-              {closed && shownRealized !== 0n ? <Gain baseMinor={shownRealized} bps={null} display={display} /> : null}
+              {closed && shownRealized !== 0n ? (
+                <Gain baseMinor={shownRealized} costBaseMinor={0n} display={display} percent={false} />
+              ) : null}
             </td>
             <td className={CELL} />
           </tr>

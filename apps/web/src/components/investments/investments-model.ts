@@ -196,6 +196,9 @@ export interface HoldingGroup {
   /** The quote currency every item shares (for "US$331,50"), else `null`. */
   readonly currency: string | null;
   readonly valueMinor: bigint | null;
+  /** Value − cost in that currency, and the cost: the group's percentage is taken from them. */
+  readonly gainMinor: bigint | null;
+  readonly costMinor: bigint | null;
 }
 
 const itemValue = (item: HoldingItem): bigint =>
@@ -225,6 +228,18 @@ function group(
   );
   const currencies = new Set(items.map(itemCurrency));
   const currency = currencies.size === 1 ? ([...currencies][0] as string) : null;
+  const quoteValue = currency === null ? null : items.reduce((sum, item) => sum + itemValueMinor(item), 0n);
+  const quoteCost =
+    quoteValue === null
+      ? 0n
+      : items.reduce(
+          (sum, item) =>
+            sum +
+            (item.kind === 'cash'
+              ? item.position.valueMinor - item.position.gainMinor
+              : (item.asset.value?.valueMinor ?? 0n) - (item.asset.value?.gainMinor ?? 0n)),
+          0n,
+        );
   return {
     ...head,
     items,
@@ -235,7 +250,9 @@ function group(
     shareBps: ratioBps(valueBaseMinor, portfolio.summary.valueBaseMinor),
     targetBps: head.assetClass === null ? null : (portfolio.targets[head.assetClass] ?? null),
     currency,
-    valueMinor: currency === null ? null : items.reduce((sum, item) => sum + itemValueMinor(item), 0n),
+    valueMinor: quoteValue,
+    gainMinor: quoteValue === null ? null : quoteValue - quoteCost,
+    costMinor: quoteValue === null ? null : quoteCost,
   };
 }
 
