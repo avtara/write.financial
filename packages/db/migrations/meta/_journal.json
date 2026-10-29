@@ -169,6 +169,13 @@
       "when": 1793266832810,
       "tag": "0023_reference_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793272274587,
+      "tag": "0024_catalog_logos",
+      "breakpoints": true
     }
   ]
 }

@@ -93,7 +93,7 @@ cost-based estimates remain labeled `cost`. Historical seed observations are exp
 today's allocations.
 
 The shared `reference_catalog` contains release-versioned provider, instrument, and service metadata, including
-aliases, listing venue/currency, and source/license provenance. Migration `0023` installs the curated snapshot from
+aliases, listing venue/currency, and source/license provenance. Migrations `0023` and `0024` install the curated snapshot from
 `@wf/domain/catalog`; the client searches the same bundled snapshot without contacting third parties. App and worker
 roles can read but cannot mutate it. Catalog updates ship as a domain-data change plus a new migration; keep existing
 IDs stable so saved references continue to resolve.
