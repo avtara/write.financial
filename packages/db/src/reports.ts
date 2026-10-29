@@ -59,7 +59,7 @@ import {
   transactionTags,
   transactions,
 } from './schema.ts';
-import { categoryTotalsIn, dayTotalsIn, isOut } from './transaction-query.ts';
+import { categoryTotalsIn, dayTotalsIn, isIn, isOut } from './transaction-query.ts';
 import type { JsonObject, JsonValue } from './schema.ts';
 
 /** FR-LP1 categories: spent against the budget line of the period ("Belanja Online 2.600.000/2.000.000"). */
@@ -1125,7 +1125,7 @@ export function createReports(db: Database): ReportsRepository {
         accountId: postings.accountId,
         name: accounts.displayName,
         type: accounts.type,
-        inMinor: sql<string>`coalesce(sum(${postings.amountBaseMinor}) filter (where ${transactions.type} = 'income' and ${postings.role} = 'principal'), 0)`,
+        inMinor: sql<string>`coalesce(sum(${postings.amountBaseMinor}) filter (where ${isIn}), 0)`,
         outMinor: sql<string>`coalesce(sum(-${postings.amountBaseMinor}) filter (where ${isOut}), 0)`,
       })
       .from(postings)

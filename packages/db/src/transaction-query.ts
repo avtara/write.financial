@@ -190,8 +190,8 @@ export interface TransactionQueryRepository {
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
-/** Lines that count as In: the principal of an income. */
-export const isIn = sql`(${transactions.type} = 'income' and ${postings.role} = 'principal')`;
+/** Lines that count as In: the principal of an income or of a cash dividend (its tax is a fee line, so counted Out). */
+export const isIn = sql`(${transactions.type} in ('income', 'dividend') and ${postings.role} = 'principal')`;
 /**
  * Lines that count as Out: the principal of an expense or a receivable write-off (FR-U7, its principal moves no money:
  * amount 0, the written-off value in the base amount), fees, and FX-difference losses. Lending and repayments

@@ -478,11 +478,10 @@ const inputOf = (row: AssetRow): AssetInput => ({
   meta: row.meta,
 });
 
-/** Validated columns of `input` (all but the platform's; `quoteCurrency` is the platform's currency). */
+/** Validated columns of `input` (all but the platform's: its account and quote currency). */
 async function assetValuesOf(
   tx: Transaction,
   input: AssetInput,
-  quoteCurrency: string,
 ): Promise<Omit<typeof assets.$inferInsert, 'userId' | 'accountId' | 'quoteCurrency'>> {
   const symbol = input.symbol.trim().toUpperCase();
   if (symbol.length === 0 || symbol.length > SYMBOL_MAX) throw invalidAsset('Invalid symbol');
@@ -544,6 +543,8 @@ async function insertCashLegIn(
     readonly occurredAt: Date;
     readonly localDate: LocalDate;
     readonly description: string;
+    /** A dividend's income category ("Dividen & bunga"); investments have none. */
+    readonly categoryId?: string | null;
   },
   lines: readonly PostingDraft[],
   now: Date,
@@ -1047,7 +1048,7 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
       withUser(db, userId, async (tx) => {
         const platform = await platformIn(tx, input.accountId);
         const values = {
-          ...(await assetValuesOf(tx, input, platform.currency)),
+          ...(await assetValuesOf(tx, input)),
           accountId: platform.id,
           quoteCurrency: platform.currency,
         };
@@ -1073,7 +1074,7 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
     updateAsset: (userId, id, patch) =>
       withUser(db, userId, async (tx) => {
         const current = await lockedAssetIn(tx, id);
-        const values = await assetValuesOf(tx, { ...inputOf(current), ...patch }, current.quoteCurrency);
+        const values = await assetValuesOf(tx, { ...inputOf(current), ...patch });
         const [duplicate] = await tx
           .select({ id: assets.id })
           .from(assets)
@@ -1316,7 +1317,11 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
             transactionId = await insertCashLegIn(
               tx,
               userId,
-              { ...header, type: 'dividend' },
+              {
+                ...header,
+                type: 'dividend',
+                categoryId: await builtInCategoryIn(tx, userId, 'system:dividend_interest'),
+              },
               await cashLinesIn(tx, userId, account, localDate, amount, fee, tax),
               at,
             );
