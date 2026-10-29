@@ -46,10 +46,12 @@ import {
   CLASS_TONE,
   classLabel,
   holdingGroups,
+  isClosed,
   type DisplayCurrency,
   type HoldingGroup,
   type HoldingItem,
   type HoldingsGrouping,
+  type HoldingsView,
 } from './investments-model.ts';
 
 export type AssetAction =
@@ -397,16 +399,22 @@ export function HoldingsTable({
   onTopUp,
   onAddAsset,
 }: HoldingsTableProps) {
+  const [view, setView] = useState<HoldingsView>('open');
   const [grouping, setGrouping] = useState<HoldingsGrouping>('list');
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const groups = holdingGroups(portfolio, grouping, query);
+  const groups = holdingGroups(portfolio, grouping, query, view);
   const display: AmountDisplay = { base: portfolio.baseCurrency, usdRate: mode === 'usd' ? usdRate : null, locale };
   const searching = query.trim() !== '';
+  const closed = view === 'closed';
+  const closedCount = portfolio.assets.filter(isClosed).length;
+  // The footer sums the rows shown when they are not the whole open portfolio (a search, or the closed tab).
+  const partial = searching || closed;
   const matched = groups.flatMap((entry) => entry.items);
   const total = portfolio.summary;
   const shownValue = groups.reduce((sum, entry) => sum + entry.valueBaseMinor, 0n);
   const shownGain = groups.reduce((sum, entry) => sum + entry.gainBaseMinor, 0n);
+  const shownRealized = groups.reduce((sum, entry) => sum + entry.realizedBaseMinor, 0n);
   const shownShare = ratioBps(shownValue, total.valueBaseMinor);
 
   const row = (item: HoldingItem, nested: boolean) => {
@@ -445,7 +453,7 @@ export function HoldingsTable({
           <p aria-live="polite" className="text-[12.5px] text-muted-fg">
             {searching
               ? m.invest_holdings_results({ count: matched.length, query: query.trim() })
-              : grouping === 'list'
+              : grouping === 'list' && !closed
                 ? m.invest_holdings_summary_list({
                     singles,
                     categories: grouped.length,
@@ -453,6 +461,27 @@ export function HoldingsTable({
                   })
                 : m.invest_holdings_summary({ count: matched.length })}
           </p>
+        </div>
+        <div
+          role="group"
+          aria-label={m.invest_holdings_view()}
+          className="flex items-center gap-0.5 rounded-[8px] border border-border p-0.5"
+        >
+          {(['open', 'closed'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={view === option}
+              onClick={() => {
+                setView(option);
+              }}
+              className="h-7 rounded-[6px] px-2.5 text-[12px] text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-muted aria-pressed:text-fg"
+            >
+              {option === 'open'
+                ? m.invest_holdings_view_open()
+                : m.invest_holdings_view_closed({ count: closedCount })}
+            </button>
+          ))}
         </div>
         <label className="flex h-8 w-[240px] items-center gap-2 rounded-[8px] border border-border-input bg-input px-2.5 focus-within:outline-2 focus-within:outline-ring max-md:w-full">
           <Search aria-hidden="true" className="size-3.5 text-subtle" />
@@ -534,7 +563,11 @@ export function HoldingsTable({
           {groups.length === 0 ? (
             <tr className="border-t border-border">
               <td colSpan={8} className="px-5 py-8 text-center text-[12.5px] text-muted-fg">
-                {searching ? m.invest_holdings_no_results({ query: query.trim() }) : m.invest_holdings_empty()}
+                {searching
+                  ? m.invest_holdings_no_results({ query: query.trim() })
+                  : closed
+                    ? m.invest_holdings_closed_empty()
+                    : m.invest_holdings_empty()}
               </td>
             </tr>
           ) : (
@@ -564,29 +597,35 @@ export function HoldingsTable({
         <tfoot>
           <tr className="border-t border-border-strong">
             <th scope="row" className={`${CELL} text-left text-[13px] font-semibold text-fg`}>
-              {searching ? m.invest_holdings_total_results() : m.invest_holdings_total()}
+              {searching
+                ? m.invest_holdings_total_results()
+                : closed
+                  ? m.invest_holdings_closed_total()
+                  : m.invest_holdings_total()}
             </th>
             <td className={`${CELL} max-xl:hidden`} />
             <td className={`${CELL} max-lg:hidden`} />
             <td className={`${CELL} text-right`}>
               <ValueCell
-                baseMinor={searching ? shownValue : total.valueBaseMinor}
+                baseMinor={partial ? shownValue : total.valueBaseMinor}
                 quoteCurrency={null}
                 display={display}
                 strong
               />
             </td>
             <td className={`${CELL} text-[11.5px] text-subtle`}>
-              <Percent value={searching ? (shownShare ?? 0) / 10_000 : 1} locale={locale} />
+              <Percent value={partial ? (shownShare ?? 0) / 10_000 : 1} locale={locale} />
             </td>
             <td className={`${CELL} text-right`}>
               <Gain
-                baseMinor={searching ? shownGain : total.gainBaseMinor}
-                bps={searching ? null : total.gainBps}
+                baseMinor={partial ? shownGain : total.gainBaseMinor}
+                bps={partial ? null : total.gainBps}
                 display={display}
               />
             </td>
-            <td className={`${CELL} max-lg:hidden`} />
+            <td className={`${CELL} text-right max-lg:hidden`}>
+              {closed && shownRealized !== 0n ? <Gain baseMinor={shownRealized} bps={null} display={display} /> : null}
+            </td>
             <td className={CELL} />
           </tr>
         </tfoot>
