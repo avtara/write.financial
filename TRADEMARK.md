@@ -29,18 +29,81 @@ Bank, e-wallet, broker, issuer, and subscription names and marks belong to their
 
 ### Bundled catalog marks and provenance
 
-The runtime catalog is a deliberately small Indonesian-first selection with international examples, **not a worldwide database**. The original factual curation in `packages/domain/src/catalog.ts` is AGPL-3.0-only; each record links its official identity source. These links are provenance, not permission to copy website content. No directory, prices, website text, or Simple Icons collection has been imported.
+The runtime catalog is an Indonesian-first selection of banks, e-wallets, brokers, crypto exchanges, listed stocks, and subscription services, **not a worldwide database**. The original factual curation in `packages/domain/src/catalog.ts` is AGPL-3.0-only; each record links its official identity source. These links are provenance, not permission to copy website content. No directory, prices, or website text has been imported.
 
-Only these four original SVG files are bundled in `apps/web/public/catalog-logos/`. The linked Wikimedia Commons file descriptions were reviewed on 29 October 2026 and classify each artwork as **public domain, PD-textlogo** (simple text/geometric shapes below the copyright threshold), separately from the **reserved trademark rights**. That classification is not a worldwide legal opinion or a grant of brand endorsement:
+Every catalog record has a locally bundled mark in `apps/web/public/catalog-logos/`, served from the same origin without hotlinking, trackers, or runtime requests to logo providers. Marks identify the user's own accounts, holdings, and subscriptions only; they do not imply endorsement, and the owners keep all trademark rights. User-uploaded images always take precedence. Operators remain responsible for applicable trademark restrictions and should reassess provenance before redistributing or replacing artwork.
 
-| Local file | Identifies | Artwork / vector attribution | Reviewed source and version |
-|---|---|---|---|
-| `bca.svg` | BCA accounts and XIDX:BBCA holdings | PT Bank Central Asia Tbk; vector uploaded by Alex Neman | [Bank Central Asia.svg](https://commons.wikimedia.org/wiki/File:Bank_Central_Asia.svg), 18 March 2020, 08:28 UTC ([reviewed description](https://commons.wikimedia.org/w/index.php?title=File:Bank_Central_Asia.svg&oldid=1233474185)) |
-| `netflix.svg` | Netflix subscriptions | Netflix Inc.; extracted by Goo16, modified by Corkythehornetfan | [Netflix 2015 logo.svg](https://commons.wikimedia.org/wiki/File:Netflix_2015_logo.svg), 6 February 2019, 12:31 UTC ([reviewed description](https://commons.wikimedia.org/w/index.php?title=File:Netflix_2015_logo.svg&oldid=1233471576)) |
-| `spotify.svg` | Spotify subscriptions | Spotify; uploaded by Totie (the file description does not supply a machine-readable author/source) | [Spotify logo without text.svg](https://commons.wikimedia.org/wiki/File:Spotify_logo_without_text.svg), 23 January 2016, 21:25 UTC ([reviewed description](https://commons.wikimedia.org/w/index.php?title=File:Spotify_logo_without_text.svg&oldid=1262650585)) |
-| `youtube.svg` | YouTube Premium subscriptions | Google/YouTube; vector credited to Logopedia, uploaded by Yayan550 | [YouTube full-color icon (2024).svg](https://commons.wikimedia.org/wiki/File:YouTube_full-color_icon_(2024).svg), 18 October 2024, 20:29 UTC |
+**Wikimedia Commons files** (unmodified SVG; license as stated on the file page when reviewed on 29 October 2026; CC BY-SA files are redistributed under that license with the attribution shown):
 
-The originals are served from the same origin, unmodified, without logo-provider requests, hotlinking, embedded trackers, or an API key. Records lacking a reviewed mark deliberately use a generic account icon, holding ticker, or subscription icon/initial; they do not receive fabricated logos. User-uploaded images take precedence. Operators remain responsible for applicable trademark restrictions and should reassess provenance before adding or replacing artwork. A repository-wide CC0 label (for example Simple Icons) alone is **not** sufficient clearance for an individual brand mark.
+| Local file | Identifies | Source | License | Author / attribution |
+|---|---|---|---|---|
+| `bca.svg` | BCA, XIDX:BBCA | [Bank Central Asia.svg](https://commons.wikimedia.org/wiki/File:Bank_Central_Asia.svg) | Public domain (PD-textlogo) | PT Bank Central Asia Tbk; vector uploaded by Alex Neman |
+| `mandiri.svg` | Bank Mandiri, XIDX:BMRI | [Bank Mandiri logo 2016.svg](https://commons.wikimedia.org/wiki/File:Bank_Mandiri_logo_2016.svg) | Public domain | PT Bank Mandiri (Persero) Tbk |
+| `bri.svg` | BRI, XIDX:BBRI | [BRI 2025.svg](https://commons.wikimedia.org/wiki/File:BRI_2025.svg) | Public domain | PT. Bank Rakyat Indonesia (Persero) Tbk |
+| `bni.svg` | BNI, XIDX:BBNI | [Bank Negara Indonesia logo (2004).svg](https://commons.wikimedia.org/wiki/File:Bank_Negara_Indonesia_logo_(2004).svg) | Public domain | PT Bank Negara Indonesia (Persero) Tbk. |
+| `bsi.svg` | Bank Syariah Indonesia | [Bank Syariah Indonesia.svg](https://commons.wikimedia.org/wiki/File:Bank_Syariah_Indonesia.svg) | Public domain | PT Bank Syariah Indonesia Tbk |
+| `cimb-niaga.svg` | CIMB Niaga | [CIMB Niaga logo.svg](https://commons.wikimedia.org/wiki/File:CIMB_Niaga_logo.svg) | Public domain | PT Bank CIMB Niaga Tbk. |
+| `jago.svg` | Bank Jago | [Bank Jago 2026.svg](https://commons.wikimedia.org/wiki/File:Bank_Jago_2026.svg) | Public domain | PT Bank Jago Tbk |
+| `seabank.svg` | SeaBank | [SeaBank.svg](https://commons.wikimedia.org/wiki/File:SeaBank.svg) | Public domain | PT Bank Seabank Indonesia |
+| `gopay.svg` | GoPay | [Gopay logo (2019).svg](https://commons.wikimedia.org/wiki/File:Gopay_logo_(2019).svg) | Public domain | ™/®PT. Aplikasi Karya Anak Bangsa |
+| `ovo.svg` | OVO | [Logo ovo purple.svg](https://commons.wikimedia.org/wiki/File:Logo_ovo_purple.svg) | Public domain | https://www.ovo.id/ |
+| `dana.svg` | DANA | [Logo dana blue.svg](https://commons.wikimedia.org/wiki/File:Logo_dana_blue.svg) | Public domain | https://dana.id/ |
+| `linkaja.svg` | LinkAja | [LinkAja.svg](https://commons.wikimedia.org/wiki/File:LinkAja.svg) | Public domain | PT Fintek Karya Nusantara |
+| `binance.svg` | Binance | [Binance Logo.svg](https://commons.wikimedia.org/wiki/File:Binance_Logo.svg) | Public domain | Binance |
+| `okx.svg` | OKX | [OKX logo.svg](https://commons.wikimedia.org/wiki/File:OKX_logo.svg) | Public domain | OKX |
+| `bitget.svg` | Bitget | [Bitget logo (2026).svg](https://commons.wikimedia.org/wiki/File:Bitget_logo_(2026).svg) | Public domain | Bitget |
+| `bybit.svg` | Bybit | [Bybit Logo.svg](https://commons.wikimedia.org/wiki/File:Bybit_Logo.svg) | Public domain | kriptoborsalari.com |
+| `kucoin.svg` | KuCoin | [KUCOIN.svg](https://commons.wikimedia.org/wiki/File:KUCOIN.svg) | Public domain | KuCoin |
+| `coinbase.svg` | Coinbase | [Coinbase.svg](https://commons.wikimedia.org/wiki/File:Coinbase.svg) | Public domain | Coinbase |
+| `kraken.svg` | Kraken | [K-logo-wikipedia.svg](https://commons.wikimedia.org/wiki/File:K-logo-wikipedia.svg) | Public domain | Kraken Financial |
+| `gate.svg` | Gate | [Gateio logo.svg](https://commons.wikimedia.org/wiki/File:Gateio_logo.svg) | CC BY-SA 4.0, by Diongui | Diongui |
+| `mexc.svg` | MEXC | [Mexcglobal.svg](https://commons.wikimedia.org/wiki/File:Mexcglobal.svg) | CC BY-SA 4.0, by MEXC Global | MEXC GLOBAL |
+| `ibkr.svg` | Interactive Brokers | [Interactive Brokers Logo (2014).svg](https://commons.wikimedia.org/wiki/File:Interactive_Brokers_Logo_(2014).svg) | Public domain | Interactive Brokers LLC. |
+| `schwab.svg` | Charles Schwab | [Charles Schwab Corporation logo.svg](https://commons.wikimedia.org/wiki/File:Charles_Schwab_Corporation_logo.svg) | Public domain | Charles Schwab & Co., Inc |
+| `chase.svg` | Chase | [Chase logo 2007.svg](https://commons.wikimedia.org/wiki/File:Chase_logo_2007.svg) | Public domain | Original:  JPMorgan Chase Vectorization:  en:User:Closeapple |
+| `hsbc.svg` | HSBC | [HSBC logo (2018).svg](https://commons.wikimedia.org/wiki/File:HSBC_logo_(2018).svg) | Public domain | HSBC |
+| `wise.svg` | Wise | [Wise Logo 512x124.svg](https://commons.wikimedia.org/wiki/File:Wise_Logo_512x124.svg) | Public domain | Wise PLC |
+| `telkom.svg` | XIDX:TLKM, XNYS:TLK | [TelkomGroup 2013.svg](https://commons.wikimedia.org/wiki/File:TelkomGroup_2013.svg) | Public domain | Telkom Indonesia |
+| `astra.svg` | XIDX:ASII | [ASTRA international.svg](https://commons.wikimedia.org/wiki/File:ASTRA_international.svg) | Public domain | PT Astra International Tbk |
+| `apple.svg` | XNAS:AAPL | [Apple logo black.svg](https://commons.wikimedia.org/wiki/File:Apple_logo_black.svg) | Public domain | Original:  Rob Janoff |
+| `microsoft.svg` | XNAS:MSFT | [Microsoft logo.svg](https://commons.wikimedia.org/wiki/File:Microsoft_logo.svg) | Public domain | Microsoft |
+| `google.svg` | XNAS:GOOGL | [Google 2015 logo.svg](https://commons.wikimedia.org/wiki/File:Google_2015_logo.svg) | Public domain | Google LLC |
+| `nvidia.svg` | XNAS:NVDA | [Nvidia logo.svg](https://commons.wikimedia.org/wiki/File:Nvidia_logo.svg) | Public domain | Nvidia |
+| `jpmorganchase.svg` | XNYS:JPM | [Logo of JPMorganChase 2024.svg](https://commons.wikimedia.org/wiki/File:Logo_of_JPMorganChase_2024.svg) | Public domain | JPMorgan Chase & Co. |
+| `netflix.svg` | Netflix | [Netflix 2015 logo.svg](https://commons.wikimedia.org/wiki/File:Netflix_2015_logo.svg) | Public domain (PD-textlogo) | Netflix Inc.; extracted by Goo16, modified by Corkythehornetfan |
+| `youtube.svg` | YouTube Premium | [YouTube full-color icon (2024).svg](https://commons.wikimedia.org/wiki/File:YouTube_full-color_icon_(2024).svg) | Public domain (PD-textlogo) | Google/YouTube; vector credited to Logopedia, uploaded by Yayan550 |
+| `spotify.svg` | Spotify | [Spotify logo without text.svg](https://commons.wikimedia.org/wiki/File:Spotify_logo_without_text.svg) | Public domain (PD-textlogo) | Spotify; uploaded by Totie |
+| `disney-plus.svg` | Disney+ | [Disney+ 2024.svg](https://commons.wikimedia.org/wiki/File:Disney+_2024.svg) | Public domain | Disney Enterprises, Inc. |
+| `vidio.svg` | Vidio | [Vidio logo.svg](https://commons.wikimedia.org/wiki/File:Vidio_logo.svg) | Public domain | Vidio |
+| `viu.svg` | Viu | [Viu logo.svg](https://commons.wikimedia.org/wiki/File:Viu_logo.svg) | Public domain | PCCW Media Limited |
+| `apple-music.svg` | Apple Music | [Apple Music icon.svg](https://commons.wikimedia.org/wiki/File:Apple_Music_icon.svg) | Public domain | Apple Inc. |
+| `icloud.svg` | iCloud+ | [ICloud logo.svg](https://commons.wikimedia.org/wiki/File:ICloud_logo.svg) | Public domain | iCloud |
+| `google-one.svg` | Google One | [Google One logo.svg](https://commons.wikimedia.org/wiki/File:Google_One_logo.svg) | Public domain | Google |
+| `microsoft-365.svg` | Microsoft 365 | [Microsoft 365 (2022).svg](https://commons.wikimedia.org/wiki/File:Microsoft_365_(2022).svg) | Public domain | Microsoft Corporation |
+| `notion.svg` | Notion | [Notion-logo.svg](https://commons.wikimedia.org/wiki/File:Notion-logo.svg) | Public domain | Notion Labs, Inc. |
+| `prime-video.svg` | Prime Video | [Amazon Prime Video logo (2024).svg](https://commons.wikimedia.org/wiki/File:Amazon_Prime_Video_logo_(2024).svg) | Public domain | Amazon.com, Inc. |
+
+**Brand-published icons** (no Commons file was available; the icon the brand publishes on its own website or official App Store listing, resized to 128 × 128 PNG, no other change). These are **not** under an open license: they are trademarks used nominatively to identify the user's account, and must be removed if the owner objects:
+
+| Local file | Identifies | Downloaded from |
+|---|---|---|
+| `jenius.png` | Jenius | <https://www.jenius.com/assets/ico/apple-touch-icon.png> |
+| `shopeepay.png` | ShopeePay | <https://shopeepay.co.id/favicon.png> |
+| `stockbit.png` | Stockbit | <https://web-assets.stockbit.com/apple-touch-icon.png> |
+| `ajaib.png` | Ajaib | <https://ajaib.co.id/apple-touch-icon.png> |
+| `ipot.png` | IPOT | <https://apps.apple.com/id/app/id1514387216> |
+| `bibit.png` | Bibit | <https://bibit.id/favicon/apple-touch-icon.png> |
+| `gotrade.png` | Gotrade | <https://www.heygotrade.com/icons/icon-256x256.png?v=87238e2377ef075916eef41f358c18fe> |
+| `pluang.png` | Pluang | <https://apps.apple.com/id/app/id1341588054> |
+| `bareksa.png` | Bareksa | <https://www.bareksa.com/> |
+| `indodax.png` | Indodax | <https://indodax.com/v3-exchange/icons/icon_512x512.aa03b9.png> |
+| `tokocrypto.png` | Tokocrypto | <https://apps.apple.com/id/app/id1538556690> |
+| `pintu.png` | Pintu | <https://pintu.co.id/android-chrome-512x512.png> |
+| `reku.png` | Reku | <https://images.reku.id/favicon/apple-icon-180x180.png> |
+| `cryptocom.png` | Crypto.com | <https://apps.apple.com/id/app/id1569309855> |
+| `dbs.png` | DBS | <https://apps.apple.com/id/app/id1170988769> |
+| `canva.png` | Canva | <https://static.canva.com/domain-assets/canva/static/images/android-192x192-2.png> |
+
 
 ## Questions and permission
 
