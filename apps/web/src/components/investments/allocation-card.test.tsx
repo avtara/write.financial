@@ -26,6 +26,19 @@ describe('AllocationCard', () => {
       expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
     }
   });
+  it('centers the donut on its own line in the 380 px side card', async () => {
+    await renderApp(
+      <div style={{ width: 380 }}>
+        <AllocationCard portfolio={portfolioView()} locale="id" onEditTargets={vi.fn()} />
+      </div>,
+    );
+    const donut = document.querySelector('svg.-rotate-90');
+    const row = donut?.parentElement?.parentElement;
+    expect(row).not.toBeNull();
+    expect(getComputedStyle(row as HTMLElement).justifyContent).toBe('center');
+    expect(row?.classList.contains('w-full')).toBe(true);
+  });
+
   it('shows shares without inventing targets for a new portfolio', () => {
     const rows = allocationRows(portfolioView({ targets: {} }));
     expect(rows.find((row) => row.key === 'crypto')).toMatchObject({

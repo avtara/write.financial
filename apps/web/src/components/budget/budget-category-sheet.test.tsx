@@ -29,6 +29,7 @@ function row(patch: Partial<TransactionRow> & Pick<TransactionRow, 'id'>): Trans
     receivedCurrency: null,
     amountBaseMinor: -45_000n,
     feeMinor: null,
+    feeBaseMinor: 0n,
     fxDiffBaseMinor: null,
     tags: [],
     hasAttachment: false,

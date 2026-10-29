@@ -721,7 +721,9 @@
   "budget_undo": "Undo",
   "calendar_cell_out": "has spending",
   "calendar_day_by_category": "Spending by category",
+  "calendar_day_approx": "≈",
   "calendar_day_empty": "No transactions yet",
+  "calendar_day_fee": "fees & tax",
   "calendar_day_in": [
     {
       "declarations": ["input days", "local daysPlural = days: plural"],
