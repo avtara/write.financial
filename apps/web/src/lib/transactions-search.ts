@@ -8,7 +8,7 @@
  * The server functions take the {@link TRANSACTIONS_QUERY} part, which resolves `period`/`range` to dates itself.
  */
 import { TRANSACTION_SOURCES } from '@wf/domain/transactions';
-import { countDays, parseLocalDate, type LocalDate, type YearMonth } from '@wf/domain/period';
+import { addDays, countDays, parseLocalDate, type LocalDate, type YearMonth } from '@wf/domain/period';
 import { normalizeTagSlug } from '@wf/domain/tags';
 import * as z from 'zod';
 
@@ -126,6 +126,12 @@ export function rangeOf(range: string): { from: LocalDate; to: LocalDate } {
 /** The `range` param for dates. */
 export function rangeParamOf(from: LocalDate, to: LocalDate): string {
   return `${from}..${to}`;
+}
+
+/** The `range` param from `first` through `today`, cut to the newest {@link MAX_RANGE_DAYS} days. */
+export function rangeSince(first: LocalDate, today: LocalDate): string {
+  const earliest = addDays(today, -(MAX_RANGE_DAYS - 1));
+  return rangeParamOf(first < earliest ? earliest : first > today ? today : first, today);
 }
 
 /** Query keys that select the dates or the order, not a filter. */

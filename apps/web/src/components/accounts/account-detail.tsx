@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { accountMeta, axisStart, changeRatio, daysSinceCheck, STALE_AFTER_DAYS } from '../../lib/accounts.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { categoryName } from '../../lib/ledger-labels.ts';
+import { rangeSince } from '../../lib/transactions-search.ts';
 import { getAccountDetail, type AccountDetail } from '../../server/fn/accounts.ts';
 import type { Result } from '../../server/access.ts';
 import { CategoryIcon } from '../category-icon.tsx';
@@ -200,7 +201,12 @@ export function AccountDetailPanel({
             <h3 className="text-[12.5px] text-muted-fg">{m.accounts_recent()}</h3>
             <Link
               to="/transactions"
-              search={{ account: account.id }}
+              // Every transaction of the account, not just this period's (the page defaults to the current one).
+              search={
+                loaded.value.firstDate === null
+                  ? { account: account.id }
+                  : { account: account.id, range: rangeSince(loaded.value.firstDate, loaded.value.today) }
+              }
               className="rounded-[6px] px-1.5 py-0.5 text-[12px] text-muted-fg hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
             >
               {m.accounts_view_transactions_all()}
