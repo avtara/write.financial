@@ -110,7 +110,10 @@ export interface MoneyFlowInput {
     readonly group: CategoryGroup;
     readonly amountMinor: bigint;
   }[];
-  /** Amounts sent by transfers to each destination account in the range, positive. */
+  /**
+   * What reached each savings or investment account in the range from everyday accounts, net of what came back,
+   * positive (accounts with a net withdrawal are left out).
+   */
   readonly transfers: readonly { readonly accountId: string; readonly amountMinor: bigint }[];
 }
 

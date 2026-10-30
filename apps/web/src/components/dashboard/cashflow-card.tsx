@@ -70,7 +70,7 @@ export function CashflowCard({ dashboard, locale }: CashflowCardProps) {
         : year
           ? m.overview_cashflow_net_year({ year: dashboard.ranges.full.from.slice(0, 4) })
           : m.overview_cashflow_net({ what: current.label }),
-      value: <Money minor={dashboard.kpis.current.savedMinor} currency={currency} context="delta" locale={locale} />,
+      value: <Money minor={dashboard.kpis.current.leftoverMinor} currency={currency} context="delta" locale={locale} />,
     },
     {
       label: week
@@ -304,8 +304,11 @@ interface CashflowTooltipProps {
 function CashflowTooltip({ columns, index, x, width, currency, locale }: CashflowTooltipProps) {
   const column = columns[index] as CashflowColumn;
   const previous = index > 0 ? columns[index - 1] : undefined;
-  const savedMinor = column.incomeMinor - column.expenseMinor;
-  const rate = column.incomeMinor > 0n ? Number(savedMinor) / Number(column.incomeMinor) : null;
+  const differenceMinor = column.incomeMinor - column.expenseMinor;
+  const rate =
+    column.savedMinor !== null && column.incomeMinor > 0n
+      ? Number(column.savedMinor) / Number(column.incomeMinor)
+      : null;
   const spendBps = previous === undefined ? null : changeBps(column.expenseMinor, previous.expenseMinor);
   const place = (element: HTMLDivElement | null) => {
     if (element === null) return;
@@ -322,7 +325,7 @@ function CashflowTooltip({ columns, index, x, width, currency, locale }: Cashflo
         <span className="font-medium text-fg">{column.title}</span>
         <span className="text-[11px] text-subtle">
           {m.overview_cashflow_tip_difference()}{' '}
-          <Money minor={savedMinor} currency={currency} context="delta" locale={locale} className="text-fg" />
+          <Money minor={differenceMinor} currency={currency} context="delta" locale={locale} className="text-fg" />
         </span>
       </div>
       <dl className="flex flex-col gap-1">

@@ -100,7 +100,7 @@ export function ReportsKpis({ view, locale, today }: ReportsKpisProps) {
         />
         <ChangeLine bps={delta?.expenseBps ?? null} good={false} locale={locale} vs={vsText} />
       </Tile>
-      <Tile label={m.overview_kpi_saved()}>
+      <Tile label={m.overview_kpi_leftover()}>
         <Money
           minor={totals.savedMinor}
           currency={REPORTS_CURRENCY}

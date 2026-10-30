@@ -5,7 +5,7 @@ import { renderApp } from '../../../test/render.tsx';
 import { KpiCards } from './kpi-cards.tsx';
 
 describe('KpiCards', () => {
-  it('shows the four figures with their like-for-like change', async () => {
+  it('shows the five figures with their like-for-like change', async () => {
     const { kpis } = dashboard();
     const { screen } = await renderApp(<KpiCards kpis={kpis} comparison="vs Sep" currency="IDR" locale="id" />);
     const region = screen.getByRole('region', { name: 'Angka utama' });
@@ -16,7 +16,7 @@ describe('KpiCards', () => {
       .element(region.getByRole('group', { name: 'Pengeluaran' }))
       .toMatchTextContent('Rp16.500.000−9,84%vs Sep');
     await expect
-      .element(region.getByRole('group', { name: 'Ditabung & Investasi' }))
+      .element(region.getByRole('group', { name: 'Ditabung', exact: true }))
       .toMatchTextContent('Rp9.500.000+26,67%vs Sep');
     await expect.element(region.getByRole('group', { name: 'Saving Rate' })).toMatchTextContent('36,54%Target 30,00%');
     // Less spending is good news, more is not.
@@ -27,7 +27,7 @@ describe('KpiCards', () => {
     const { kpis } = dashboard({
       kpis: {
         ...dashboard().kpis,
-        change: { incomeBps: -1200, expenseBps: 1500, savedBps: null, savingRateBps: null },
+        change: { incomeBps: -1200, expenseBps: 1500, leftoverBps: null, savedBps: null, savingRateBps: null },
         current: { ...dashboard().kpis.current, savingRateBps: null },
       },
     });
@@ -35,8 +35,8 @@ describe('KpiCards', () => {
     expect(screen.getByText('−12,00%').element().getAttribute('class')).toContain('text-red-fg');
     expect(screen.getByText('+15,00%').element().getAttribute('class')).toContain('text-red-fg');
     // Unknown change: neither a badge nor a lone "vs 2025".
-    const saved = screen.getByRole('group', { name: 'Ditabung & Investasi' });
-    await expect.element(saved).toMatchTextContent(/^Ditabung & InvestasiRp[\d.]+$/);
+    const saved = screen.getByRole('group', { name: 'Ditabung', exact: true });
+    await expect.element(saved).toMatchTextContent(/^DitabungRp[\d.]+$/);
     await expect.element(screen.getByRole('group', { name: 'Pemasukan' })).toMatchTextContent(/vs 2025$/);
     const flat = { ...kpis, change: { ...kpis.change, savedBps: 0 } };
     const { screen: again } = await renderApp(<KpiCards kpis={flat} comparison="vs 2025" currency="IDR" locale="id" />);

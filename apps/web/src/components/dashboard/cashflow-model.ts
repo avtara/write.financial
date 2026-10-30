@@ -19,6 +19,8 @@ export interface CashflowColumn {
   readonly title: string;
   readonly incomeMinor: bigint;
   readonly expenseMinor: bigint;
+  /** Moved to savings and investment accounts (the period's "Ditabung"); `null` for a week's days. */
+  readonly savedMinor: bigint | null;
   /** The column containing the end of what is shown (highlighted). */
   readonly current: boolean;
   /** Not started yet: an empty placeholder. */
@@ -39,6 +41,7 @@ export function cashflowColumns(dashboard: Dashboard, locale: Locale): CashflowC
         title: dayTitle(date, locale),
         incomeMinor: day?.inMinor ?? 0n,
         expenseMinor: day?.outMinor ?? 0n,
+        savedMinor: null,
         current: date === today,
         future: date > today,
       };
@@ -51,6 +54,7 @@ export function cashflowColumns(dashboard: Dashboard, locale: Locale): CashflowC
     title: `${monthName(period.label, locale, 'long')} ${period.label.slice(0, 4)}`,
     incomeMinor: period.incomeMinor,
     expenseMinor: period.expenseMinor,
+    savedMinor: period.savedMinor,
     current: period.start <= end && end <= period.end,
     future: period.start > today,
   }));
