@@ -25,7 +25,7 @@ describe('AccountsCard', () => {
     await expect.element(region.getByRole('button', { name: /Saldo tersedia/ })).toMatchTextContent('Rp55.023.000');
     // BCA +1.200.000, Jago +500.000, OVO −400.000.
     await expect.element(region.getByRole('button', { name: /lainnya/ })).toMatchTextContent('+1.300.000bulan ini');
-    await expect.element(region.getByRole('button', { name: /BCA Visa/ })).toMatchTextContent('+0bulan ini');
+    await expect.element(region.getByRole('button', { name: /BCA Visa/ })).toMatchTextContent('0bulan ini');
     await expect
       .element(region.getByRole('link', { name: 'Semua transaksi' }))
       .toHaveAttribute('href', '/transactions?period=2026-10');
@@ -49,7 +49,7 @@ describe('AccountsCard', () => {
     const flows = dashboard({ accounts: [{ accountId: 'acc-usd', inflowMinor: 99_900n, outflowMinor: 0n }] });
     const { screen } = await renderApp(<AccountsCard overview={overview} dashboard={flows} />);
     expect(screen.getByRole('button', { name: /Investasi/ }).query()).toBeNull();
-    await expect.element(screen.getByRole('button', { name: /lainnya/ })).toMatchTextContent('+0bulan ini');
+    await expect.element(screen.getByRole('button', { name: /lainnya/ })).toMatchTextContent('0bulan ini');
     // A foreign platform adds no tile either: no amount of it is shown outside the investments page.
     const foreign = account({ id: 'acc-us', displayName: 'Gotrade US', type: 'investment', currency: 'USD' });
     const { screen: second } = await renderApp(
