@@ -232,6 +232,13 @@
       "when": 1793365864269,
       "tag": "0032_catalog_services",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793379363067,
+      "tag": "0033_drop_default_quick_entry",
+      "breakpoints": true
     }
   ]
 }

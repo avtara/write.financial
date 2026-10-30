@@ -14,13 +14,11 @@ const fns = vi.hoisted(() => ({
   listPeriods: vi.fn(),
   listAccounts: vi.fn(),
   listCategories: vi.fn(),
-  listTags: vi.fn(),
   getProfile: vi.fn(),
   getBudgetStatus: vi.fn(),
   getDashboard: vi.fn(),
   listSubscriptions: vi.fn(),
   listScheduled: vi.fn(),
-  listAutoRules: vi.fn(),
   getDashboardLayout: vi.fn(),
   listGoals: vi.fn(),
 }));
@@ -34,9 +32,7 @@ vi.mock('../../server/fn/budget.ts', () => ({
 vi.mock('../../server/fn/ledger.ts', () => ({
   listAccounts: fns.listAccounts,
   listCategories: fns.listCategories,
-  listTags: fns.listTags,
 }));
-vi.mock('../../server/fn/rules.ts', () => ({ listAutoRules: fns.listAutoRules }));
 vi.mock('../../server/fn/account.ts', () => ({ getProfile: fns.getProfile }));
 vi.mock('../../server/fn/schedules.ts', () => ({
   listSubscriptions: fns.listSubscriptions,
@@ -62,13 +58,11 @@ function answer() {
   fns.listPeriods.mockResolvedValue(ok(periodsOverview()));
   fns.listAccounts.mockResolvedValue(ok({ accounts: [] }));
   fns.listCategories.mockResolvedValue(ok([]));
-  fns.listTags.mockResolvedValue(ok([]));
   fns.getProfile.mockResolvedValue(ok({ name: 'Avtara K.', nickname: 'Avtara' }));
   fns.getBudgetStatus.mockResolvedValue(ok({ lines: [] }));
   fns.getDashboard.mockResolvedValue(ok(dashboard()));
   fns.listSubscriptions.mockResolvedValue(ok({ subscriptions: [] }));
   fns.listScheduled.mockResolvedValue(ok([]));
-  fns.listAutoRules.mockResolvedValue(ok([]));
   fns.getDashboardLayout.mockResolvedValue(ok(DEFAULT_DASHBOARD_LAYOUT));
   fns.listGoals.mockResolvedValue(ok(['goal']));
 }

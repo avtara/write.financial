@@ -21,7 +21,7 @@ type ProjectUse = Partial<PlaywrightTestOptions & PlaywrightWorkerOptions>;
  * - `budget`: Anggaran, Settings › Periode bulanan, and the Record sheet's budget impact (FR-B1–B5, P1–P3, T3),
  * - `dashboard`: Ringkasan (FR-D1/D2/D4, FR-S7): October's KPIs, Week/Year, the custom range, 1440/1024/768, keyboard
  *   only, offline,
- * - `record`: Record Transaction and the Quick Add bar (FR-T1–T4, T8, T9),
+ * - `record`: Record Transaction (FR-T1–T4, T8, T9),
  * - `cmdk`: the ⌘K palette, keyboard only,
  * - `transactions`: the Transactions page (FR-L1–L6: filters, views, bulk, detail edit, split, delete + Urungkan,
  *   keyboard, 1440/1024/768),

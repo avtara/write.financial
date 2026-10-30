@@ -261,7 +261,7 @@ describe('period close edge cases', () => {
       leftover: false,
       created: 0,
     });
-    // September: Rp60.000 left, but no goal and no quick-entry account yet; the user picks them on the card.
+    // September: Rp60.000 left from the first account (BCA), but no goal yet; the user picks it on the card.
     expect(await asWorker(() => close().propose(userId, september as string, JOB))).toEqual({
       rollovers: 0,
       leftover: true,
@@ -274,7 +274,7 @@ describe('period close edge cases', () => {
         periodId: september,
         amountMinor: 60_000n,
         goalId: null,
-        fromAccountId: null,
+        fromAccountId: ledger.bca,
         toAccountId: null,
       },
     ]);

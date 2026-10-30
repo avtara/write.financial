@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The budget seen from the Record Transaction sheet and the Quick Add bar: FR-T2's note beside a category in the
+ * The budget seen from the Record Transaction sheet: FR-T2's note beside a category in the
  * picker ("sisa Rp300.000", "lewat Rp400.000", "akan lewat Rp…" once the typed amount would exceed what is left) and
  * FR-T3's impact line ("Anggaran Transportasi jadi 73% · Rp1.460.000 / 2.000.000").
  */

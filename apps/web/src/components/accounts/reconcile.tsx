@@ -4,7 +4,7 @@
  * and records it as (a) a categorized expense/income or (c) a correction kept out of reports. (b) "Ada transaksi
  * yang terlewat" needs the Transactions page, which does not exist yet.
  *
- * Any screen opens it through `useReconcile().openReconcile(accountId)` (e.g. Quick Add's insufficient-balance
+ * Any screen opens it through `useReconcile().openReconcile(accountId)` (e.g. an insufficient-balance
  * warning); `<ReconcileProvider>` is mounted once in the `_app` layout, loads the account and categories on open, and
  * refreshes the route data after saving.
  */

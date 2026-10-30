@@ -17,7 +17,7 @@ vi.mock('../../server/fn/onboarding.ts', () => ({
   },
 }));
 
-const bca = accountView({ displayName: 'BCA Tahapan', isDefaultQuickEntry: true });
+const bca = accountView({ displayName: 'BCA Tahapan' });
 const jago = accountView({ displayName: 'Bank Jago' });
 const usd = accountView({ displayName: 'Gotrade', currency: 'USD', type: 'investment' });
 const card = accountView({ displayName: 'Kartu', type: 'credit_card' });
@@ -67,6 +67,19 @@ describe('GoalStep', () => {
       },
     });
     expect(onSaved).toHaveBeenCalled();
+  });
+
+  it('keeps the goal in an account left out of the available balance, else the only one', async () => {
+    const savings = { ...usd, includeInAvailable: false };
+    const first = await renderStep({
+      accounts: { baseCurrency: 'IDR', accounts: [bca, jago, savings], availableMinor: 0n, missingRates: [] },
+    });
+    await expect.element(first.screen.getByRole('combobox', { name: 'Simpan di' })).toHaveValue(savings.id);
+    await first.screen.unmount();
+    const only = await renderStep({
+      accounts: { baseCurrency: 'IDR', accounts: [card, bca], availableMinor: 0n, missingRates: [] },
+    });
+    await expect.element(only.screen.getByRole('combobox', { name: 'Simpan di' })).toHaveValue(bca.id);
   });
 
   it('starts the other presets without a target and asks for what a contribution needs', async () => {

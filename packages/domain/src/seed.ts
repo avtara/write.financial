@@ -28,7 +28,6 @@ export interface SeedAccount {
   readonly openingDate: string;
   readonly color: string;
   readonly includeInAvailable: boolean;
-  readonly isDefaultQuickEntry: boolean;
 }
 
 export type SeedTransaction =
@@ -294,7 +293,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'blue',
     includeInAvailable: true,
-    isDefaultQuickEntry: true,
   },
   // 8.125.000 = 7.625.000 + 500.000 "Kantong darurat"
   {
@@ -309,7 +307,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'orange',
     includeInAvailable: true,
-    isDefaultQuickEntry: false,
   },
   // 3.240.000 = 3.840.000 + 1.300.000 in − 1.900.000 out
   {
@@ -324,7 +321,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'yellow',
     includeInAvailable: true,
-    isDefaultQuickEntry: false,
   },
   // 412.000 = 812.000 − 400.000
   {
@@ -339,7 +335,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'green',
     includeInAvailable: true,
-    isDefaultQuickEntry: false,
   },
   // 86.000 = 136.000 − 50.000
   {
@@ -354,7 +349,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'violet',
     includeInAvailable: true,
-    isDefaultQuickEntry: false,
   },
   // 350.000 = 500.000 − 150.000
   {
@@ -369,7 +363,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'amber',
     includeInAvailable: true,
-    isDefaultQuickEntry: false,
   },
   // Platform cash only (holdings are investment trades): US$51,99 on 15 Okt = US$51,63 + US$366,97 top-up − US$366,61
   // DCA (SPY US$244,29 + SCHD US$122,32); with the holdings Gotrade is worth Rp45.420.000 (US$2.778).
@@ -385,7 +378,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'cyan',
     includeInAvailable: false,
-    isDefaultQuickEntry: false,
   },
   // No cash; holds BTC Rp5.500.000.
   {
@@ -400,7 +392,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'blue',
     includeInAvailable: false,
-    isDefaultQuickEntry: false,
   },
   // No cash; holds BBCA, BBRI, TLKM Rp4.300.000.
   {
@@ -415,7 +406,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'red',
     includeInAvailable: false,
-    isDefaultQuickEntry: false,
   },
   // No cash; holds XAU Rp3.700.000.
   {
@@ -430,7 +420,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'violet',
     includeInAvailable: false,
-    isDefaultQuickEntry: false,
   },
   // No cash: the 14 Okt Rp3.000.000 paid the RDPU buy, still "diproses" (NAB 16 Okt); holds IDX30 1.000.000 + ORI
   // 1.500.000 (Section 01 "Bibit RDPU · Reksa dana & SBN · Rp2.500.000").
@@ -446,7 +435,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'green',
     includeInAvailable: false,
-    isDefaultQuickEntry: false,
   },
 ];
 

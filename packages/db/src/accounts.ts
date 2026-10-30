@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Money accounts (FR-R1–R6): balances, the available balance, flags (cards, Quick Add default), archive/restore,
+ * Money accounts (FR-R1–R6): balances, the available balance, flags (cards), archive/restore,
  * permanent deletion, reconciliation, and the detail panel's flows and monthly series.
  *
  * Balance = opening balance + Σ postings of non-deleted transactions + Σ balance adjustments. An account is
@@ -35,7 +35,6 @@ const ACCOUNT_COLUMNS = {
   openingDate: accounts.openingDate,
   color: accounts.color,
   includeInAvailable: accounts.includeInAvailable,
-  isDefaultQuickEntry: accounts.isDefaultQuickEntry,
   sortOrder: accounts.sortOrder,
   status: accounts.status,
   archivedAt: accounts.archivedAt,
@@ -97,8 +96,6 @@ export interface AccountInput {
   readonly last4?: string | null;
   readonly phoneMasked?: string | null;
   readonly includeInAvailable?: boolean;
-  /** One per user; the first active account becomes the default automatically. */
-  readonly isDefaultQuickEntry?: boolean;
   readonly lowBalanceThresholdMinor?: bigint | null;
   readonly ccLimitMinor?: bigint | null;
   /** 1–31. */
@@ -151,15 +148,11 @@ export interface AccountsRepository {
   get: (userId: string, id: string) => Promise<AccountView>;
   /** @throws {LedgerError} `INVALID_ACCOUNT`, `TOO_MANY_CARDS`, `NOT_FOUND` (parent account) */
   create: (userId: string, input: AccountInput) => Promise<AccountView>;
-  /** @throws {LedgerError} `NOT_FOUND`, `INVALID_ACCOUNT`, `ACCOUNT_LOCKED`, `ACCOUNT_ARCHIVED`, `TOO_MANY_CARDS` */
+  /** @throws {LedgerError} `NOT_FOUND`, `INVALID_ACCOUNT`, `ACCOUNT_LOCKED`, `TOO_MANY_CARDS` */
   update: (userId: string, id: string, patch: Partial<AccountInput>) => Promise<AccountView>;
-  /**
-   * FR-R5. A default account hands the default to `newDefaultId` (must be active) or, when omitted, to the first
-   * remaining active account. Archiving an archived account changes nothing.
-   * @throws {LedgerError} `NOT_FOUND`, `ACCOUNT_ARCHIVED` (new default)
-   */
-  archive: (userId: string, id: string, options?: { readonly newDefaultId?: string | null }) => Promise<AccountView>;
-  /** Makes the account active again (and the default when the user has none). @throws {LedgerError} `NOT_FOUND` */
+  /** FR-R5. Archiving an archived account changes nothing. @throws {LedgerError} `NOT_FOUND` */
+  archive: (userId: string, id: string) => Promise<AccountView>;
+  /** Makes the account active again. @throws {LedgerError} `NOT_FOUND` */
   restore: (userId: string, id: string) => Promise<AccountView>;
   /**
    * Deletes an archived account with every transaction that has a posting on it (including soft-deleted ones and
@@ -215,7 +208,6 @@ const INPUT_KEYS = [
   'last4',
   'phoneMasked',
   'includeInAvailable',
-  'isDefaultQuickEntry',
   'lowBalanceThresholdMinor',
   'ccLimitMinor',
   'ccStatementDay',
@@ -374,19 +366,13 @@ async function viewIn(tx: Transaction, userId: string, id: string, now: Date): P
 interface LockedAccount {
   readonly id: string;
   readonly status: 'active' | 'archived';
-  readonly isDefaultQuickEntry: boolean;
   readonly sortOrder: number;
 }
 
-/** Every account of the user, locked (`FOR UPDATE`) so card and default rules hold under concurrency. */
+/** Every account of the user, locked (`FOR UPDATE`) so card rules and sort order hold under concurrency. */
 function lockAllIn(tx: Transaction): Promise<LockedAccount[]> {
   return tx
-    .select({
-      id: accounts.id,
-      status: accounts.status,
-      isDefaultQuickEntry: accounts.isDefaultQuickEntry,
-      sortOrder: accounts.sortOrder,
-    })
+    .select({ id: accounts.id, status: accounts.status, sortOrder: accounts.sortOrder })
     .from(accounts)
     .orderBy(asc(accounts.sortOrder), asc(accounts.createdAt), asc(accounts.id))
     .for('update');
@@ -447,17 +433,12 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         checkCatalog(values);
         await checkParentIn(tx, values.parentAccountId);
         const rows = await lockAllIn(tx);
-        // A default can only be active (check constraint), so any default row means the user has one.
-        const isDefault = values.isDefaultQuickEntry === true || !rows.some((row) => row.isDefaultQuickEntry);
-        if (isDefault) {
-          await tx.update(accounts).set({ isDefaultQuickEntry: false }).where(eq(accounts.isDefaultQuickEntry, true));
-        }
         const sortOrder = rows.reduce((max, row) => Math.max(max, row.sortOrder + 1), 0);
         // `userId` last: an input smuggled past the type system cannot retarget the row.
         const { id } = firstRow(
           await tx
             .insert(accounts)
-            .values({ ...values, isDefaultQuickEntry: isDefault, sortOrder, userId })
+            .values({ ...values, sortOrder, userId })
             .returning({ id: accounts.id }),
           'accounts',
         );
@@ -468,8 +449,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
     update: (userId, id, patch) =>
       withUser(db, userId, async (tx) => {
         const patched = normalize(patch);
-        const rows = await lockAllIn(tx);
-        const current = findLocked(rows, id);
+        findLocked(await lockAllIn(tx), id);
         const before = await viewIn(tx, userId, id, now());
         const relinks =
           patched.providerName !== undefined || patched.type !== undefined || patched.catalogId !== undefined;
@@ -478,11 +458,6 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         if (before.locked && LOCKED_KEYS.some((key) => values[key] !== undefined && values[key] !== before[key])) {
           throw new LedgerError('ACCOUNT_LOCKED');
         }
-        const archived = current.status === 'archived';
-        if (values.isDefaultQuickEntry === true && !current.isDefaultQuickEntry) {
-          if (archived) throw new LedgerError('ACCOUNT_ARCHIVED');
-          await tx.update(accounts).set({ isDefaultQuickEntry: false }).where(eq(accounts.isDefaultQuickEntry, true));
-        }
         await checkParentIn(tx, values.parentAccountId, id);
         const fields = Object.keys(values);
         if (fields.length > 0) await tx.update(accounts).set(values).where(eq(accounts.id, id));
@@ -490,42 +465,20 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         return viewIn(tx, userId, id, now());
       }),
 
-    archive: (userId, id, { newDefaultId } = {}) =>
+    archive: (userId, id) =>
       withUser(db, userId, async (tx) => {
-        const rows = await lockAllIn(tx);
-        const current = findLocked(rows, id);
+        const current = findLocked(await lockAllIn(tx), id);
         if (current.status === 'archived') return viewIn(tx, userId, id, now());
-        let nextDefault: string | undefined;
-        if (current.isDefaultQuickEntry) {
-          if (newDefaultId == null) {
-            nextDefault = rows.find((row) => row.status === 'active' && row.id !== id)?.id;
-          } else {
-            const target = findLocked(rows, newDefaultId);
-            if (target.status === 'archived' || target.id === id) throw new LedgerError('ACCOUNT_ARCHIVED');
-            nextDefault = target.id;
-          }
-        }
-        await tx
-          .update(accounts)
-          .set({ status: 'archived', archivedAt: now(), isDefaultQuickEntry: false })
-          .where(eq(accounts.id, id));
-        if (nextDefault !== undefined) {
-          await tx.update(accounts).set({ isDefaultQuickEntry: true }).where(eq(accounts.id, nextDefault));
-        }
-        await logActivity(tx, userId, 'account', [id], 'archived', nextDefault ? { newDefaultId: nextDefault } : {});
+        await tx.update(accounts).set({ status: 'archived', archivedAt: now() }).where(eq(accounts.id, id));
+        await logActivity(tx, userId, 'account', [id], 'archived');
         return viewIn(tx, userId, id, now());
       }),
 
     restore: (userId, id) =>
       withUser(db, userId, async (tx) => {
-        const rows = await lockAllIn(tx);
-        const current = findLocked(rows, id);
+        const current = findLocked(await lockAllIn(tx), id);
         if (current.status === 'active') return viewIn(tx, userId, id, now());
-        const hasDefault = rows.some((row) => row.isDefaultQuickEntry);
-        await tx
-          .update(accounts)
-          .set({ status: 'active', archivedAt: null, isDefaultQuickEntry: !hasDefault })
-          .where(eq(accounts.id, id));
+        await tx.update(accounts).set({ status: 'active', archivedAt: null }).where(eq(accounts.id, id));
         await logActivity(tx, userId, 'account', [id], 'restored');
         return viewIn(tx, userId, id, now());
       }),

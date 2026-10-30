@@ -15,7 +15,6 @@ vi.mock('../../server/fn/accounts.ts', () => server);
 const BCA = accountView({
   displayName: 'BCA Tahapan',
   balanceMinor: 42_810_000n,
-  isDefaultQuickEntry: true,
   lastReconciledAt: new Date('2026-10-14T05:00:00Z'),
 });
 const JAGO = accountView({ displayName: 'Bank Jago' });
@@ -108,7 +107,6 @@ describe('AccountDetailPanel', () => {
     const { screen, onReconcile, onEdit, onArchive } = await renderPanel();
     await expect.element(screen.getByRole('heading', { name: 'BCA Tahapan' })).toBeVisible();
     await expect.element(screen.getByText('Bank · IDR · •• 4821')).toBeVisible();
-    await expect.element(screen.getByText('Default Catat Cepat')).toBeVisible();
     await expect.element(screen.getByText('+1.200.000')).toBeVisible();
     expect(server.getAccountDetail).toHaveBeenCalledWith({ data: { id: BCA.id } });
     await expect.element(screen.getByRole('img', { name: 'Saldo 6 bulan' })).toBeVisible();
@@ -142,21 +140,16 @@ describe('AccountDetailPanel', () => {
     expect([onReconcile, onEdit, onArchive].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1]);
   });
 
-  it('toggles the flags, explaining a full card strip', async () => {
+  it('toggles the available flag, explaining a full card strip', async () => {
     server.getAccountDetail.mockResolvedValue(
       detail({ flows: { inflowMinor: 0n, outflowMinor: 0n, transferInMinor: 5n, transferOutMinor: 0n } }),
     );
-    const account = { ...BCA, isDefaultQuickEntry: false } satisfies AccountView;
-    const { screen, onToggle } = await renderPanel({ account });
+    const { screen, onToggle } = await renderPanel();
     await expect.element(screen.getByText('Transfer masuk')).toBeVisible();
     await expect.element(screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ })).toBeDisabled();
     await expect.element(screen.getByText('Maks 3 rekening jadi kartu')).toBeVisible();
     await userEvent.click(screen.getByRole('switch', { name: /Hitung dalam saldo tersedia/ }));
-    await userEvent.click(screen.getByRole('switch', { name: /Default untuk Catat Cepat/ }));
-    expect(onToggle.mock.calls).toEqual([
-      ['includeInAvailable', false],
-      ['isDefaultQuickEntry', true],
-    ]);
+    expect(onToggle.mock.calls).toEqual([['includeInAvailable', false]]);
     await expect.element(screen.getByText('Belum ada transaksi di rekening ini.')).toBeVisible();
   });
 
@@ -213,7 +206,7 @@ describe('AccountDetailPanel', () => {
 
   it('shows archived accounts read-only', async () => {
     server.getAccountDetail.mockResolvedValue(detail());
-    const archived = { ...BCA, status: 'archived', isDefaultQuickEntry: false, lastReconciledAt: null } as AccountView;
+    const archived = { ...BCA, status: 'archived', lastReconciledAt: null } as AccountView;
     const { screen } = await renderPanel({ account: archived });
     await expect.element(screen.getByRole('img', { name: 'Saldo 6 bulan' })).toBeVisible();
     await expect.element(screen.getByRole('button', { name: 'Sesuaikan saldo' })).not.toBeInTheDocument();

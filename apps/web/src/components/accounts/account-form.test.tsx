@@ -142,7 +142,6 @@ describe('AccountForm', () => {
         last4: '7710',
         phoneMasked: null,
         includeInAvailable: true,
-        isDefaultQuickEntry: false,
         lowBalanceThresholdMinor: null,
         ccLimitMinor: null,
         ccStatementDay: null,
@@ -232,7 +231,6 @@ describe('AccountForm', () => {
     await userEvent.fill(screen.getByRole('textbox', { name: 'Saldo awal' }), '100');
     await userEvent.click(screen.getByRole('switch', { name: /Hitung dalam saldo tersedia/ }));
     await userEvent.click(screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ }));
-    await userEvent.click(screen.getByRole('switch', { name: /Default Catat Cepat/ }));
     await userEvent.fill(screen.getByRole('textbox', { name: 'Batas saldo rendah' }), '50');
     // A color input has no text to type; set it as the native picker does (React tracks the value setter).
     const custom = screen.getByLabelText('Warna kustom').element();
@@ -258,7 +256,6 @@ describe('AccountForm', () => {
         openingDate: '2026-10-01',
         color: '#22c55e',
         includeInAvailable: false,
-        isDefaultQuickEntry: true,
         lowBalanceThresholdMinor: 50n,
       }) as unknown,
     });
@@ -272,12 +269,7 @@ describe('AccountForm', () => {
   });
 
   it('edits a locked account without sending the locked fields', async () => {
-    const account = accountView({
-      displayName: 'BCA Tahapan',
-      locked: true,
-      transactionCount: 214,
-      isDefaultQuickEntry: true,
-    });
+    const account = accountView({ displayName: 'BCA Tahapan', locked: true, transactionCount: 214 });
     const { screen, onCancel } = await renderForm({
       account,
       submitLabel: 'Simpan perubahan',
@@ -289,7 +281,6 @@ describe('AccountForm', () => {
     await expect.element(screen.getByRole('textbox', { name: 'Mata uang' })).toBeDisabled();
     await expect.element(screen.getByRole('textbox', { name: 'Saldo awal' })).toBeDisabled();
     await expect.element(screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ })).toBeEnabled();
-    await expect.element(screen.getByRole('switch', { name: /Default Catat Cepat/ })).toBeDisabled();
     await expect.element(screen.getByText('Tidak perlu login bank')).toBeVisible();
     // The date cannot change either.
     await userEvent.click(screen.getByRole('button', { name: 'Sejak' }));

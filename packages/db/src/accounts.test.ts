@@ -51,7 +51,6 @@ function inputOf(account: SeedAccount): AccountInput {
     openingDate: day(account.openingDate),
     color: account.color,
     includeInAvailable: account.includeInAvailable,
-    isDefaultQuickEntry: account.isDefaultQuickEntry,
   };
 }
 
@@ -102,11 +101,6 @@ const addUsdRate = () =>
   test.query(
     `INSERT INTO fx_rates (base, quote, rate, provider, rate_type, as_of) VALUES ('USD', 'IDR', '16350', 'test', 'blended', '2026-10-15')`,
   );
-
-const defaults = async (user: string) =>
-  (await asApp(() => repo.list(user, { status: 'all' }))).accounts
-    .filter((account) => account.isDefaultQuickEntry)
-    .map((account) => account.displayName);
 
 /** Seed balances: salary and rent on BCA, a transfer with a fee to Jago, and a soft-deleted GoPay expense. */
 async function seedFlows(user: string, ids: Record<string, string>): Promise<void> {
@@ -164,7 +158,6 @@ describe('list and get', () => {
     expect(overview.accounts[0]).toMatchObject({
       providerName: 'Bank Central Asia',
       last4: '4821',
-      isDefaultQuickEntry: true,
       status: 'active',
       openingDate: seedAccount('bca').openingDate,
     });
@@ -248,14 +241,12 @@ describe('catalog providers', () => {
 });
 
 describe('create', () => {
-  it('makes the first account the default and keeps a single default', async () => {
+  it('appends each account to the user order', async () => {
     const first = await asApp(() => repo.create(alice, plain({ displayName: 'First' })));
-    expect(first).toMatchObject({ isDefaultQuickEntry: true, sortOrder: 0, locked: false, transactionCount: 0 });
+    expect(first).toMatchObject({ sortOrder: 0, locked: false, transactionCount: 0 });
     await asApp(() => repo.create(alice, plain({ displayName: 'Second' })));
-    expect(await defaults(alice)).toEqual(['First']);
-    const third = await asApp(() => repo.create(alice, plain({ displayName: 'Third', isDefaultQuickEntry: true })));
+    const third = await asApp(() => repo.create(alice, plain({ displayName: 'Third' })));
     expect(third.sortOrder).toBe(2);
-    expect(await defaults(alice)).toEqual(['Third']);
     expect(
       (await asApp(() => createActivity(test.db).list(alice, 'account', third.id))).map((entry) => entry.action),
     ).toEqual(['created']);
@@ -337,24 +328,6 @@ describe('update', () => {
     expect(renamed).toMatchObject({ displayName: 'Utama', locked: true, transactionCount: 1, balanceMinor: -995n });
   });
 
-  it('keeps one default', async () => {
-    const ids = await createAvailable(alice);
-    await asApp(() => repo.update(alice, ids.mandiri as string, { isDefaultQuickEntry: true }));
-    expect(await defaults(alice)).toEqual(['Mandiri']);
-    await asApp(() => repo.update(alice, ids.mandiri as string, { isDefaultQuickEntry: true }));
-    expect(await defaults(alice)).toEqual(['Mandiri']);
-  });
-
-  it('refuses the default flag on archived accounts', async () => {
-    const ids = await createAvailable(alice);
-    await asApp(() => repo.archive(alice, ids.ovo as string));
-    await expect(
-      asApp(() => repo.update(alice, ids.ovo as string, { isDefaultQuickEntry: true })),
-    ).rejects.toMatchObject({
-      code: 'ACCOUNT_ARCHIVED',
-    });
-  });
-
   it('validates the patch and the parent', async () => {
     const account = await asApp(() => repo.create(alice, plain()));
     const other = await asApp(() => repo.create(alice, plain({ displayName: 'Other' })));
@@ -390,54 +363,29 @@ describe('update', () => {
 });
 
 describe('archive and restore', () => {
-  it('hands the default to the next active account or the chosen one (FR-R5)', async () => {
+  it('archives an account once, logging it (FR-R5)', async () => {
     const ids = await createAvailable(alice);
-    const archived = await asApp(() => repo.archive(alice, ids.bca as string));
-    expect(archived).toMatchObject({
+    expect(await asApp(() => repo.archive(alice, ids.bca as string))).toMatchObject({
       status: 'archived',
       archivedAt: NOW,
-      isDefaultQuickEntry: false,
     });
-    expect(await defaults(alice)).toEqual(['Bank Jago']);
-
-    await expect(
-      asApp(() => repo.archive(alice, ids.jago as string, { newDefaultId: ids.bca as string })),
-    ).rejects.toMatchObject({ code: 'ACCOUNT_ARCHIVED' });
-    await expect(
-      asApp(() => repo.archive(alice, ids.jago as string, { newDefaultId: ids.jago as string })),
-    ).rejects.toMatchObject({ code: 'ACCOUNT_ARCHIVED' });
-    await expect(
-      asApp(() => repo.archive(alice, ids.jago as string, { newDefaultId: randomUUID() })),
-    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    await asApp(() => repo.archive(alice, ids.jago as string, { newDefaultId: ids.ovo as string }));
-    expect(await defaults(alice)).toEqual(['OVO']);
-
-    await asApp(() => repo.archive(alice, ids.gopay as string, { newDefaultId: ids.cash as string }));
-    expect(await defaults(alice)).toEqual(['OVO']);
+    await expect(asApp(() => repo.archive(alice, randomUUID()))).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
     clock = new Date('2026-10-16T00:00:00Z');
     expect(await asApp(() => repo.archive(alice, ids.bca as string))).toMatchObject({ archivedAt: NOW });
-    const log = await asApp(() => createActivity(test.db).list(alice, 'account', ids.jago as string));
+    const log = await asApp(() => createActivity(test.db).list(alice, 'account', ids.bca as string));
     expect(log.map((entry) => [entry.action, entry.meta])).toEqual([
       ['created', {}],
-      ['archived', { newDefaultId: ids.ovo }],
+      ['archived', {}],
     ]);
   });
 
-  it('leaves no default when nothing is active and restores the default with the first account back', async () => {
+  it('restores an archived account', async () => {
     const first = await asApp(() => repo.create(alice, plain({ displayName: 'First' })));
-    const second = await asApp(() => repo.create(alice, plain({ displayName: 'Second' })));
-    await asApp(() => repo.archive(alice, second.id));
-    await asApp(() => createAccounts(test.db).archive(alice, first.id, { newDefaultId: null }));
-    expect(await defaults(alice)).toEqual([]);
+    await asApp(() => repo.archive(alice, first.id));
     expect((await asApp(() => repo.get(alice, first.id))).archivedAt).toBeInstanceOf(Date);
 
-    expect(await asApp(() => repo.restore(alice, second.id))).toMatchObject({
-      status: 'active',
-      archivedAt: null,
-      isDefaultQuickEntry: true,
-    });
-    expect(await asApp(() => repo.restore(alice, first.id))).toMatchObject({ isDefaultQuickEntry: false });
+    expect(await asApp(() => repo.restore(alice, first.id))).toMatchObject({ status: 'active', archivedAt: null });
     expect(await asApp(() => repo.restore(alice, first.id))).toMatchObject({ status: 'active' });
     await expect(asApp(() => repo.restore(bob, first.id))).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });

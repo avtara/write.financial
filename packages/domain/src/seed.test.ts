@@ -262,10 +262,6 @@ describe('DESIGN_SEED accounts (Section 05 `ycP7T`)', () => {
     ).toBe(true);
   });
 
-  it('has exactly one default quick-entry account', () => {
-    expect(accounts.filter((account) => account.isDefaultQuickEntry).map((account) => account.key)).toEqual(['bca']);
-  });
-
   it('opens every account on 31 Agu 2026 with the 30 Sep balances minus September; only Gotrade is in USD', () => {
     for (const account of accounts) expect(account.openingDate).toBe('2026-08-31');
     expect(Object.fromEntries(accounts.map((account) => [account.key, account.openingBalanceMinor]))).toEqual({

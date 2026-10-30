@@ -33,7 +33,7 @@ export interface TabsTriggerProps extends ComponentProps<typeof TabsPrimitive.Tr
   /** Extra icon classes; target the active tab with `group-data-[state=active]:` (`…:text-red` for Pengeluaran). */
   iconClassName?: string;
   /**
-   * `false` for tabs that switch something in place without a `TabsContent` (the Quick Add bar's type, a table's
+   * `false` for tabs that switch something in place without a `TabsContent` (a transaction type, a table's
    * view): the tab then points to no panel, since an `aria-controls` naming a missing element is invalid ARIA.
    */
   panel?: boolean;

@@ -137,7 +137,7 @@ export interface CategorySelectProps extends PickerCommon, Omit<ComponentProps<'
   readonly placeholder: string;
 }
 
-/** A field-like category picker (Quick Add bar, transfer fee category). */
+/** A field-like category picker (transfer fee category). */
 export function CategorySelect({
   categories,
   kind,

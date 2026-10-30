@@ -44,7 +44,6 @@ export function account(overrides: Partial<AccountView> & Pick<AccountView, 'id'
     openingDate: '2026-01-01' as LocalDate,
     color: 'blue',
     includeInAvailable: true,
-    isDefaultQuickEntry: false,
     sortOrder: 0,
     status: 'active',
     archivedAt: null,
@@ -72,7 +71,6 @@ export const BCA = account({
   last4: '4821',
   balanceMinor: 42_810_000n,
   balanceBaseMinor: 42_810_000n,
-  isDefaultQuickEntry: true,
   sortOrder: 0,
 });
 export const JAGO = account({

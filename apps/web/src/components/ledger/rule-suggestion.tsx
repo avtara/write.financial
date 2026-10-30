@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The inline rule suggestion in the Quick Add bar and the Record sheet (FR-AI1): the matching rules' category and
+ * The inline rule suggestion in the Record sheet (FR-AI1): the matching rules' category and
  * tags, why they matched, and one "Terapkan" that fills only what the draft does not already have. It never replaces
  * the category the user picked and never drops their tags; more than five tags is a warning instead of a truncation.
  * Nothing is saved here — the user still confirms the transaction.
@@ -27,8 +27,6 @@ export interface RuleSuggestionProps {
   readonly subscriptionNames: readonly string[];
   readonly categories: readonly CategoryView[];
   readonly values: TransactionFormValues;
-  /** The Quick Add bar's category came from its own guess, so a rule may replace it; a picked one stays. */
-  readonly categoryIsGuess?: boolean;
   /** Fills the category and/or tags the user accepted. */
   readonly onApply: (values: Partial<TransactionFormValues>) => void;
 }
@@ -37,14 +35,7 @@ const sameTags = (left: readonly string[], right: readonly string[]): boolean =>
   left.length === right.length && left.every((tag) => right.includes(tag));
 
 /** The suggestion for the current draft, or `null` when no enabled rule matches or nothing would change. */
-export function RuleSuggestion({
-  rules,
-  categories,
-  values,
-  subscriptionNames,
-  categoryIsGuess = false,
-  onApply,
-}: RuleSuggestionProps) {
+export function RuleSuggestion({ rules, categories, values, subscriptionNames, onApply }: RuleSuggestionProps) {
   const { preferences } = usePreferences();
   if (values.type === 'transfer' || rules.length === 0) return null;
   const direction = values.type;
@@ -69,7 +60,7 @@ export function RuleSuggestion({
   if (match === undefined) return null;
   const matchedRules = evaluation.rules.filter((entry) => entry.matched);
   const application: RuleApplication = applyRuleSuggestion(
-    { categoryId: categoryIsGuess ? null : values.categoryId, tags: values.tags },
+    { categoryId: values.categoryId, tags: values.tags },
     evaluation,
     {
       categories: categories.map((category) => ({

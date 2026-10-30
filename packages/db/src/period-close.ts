@@ -94,10 +94,13 @@ export function createPeriodClose(
             .where(isNull(goals.archivedAt))
             .orderBy(asc(goals.sortOrder), asc(goals.createdAt))
             .limit(1);
+          // The first active account in the user's order is where everyday money sits.
           const [from] = await tx
             .select({ id: accounts.id })
             .from(accounts)
-            .where(and(eq(accounts.isDefaultQuickEntry, true), eq(accounts.status, 'active')));
+            .where(eq(accounts.status, 'active'))
+            .orderBy(asc(accounts.sortOrder), asc(accounts.createdAt), asc(accounts.id))
+            .limit(1);
           // The account the goal's money went to last: the receiving side of the latest transfer tagged with its tag.
           const [to] =
             goal?.tagId == null

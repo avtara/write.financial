@@ -12,7 +12,7 @@ import { Money } from '@wf/ui/money';
 import { PageState } from '@wf/ui/page-state';
 import { Percent } from '@wf/ui/percent';
 import { Switch } from '@wf/ui/switch';
-import { Archive, ArrowLeftRight, CircleAlert, Pencil, Scale, Zap } from 'lucide-react';
+import { Archive, ArrowLeftRight, CircleAlert, Pencil, Scale } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { accountMeta, axisStart, changeRatio, daysSinceCheck, STALE_AFTER_DAYS } from '../../lib/accounts.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
@@ -27,7 +27,7 @@ import { AccountLogo } from './account-logo.tsx';
 import { BalanceChart } from './balance-chart.tsx';
 
 /** Flags the panel toggles in place. */
-export type AccountFlag = 'includeInAvailable' | 'isDefaultQuickEntry';
+export type AccountFlag = 'includeInAvailable';
 
 export interface AccountDetailPanelProps {
   readonly account: AccountView;
@@ -85,12 +85,6 @@ export function AccountDetailPanel({
       <div className="flex flex-col gap-3 border-b border-border p-5">
         <Money minor={account.balanceMinor} {...money} context="amount" className="text-[28px] font-semibold text-fg" />
         <div className="flex flex-wrap gap-1.5 text-[11.5px]">
-          {account.isDefaultQuickEntry ? (
-            <span className="inline-flex items-center gap-1 rounded-[5px] border border-border px-1.5 py-0.5 text-muted-fg">
-              <Zap aria-hidden="true" className="size-3" />
-              {m.accounts_flag_default()}
-            </span>
-          ) : null}
           {loaded?.ok === true ? (
             <span className="inline-flex items-center gap-1 rounded-[5px] bg-tint-04 px-1.5 py-0.5 font-mono">
               <Money
@@ -181,15 +175,6 @@ export function AccountDetailPanel({
             checked={account.includeInAvailable}
             onChange={(event) => {
               onToggle('includeInAvailable', event.target.checked);
-            }}
-          />
-          <Switch
-            label={m.accounts_flag_default_long()}
-            description={m.accounts_flag_default_hint()}
-            disabled={account.isDefaultQuickEntry}
-            checked={account.isDefaultQuickEntry}
-            onChange={(event) => {
-              onToggle('isDefaultQuickEntry', event.target.checked);
             }}
           />
         </div>

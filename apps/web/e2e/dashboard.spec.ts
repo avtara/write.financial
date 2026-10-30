@@ -17,7 +17,7 @@ test.beforeAll(async ({ browser }) => {
   await setUpProjectUser(browser, user, { persona: true });
 });
 
-/** `/` (or `path`), hydrated: the scope links respond once the Quick Add bar is interactive. */
+/** `/` (or `path`), hydrated: the scope links respond once nothing is in flight. */
 async function openOverview(page: Page, path = '/'): Promise<void> {
   await page.goto(path);
   await expect(page.getByRole('heading', { level: 1, name: /^Selamat (pagi|siang|sore|malam), / })).toBeVisible();
@@ -110,7 +110,6 @@ test('1024 stacks the paired cards and draws two levels of the money flow; 768 h
   await flow.getByRole('button', { name: /^Kebutuhan Rp/ }).focus();
   await page.keyboard.press('Enter');
   await expect(flow.getByRole('button', { name: /^Makan & Dapur/ })).toBeVisible();
-  await expect(page.getByRole('form', { name: 'Catat cepat' }).getByRole('textbox', { name: 'Catatan' })).toBeHidden();
   const cashflow = await page.getByRole('region', { name: 'Pemasukan vs Pengeluaran' }).boundingBox();
   const budget = await page.getByRole('region', { name: 'Anggaran Kategori' }).boundingBox();
   expect(budget?.y ?? 0).toBeGreaterThan((cashflow?.y ?? 0) + (cashflow?.height ?? 0) - 1);
