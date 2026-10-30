@@ -93,8 +93,8 @@ export function AllocationCard({ portfolio, locale, onEditTargets }: AllocationC
       {rows.length === 0 ? (
         <p className="text-[12.5px] text-muted-fg">{m.invest_allocation_empty()}</p>
       ) : (
-        // Legend columns follow the card's width, not the viewport: one in the 380 px side card, two once each column
-        // keeps about 190 px beside the 132 px donut.
+        // Legend columns follow the card's width, not the viewport: one on a phone-width card, two as soon as the
+        // card can give each column ~190 px (the 380 px side card included).
         <div className="@container flex flex-wrap items-center gap-5">
           {/* Centered on its own line in the narrow side card; beside the legend once both fit. */}
           <div className="flex w-full justify-center @[560px]:w-auto">
@@ -121,7 +121,7 @@ export function AllocationCard({ portfolio, locale, onEditTargets }: AllocationC
               </span>
             </div>
           </div>
-          <ul className="grid min-w-[220px] flex-1 grid-cols-1 gap-x-5 gap-y-1.5 @[560px]:grid-cols-2">
+          <ul className="grid min-w-[220px] flex-1 grid-cols-1 gap-x-4 gap-y-1.5 @[400px]:grid-cols-2">
             {rows.map((row) => (
               <li key={row.key} className="flex items-center gap-2 text-[12.5px]">
                 <span aria-hidden="true" className={`size-2 shrink-0 rounded-[2px] ${CLASS_TONE[row.key].dot}`} />
