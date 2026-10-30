@@ -115,7 +115,7 @@
   "accounts_form_error_required": "Required.",
   "accounts_form_free_text": "search or enter manually",
   "accounts_form_last4": "Last 4 digits",
-  "accounts_form_locked": "Currency & opening balance locked",
+  "accounts_form_locked": "Locked",
   "accounts_form_logo_failed": "The account was saved, but its logo could not be uploaded. Use a PNG, JPEG, or WebP up to 2 MB.",
   "accounts_form_logo_hint": "Reference logo when available; upload an image or use an icon",
   "accounts_form_logo_icon": "Use an icon",

@@ -279,7 +279,9 @@ describe('AccountForm', () => {
       submitLabel: 'Simpan perubahan',
       footerNote: 'Tidak perlu login bank',
     });
-    await expect.element(screen.getByText('Mata uang & saldo awal terkunci')).toBeVisible();
+    await expect
+      .element(screen.getByText('Terkunci', { exact: true }))
+      .toHaveAttribute('title', 'Mata uang dan saldo awal terkunci karena rekening ini sudah punya transaksi.');
     await expect.element(screen.getByRole('textbox', { name: 'Mata uang' })).toBeDisabled();
     await expect.element(screen.getByRole('textbox', { name: 'Saldo awal' })).toBeDisabled();
     await expect.element(screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ })).toBeEnabled();

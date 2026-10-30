@@ -262,8 +262,9 @@ export function AccountForm({
     logoKey: logo === null ? (account?.logoKey ?? null) : null,
   };
 
+  // Short under each locked field; the reason on hover.
   const lockedHint = locked ? (
-    <span className="flex items-center gap-1 text-amber-fg">
+    <span title={m.ledger_error_account_locked()} className="flex items-center gap-1 text-amber-fg">
       <Lock aria-hidden="true" className="size-3" />
       {m.accounts_form_locked()}
     </span>
