@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * "Kalender Pengeluaran" (FR-D2, design `iUqiN`, `tBbvD`, `g9BK2`, `jXuuE`): the spending of each day as heat
- * (Sedikit → Banyak), surplus days in green with their net, scheduled bills on the days ahead, and the breakdown of
- * the chosen day ("Minggu, 11 Oktober · 5 transaksi · Rp3.380.000 · 3× rata-rata") — the costliest day first. A year
+ * (Sedikit → Banyak), surplus days in green, each day's income (↑) and spending (↓) on their own lines, scheduled
+ * bills on the days ahead, and the breakdown of the chosen day ("Minggu, 11 Oktober · 5 transaksi · ↓ Rp3.380.000 ·
+ * 3× rata-rata"; rows in another currency with their base value below) — the costliest day first. A year
  * (or a range over two months) shows mini months instead, with the year's insights. The arrows step the whole
  * Overview to the period before / after. The day grid is one Tab stop; arrow keys move between days.
  */
@@ -17,7 +18,7 @@ import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { formatTime, weekdayNames } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
-import { ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { DashboardSearch } from '../../lib/dashboard-search.ts';
 import { RichMessage } from '../rich-message.tsx';
@@ -25,6 +26,7 @@ import { categoryName } from '../../lib/ledger-labels.ts';
 import { rangeParamOf } from '../../lib/transactions-search.ts';
 import { listTransactionRows } from '../../server/fn/transactions.ts';
 import { CategoryIcon } from '../category-icon.tsx';
+import { RowAmount } from '../transactions/transaction-row.tsx';
 import {
   calendarMonths,
   calendarWeeks,
@@ -319,25 +321,36 @@ function DayButton({ day, today, tall, bills, selected, tabbable, currency, loca
             </span>
           </span>
         )
-      ) : surplus ? (
-        <Money
-          minor={day.inMinor - day.outMinor}
-          currency={currency}
-          context="delta"
-          locale={locale}
-          // On the green surplus cell the green delta falls below 4.5:1; the cell's colour already says "surplus".
-          // Below 1024 px a cell is ~67 px wide: "+13.650.000" fits only at 10 px, set tight.
-          className="truncate text-[11.5px] !text-fg max-lg:text-[10px] max-lg:tracking-[-0.03em]"
-        />
-      ) : day.outMinor > 0n ? (
-        <Money
-          minor={day.outMinor}
-          currency={currency}
-          context="table"
-          locale={locale}
-          className="truncate !text-left text-[11.5px] text-fg max-lg:text-[10px] max-lg:tracking-[-0.03em]"
-        />
-      ) : null}
+      ) : (
+        // ↑ in and ↓ out on their own lines, also on a surplus day (its spending used to hide in the net). The
+        // figures stay in the text colour: green or red text falls below 4.5:1 on the heat cells.
+        <span className="flex min-w-0 flex-col gap-0.5 text-[11.5px] max-lg:text-[10px] max-lg:tracking-[-0.03em]">
+          {day.inMinor > 0n ? (
+            <span className="flex min-w-0 items-center gap-0.5">
+              <ArrowUp aria-label={m.calendar_tip_in()} className="size-2.5 shrink-0 text-green-fg max-lg:hidden" />
+              <Money
+                minor={day.inMinor}
+                currency={currency}
+                context="table"
+                locale={locale}
+                className="truncate !text-left text-fg"
+              />
+            </span>
+          ) : null}
+          {day.outMinor > 0n ? (
+            <span className="flex min-w-0 items-center gap-0.5">
+              <ArrowDown aria-label={m.calendar_tip_out()} className="size-2.5 shrink-0 text-red-fg max-lg:hidden" />
+              <Money
+                minor={day.outMinor}
+                currency={currency}
+                context="table"
+                locale={locale}
+                className="truncate !text-left text-fg"
+              />
+            </span>
+          ) : null}
+        </span>
+      )}
     </button>
   );
 }
@@ -378,14 +391,17 @@ function DayBreakdown({
         <h3 className="text-[13px] font-semibold text-fg">{dayTitle(date, locale)}</h3>
         <span className="text-[12px] text-subtle">{m.overview_calendar_count({ count: day.count })}</span>
         <span className="ml-auto flex items-center gap-2">
+          {day.inMinor > 0n ? (
+            <span className="flex items-center gap-0.5 text-[13px] font-medium text-green-fg">
+              <ArrowUp aria-label={m.calendar_tip_in()} className="size-3.5 shrink-0" />
+              <Money minor={day.inMinor} currency={currency} context="amount" locale={locale} />
+            </span>
+          ) : null}
           {day.outMinor > 0n ? (
-            <Money
-              minor={-day.outMinor}
-              currency={currency}
-              context="amount"
-              locale={locale}
-              className="text-[13px] font-medium text-fg"
-            />
+            <span className="flex items-center gap-0.5 text-[13px] font-medium text-red-fg">
+              <ArrowDown aria-label={m.calendar_tip_out()} className="size-3.5 shrink-0" />
+              <Money minor={day.outMinor} currency={currency} context="amount" locale={locale} />
+            </span>
           ) : null}
           {costliest ? (
             <span className="rounded-[4px] bg-amber-tint-2 px-1.5 py-px text-[11px] text-amber-fg">
@@ -472,14 +488,9 @@ function DayBreakdown({
                   <span className="font-mono text-[12px] text-subtle">
                     {formatTime(row.occurredAt, timeZone, locale)}
                   </span>
-                  <Money
-                    minor={row.amountBaseMinor}
-                    currency={currency}
-                    // Every row with its symbol (design "−Rp45.000"); transfers stay uncoloured.
-                    context={row.type === 'transfer' ? 'amount' : 'signed'}
-                    locale={locale}
-                    className="w-[120px] text-right text-[13px]"
-                  />
+                  <span className="flex w-[120px] justify-end text-right text-[13px]">
+                    <RowAmount row={row} locale={locale} baseCurrency={currency} />
+                  </span>
                 </Link>
               </li>
             );
