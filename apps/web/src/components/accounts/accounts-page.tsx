@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wf/ui/tabs';
 import { toast } from '@wf/ui/toast';
 import { Archive, Building2, Landmark, Lock, Plus, Scale, Wallet, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { accountTotals, byCheckAge, MAX_CARDS, STALE_AFTER_DAYS } from '../../lib/accounts.ts';
+import { accountTotals, byCheckAge, STALE_AFTER_DAYS } from '../../lib/accounts.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { useMediaQuery } from '../../lib/use-media-query.ts';
 import { deleteAccount, reorderAccounts, restoreAccount, updateAccount } from '../../server/fn/accounts.ts';
@@ -95,9 +95,6 @@ export function AccountsPage({
     shown.find((account) => account.id === selectedId) ?? (tab === 'active' ? active[0] : undefined) ?? null;
   const totals = accountTotals(active, baseCurrency);
   const stale = byCheckAge(active, today, timeZone).filter(({ days }) => days > STALE_AFTER_DAYS);
-  const cardHolders = (except?: AccountView) =>
-    active.filter((account) => account.showAsCard && account.id !== except?.id).map((account) => account.displayName);
-  const cardsFull = cardHolders().length >= MAX_CARDS;
 
   const refresh = () => router.invalidate();
   const close = () => {
@@ -188,7 +185,6 @@ export function AccountsPage({
         account={selected}
         accounts={overview.accounts}
         timeZone={timeZone}
-        cardsFull={cardHolders(selected).length >= MAX_CARDS}
         onReconcile={() => {
           openReconcile(selected.id);
         }}
@@ -223,7 +219,6 @@ export function AccountsPage({
             {...(dialog.kind === 'add' ? { defaultType: dialog.type } : { account: dialog.account })}
             baseCurrency={baseCurrency}
             today={today}
-            cardHolders={cardHolders(dialog.kind === 'edit' ? dialog.account : undefined)}
             submitLabel={dialog.kind === 'add' ? m.accounts_add() : m.accounts_save()}
             footerNote={
               <span className="flex items-center gap-1.5">
@@ -409,7 +404,6 @@ export function AccountsPage({
               accounts={active}
               baseCurrency={baseCurrency}
               selectedId={selected?.id ?? null}
-              cardsFull={cardsFull}
               onReorder={(ids) => void reorder(ids)}
               onSelect={select}
               onEdit={(account) => {

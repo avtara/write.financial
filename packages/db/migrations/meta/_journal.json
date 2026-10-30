@@ -211,6 +211,13 @@
       "when": 1793346911259,
       "tag": "0029_fees_as_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793350152065,
+      "tag": "0030_drop_show_as_card",
+      "breakpoints": true
     }
   ]
 }

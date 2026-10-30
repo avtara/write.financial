@@ -44,7 +44,7 @@ describe('AccountsCard', () => {
   });
 
   it('adds up only base-currency flows, hides directions in privacy mode, and leaves investments off the strip', async () => {
-    const usd = account({ id: 'acc-usd', displayName: 'Wise USD', currency: 'USD', showAsCard: false, type: 'bank' });
+    const usd = account({ id: 'acc-usd', displayName: 'Wise USD', currency: 'USD', type: 'bank' });
     const overview = { ...OVERVIEW, accounts: [usd, ...OVERVIEW.accounts.filter((a) => a.type !== 'investment')] };
     const flows = dashboard({ accounts: [{ accountId: 'acc-usd', inflowMinor: 99_900n, outflowMinor: 0n }] });
     const { screen } = await renderApp(<AccountsCard overview={overview} dashboard={flows} />);
@@ -93,7 +93,6 @@ describe('AccountsCard', () => {
       id: 'acc-usd',
       displayName: 'Wise USD',
       currency: 'USD',
-      showAsCard: true,
       type: 'bank',
       balanceMinor: 12_000n,
       balanceBaseMinor: 1_962_000n,

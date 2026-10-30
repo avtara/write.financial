@@ -16,7 +16,6 @@ const BCA = accountView({
   displayName: 'BCA Tahapan',
   balanceMinor: 42_810_000n,
   isDefaultQuickEntry: true,
-  showAsCard: true,
   lastReconciledAt: new Date('2026-10-14T05:00:00Z'),
 });
 const JAGO = accountView({ displayName: 'Bank Jago' });
@@ -72,14 +71,7 @@ function detail(overrides: Partial<AccountDetail> = {}): { ok: true; value: Acco
 async function renderPanel(props: Partial<AccountDetailPanelProps> = {}) {
   const handlers = { onReconcile: vi.fn(), onEdit: vi.fn(), onArchive: vi.fn(), onToggle: vi.fn() };
   const result = await renderApp(
-    <AccountDetailPanel
-      account={BCA}
-      accounts={[BCA, JAGO]}
-      timeZone="Asia/Jakarta"
-      cardsFull={false}
-      {...handlers}
-      {...props}
-    />,
+    <AccountDetailPanel account={BCA} accounts={[BCA, JAGO]} timeZone="Asia/Jakarta" {...handlers} {...props} />,
   );
   return { ...result, ...handlers };
 }
@@ -151,8 +143,8 @@ describe('AccountDetailPanel', () => {
     server.getAccountDetail.mockResolvedValue(
       detail({ flows: { inflowMinor: 0n, outflowMinor: 0n, transferInMinor: 5n, transferOutMinor: 0n } }),
     );
-    const account = { ...BCA, showAsCard: false, isDefaultQuickEntry: false } satisfies AccountView;
-    const { screen, onToggle } = await renderPanel({ account, cardsFull: true });
+    const account = { ...BCA, isDefaultQuickEntry: false } satisfies AccountView;
+    const { screen, onToggle } = await renderPanel({ account });
     await expect.element(screen.getByText('Transfer masuk')).toBeVisible();
     await expect.element(screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ })).toBeDisabled();
     await expect.element(screen.getByText('Maks 3 rekening jadi kartu')).toBeVisible();
@@ -169,7 +161,7 @@ describe('AccountDetailPanel', () => {
     server.getAccountDetail.mockResolvedValue(detail());
     const { screen, onToggle } = await renderPanel();
     await userEvent.click(screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ }));
-    expect(onToggle).toHaveBeenCalledWith('showAsCard', false);
+    expect(onToggle).toHaveBeenCalledWith('includeInAvailable', false);
   });
 
   it('warns about an unchecked account and a low balance', async () => {
@@ -272,7 +264,6 @@ function Switcher() {
         account={account}
         accounts={[BCA, JAGO]}
         timeZone="Asia/Jakarta"
-        cardsFull={false}
         onReconcile={vi.fn()}
         onEdit={vi.fn()}
         onArchive={vi.fn()}

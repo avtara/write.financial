@@ -28,7 +28,6 @@ export interface SeedAccount {
   readonly openingDate: string;
   readonly color: string;
   readonly includeInAvailable: boolean;
-  readonly showAsCard: boolean;
   readonly isDefaultQuickEntry: boolean;
 }
 
@@ -295,7 +294,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'blue',
     includeInAvailable: true,
-    showAsCard: true,
     isDefaultQuickEntry: true,
   },
   // 8.125.000 = 7.625.000 + 500.000 "Kantong darurat"
@@ -311,7 +309,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'orange',
     includeInAvailable: true,
-    showAsCard: true,
     isDefaultQuickEntry: false,
   },
   // 3.240.000 = 3.840.000 + 1.300.000 in − 1.900.000 out
@@ -327,7 +324,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'yellow',
     includeInAvailable: true,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
   // 412.000 = 812.000 − 400.000
@@ -343,7 +339,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'green',
     includeInAvailable: true,
-    showAsCard: true,
     isDefaultQuickEntry: false,
   },
   // 86.000 = 136.000 − 50.000
@@ -359,7 +354,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'violet',
     includeInAvailable: true,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
   // 350.000 = 500.000 − 150.000
@@ -375,7 +369,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'amber',
     includeInAvailable: true,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
   // Platform cash only (holdings are investment trades): US$51,99 on 15 Okt = US$51,63 + US$366,97 top-up − US$366,61
@@ -392,7 +385,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'cyan',
     includeInAvailable: false,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
   // No cash; holds BTC Rp5.500.000.
@@ -408,7 +400,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'blue',
     includeInAvailable: false,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
   // No cash; holds BBCA, BBRI, TLKM Rp4.300.000.
@@ -424,7 +415,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'red',
     includeInAvailable: false,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
   // No cash; holds XAU Rp3.700.000.
@@ -440,7 +430,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'violet',
     includeInAvailable: false,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
   // No cash: the 14 Okt Rp3.000.000 paid the RDPU buy, still "diproses" (NAB 16 Okt); holds IDX30 1.000.000 + ORI
@@ -457,7 +446,6 @@ const ACCOUNTS: readonly SeedAccount[] = [
     openingDate: OPENING_DATE,
     color: 'green',
     includeInAvailable: false,
-    showAsCard: false,
     isDefaultQuickEntry: false,
   },
 ];

@@ -197,7 +197,7 @@ describe('AccountsStep', () => {
   it('opens the full account form for "Lainnya…" and "Detail", and takes the saved account', async () => {
     const saved = accountView({ displayName: 'SeaBank', providerName: 'SeaBank', openingBalanceMinor: 300_000n });
     const edited = accountView({ displayName: 'OVO Utama', type: 'ewallet', providerName: 'OVO' });
-    const showing = accountView({ displayName: 'Jenius', showAsCard: true });
+    const showing = accountView({ displayName: 'Jenius' });
     server.createAccount.mockResolvedValue({ ok: true, value: saved });
     server.updateAccount.mockResolvedValue({ ok: true, value: { ...showing, displayName: 'Jenius Utama' } });
     const { screen } = await renderStep([showing]);

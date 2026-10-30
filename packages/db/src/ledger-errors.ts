@@ -10,7 +10,6 @@ export const LEDGER_ERROR_CODES = [
   /** FR-R3: currency and opening balance are locked once the account has transactions. */
   'ACCOUNT_LOCKED',
   /** FR-R2: at most three accounts are shown as cards. */
-  'TOO_MANY_CARDS',
   /** Invalid account input (currency code, display name, last 4 digits, credit-card days, …). */
   'INVALID_ACCOUNT',
   /** The account is archived (no new transactions, no default) or, for permanent deletion, not archived. */

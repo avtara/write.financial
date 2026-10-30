@@ -9,7 +9,7 @@ import { transactionsView } from '../../../test/transaction-fixtures.ts';
 import { AccountStrip } from './account-strip.tsx';
 
 /** BCA Tahapan and BCA Visa are cards; Bank Jago and OVO are "2 lainnya"; Gotrade (investment) is neither. */
-const ACCOUNTS: readonly AccountView[] = [{ ...BCA, showAsCard: true }, CARD, JAGO, OVO, GOTRADE, ARCHIVED];
+const ACCOUNTS: readonly AccountView[] = [{ ...BCA }, CARD, JAGO, OVO, GOTRADE, ARCHIVED];
 const VIEW = transactionsView([], { accounts: [{ accountId: JAGO.id, count: 7, inMinor: 0n, outMinor: 70_000n }] });
 
 async function renderStrip(selected: string | undefined, accounts = ACCOUNTS) {

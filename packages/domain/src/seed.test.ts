@@ -262,12 +262,7 @@ describe('DESIGN_SEED accounts (Section 05 `ycP7T`)', () => {
     ).toBe(true);
   });
 
-  it('shows at most 3 accounts as cards and has exactly one default quick-entry account', () => {
-    expect(accounts.filter((account) => account.showAsCard).map((account) => account.key)).toEqual([
-      'bca',
-      'jago',
-      'gopay',
-    ]);
+  it('has exactly one default quick-entry account', () => {
     expect(accounts.filter((account) => account.isDefaultQuickEntry).map((account) => account.key)).toEqual(['bca']);
   });
 

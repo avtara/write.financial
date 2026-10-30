@@ -96,14 +96,14 @@ describe('daysSinceCheck and byCheckAge', () => {
 });
 
 describe('cardSlots', () => {
-  it('takes at most three active card accounts and merges the other everyday accounts', () => {
-    const cards = [1, 2, 3, 4].map(() => accountView({ showAsCard: true }));
-    const mandiri = accountView();
-    const archived = accountView({ status: 'archived', showAsCard: true });
+  it('shows the available accounts as cards in list order and folds the rest into "N lainnya"', () => {
+    const cards = [1, 2, 3, 4].map(() => accountView({ includeInAvailable: true }));
+    const mandiri = accountView({ includeInAvailable: false });
+    const archived = accountView({ status: 'archived', includeInAvailable: true });
     const bibit = accountView({ type: 'investment' });
     const slots = cardSlots([archived, ...cards, mandiri, bibit]);
     expect(slots.cards.map((a) => a.id)).toEqual(cards.slice(0, MAX_CARDS).map((a) => a.id));
-    expect(slots.others.map((a) => a.id)).toEqual([mandiri.id]);
+    expect(slots.others.map((a) => a.id)).toEqual([cards[MAX_CARDS]?.id, mandiri.id]);
   });
 });
 

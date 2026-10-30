@@ -7,13 +7,12 @@ import { AccountCards } from './account-cards.tsx';
 
 describe('AccountCards', () => {
   it('shows the card accounts and merges the others into "N lainnya"', async () => {
-    const bca = accountView({ displayName: 'BCA Tahapan', showAsCard: true, balanceMinor: 42_810_000n });
+    const bca = accountView({ displayName: 'BCA Tahapan', balanceMinor: 42_810_000n });
     const gopay = accountView({
       displayName: 'GoPay',
       type: 'ewallet',
       last4: null,
       phoneMasked: '0812•• 18',
-      showAsCard: true,
     });
     const cash = accountView({ displayName: 'Dompet', type: 'cash', last4: null, balanceBaseMinor: 350_000n });
     const ovo = accountView({ displayName: 'OVO', type: 'ewallet', last4: null, balanceBaseMinor: null });
@@ -48,7 +47,6 @@ describe('AccountCards', () => {
       id: 'wise',
       displayName: 'Wise USD',
       currency: 'USD',
-      showAsCard: true,
       balanceMinor: 12_000n,
       balanceBaseMinor: 1_962_000n,
     });
@@ -56,10 +54,9 @@ describe('AccountCards', () => {
       id: 'sgd',
       displayName: 'DBS SGD',
       currency: 'SGD',
-      showAsCard: true,
       balanceBaseMinor: null,
     });
-    const bca = accountView({ id: 'bca', displayName: 'BCA', showAsCard: true });
+    const bca = accountView({ id: 'bca', displayName: 'BCA' });
     const { screen } = await renderApp(
       <AccountCards accounts={[wise, unknown, bca]} baseCurrency="IDR" onSelect={vi.fn()} onShowOthers={vi.fn()} />,
     );
@@ -84,7 +81,7 @@ describe('AccountCards', () => {
     await screen.unmount();
     const again = await renderApp(
       <AccountCards
-        accounts={[accountView({ showAsCard: true, type: 'cash', last4: null })]}
+        accounts={[accountView({ type: 'cash', last4: null })]}
         baseCurrency="IDR"
         selectedId={null}
         onSelect={vi.fn()}
@@ -98,8 +95,8 @@ describe('AccountCards', () => {
     const { screen } = await renderApp(
       <AccountCards
         accounts={[
-          accountView({ id: 'card', displayName: 'Kartu', showAsCard: true }),
-          accountView({ id: 'other', displayName: 'Lain', showAsCard: false }),
+          accountView({ id: 'card', displayName: 'Kartu' }),
+          accountView({ id: 'other', displayName: 'Lain' }),
         ]}
         baseCurrency="IDR"
         onSelect={vi.fn()}

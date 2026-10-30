@@ -76,13 +76,15 @@ export function byCheckAge(accounts: readonly AccountView[], today: LocalDate, t
     .sort((a, b) => b.days - a.days);
 }
 
-/** FR-R2 card strip: the accounts shown as cards and the active everyday accounts merged into "N lainnya". */
+/**
+ * FR-R2 card strip: the accounts behind "Saldo tersedia" are the cards, in the account list's own order, up to
+ * {@link MAX_CARDS}; every other active account (investment platforms stay on their page) folds into "N lainnya".
+ */
 export function cardSlots(accounts: readonly AccountView[]): { cards: AccountView[]; others: AccountView[] } {
-  const active = accounts.filter((account) => account.status === 'active');
-  return {
-    cards: active.filter((account) => account.showAsCard).slice(0, MAX_CARDS),
-    others: active.filter((account) => !account.showAsCard && account.type !== 'investment'),
-  };
+  const active = accounts.filter((account) => account.status === 'active' && account.type !== 'investment');
+  const cards = active.filter((account) => account.includeInAvailable).slice(0, MAX_CARDS);
+  const shown = new Set(cards.map((account) => account.id));
+  return { cards, others: active.filter((account) => !shown.has(account.id)) };
 }
 
 /**

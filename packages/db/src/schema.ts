@@ -481,7 +481,6 @@ export const accounts = pgTable(
     openingDate: localDate('opening_date').notNull(),
     color: text('color').notNull(),
     includeInAvailable: boolean('include_in_available').notNull().default(true),
-    showAsCard: boolean('show_as_card').notNull().default(false),
     isDefaultQuickEntry: boolean('is_default_quick_entry').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     status: accountStatus('status').notNull().default('active'),

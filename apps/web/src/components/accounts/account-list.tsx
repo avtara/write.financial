@@ -71,7 +71,6 @@ export interface AccountListProps extends AccountActions {
   readonly baseCurrency: string;
   readonly selectedId: string | null;
   /** Another account already holds the third card slot. */
-  readonly cardsFull: boolean;
   /** The new order of every active account. */
   readonly onReorder: (ids: string[]) => void;
 }
@@ -106,14 +105,7 @@ export function dragAnnouncements(accounts: readonly AccountView[]): Announcemen
   };
 }
 
-export function AccountList({
-  accounts,
-  baseCurrency,
-  selectedId,
-  cardsFull,
-  onReorder,
-  ...actions
-}: AccountListProps) {
+export function AccountList({ accounts, baseCurrency, selectedId, onReorder, ...actions }: AccountListProps) {
   const { preferences } = usePreferences();
   // A stable id keeps dnd-kit's `aria-describedby` the same on the server and the client.
   const dndId = useId();
@@ -181,7 +173,6 @@ export function AccountList({
                       account={account}
                       baseCurrency={baseCurrency}
                       selected={account.id === selectedId}
-                      cardsFull={cardsFull}
                       {...actions}
                     />
                   ))}
@@ -209,13 +200,12 @@ function SortableRow({
   account,
   baseCurrency,
   selected,
-  cardsFull,
   onSelect,
   onEdit,
   onReconcile,
   onArchive,
   onToggle,
-}: AccountActions & { account: AccountView; baseCurrency: string; selected: boolean; cardsFull: boolean }) {
+}: AccountActions & { account: AccountView; baseCurrency: string; selected: boolean }) {
   const { preferences } = usePreferences();
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -307,16 +297,6 @@ function SortableRow({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuCheckboxItem
-                indicator="switch"
-                checked={account.showAsCard}
-                disabled={cardsFull && !account.showAsCard}
-                onCheckedChange={(value) => {
-                  onToggle(account, 'showAsCard', value);
-                }}
-              >
-                {m.accounts_menu_card()}
-              </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 indicator="switch"
                 checked={account.includeInAvailable}

@@ -155,9 +155,6 @@ export function AccountsStep({ view, onSaved }: { view: OnboardingView; onSaved:
   };
 
   const detailRow = dialog?.kind === 'detail' ? rows.find((row) => row.key === dialog.key) : undefined;
-  const cardHolders = rows
-    .filter((row) => row.account?.showAsCard === true && row.key !== detailRow?.key)
-    .map((row) => row.displayName);
 
   return (
     // The dialog stays outside the form: its own form's submit would bubble up to this one through React.
@@ -323,7 +320,6 @@ export function AccountsStep({ view, onSaved }: { view: OnboardingView; onSaved:
                 })}
             baseCurrency={baseCurrency}
             today={view.today}
-            cardHolders={cardHolders}
             submitLabel={detailRow?.account == null ? m.accounts_add() : m.accounts_save()}
             onSaved={saved}
             onCancel={() => {

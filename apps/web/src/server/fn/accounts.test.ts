@@ -67,7 +67,6 @@ const INPUT = {
   openingDate: '2026-10-15',
   color: 'blue',
   last4: '7710',
-  showAsCard: undefined,
 } as const;
 
 beforeEach(() => {
@@ -79,7 +78,6 @@ describe('account writes', () => {
     fake.accounts.create.mockResolvedValue({ id: ID });
     expect(await call(createAccount, { context: signedIn(), data: INPUT })).toEqual({ ok: true, value: { id: ID } });
     expect(fake.accounts.create).toHaveBeenCalledWith(USER_ID, INPUT);
-    expect(fake.accounts.create.mock.lastCall?.[1]).not.toHaveProperty('showAsCard');
 
     fake.accounts.update.mockResolvedValue({ id: ID });
     await call(updateAccount, { context: signedIn(), data: { id: ID, patch: { displayName: 'Sea', last4: null } } });

@@ -26,7 +26,7 @@ import { AccountLogo } from './account-logo.tsx';
 import { BalanceChart } from './balance-chart.tsx';
 
 /** Flags the panel toggles in place. */
-export type AccountFlag = 'showAsCard' | 'includeInAvailable' | 'isDefaultQuickEntry';
+export type AccountFlag = 'includeInAvailable' | 'isDefaultQuickEntry';
 
 export interface AccountDetailPanelProps {
   readonly account: AccountView;
@@ -34,7 +34,6 @@ export interface AccountDetailPanelProps {
   readonly accounts: readonly AccountView[];
   readonly timeZone: string;
   /** Another account already holds the third card slot (FR-R2). */
-  readonly cardsFull: boolean;
   readonly onReconcile: () => void;
   readonly onEdit: () => void;
   readonly onArchive: () => void;
@@ -45,7 +44,6 @@ export function AccountDetailPanel({
   account,
   accounts,
   timeZone,
-  cardsFull,
   onReconcile,
   onEdit,
   onArchive,
@@ -176,15 +174,6 @@ export function AccountDetailPanel({
 
       {archived ? null : (
         <div className="flex flex-col gap-3 border-b border-border p-5">
-          <Switch
-            label={m.accounts_flag_card()}
-            description={cardsFull && !account.showAsCard ? m.accounts_card_limit() : m.accounts_flag_card_hint()}
-            disabled={cardsFull && !account.showAsCard}
-            checked={account.showAsCard}
-            onChange={(event) => {
-              onToggle('showAsCard', event.target.checked);
-            }}
-          />
           <Switch
             label={m.accounts_flag_available()}
             description={m.accounts_flag_available_hint()}
