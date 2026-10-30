@@ -9,12 +9,7 @@ const server = vi.hoisted(() => ({ archiveAccount: vi.fn(), toast: vi.fn() }));
 vi.mock('../../server/fn/accounts.ts', () => ({ archiveAccount: server.archiveAccount }));
 vi.mock('@wf/ui/toast', () => ({ toast: server.toast }));
 
-const BCA = accountView({
-  displayName: 'BCA Tahapan',
-  balanceMinor: 42_810_000n,
-  transactionCount: 214,
-  isDefaultQuickEntry: true,
-});
+const BCA = accountView({ displayName: 'BCA Tahapan', balanceMinor: 42_810_000n, transactionCount: 214 });
 const JAGO = accountView({ displayName: 'Bank Jago', balanceMinor: 8_125_000n });
 const MANDIRI = accountView({ displayName: 'Mandiri', balanceMinor: 3_240_000n });
 const GOTRADE = accountView({ displayName: 'Gotrade', currency: 'USD' });
@@ -32,7 +27,7 @@ afterEach(() => {
 });
 
 describe('ArchiveDialog', () => {
-  it('moves the balance to a same-currency account, hands over the default, and archives', async () => {
+  it('moves the balance to a same-currency account and archives', async () => {
     server.archiveAccount.mockResolvedValue({ ok: true, value: BCA });
     const { dialog, onDone } = await renderArchive();
     await expect.element(dialog).toHaveAccessibleDescription(/214 transaksi tetap tersimpan/);
@@ -42,13 +37,10 @@ describe('ArchiveDialog', () => {
     await userEvent.click(dialog.getByRole('combobox', { name: 'Rekening tujuan' }));
     await expect.element(page.getByRole('option', { name: 'Gotrade' })).not.toBeInTheDocument();
     await userEvent.click(page.getByRole('option', { name: 'Mandiri' }));
-    await userEvent.click(dialog.getByRole('combobox', { name: 'Pilih rekening default yang baru:' }));
-    await userEvent.click(page.getByRole('option', { name: 'Gotrade' }));
     await userEvent.click(dialog.getByRole('button', { name: 'Transfer & arsipkan' }));
     expect(server.archiveAccount).toHaveBeenCalledWith({
       data: {
         id: BCA.id,
-        newDefaultId: GOTRADE.id,
         transfer: { toAccountId: MANDIRI.id, clientId: expect.any(String) as unknown },
       },
     });
@@ -62,14 +54,14 @@ describe('ArchiveDialog', () => {
     await userEvent.click(dialog.getByRole('checkbox', { name: /Pindahkan saldo/ }));
     await expect.element(dialog.getByRole('combobox', { name: 'Rekening tujuan' })).not.toBeInTheDocument();
     await userEvent.click(dialog.getByRole('button', { name: 'Arsipkan' }));
-    expect(server.archiveAccount).toHaveBeenCalledWith({ data: { id: BCA.id, newDefaultId: JAGO.id } });
+    expect(server.archiveAccount).toHaveBeenCalledWith({ data: { id: BCA.id } });
     await expect.element(dialog.getByText('Rekening ini sudah diarsipkan.')).toBeVisible();
     expect(onDone).not.toHaveBeenCalled();
     await userEvent.click(dialog.getByRole('button', { name: 'Batal' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('offers nothing to move or hand over for an empty, non-default account', async () => {
+  it('offers nothing to move for an empty account', async () => {
     server.archiveAccount.mockResolvedValue({ ok: true, value: JAGO });
     const empty = { ...JAGO, balanceMinor: 0n };
     const { dialog } = await renderArchive(empty, [empty]);
@@ -77,13 +69,5 @@ describe('ArchiveDialog', () => {
     await expect.element(dialog.getByRole('combobox')).not.toBeInTheDocument();
     await userEvent.click(dialog.getByRole('button', { name: 'Arsipkan' }));
     expect(server.archiveAccount).toHaveBeenCalledWith({ data: { id: JAGO.id } });
-  });
-
-  it('skips the default choice when no other account is left', async () => {
-    server.archiveAccount.mockResolvedValue({ ok: true, value: BCA });
-    const { dialog } = await renderArchive({ ...BCA, balanceMinor: 0n }, [BCA]);
-    await expect.element(dialog.getByRole('combobox')).not.toBeInTheDocument();
-    await userEvent.click(dialog.getByRole('button', { name: 'Arsipkan' }));
-    expect(server.archiveAccount).toHaveBeenCalledWith({ data: { id: BCA.id } });
   });
 });

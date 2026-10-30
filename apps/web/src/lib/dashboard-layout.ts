@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * "Atur dashboard" (FR-D3, design `iBCvF`, `e1r8q`, `GcXr5`, `R1aqQ`): the Overview's cards below the Quick Add bar
+ * "Atur dashboard" (FR-D3, design `iBCvF`, `e1r8q`, `GcXr5`, `R1aqQ`): the Overview's cards below the header
  * and the KPIs (which stay on top), in the user's order, each shown or hidden and ⅓, ⅔, or full width. Saved in
  * `user_preferences.dashboard_layout`; whatever is stored there is read leniently ({@link dashboardLayoutOf}), so a
  * card added later appears in its default place and unknown ids are dropped.

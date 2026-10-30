@@ -14,8 +14,7 @@ import { getProfile } from '../../server/fn/account.ts';
 import { getBudgetStatus, getDashboard, listPeriods } from '../../server/fn/budget.ts';
 import { getDashboardLayout } from '../../server/fn/dashboard-layout.ts';
 import { listGoals } from '../../server/fn/goals.ts';
-import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.ts';
-import { listAutoRules } from '../../server/fn/rules.ts';
+import { listAccounts, listCategories } from '../../server/fn/ledger.ts';
 import { listScheduled, listSubscriptions } from '../../server/fn/schedules.ts';
 
 type OverviewLoad = ({ readonly status: 'ready' } & OverviewData) | { readonly status: 'offline' };
@@ -25,19 +24,16 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
   try {
     // Only `?period=` needs the period rows (its label → id): any other request runs alongside the rest.
     const known = search.period === undefined ? dashboardRequestOf(search, []) : null;
-    const [periods, accounts, categories, tags, rules, profile, budget, subscriptions, layout, early] =
-      await Promise.all([
-        listPeriods(),
-        listAccounts({ data: {} }),
-        listCategories({ data: {} }),
-        listTags({ data: {} }),
-        listAutoRules({ data: { enabledOnly: true } }),
-        getProfile(),
-        getBudgetStatus({ data: {} }),
-        listSubscriptions({ data: {} }),
-        getDashboardLayout(),
-        known === null ? null : getDashboard({ data: known }),
-      ]);
+    const [periods, accounts, categories, profile, budget, subscriptions, layout, early] = await Promise.all([
+      listPeriods(),
+      listAccounts({ data: {} }),
+      listCategories({ data: {} }),
+      getProfile(),
+      getBudgetStatus({ data: {} }),
+      listSubscriptions({ data: {} }),
+      getDashboardLayout(),
+      known === null ? null : getDashboard({ data: known }),
+    ]);
     const request = known ?? dashboardRequestOf(search, periods.ok ? periods.value.periods : []);
     const dashboard = early ?? (await getDashboard({ data: request }));
     const shownPeriod = request.scope === 'month' ? request.periodId : undefined;
@@ -59,8 +55,6 @@ async function loadOverview(search: DashboardSearch): Promise<OverviewLoad> {
       status: 'ready',
       accounts,
       categories,
-      tags,
-      rules,
       periods,
       profile,
       dashboard,

@@ -486,7 +486,6 @@ export const accounts = pgTable(
     openingDate: localDate('opening_date').notNull(),
     color: text('color').notNull(),
     includeInAvailable: boolean('include_in_available').notNull().default(true),
-    isDefaultQuickEntry: boolean('is_default_quick_entry').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     status: accountStatus('status').notNull().default('active'),
     archivedAt: timestamptz('archived_at'),
@@ -502,9 +501,6 @@ export const accounts = pgTable(
   (table) => [
     unique('accounts_user_id_id_key').on(table.userId, table.id),
     index('accounts_user_id_sort_order_idx').on(table.userId, table.sortOrder),
-    uniqueIndex('accounts_default_quick_entry_key')
-      .on(table.userId)
-      .where(sql`${table.isDefaultQuickEntry}`),
     foreignKey({
       name: 'accounts_parent_account_fk',
       columns: [table.userId, table.parentAccountId],
@@ -517,7 +513,6 @@ export const accounts = pgTable(
       sql`${table.ccStatementDay} between 1 and 31 and ${table.ccDueDay} between 1 and 31`,
     ),
     check('accounts_archived_check', sql`(${table.status} = 'archived') = (${table.archivedAt} is not null)`),
-    check('accounts_default_active_check', sql`not ${table.isDefaultQuickEntry} or ${table.status} = 'active'`),
   ],
 );
 

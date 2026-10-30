@@ -24,7 +24,7 @@ export interface DateTimeFieldProps {
   readonly locale: Locale;
   readonly id?: string;
   readonly size?: 'lg' | 'sm';
-  /** Trigger text, e.g. "Hari ini" in the Quick Add bar; default "15 Okt 2026, 19.30". */
+  /** Trigger text instead of the date, e.g. "Hari ini"; default "15 Okt 2026, 19.30". */
   readonly triggerLabel?: string;
   /** "Jadwalkan": future dates can be picked (the save then schedules instead of recording). */
   readonly allowSchedule?: boolean;

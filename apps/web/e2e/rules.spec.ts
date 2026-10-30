@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * M7.1 auto rules (FR-AI1) as their own invited user with the design persona on 15 Okt 2026: create a rule with an
- * IF/THEN editor and a trial preview, apply its output as a suggestion in the unsaved Quick Add draft, turn four
+ * IF/THEN editor and a trial preview, apply its output as a suggestion in an unsaved Record sheet draft, turn four
  * manual category corrections into a suggestion, create that rule, and apply a backfill only after selecting rows and
  * confirming. Amounts, postings, and balances are read from PostgreSQL before and after and never change.
  */
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import postgres from 'postgres';
-import { expect, projectUser, runRulesBackfillJob, screenshot, setUpProjectUser, test } from './support.ts';
+import { expect, pressUntil, projectUser, runRulesBackfillJob, screenshot, setUpProjectUser, test } from './support.ts';
 import { e2eEnv } from './env.ts';
 
 const user = projectUser('rules');
@@ -41,8 +41,6 @@ async function moneyRows(description: string) {
   }
 }
 
-const bar = (page: Page) => page.getByRole('form', { name: 'Catat cepat' });
-
 /** A retry starts from the same data (the project user is reused): drop only this spec's rules and entries. */
 async function resetRulesData(): Promise<void> {
   const db = sql();
@@ -57,17 +55,29 @@ async function resetRulesData(): Promise<void> {
   }
 }
 
-/** One Quick Add entry with a category picked explicitly (no history guess). */
-async function quickAdd(page: Page, description: string, amount: string, category: string) {
-  const form = bar(page);
-  await form.getByRole('textbox', { name: 'Catatan' }).fill(description);
-  await form.getByRole('textbox', { name: 'Jumlah' }).fill(amount);
-  await form.getByRole('button', { name: 'Kategori' }).click();
-  await page.getByRole('option', { name: category }).click();
-  await form.getByRole('button', { name: 'Simpan' }).click();
+/** `/`, with the greeting shown. */
+async function openOverview(page: Page): Promise<void> {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1, name: /^Selamat (pagi|siang|sore|malam), / })).toBeVisible();
+}
+
+/** The Record sheet, opened with `N` (pressed until the hydrated page binds the shortcut). */
+async function openSheet(page: Page): Promise<Locator> {
+  const sheet = page.getByRole('dialog');
+  await pressUntil(page, 'n', () => sheet.isVisible());
+  await expect(sheet.getByRole('textbox', { name: 'Jumlah' })).toBeFocused();
+  return sheet;
+}
+
+/** One entry recorded in the sheet with a category picked explicitly. */
+async function recordEntry(page: Page, description: string, amount: string, category: string) {
+  const sheet = await openSheet(page);
+  await sheet.getByRole('textbox', { name: 'Jumlah' }).fill(amount);
+  await sheet.getByRole('textbox', { name: 'Judul' }).fill(description);
+  await sheet.getByRole('group', { name: 'Kategori' }).getByRole('button', { name: category }).click();
+  await sheet.getByRole('button', { name: 'Simpan', exact: true }).click();
+  await expect(sheet).not.toBeVisible();
   await expect(page.getByText('Transaksi tersimpan').last()).toBeVisible();
-  // The bar clears only after the save; the next entry fills the fresh form.
-  await expect(form.getByRole('textbox', { name: 'Catatan' })).toHaveValue('');
 }
 
 /** Edits one recorded transaction's category through the detail panel. */
@@ -89,7 +99,7 @@ async function correctCategory(page: Page, description: string, category: string
   await expect(page.getByText('Perubahan tersimpan').last()).toBeVisible();
 }
 
-test('creates a rule with a trial preview and applies it in the unsaved Quick Add draft', async ({ page }) => {
+test('creates a rule with a trial preview and applies it in an unsaved Record sheet draft', async ({ page }) => {
   await resetRulesData();
   await page.goto('/?settings=rules');
   const dialog = page.getByRole('dialog', { name: 'Pengaturan' });
@@ -164,21 +174,25 @@ test('creates a rule with a trial preview and applies it in the unsaved Quick Ad
   await page.goto('/?settings=rules');
   await expect(dialog.getByRole('heading', { name: 'Aturan otomatis' })).toBeVisible();
 
-  // The unsaved Quick Add draft: the rule's category and tag appear before saving; nothing is recorded yet.
-  await page.goto('/');
+  // The unsaved sheet draft: the rule's category and tag appear before saving; nothing is recorded yet.
+  await openOverview(page);
   const before = await moneyRows('Gojek ke kantor');
   expect(before).toEqual([]);
-  await bar(page).getByRole('textbox', { name: 'Catatan' }).fill('Gojek ke kantor');
-  await bar(page).getByRole('textbox', { name: 'Jumlah' }).fill('25.000');
-  const suggestion = bar(page).getByRole('region', { name: 'Aturan “Berangkat ke kantor” cocok' });
+  const sheet = await openSheet(page);
+  await sheet.getByRole('textbox', { name: 'Jumlah' }).fill('25.000');
+  await sheet.getByRole('textbox', { name: 'Judul' }).fill('Gojek ke kantor');
+  const suggestion = sheet.getByRole('region', { name: 'Aturan “Berangkat ke kantor” cocok' });
   await expect(suggestion).toBeVisible();
   await expect(suggestion.getByText('Kategori: Transportasi')).toBeVisible();
   await expect(suggestion.getByText('#kantor')).toBeVisible();
-  await screenshot(page, 'rules-quick-add-suggestion');
+  await screenshot(page, 'rules-record-suggestion');
   expect(await moneyRows('Gojek ke kantor')).toEqual([]);
   await suggestion.getByRole('button', { name: 'Terapkan' }).click();
-  await expect(bar(page).getByRole('button', { name: 'Kategori' })).toHaveText('Transportasi');
-  await bar(page).getByRole('button', { name: 'Simpan' }).click();
+  await expect(
+    sheet.getByRole('group', { name: 'Kategori' }).getByRole('button', { name: 'Transportasi' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await sheet.getByRole('button', { name: 'Simpan', exact: true }).click();
+  await expect(sheet).not.toBeVisible();
   await expect(page.getByText('Transaksi tersimpan').last()).toBeVisible();
   const [saved] = await moneyRows('Gojek ke kantor');
   expect(saved?.postings).toBe('-25000');
@@ -187,9 +201,9 @@ test('creates a rule with a trial preview and applies it in the unsaved Quick Ad
 
 test('suggests a rule after four manual corrections and applies a confirmed backfill', async ({ page }) => {
   await resetRulesData();
-  await page.goto('/');
+  await openOverview(page);
   // Four distinct corrections of one description, plus one untouched row for the backfill.
-  for (let index = 0; index < 5; index += 1) await quickAdd(page, FIXTURE, '25.000', 'Makan & Dapur');
+  for (let index = 0; index < 5; index += 1) await recordEntry(page, FIXTURE, '25.000', 'Makan & Dapur');
   for (let index = 0; index < 4; index += 1)
     await correctCategory(page, FIXTURE, 'Transportasi', 'Makan & Dapur', index);
 

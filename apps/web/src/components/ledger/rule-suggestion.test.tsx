@@ -72,12 +72,6 @@ describe('RuleSuggestion', () => {
     expect(onApply).toHaveBeenCalledWith({ tags: ['makan', 'kantor'] });
   });
 
-  it('may replace the Quick Add bar’s guess', async () => {
-    const { onApply } = await render({ values: values({ categoryId: food }), categoryIsGuess: true });
-    await userEvent.click(page.getByRole('button', { name: m.rules_suggest_apply() }));
-    expect(onApply).toHaveBeenCalledWith({ categoryId: transport, tags: ['kantor'] });
-  });
-
   it('warns instead of dropping tags beyond five', async () => {
     const { onApply } = await render({ values: values({ tags: ['a', 'b', 'c', 'd', 'e'] }) });
     await expect.element(page.getByText(m.rules_suggest_tag_limit())).toBeInTheDocument();

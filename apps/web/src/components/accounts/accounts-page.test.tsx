@@ -107,7 +107,6 @@ const BCA = accountView({
   displayName: 'BCA Tahapan',
   balanceMinor: 42_810_000n,
   balanceBaseMinor: 42_810_000n,
-  isDefaultQuickEntry: true,
   lastReconciledAt: new Date(),
 });
 const JAGO = accountView({ displayName: 'Bank Jago', lastReconciledAt: new Date() });

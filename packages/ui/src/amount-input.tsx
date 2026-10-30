@@ -15,7 +15,7 @@ export interface AmountInputProps {
    * Default none.
    */
   quickAdds?: readonly bigint[];
-  /** `hero`: the 32 px amount of the Record Transaction sheet · `inline`: a 14 px field (Quick Add bar, dialogs). */
+  /** `hero`: the 32 px amount of the Record Transaction sheet · `inline`: a 14 px field (dialogs). */
   size?: 'hero' | 'inline';
   /** From a `Field`, or `aria-label` when there is no visible label. */
   id?: string;

@@ -3,12 +3,12 @@
  * Record Transaction (FR-T1–T4, T8, T9) as the invited user with the design persona loaded (`db:seed`): an expense
  * entered with the keyboard only changes the account balance and "Urungkan" restores it; an IDR → USD transfer of
  * Rp3.000.000 that arrives as US$182,10 at the reference rate 16350.0275 records an FX difference of −Rp22.660; a
- * filled form closed with Escape is kept as a draft and continued later; and the Quick Add bar saves with ↵.
+ * filled form closed with Escape is kept as a draft and continued later; and the sheet opens with N on a tablet too.
  */
 import type { Locator, Page } from '@playwright/test';
 import postgres from 'postgres';
 import { e2eEnv } from './env.ts';
-import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
+import { expect, pressUntil, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
 const user = projectUser('record');
 test.describe.configure({ mode: 'serial' });
@@ -29,14 +29,13 @@ test.beforeAll(async ({ browser }) => {
   }
 });
 
-/** The sheet, opened with `N`. */
+/** The sheet, opened with `N` on the dashboard. */
 async function openSheet(page: Page): Promise<Locator> {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: /^Selamat (pagi|siang|sore|malam), / })).toBeVisible();
-  // Wait for hydration: the Quick Add bar is interactive once its amount field is.
-  await expect(page.getByRole('form', { name: 'Catat cepat' })).toBeVisible();
-  await page.locator('body').press('n');
+  // The shortcut is bound once the page has hydrated: press until the sheet opens.
   const sheet = page.getByRole('dialog');
+  await pressUntil(page, 'n', () => sheet.isVisible());
   // The sheet's title (saved drafts add their own heading once they load).
   await expect(sheet.getByRole('heading', { level: 2 })).toHaveText(/^Catat /);
   await expect(sheet.getByRole('textbox', { name: 'Jumlah' })).toBeFocused();
@@ -161,18 +160,6 @@ test('a filled form closed with Escape is kept as a draft and continued later', 
   await expect(next.getByRole('textbox', { name: 'Jumlah' })).toHaveValue('48.000');
   await page.keyboard.press('Escape');
   await page.getByRole('dialog', { name: 'Buang transaksi ini?' }).getByRole('button', { name: 'Buang' }).click();
-});
-
-test('the Quick Add bar saves with Enter and guesses the category from the description', async ({ page }) => {
-  await page.goto('/');
-  const bar = page.getByRole('form', { name: 'Catat cepat' });
-  await expect(bar).toBeVisible();
-  await bar.getByRole('textbox', { name: 'Catatan' }).fill('Makan malam 45rb');
-  await expect(bar.getByRole('button', { name: 'Kategori' })).toHaveText('Makan & Dapur');
-  await screenshot(page, 'quick-add-1440');
-  await bar.getByRole('textbox', { name: 'Catatan' }).press('Enter');
-  await expect(page.getByText(/Makan & Dapur · −Rp45\.000 · BCA Tahapan/)).toBeVisible();
-  await expect(bar.getByRole('textbox', { name: 'Catatan' })).toHaveValue('');
 });
 
 test('the sheet opens with N on a tablet too', async ({ page }) => {

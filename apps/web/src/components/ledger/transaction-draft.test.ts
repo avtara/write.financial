@@ -7,13 +7,11 @@ import {
   ARCHIVED,
   BCA,
   CARD,
-  CATEGORIES,
   GOTRADE,
   JAGO,
   OVO,
   account,
   categoryId,
-  userCategory,
 } from '../../../test/ledger-fixtures.ts';
 import { posting, transactionDetail } from '../../../test/transaction-fixtures.ts';
 import {
@@ -24,7 +22,6 @@ import {
   emptyValues,
   fromDraftPayload,
   fxFigures,
-  guessCategory,
   isCrossCurrency,
   isFilled,
   parseRateInput,
@@ -67,7 +64,7 @@ describe('accounts', () => {
     expect(activeAccounts(ACCOUNTS)).toHaveLength(5);
   });
 
-  it('defaults to the quick-entry account, else the first active one, else none', () => {
+  it('defaults to the first active account in the user order, else none', () => {
     expect(defaultAccountId(ACCOUNTS)).toBe(BCA.id);
     expect(defaultAccountId([ARCHIVED, OVO, JAGO])).toBe(OVO.id);
     expect(defaultAccountId([ARCHIVED, { ...BCA, status: 'archived' }])).toBeNull();
@@ -556,22 +553,6 @@ describe('toRecordInput', () => {
       receivedMinor: 18_210n,
       manualRate: { base: 'USD', quote: 'IDR', rate: '16474' },
     });
-  });
-});
-
-describe('guessCategory', () => {
-  const name = (category: { readonly name: string; readonly builtInKey: string | null }) =>
-    category.builtInKey === null ? category.name : category.name.replace('system:', '');
-  const categories = [...CATEGORIES, userCategory({ id: 'cat-kopi', name: 'Kopi Pagi' })];
-
-  it('picks the first category named by a word of the text', () => {
-    expect(guessCategory('kopi susu 25rb', categories, name)?.id).toBe('cat-kopi');
-    expect(guessCategory('Food court', categories, name)?.id).toBe(categoryId('system:food'));
-  });
-
-  it('guesses nothing from short or unknown words', () => {
-    expect(guessCategory('25 rb', categories, name)).toBeNull();
-    expect(guessCategory('parkir motor', categories, name)).toBeNull();
   });
 });
 

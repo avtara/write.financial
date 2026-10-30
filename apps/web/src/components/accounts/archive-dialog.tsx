@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * "Arsipkan rekening" (FR-R5, design `wkqih`): the account leaves pickers and cards, its transactions stay in
- * reports. A positive balance can first move to another active account of the same currency, and archiving the
- * Quick Add default asks for the new default.
+ * reports. A positive balance can first move to another active account of the same currency.
  */
 import type { AccountView } from '@wf/db/accounts';
 import { m } from '@wf/i18n/messages';
@@ -10,7 +9,7 @@ import { Checkbox } from '@wf/ui/checkbox';
 import { Money } from '@wf/ui/money';
 import { Select } from '@wf/ui/select';
 import { toast } from '@wf/ui/toast';
-import { Archive, ArrowRight, CircleAlert, Wallet } from 'lucide-react';
+import { Archive, ArrowRight, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { archiveAccount } from '../../server/fn/accounts.ts';
@@ -34,7 +33,6 @@ export function ArchiveDialog({ account, accounts, onOpenChange, onDone }: Archi
   const canMove = account.balanceMinor > 0n && targets.length > 0;
   const [move, setMove] = useState(canMove);
   const [targetId, setTargetId] = useState<string | null>(targets[0]?.id ?? null);
-  const [defaultId, setDefaultId] = useState<string | null>(others[0]?.id ?? null);
   const [clientId] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -47,7 +45,6 @@ export function ArchiveDialog({ account, accounts, onOpenChange, onDone }: Archi
     const result = await archiveAccount({
       data: {
         id: account.id,
-        ...(account.isDefaultQuickEntry && defaultId !== null ? { newDefaultId: defaultId } : {}),
         ...(transfer ? { transfer: { toAccountId: target.id, clientId } } : {}),
       },
     });
@@ -109,24 +106,6 @@ export function ArchiveDialog({ account, accounts, onOpenChange, onDone }: Archi
                 />
               </p>
             ) : null}
-          </section>
-        ) : null}
-
-        {account.isDefaultQuickEntry && others.length > 0 ? (
-          <section className="flex flex-col gap-2 rounded-[10px] border border-border p-3">
-            <p className="flex items-center gap-2 text-[13px] font-medium text-fg">
-              <CircleAlert aria-hidden="true" className="size-3.5 text-amber-fg" />
-              {m.accounts_flag_default()}
-            </p>
-            <p className="text-[12px] text-subtle">{m.accounts_archive_new_default()}</p>
-            <Select
-              aria-label={m.accounts_archive_new_default()}
-              size="sm"
-              value={defaultId}
-              onValueChange={setDefaultId}
-              placeholder={m.accounts_archive_new_default()}
-              options={others.map((other) => ({ value: other.id, label: other.displayName }))}
-            />
           </section>
         ) : null}
 

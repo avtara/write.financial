@@ -50,7 +50,6 @@ const accountFields = z.object({
     .optional(),
   phoneMasked: z.string().max(20).nullable().optional(),
   includeInAvailable: z.boolean().optional(),
-  isDefaultQuickEntry: z.boolean().optional(),
   lowBalanceThresholdMinor: nonNegative.nullable().optional(),
   ccLimitMinor: nonNegative.nullable().optional(),
   ccStatementDay: day.nullable().optional(),
@@ -95,13 +94,12 @@ export const updateAccount = createServerFn({ method: 'POST' })
 
 /**
  * FR-R5: archives an account; optionally moves its whole (positive) balance to another account of the same currency
- * first, and hands the Quick Add default to `newDefaultId`.
+ * first.
  */
 export const archiveAccount = createServerFn({ method: 'POST' })
   .validator(
     z.object({
       id: z.uuid(),
-      newDefaultId: z.uuid().nullable().optional(),
       transfer: z.object({ toAccountId: z.uuid(), clientId: z.uuid() }).nullable().optional(),
     }),
   )
@@ -126,7 +124,7 @@ export const archiveAccount = createServerFn({ method: 'POST' })
           });
         }
       }
-      return accounts.archive(userId, data.id, data.newDefaultId == null ? {} : { newDefaultId: data.newDefaultId });
+      return accounts.archive(userId, data.id);
     }),
   );
 

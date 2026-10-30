@@ -186,7 +186,7 @@ function FormBody({
       {
         today,
         currency: baseCurrency,
-        accountId: (activeAccounts.find((account) => account.isDefaultQuickEntry) ?? activeAccounts[0])?.id ?? null,
+        accountId: activeAccounts[0]?.id ?? null,
       },
       prefill,
     ),

@@ -6,7 +6,7 @@
  * the toast, and the layout at 1440, 1024, and 768 px. The spec leaves the budget as it found it.
  */
 import type { Locator, Page } from '@playwright/test';
-import { expect, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
+import { expect, pressUntil, projectUser, screenshot, setUpProjectUser, test } from './support.ts';
 
 const user = projectUser('budget');
 test.describe.configure({ mode: 'serial' });
@@ -162,10 +162,11 @@ test('a limit is edited inline with the keyboard only; Escape cancels', async ({
 
 test('the Record sheet shows what an expense does to the category budget', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('form', { name: 'Catat cepat' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Selamat (pagi|siang|sore|malam), / })).toBeVisible();
   await page.waitForLoadState('networkidle');
-  await page.locator('body').press('n');
+  // The shortcut is bound once the page has hydrated: press until the sheet opens.
   const sheet = page.getByRole('dialog');
+  await pressUntil(page, 'n', () => sheet.isVisible());
   await expect(sheet.getByRole('textbox', { name: 'Jumlah' })).toBeFocused();
   await page.keyboard.type('150rb');
   await sheet.getByRole('button', { name: 'Lihat semua' }).focus();

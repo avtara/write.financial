@@ -134,17 +134,17 @@ describe('account writes', () => {
     ]);
   });
 
-  it('archives, with an optional transfer of a positive balance and a new default', async () => {
+  it('archives, with an optional transfer of a positive balance', async () => {
     fake.accounts.archive.mockResolvedValue({ id: ID, status: 'archived' });
     await call(archiveAccount, { context: signedIn(), data: { id: ID } });
-    expect(fake.accounts.archive).toHaveBeenLastCalledWith(USER_ID, ID, {});
+    expect(fake.accounts.archive).toHaveBeenLastCalledWith(USER_ID, ID);
     expect(fake.transactions.create).not.toHaveBeenCalled();
 
     fake.accounts.get.mockImplementation((_user: string, id: string) =>
       Promise.resolve({ id, currency: 'IDR', balanceMinor: id === ID ? 42_810_000n : 8_125_000n }),
     );
     const transfer = { toAccountId: OTHER, clientId: CLIENT };
-    await call(archiveAccount, { context: signedIn(), data: { id: ID, newDefaultId: OTHER, transfer } });
+    await call(archiveAccount, { context: signedIn(), data: { id: ID, transfer } });
     expect(fake.transactions.create).toHaveBeenCalledWith(USER_ID, {
       type: 'transfer',
       clientId: CLIENT,
@@ -155,7 +155,7 @@ describe('account writes', () => {
       receivedMinor: 42_810_000n,
       source: 'manual',
     });
-    expect(fake.accounts.archive).toHaveBeenLastCalledWith(USER_ID, ID, { newDefaultId: OTHER });
+    expect(fake.accounts.archive).toHaveBeenLastCalledWith(USER_ID, ID);
 
     // Nothing to move: the transfer is skipped.
     fake.transactions.create.mockClear();

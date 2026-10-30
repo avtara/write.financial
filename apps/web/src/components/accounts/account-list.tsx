@@ -186,12 +186,11 @@ export function AccountList({ accounts, baseCurrency, selectedId, onReorder, ...
   );
 }
 
-/** "•• 4821 · default" under the name in the list. */
+/** "•• 4821 · BCA" under the name in the list. */
 function rowMeta(account: AccountView): string {
   const parts = [
     account.last4 === null ? account.phoneMasked : `•• ${account.last4}`,
     account.providerName === account.displayName || account.type === 'cash' ? null : account.providerName,
-    account.isDefaultQuickEntry ? m.accounts_default_badge() : null,
   ];
   return parts.filter((part) => part !== null).join(' · ');
 }

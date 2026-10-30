@@ -61,7 +61,6 @@ export interface AccountDraft {
   readonly openingDate: LocalDate;
   readonly color: string;
   readonly includeInAvailable: boolean;
-  readonly isDefaultQuickEntry: boolean;
   readonly lowBalanceMinor: bigint | null;
   readonly ccLimitMinor: bigint | null;
   readonly ccStatementDay: number | null;
@@ -82,7 +81,6 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
       openingDate: today,
       color: 'blue',
       includeInAvailable: type !== 'investment',
-      isDefaultQuickEntry: false,
       lowBalanceMinor: null,
       ccLimitMinor: null,
       ccStatementDay: null,
@@ -101,7 +99,6 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
     openingDate: account.openingDate,
     color: account.color,
     includeInAvailable: account.includeInAvailable,
-    isDefaultQuickEntry: account.isDefaultQuickEntry,
     lowBalanceMinor: account.lowBalanceThresholdMinor,
     ccLimitMinor: account.ccLimitMinor,
     ccStatementDay: account.ccStatementDay,
@@ -140,7 +137,6 @@ export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input
       last4: usesLast4 && draft.last4 !== '' ? draft.last4 : null,
       ...(draft.type !== 'ewallet' ? { phoneMasked: null } : phoneMasked === null ? {} : { phoneMasked }),
       includeInAvailable: draft.includeInAvailable,
-      isDefaultQuickEntry: draft.isDefaultQuickEntry,
       lowBalanceThresholdMinor: card ? null : draft.lowBalanceMinor,
       ccLimitMinor: card ? draft.ccLimitMinor : null,
       ccStatementDay: card ? draft.ccStatementDay : null,
@@ -624,16 +620,6 @@ export function AccountForm({
           checked={draft.includeInAvailable}
           onChange={(event) => {
             set({ includeInAvailable: event.target.checked });
-          }}
-        />
-        <Switch
-          className="px-3.5 py-3"
-          label={m.accounts_flag_default()}
-          description={m.accounts_flag_default_hint()}
-          disabled={account?.isDefaultQuickEntry === true}
-          checked={draft.isDefaultQuickEntry}
-          onChange={(event) => {
-            set({ isDefaultQuickEntry: event.target.checked });
           }}
         />
         {card ? null : (

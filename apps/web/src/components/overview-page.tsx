@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Overview (`/`, FR-D1/D2/D4): the header with the span switch and pickers, the Quick Add bar (FR-T1), and the
+ * Overview (`/`, FR-D1/D2/D4): the header with the span switch and pickers (recording opens the Catat sheet), and the
  * dashboard cards — KPIs on top, then accounts, money flow, spending per category, income vs spending, budget,
  * spending calendar, subscriptions, and the addable goals and bills cards in the user's layout (FR-D3,
  * "Atur dashboard": reorder, hide, ⅓/⅔/full width, saved to the account with "Reset ke default" and "Urungkan"). A user
@@ -16,10 +16,7 @@ import type { GoalView } from '@wf/db/goals';
 import type { PeriodsOverview } from '@wf/db/periods';
 import type { Profile } from '@wf/db/profiles';
 import type { ScheduledItem, SubscriptionsOverview } from '@wf/db/schedules';
-import type { TagView } from '@wf/db/tags';
-import type { AutoRuleView } from '@wf/domain/rules';
 import { m } from '@wf/i18n/messages';
-import { toLocalDate } from '@wf/ui/dates';
 import { PageState } from '@wf/ui/page-state';
 import { toast } from '@wf/ui/toast';
 import { WifiOff } from 'lucide-react';
@@ -56,21 +53,17 @@ import { KpiCards } from './dashboard/kpi-cards.tsx';
 import { MoneyFlowCard } from './dashboard/money-flow-card.tsx';
 import { SubscriptionsCard } from './dashboard/subscriptions-card.tsx';
 import { Button } from './form.tsx';
-import { QuickAddBar } from './ledger/quick-add-bar.tsx';
 import { useRecordTransaction } from './ledger/record-transaction.tsx';
-import type { LedgerData } from './ledger/use-transaction-form.ts';
 import { usePreferences } from './preferences.tsx';
 
 /** Everything the `/` loader reads; each part fails on its own. */
 export interface OverviewData {
   readonly accounts: Result<AccountsOverview>;
   readonly categories: Result<CategoryView[]>;
-  readonly tags: Result<TagView[]>;
-  readonly rules: Result<AutoRuleView[]>;
   readonly periods: Result<PeriodsOverview>;
   readonly profile: Result<Profile>;
   readonly dashboard: Result<Dashboard>;
-  /** The current period's budget (the Quick Add notes). */
+  /** The current period's budget (the budget card, the setup checklist). */
   readonly budget: Result<BudgetStatus>;
   /** The budget of another period shown (month scope); `null` for the current one or other scopes. */
   readonly shownBudget: Result<BudgetStatus> | null;
@@ -129,8 +122,6 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
   const [saving, setSaving] = useState(false);
   const accounts = valueOf(data.accounts);
   const categories = valueOf(data.categories);
-  const tags = valueOf(data.tags);
-  const rules = valueOf(data.rules);
   const subscriptions = valueOf(data.subscriptions);
   const periods = valueOf(data.periods);
   const profile = valueOf(data.profile);
@@ -138,18 +129,6 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
   const budget = valueOf(data.budget);
   const active = accounts?.accounts.filter((account) => account.status === 'active') ?? [];
   const hasTransactions = active.some((account) => account.transactionCount > 0);
-  const ledger: LedgerData | null =
-    accounts !== null && categories !== null && tags !== null && rules !== null && active.length > 0
-      ? {
-          baseCurrency: accounts.baseCurrency,
-          accounts: accounts.accounts,
-          categories,
-          tags,
-          rules,
-          subscriptionNames: subscriptions?.subscriptions.map((subscription) => subscription.name) ?? [],
-          ...(budget === null ? {} : { budget: { lines: budget.lines, currency: budget.baseCurrency } }),
-        }
-      : null;
   const name = profile?.nickname ?? profile?.name.split(' ')[0] ?? '';
   const empty = !hasTransactions;
   // Read only where one of these failed (the cards need all three), so it is set there.
@@ -273,7 +252,7 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
         }
         dashboard={empty ? null : dashboard}
         periods={periods}
-        canRecord={ledger !== null}
+        canRecord={active.length > 0}
         refreshing={refreshing}
         {...(customizable
           ? {
@@ -283,9 +262,6 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
             }
           : {})}
       />
-      {ledger === null ? null : (
-        <QuickAddBar data={ledger} locale={locale} timeZone={timeZone} today={toLocalDate(new Date(), timeZone)} />
-      )}
       {offline ? (
         <p
           role="status"

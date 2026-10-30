@@ -103,7 +103,7 @@ export function useRecordTransaction(): RecordTransactionApi {
   return api;
 }
 
-/** Says what was saved, with "Urungkan" (soft delete, FR-T9); also used by the Quick Add bar. */
+/** Says what was saved, with "Urungkan" (soft delete, FR-T9). */
 
 type Loaded =
   | { readonly status: 'loading' }

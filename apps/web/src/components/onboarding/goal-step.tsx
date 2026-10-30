@@ -33,10 +33,17 @@ const PRESETS: Readonly<Record<GoalPreset, { icon: LucideIcon; name: () => strin
 };
 const DAYS = Array.from({ length: 28 }, (_, index) => index + 1);
 
-/** "Simpan di" by default: an account set aside, not the everyday one (Bank Jago next to BCA Tahapan). */
+/**
+ * "Simpan di" by default: an account set aside, not the everyday one (Bank Jago next to BCA Tahapan): one left out of
+ * the available balance, else any but the first (the everyday one).
+ */
 function defaultGoalAccount(accounts: readonly AccountView[]): AccountView | undefined {
   const savings = accounts.filter((account) => account.type !== 'credit_card');
-  return savings.find((account) => !account.isDefaultQuickEntry) ?? savings[0];
+  return (
+    savings.find((account) => !account.includeInAvailable) ??
+    savings.find((account) => account !== accounts[0]) ??
+    savings[0]
+  );
 }
 
 export function GoalStep({ view, onSaved }: { view: OnboardingView; onSaved: () => void }) {
@@ -51,7 +58,7 @@ export function GoalStep({ view, onSaved }: { view: OnboardingView; onSaved: () 
   const [recurring, setRecurring] = useState(false);
   const [amount, setAmount] = useState<bigint | null>(null);
   const [day, setDay] = useState<number>(view.startDay);
-  const daily = accounts.find((account) => account.isDefaultQuickEntry) ?? accounts[0];
+  const daily = accounts[0];
   const [fromId, setFromId] = useState(daily?.id ?? '');
   const [errors, setErrors] = useState<Partial<Record<'target' | 'account' | 'amount' | 'from', string>>>({});
   const [failure, setFailure] = useState<string | null>(null);

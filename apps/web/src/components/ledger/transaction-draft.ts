@@ -5,7 +5,6 @@
  * draft keeps (FR-T9). Pure: no React, no messages.
  */
 import type { AccountView } from '@wf/db/accounts';
-import type { CategoryView } from '@wf/db/categories';
 import type { JsonObject } from '@wf/db/schema';
 import type { TransactionDetail } from '@wf/db/transactions';
 import {
@@ -59,10 +58,9 @@ export function activeAccounts(accounts: readonly AccountView[]): AccountView[] 
   return accounts.filter((account) => account.status === 'active');
 }
 
-/** The default quick-entry account (FR-R2), else the first active one. */
+/** The first active account in the user's order (the top of "Rekening & dompet"). */
 export function defaultAccountId(accounts: readonly AccountView[]): string | null {
-  const active = activeAccounts(accounts);
-  return (active.find((account) => account.isDefaultQuickEntry) ?? active[0])?.id ?? null;
+  return activeAccounts(accounts)[0]?.id ?? null;
 }
 
 export function emptyValues(start: {
@@ -429,29 +427,6 @@ export function toRecordInput(
         ? { minor: values.feeMinor, categoryId: values.feeCategoryId }
         : null,
   };
-}
-
-/** The category the Quick Add bar guesses from what was typed: the first whose name is a word of `text`. */
-export function guessCategory(
-  text: string,
-  categories: readonly CategoryView[],
-  name: (category: CategoryView) => string,
-): CategoryView | null {
-  const words = new Set(
-    text
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter((word) => word.length >= 3),
-  );
-  if (words.size === 0) return null;
-  return (
-    categories.find((category) =>
-      name(category)
-        .toLowerCase()
-        .split(/[^\p{L}\p{N}]+/u)
-        .some((word) => words.has(word)),
-    ) ?? null
-  );
 }
 
 const DRAFT_VERSION = 1;

@@ -7,7 +7,7 @@ import { renderApp } from '../../../test/render.tsx';
 import { groupByType } from '../../lib/accounts.ts';
 import { AccountList, ArchivedList, dragAnnouncements, reorderedIds, type AccountListProps } from './account-list.tsx';
 
-const BCA = accountView({ displayName: 'BCA Tahapan', isDefaultQuickEntry: true });
+const BCA = accountView({ displayName: 'BCA Tahapan' });
 const JAGO = accountView({ displayName: 'Bank Jago', providerName: 'Bank Jago', last4: '0377' });
 const MANDIRI = accountView({ displayName: 'Mandiri', providerName: 'Bank Mandiri' });
 const GOPAY = accountView({
@@ -99,7 +99,7 @@ describe('AccountList', () => {
     const bank = screen.getByRole('region', { name: 'Bank' });
     await expect.element(bank.getByText('3 rekening')).toBeVisible();
     await expect.element(bank.getByText('Rp3.000.000')).toBeVisible();
-    await expect.element(bank.getByText('•• 4821 · Bank Central Asia · default')).toBeVisible();
+    await expect.element(bank.getByText('•• 4821 · Bank Central Asia', { exact: true })).toBeVisible();
     await expect.element(bank.getByText('•• 0377', { exact: true })).toBeVisible();
     await expect.element(screen.getByText('0812•• 18', { exact: true })).toBeVisible();
     const investment = screen.getByRole('region', { name: 'Investasi' });
