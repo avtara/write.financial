@@ -245,6 +245,11 @@ export const userPreferences = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'`),
+    /**
+     * Whether a cross-currency transfer's FX loss (its `fx_diff` line, "Selisih kurs") counts as spending. Off, the
+     * line stays on the transfer for reference but no total, budget, or money flow sees it.
+     */
+    fxDiffAsExpense: boolean('fx_diff_as_expense').notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

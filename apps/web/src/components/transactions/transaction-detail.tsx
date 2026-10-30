@@ -8,7 +8,8 @@
 import { useRouter } from '@tanstack/react-router';
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { ActivityEntry } from '@wf/db/activity';
-import type { TransactionDetail } from '@wf/db/transactions';
+import type { TransactionDetail, TransferView } from '@wf/db/transactions';
+import { effectiveRate } from '@wf/domain/fx';
 import type { Locale } from '@wf/domain/money';
 import type { LocalDate } from '@wf/domain/period';
 import type { IsoWeekday } from '@wf/domain/recurrence';
@@ -23,11 +24,11 @@ import { ArrowRight, Check, Copy, History, Pencil, Split, Trash2, X, Zap } from 
 import { useEffect, useState, type ReactNode } from 'react';
 import { colorProps } from '../../lib/colors.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
-import { categoryName } from '../../lib/ledger-labels.ts';
+import { categoryGroupLabel, categoryName } from '../../lib/ledger-labels.ts';
 import { getBudgetStatus } from '../../server/fn/budget.ts';
 import { getTransactionDetail, updateTransaction } from '../../server/fn/transactions.ts';
 import { CategoryIcon } from '../category-icon.tsx';
-import { valuesFromDetail } from '../ledger/transaction-draft.ts';
+import { unitValue, valuesFromDetail } from '../ledger/transaction-draft.ts';
 import { TransactionForm } from '../ledger/transaction-form.tsx';
 import type { LedgerData } from '../ledger/use-transaction-form.ts';
 import { usePreferences } from '../preferences.tsx';
@@ -196,6 +197,67 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/**
+ * "Selisih kurs" of a cross-currency transfer: the loss (or gain) against the reference rate in the base currency,
+ * whether it counts as spending (Settings › API kurs & pasar), and the rate got next to the reference behind it.
+ */
+function FxDifference({
+  transfer,
+  baseCurrency,
+  locale,
+}: {
+  transfer: TransferView;
+  baseCurrency: string;
+  locale: Locale;
+}) {
+  const { referenceRate, rateBase, rateQuote } = transfer;
+  const sent = { minor: transfer.sentMinor, currency: transfer.sentCurrency };
+  const received = { minor: transfer.receivedMinor, currency: transfer.receivedCurrency };
+  // The reference connects the two legs; then the rate got is the same pair read off the two amounts.
+  const reference =
+    referenceRate === null ||
+    rateBase === null ||
+    rateQuote === null ||
+    ![sent.currency, received.currency].includes(rateBase) ||
+    ![sent.currency, received.currency].includes(rateQuote)
+      ? null
+      : { base: rateBase, quote: rateQuote, rate: referenceRate };
+  const loss = transfer.fxDiffBaseMinor < 0n;
+  const counted = loss && transfer.fxDiffAsExpense;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+        <Money
+          minor={transfer.fxDiffBaseMinor}
+          currency={baseCurrency}
+          context="amount"
+          locale={locale}
+          className={counted ? 'text-red-fg' : 'text-fg'}
+        />
+        {loss ? (
+          <span className="text-[12px] text-subtle">
+            · {counted ? categoryGroupLabel('financial') : m.transactions_detail_fx_not_expense()}
+          </span>
+        ) : null}
+      </span>
+      {reference === null ? null : (
+        <span className="text-[11.5px] text-subtle">
+          {m.record_rate_one({ currency: reference.base })}{' '}
+          <Money
+            minor={unitValue({ ...reference, rate: effectiveRate(sent, received, reference) })}
+            currency={reference.quote}
+            context="amount"
+            locale={locale}
+          />
+          {' · '}
+          {m.transactions_detail_fx_reference()}{' '}
+          <Money minor={unitValue(reference)} currency={reference.quote} context="amount" locale={locale} />
+        </span>
+      )}
+    </span>
+  );
+}
+
 function View({
   detail,
   ledger,
@@ -237,12 +299,23 @@ function View({
           {subtitle === null ? null : <p className="truncate text-[12.5px] text-muted-fg">{subtitle}</p>}
         </div>
       </div>
-      <SignedMoney
-        amountMinor={detail.type === 'transfer' && row.amountMinor < 0n ? -row.amountMinor : row.amountMinor}
-        currency={row.currency}
-        locale={locale}
-        className="text-[28px] leading-none font-semibold text-fg"
-      />
+      {detail.type === 'transfer' ? (
+        // A transfer moves money between the user's own accounts: neither in nor out, so no sign and no colour.
+        <Money
+          minor={row.amountMinor < 0n ? -row.amountMinor : row.amountMinor}
+          currency={row.currency}
+          context="amount"
+          locale={locale}
+          className="text-[28px] leading-none font-semibold text-fg"
+        />
+      ) : (
+        <SignedMoney
+          amountMinor={row.amountMinor}
+          currency={row.currency}
+          locale={locale}
+          className="text-[28px] leading-none font-semibold text-fg"
+        />
+      )}
       <div className="flex flex-wrap gap-1.5 text-[11.5px]">
         {deleted ? (
           <span className="rounded-[5px] bg-red-tint-2 px-1.5 py-0.5 text-red-fg">
@@ -335,12 +408,7 @@ function View({
             ))}
             {detail.transfer === null || detail.transfer.fxDiffBaseMinor === 0n ? null : (
               <Row label={m.transactions_detail_fx_difference()}>
-                <Money
-                  minor={detail.transfer.fxDiffBaseMinor}
-                  currency={ledger.baseCurrency}
-                  context="delta"
-                  locale={locale}
-                />
+                <FxDifference transfer={detail.transfer} baseCurrency={ledger.baseCurrency} locale={locale} />
               </Row>
             )}
           </>

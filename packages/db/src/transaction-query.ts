@@ -194,10 +194,11 @@ const MAX_LIMIT = 200;
 export const isIn = sql`(${transactions.type} in ('income', 'dividend') and ${postings.role} = 'principal')`;
 /**
  * Lines that count as Out: the principal of an expense or a receivable write-off (FR-U7, its principal moves no money:
- * amount 0, the written-off value in the base amount), fees, and FX-difference losses. Lending and repayments
- * (`receivable_out`/`receivable_in`) are neither In nor Out.
+ * amount 0, the written-off value in the base amount), fees, and FX-difference losses unless the user turned
+ * "Hitung selisih kurs sebagai pengeluaran" off (`user_preferences.fx_diff_as_expense`, on without a row). Lending and
+ * repayments (`receivable_out`/`receivable_in`) are neither In nor Out.
  */
-export const isOut = sql`((${transactions.type} in ('expense', 'writeoff') and ${postings.role} = 'principal') or ${postings.role} = 'fee' or (${postings.role} = 'fx_diff' and ${postings.amountBaseMinor} < 0))`;
+export const isOut = sql`((${transactions.type} in ('expense', 'writeoff') and ${postings.role} = 'principal') or ${postings.role} = 'fee' or (${postings.role} = 'fx_diff' and ${postings.amountBaseMinor} < 0 and coalesce((select up.fx_diff_as_expense from user_preferences up where up.user_id = "transactions"."user_id"), true)))`;
 /** The sent leg of a transfer. */
 const isSent = sql`(${transactions.type} = 'transfer' and ${postings.role} = 'principal' and ${postings.amountMinor} < 0)`;
 const sumIn = sql`sum(case when ${isIn} then ${postings.amountBaseMinor} else 0 end)`;

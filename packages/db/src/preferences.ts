@@ -18,6 +18,7 @@ const COLUMNS = {
   ccPaymentPriority: userPreferences.ccPaymentPriority,
   reportAutoSend: userPreferences.reportAutoSend,
   extraCurrencies: userPreferences.extraCurrencies,
+  fxDiffAsExpense: userPreferences.fxDiffAsExpense,
 };
 
 export type Preferences = Readonly<Omit<typeof userPreferences.$inferSelect, 'userId' | 'createdAt' | 'updatedAt'>>;
@@ -38,6 +39,7 @@ export const DEFAULT_PREFERENCES: Preferences = Object.freeze({
   ccPaymentPriority: [],
   reportAutoSend: false,
   extraCurrencies: [],
+  fxDiffAsExpense: true,
 });
 
 export interface PreferencesRepository {

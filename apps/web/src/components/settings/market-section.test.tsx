@@ -78,6 +78,7 @@ const SETTINGS: MarketSettings = {
   ],
   cmcConfigured: true,
   symbolCounts: { idx_equity: 2, us_equity: 30 },
+  fxDiffAsExpense: true,
   prices: [
     { label: 'manual', provider: null, count: 22, asOf: now },
     { label: 'last', provider: 'eodhd', count: 1, asOf: lastWeek },

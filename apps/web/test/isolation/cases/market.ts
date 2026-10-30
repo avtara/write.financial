@@ -71,6 +71,19 @@ export const cases = {
       expect(before.keys).toMatchObject([{ active: true }]);
     },
   },
+  setFxDiffAsExpense: {
+    input: () => ({ enabled: false }),
+    anonymous: () => UNAUTHENTICATED,
+    asB: async (input) => {
+      // B switches off counting its own FX losses; A keeps the default (no preferences row, or its own value).
+      const before = await superuser`SELECT fx_diff_as_expense FROM user_preferences WHERE user_id = ${aId}`;
+      expect(await as('B', 'setFxDiffAsExpense', input)).toEqual(ok(false));
+      expect(await superuser`SELECT fx_diff_as_expense FROM user_preferences WHERE user_id = ${bId}`).toEqual([
+        { fx_diff_as_expense: false },
+      ]);
+      expect(await superuser`SELECT fx_diff_as_expense FROM user_preferences WHERE user_id = ${aId}`).toEqual(before);
+    },
+  },
   removeMarketKey: {
     input: () => ({ provider: 'tiingo' }),
     anonymous: () => UNAUTHENTICATED,

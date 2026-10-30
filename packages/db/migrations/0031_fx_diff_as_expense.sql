@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "fx_diff_as_expense" boolean DEFAULT true NOT NULL;

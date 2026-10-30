@@ -25,6 +25,7 @@ import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { ConfirmDialog } from '@wf/ui/confirm-dialog';
 import { Money } from '@wf/ui/money';
+import { Switch } from '@wf/ui/switch';
 import { toast } from '@wf/ui/toast';
 import { useState, type ReactNode } from 'react';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
@@ -41,6 +42,7 @@ import {
   getMarketApiLog,
   removeMarketKey,
   saveMarketKey,
+  setFxDiffAsExpense as saveFxDiffAsExpense,
   setMarketKeyActive,
   syncMarketSource,
   testMarketKey,
@@ -462,6 +464,7 @@ export function MarketSection({ settings, timeZone }: MarketSectionProps) {
   const [log, setLog] = useState<ApiLogView[] | null>(null);
   const [logError, setLogError] = useState(false);
   const [sync, setSync] = useState<{ done: number; results: MarketSyncResult[] } | null>(null);
+  const [fxDiffAsExpense, setFxDiffAsExpense] = useState(settings.fxDiffAsExpense);
   const refresh = () => {
     void router.invalidate();
   };
@@ -516,6 +519,17 @@ export function MarketSection({ settings, timeZone }: MarketSectionProps) {
         onChanged={refresh}
       />
     ));
+  const countFxDiff = async (enabled: boolean) => {
+    setFxDiffAsExpense(enabled);
+    const result = await saveFxDiffAsExpense({ data: { enabled } }).catch(() => null);
+    if (result?.ok !== true) {
+      setFxDiffAsExpense(!enabled);
+      toast({ tone: 'error', title: m.market_action_failed() });
+      return;
+    }
+    toast({ tone: 'success', title: enabled ? m.market_fx_diff_counted() : m.market_fx_diff_not_counted() });
+    refresh();
+  };
   const builtIn = (provider: ServerProvider, label: string, extra?: string) => (
     <SettingsRow
       title={
@@ -594,6 +608,15 @@ export function MarketSection({ settings, timeZone }: MarketSectionProps) {
               }
               description={m.market_fx_status()}
             />
+            <SettingsRow title={m.market_fx_diff_expense()} description={m.market_fx_diff_expense_hint()}>
+              <Switch
+                label={<span className="sr-only">{m.market_fx_diff_expense()}</span>}
+                checked={fxDiffAsExpense}
+                onChange={(event) => {
+                  void countFxDiff(event.currentTarget.checked);
+                }}
+              />
+            </SettingsRow>
           </SettingsGroup>
           <SettingsGroup label={CLASS_LABEL.us_equity()}>{byokRows('us_equity')}</SettingsGroup>
           <SettingsGroup label={CLASS_LABEL.idx_equity()}>{byokRows('idx_equity')}</SettingsGroup>
