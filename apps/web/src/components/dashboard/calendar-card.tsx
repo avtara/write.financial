@@ -150,7 +150,7 @@ export function CalendarCard({
   return (
     <section
       aria-labelledby="overview-calendar"
-      className="flex flex-col gap-4 rounded-[12px] border border-border bg-card px-6 py-5"
+      className="@container flex flex-col gap-4 rounded-[12px] border border-border bg-card px-6 py-5"
     >
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -179,95 +179,100 @@ export function CalendarCard({
         </div>
       </div>
 
-      {months ? (
-        <YearView dashboard={dashboard} periodLabels={periodLabels} locale={locale} />
-      ) : (
-        <div ref={grid} role="grid" aria-label={title} onKeyDown={move} className="flex flex-col gap-1.5">
-          <div role="row" className="grid grid-cols-7 gap-1.5">
-            {weekdayNames(locale, 1).map((name) => (
-              <span key={name.short} role="columnheader" className="px-1 text-[11.5px] text-subtle">
-                <abbr title={name.long} className="no-underline">
-                  {name.short}
-                </abbr>
-              </span>
-            ))}
-          </div>
-          {weeks.map((week) => (
-            <div key={week[0]?.date} role="row" className="grid grid-cols-7 gap-1.5">
-              {week.map((day) => (
-                <div key={day.date} role="gridcell" aria-selected={day.date === selected}>
-                  {day.inRange ? (
-                    <DayButton
-                      day={day}
-                      today={today}
-                      tall={scope === 'week'}
-                      bills={billsOn.get(day.date) ?? []}
-                      selected={day.date === selected}
-                      tabbable={day.date === active}
-                      currency={currency}
-                      locale={locale}
-                      onSelect={() => {
-                        setActive(day.date);
-                        setSelected(day.date);
-                      }}
-                    />
-                  ) : (
-                    <span
-                      aria-hidden="true"
-                      className="flex h-[68px] items-start rounded-[8px] p-2 text-[12px] text-subtle"
-                    >
-                      {Number(day.date.slice(8))}
-                    </span>
-                  )}
+      {/* The month on the left and the chosen day beside it on a wide card; stacked on a narrow one. */}
+      <div
+        className={`grid gap-4 ${months ? '' : '@[860px]:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] @[860px]:items-start'}`}
+      >
+        <div className="flex min-w-0 flex-col gap-4">
+          {months ? (
+            <YearView dashboard={dashboard} periodLabels={periodLabels} locale={locale} />
+          ) : (
+            <div ref={grid} role="grid" aria-label={title} onKeyDown={move} className="flex flex-col gap-1.5">
+              <div role="row" className="grid grid-cols-7 gap-1.5">
+                {weekdayNames(locale, 1).map((name) => (
+                  <span key={name.short} role="columnheader" className="px-1 text-[11.5px] text-subtle">
+                    <abbr title={name.long} className="no-underline">
+                      {name.short}
+                    </abbr>
+                  </span>
+                ))}
+              </div>
+              {weeks.map((week) => (
+                <div key={week[0]?.date} role="row" className="grid grid-cols-7 gap-1.5">
+                  {week.map((day) => (
+                    <div key={day.date} role="gridcell" aria-selected={day.date === selected}>
+                      {day.inRange ? (
+                        <DayButton
+                          day={day}
+                          today={today}
+                          tall={scope === 'week'}
+                          bills={billsOn.get(day.date) ?? []}
+                          selected={day.date === selected}
+                          tabbable={day.date === active}
+                          currency={currency}
+                          locale={locale}
+                          onSelect={() => {
+                            setActive(day.date);
+                            setSelected(day.date);
+                          }}
+                        />
+                      ) : (
+                        <span
+                          aria-hidden="true"
+                          className="flex h-[68px] items-start rounded-[8px] p-2 text-[12px] text-subtle"
+                        >
+                          {Number(day.date.slice(8))}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-          ))}
+          )}
+
+          <ul
+            aria-label={m.overview_calendar_legend()}
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-subtle"
+          >
+            <li className="flex items-center gap-1">
+              {m.overview_calendar_little()}
+              {([1, 2, 3, 4] as const).map((level) => (
+                <span key={level} aria-hidden="true" className={`size-3 rounded-[3px] ${HEAT[level]}`} />
+              ))}
+              {m.overview_calendar_lots()}
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span aria-hidden="true" className="size-3 rounded-[3px] bg-heat-green" />
+              {m.overview_calendar_surplus()}
+            </li>
+            {months ? null : (
+              <li className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="size-1.5 rounded-full bg-red" />
+                {m.overview_calendar_scheduled()}
+              </li>
+            )}
+          </ul>
         </div>
-      )}
 
-      <ul
-        aria-label={m.overview_calendar_legend()}
-        className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-subtle"
-      >
-        <li className="flex items-center gap-1">
-          {m.overview_calendar_little()}
-          {([1, 2, 3, 4] as const).map((level) => (
-            <span key={level} aria-hidden="true" className={`size-3 rounded-[3px] ${HEAT[level]}`} />
-          ))}
-          {m.overview_calendar_lots()}
-        </li>
-        <li className="flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-3 rounded-[3px] bg-heat-green" />
-          {m.overview_calendar_surplus()}
-        </li>
-        {months ? null : (
-          <li className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-red" />
-            {m.overview_calendar_scheduled()}
-          </li>
-        )}
-      </ul>
-
-      {months || selected === null ? (
-        months ? null : (
+        {months ? null : selected === null ? (
           <p className="text-[12.5px] text-subtle">{m.overview_calendar_pick()}</p>
-        )
-      ) : (
-        <DayBreakdown
-          date={selected}
-          breakdown={loaded[selected]}
-          day={days.find((day) => day.date === selected) as CalendarDay}
-          costliest={costliest?.date === selected}
-          averageMinor={calendar.averageDailySpendMinor}
-          scope={scope}
-          bills={billsOn.get(selected) ?? []}
-          byId={byId}
-          currency={currency}
-          locale={locale}
-          timeZone={timeZone}
-        />
-      )}
+        ) : (
+          <DayBreakdown
+            date={selected}
+            breakdown={loaded[selected]}
+            day={days.find((day) => day.date === selected) as CalendarDay}
+            costliest={costliest?.date === selected}
+            averageMinor={calendar.averageDailySpendMinor}
+            scope={scope}
+            bills={billsOn.get(selected) ?? []}
+            byId={byId}
+            currency={currency}
+            locale={locale}
+            timeZone={timeZone}
+          />
+        )}
+      </div>
     </section>
   );
 }
@@ -460,10 +465,20 @@ function DayBreakdown({
                   ) : (
                     <CategoryIcon icon={category.icon} color={category.color} />
                   )}
-                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[13px] text-fg">
                       {[row.merchant, row.description].filter((part) => part !== null && part !== '').join(' — ') ||
                         (category === undefined ? m.overview_flow_uncategorized() : categoryName(category))}
+                    </span>
+                    {/* Category and time under the title, so a row fits the side column too. */}
+                    <span className="truncate text-[11.5px] text-subtle">
+                      {row.type === 'transfer'
+                        ? m.record_type_transfer()
+                        : category === undefined
+                          ? m.overview_flow_uncategorized()
+                          : categoryName(category)}
+                      {' · '}
+                      <span className="font-mono">{formatTime(row.occurredAt, timeZone, locale)}</span>
                     </span>
                     {row.tags.length === 0 ? null : (
                       <span className="flex flex-wrap gap-1">
@@ -478,17 +493,7 @@ function DayBreakdown({
                       </span>
                     )}
                   </span>
-                  <span className="w-[130px] truncate text-[12px] text-muted-fg max-md:hidden">
-                    {row.type === 'transfer'
-                      ? m.record_type_transfer()
-                      : category === undefined
-                        ? m.overview_flow_uncategorized()
-                        : categoryName(category)}
-                  </span>
-                  <span className="font-mono text-[12px] text-subtle">
-                    {formatTime(row.occurredAt, timeZone, locale)}
-                  </span>
-                  <span className="flex w-[120px] justify-end text-right text-[13px]">
+                  <span className="flex shrink-0 justify-end text-right text-[13px]">
                     <RowAmount row={row} locale={locale} baseCurrency={currency} />
                   </span>
                 </Link>
