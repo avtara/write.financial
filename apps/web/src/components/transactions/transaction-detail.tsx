@@ -221,8 +221,11 @@ function View({
   const deleted = detail.deletedAt !== null;
   const title = detail.merchant ?? detail.description ?? rowLabel(row, ledger);
   const subtitle = detail.merchant === null ? null : detail.description;
-  const fee = detail.postings.find((posting) => posting.role === 'fee');
-  const feeCategory = ledger.categories.find((candidate) => candidate.id === fee?.categoryId);
+  // Its fee and tax are their own transactions, so they come with the detail as `fees`.
+  const fees = detail.fees.map((line) => ({
+    line,
+    category: ledger.categories.find((candidate) => candidate.id === line.categoryId),
+  }));
   const date = toLocalDate(detail.occurredAt, timeZone);
   const { recurrence, reload } = useTransactionRecurrence(detail.id, detail.activity.length);
   return (
@@ -322,14 +325,14 @@ function View({
                 ) : null}
               </span>
             </Row>
-            {fee === undefined ? null : (
-              <Row label={m.transactions_detail_fee()}>
-                <Money minor={-fee.amountMinor} currency={fee.currency} context="amount" locale={locale} />
-                {feeCategory === undefined ? null : (
-                  <span className="text-muted-fg"> · {categoryName(feeCategory)}</span>
-                )}
+            {fees.map(({ line, category: feeCategory }) => (
+              <Row
+                key={line.id}
+                label={feeCategory === undefined ? m.transactions_detail_fee() : categoryName(feeCategory)}
+              >
+                <Money minor={line.amountMinor} currency={line.currency} context="delta" locale={locale} />
               </Row>
-            )}
+            ))}
             {detail.transfer === null || detail.transfer.fxDiffBaseMinor === 0n ? null : (
               <Row label={m.transactions_detail_fx_difference()}>
                 <Money
@@ -358,6 +361,14 @@ function View({
               )}
             </Row>
             <Row label={m.transactions_detail_account()}>{account(row.accountId)?.displayName}</Row>
+            {fees.map(({ line, category: feeCategory }) => (
+              <Row
+                key={line.id}
+                label={feeCategory === undefined ? m.transactions_detail_fee() : categoryName(feeCategory)}
+              >
+                <Money minor={line.amountMinor} currency={line.currency} context="delta" locale={locale} />
+              </Row>
+            ))}
           </>
         )}
         <Row label={m.transactions_detail_date()}>

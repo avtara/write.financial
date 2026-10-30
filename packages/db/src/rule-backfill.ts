@@ -227,6 +227,8 @@ export async function managedTransactionIdsIn(tx: Transaction, ids: readonly str
         inArray(transactions.id, [...ids]),
         or(
           inArray(transactions.type, ['receivable_out', 'receivable_in', 'writeoff', 'investment', 'dividend']),
+          // A fee or tax is part of the transaction it belongs to: edit it there, never on its own.
+          isNotNull(transactions.parentTransactionId),
           exists(
             tx
               .select({ id: investmentTrades.id })

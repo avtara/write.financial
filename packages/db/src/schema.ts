@@ -616,6 +616,8 @@ export const transactions = pgTable(
     source: transactionSource('source').notNull().default('manual'),
     recurrenceId: uuid('recurrence_id'),
     splitParentId: uuid('split_parent_id'),
+    /** The transaction whose fee or tax this one carries (a fee is its own transaction, one action each). */
+    parentTransactionId: uuid('parent_transaction_id'),
     duplicatedFromId: uuid('duplicated_from_id'),
     importBatchId: uuid('import_batch_id'),
     externalHash: text('external_hash'),
@@ -643,6 +645,7 @@ export const transactions = pgTable(
     ),
     index('transactions_user_id_category_id_idx').on(table.userId, table.categoryId),
     index('transactions_split_parent_id_idx').on(table.splitParentId),
+    index('transactions_parent_transaction_id_idx').on(table.parentTransactionId),
     index('transactions_merchant_trgm_idx').using('gin', table.merchant.op('gin_trgm_ops')),
     index('transactions_description_trgm_idx').using('gin', table.description.op('gin_trgm_ops')),
     foreignKey({
@@ -653,6 +656,11 @@ export const transactions = pgTable(
     foreignKey({
       name: 'transactions_split_parent_fk',
       columns: [table.userId, table.splitParentId],
+      foreignColumns: [table.userId, table.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'transactions_parent_fk',
+      columns: [table.userId, table.parentTransactionId],
       foreignColumns: [table.userId, table.id],
     }).onDelete('cascade'),
     foreignKey({

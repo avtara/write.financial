@@ -100,10 +100,8 @@ export interface TransactionRow {
   readonly receivedCurrency: string | null;
   /** `amountMinor` in the base currency, signed. */
   readonly amountBaseMinor: bigint;
-  /** Fee and tax postings (positive) in `currency`; `null` when the transaction has none. */
+  /** Its fee and tax, summed from their own transactions (positive, in `currency`); `null` when it has none. */
   readonly feeMinor: bigint | null;
-  /** `feeMinor` in the base currency, positive. */
-  readonly feeBaseMinor: bigint;
   /** Transfers: the FX difference in the base currency (0 within one currency). */
   readonly fxDiffBaseMinor: bigint | null;
   /** Slugs, sorted. */
@@ -275,8 +273,14 @@ async function whereIn(tx: Transaction, userId: string, filter: TransactionFilte
   }
   if (filter.accountIds?.length) conditions.push(anyPosting(inArray(postings.accountId, [...filter.accountIds])));
   // Trades' cash legs (FR-I2) belong to Investments and to their platform's history: the page shows them only
-  // when filtered by account.
-  else conditions.push(ne(transactions.type, 'investment'));
+  // when filtered by account, and their fee rows follow them.
+  else
+    conditions.push(
+      and(
+        ne(transactions.type, 'investment'),
+        sql`not exists (select 1 from transactions parent where parent.id = ${transactions.parentTransactionId} and parent.type = 'investment')`,
+      ),
+    );
   if (filter.currencies?.length) conditions.push(anyPosting(inArray(postings.currency, [...filter.currencies])));
   if (filter.sources?.length) conditions.push(inArray(transactions.source, [...filter.sources]));
   if (filter.minAmountMinor !== undefined) conditions.push(sql`${principalBase} >= ${filter.minAmountMinor}`);
@@ -459,8 +463,7 @@ export function createTransactionQuery(
             amountBaseMinor: principal.amountBaseMinor,
             fee: sql<
               string | null
-            >`(select (-sum(${postings.amountMinor}))::text from ${postings} where ${postings.transactionId} = ${transactions.id} and ${postings.role} = 'fee')`,
-            feeBase: sql<string>`(select coalesce(-sum(${postings.amountBaseMinor}), 0)::text from ${postings} where ${postings.transactionId} = ${transactions.id} and ${postings.role} = 'fee')`,
+            >`(select (-sum(p.amount_minor))::text from postings p join transactions c on c.id = p.transaction_id where c.parent_transaction_id = ${transactions.id} and p.role = 'principal')`,
             fxDiffBaseMinor: transferMeta.fxDiffBaseMinor,
             hasAttachment: sql<boolean>`exists (select 1 from ${attachments} where ${attachments.transactionId} = ${transactions.id})`,
             hasNote: sql<boolean>`${transactions.noteEnc} is not null`,
@@ -493,10 +496,9 @@ export function createTransactionQuery(
           )
           .orderBy(asc(tags.slug));
         return {
-          rows: rows.map(({ fee, feeBase, ...row }) => ({
+          rows: rows.map(({ fee, ...row }) => ({
             ...row,
             feeMinor: fee === null ? null : BigInt(fee),
-            feeBaseMinor: BigInt(feeBase),
             tags: tagRows.filter((tag) => tag.transactionId === row.id).map((tag) => tag.slug),
           })),
           total,
