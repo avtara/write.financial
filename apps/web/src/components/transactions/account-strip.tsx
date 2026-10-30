@@ -8,16 +8,13 @@ import { Link } from '@tanstack/react-router';
 import type { AccountView } from '@wf/db/accounts';
 import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
-import { Popover, PopoverAnchor, PopoverContent } from '@wf/ui/popover';
 import { Settings2, Wallet } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { cardSlots } from '../../lib/accounts.ts';
-import { accountTypeLabel } from '../../lib/ledger-labels.ts';
 import { listParamOf, listValues } from '../../lib/transactions-search.ts';
 import type { TransactionsView } from '../../server/fn/transactions.ts';
 import { AccountCards } from '../accounts/account-cards.tsx';
-import { AccountLogo } from '../accounts/account-logo.tsx';
-import { ApproxBalance } from '../accounts/approx-balance.tsx';
+import { AccountOthersPopover } from '../accounts/account-others-popover.tsx';
 import { usePreferences } from '../preferences.tsx';
 
 export interface AccountStripProps {
@@ -31,9 +28,6 @@ export interface AccountStripProps {
   readonly onSelect: (account: string | undefined) => void;
 }
 
-const OPTION =
-  'flex w-full items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-left hover:bg-tint-06 focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-tint-06';
-
 export function AccountStrip({ accounts, baseCurrency, availableMinor, view, selected, onSelect }: AccountStripProps) {
   const { preferences } = usePreferences();
   const { locale } = preferences;
@@ -44,7 +38,6 @@ export function AccountStrip({ accounts, baseCurrency, availableMinor, view, sel
   const { others } = cardSlots(accounts);
   const counts = new Map(view.accounts.map((group) => [group.accountId, group.count]));
   const selectedCard = ids.length === 1 ? ids[0] : undefined;
-  const allOthers = others.map((account) => account.id);
   return (
     <section aria-labelledby="transactions-accounts" className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
@@ -60,8 +53,22 @@ export function AccountStrip({ accounts, baseCurrency, availableMinor, view, sel
           {m.transactions_accounts_manage()}
         </Link>
       </div>
-      <Popover open={othersOpen} onOpenChange={setOthersOpen}>
-        <PopoverAnchor virtualRef={othersCard} />
+      <AccountOthersPopover
+        others={others}
+        baseCurrency={baseCurrency}
+        open={othersOpen}
+        onOpenChange={setOthersOpen}
+        anchor={othersCard}
+        hint={m.transactions_accounts_hint()}
+        pickedIds={ids}
+        detail={(account) => m.transactions_summary_count({ count: counts.get(account.id) ?? 0 })}
+        allDetail={m.transactions_summary_count({
+          count: others.reduce((sum, account) => sum + (counts.get(account.id) ?? 0), 0),
+        })}
+        onPick={(picked) => {
+          onSelect(listParamOf(picked));
+        }}
+      >
         {/* On a tablet the strip scrolls sideways instead of squeezing the tiles' amounts. */}
         <div className="flex gap-3 overflow-x-auto pb-1">
           <button
@@ -108,67 +115,7 @@ export function AccountStrip({ accounts, baseCurrency, availableMinor, view, sel
             />
           </div>
         </div>
-        <PopoverContent align="start" className="w-[320px] p-1.5" aria-label={m.transactions_accounts_others_title()}>
-          <div className="flex items-baseline justify-between px-2 pt-1 pb-2">
-            <h3 className="text-[13px] font-semibold text-fg">{m.transactions_accounts_others_title()}</h3>
-            <span className="text-[11.5px] text-subtle">{m.transactions_accounts_hint()}</span>
-          </div>
-          <ul className="flex flex-col gap-0.5">
-            <li>
-              <button
-                type="button"
-                aria-pressed={
-                  allOthers.length > 0 && allOthers.every((id) => ids.includes(id)) && ids.length === allOthers.length
-                }
-                className={OPTION}
-                onClick={() => {
-                  onSelect(listParamOf(allOthers));
-                  setOthersOpen(false);
-                }}
-              >
-                <span className="flex-1 text-[13px] text-fg">{m.transactions_accounts_others_all()}</span>
-                <span className="text-[11.5px] text-subtle">
-                  {m.transactions_summary_count({
-                    count: allOthers.reduce((sum, id) => sum + (counts.get(id) ?? 0), 0),
-                  })}
-                </span>
-              </button>
-            </li>
-            {others.map((account) => (
-              <li key={account.id}>
-                <button
-                  type="button"
-                  aria-pressed={ids.length === 1 && ids[0] === account.id}
-                  className={OPTION}
-                  onClick={() => {
-                    onSelect(account.id);
-                    setOthersOpen(false);
-                  }}
-                >
-                  <AccountLogo account={account} size="sm" />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[13px] text-fg">{account.displayName}</span>
-                    <span className="text-[11.5px] text-subtle">
-                      {accountTypeLabel(account.type)} ·{' '}
-                      {m.transactions_summary_count({ count: counts.get(account.id) ?? 0 })}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 flex-col items-end">
-                    <Money
-                      minor={account.balanceMinor}
-                      currency={account.currency}
-                      context="amount"
-                      locale={locale}
-                      className="text-[12.5px] text-fg"
-                    />
-                    <ApproxBalance account={account} baseCurrency={baseCurrency} />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </PopoverContent>
-      </Popover>
+      </AccountOthersPopover>
     </section>
   );
 }

@@ -2,7 +2,8 @@
 /**
  * "Rekening & dompet · Klik kartu untuk melihat transaksinya" on the Overview (FR-D2, FR-TB2): the available balance,
  * at most three account cards and "N lainnya" (FR-R2), each with its net flow in what the
- * dashboard shows ("+Rp1.200.000 bulan ini"). A card opens its transactions for the same dates.
+ * dashboard shows ("+Rp1.200.000 bulan ini"). A card opens its transactions for the same dates; "N lainnya" first
+ * lists the other accounts, and the one picked there (or all of them) opens.
  */
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { AccountsOverview, AccountView } from '@wf/db/accounts';
@@ -11,10 +12,12 @@ import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
 import { usePrivacy } from '@wf/ui/privacy';
 import { ArrowDown, ArrowUp, Minus, Wallet } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { cardSlots } from '../../lib/accounts.ts';
 import { transactionsDatesOf } from '../../lib/dashboard-search.ts';
 import { listParamOf } from '../../lib/transactions-search.ts';
 import { AccountCards } from '../accounts/account-cards.tsx';
+import { AccountOthersPopover } from '../accounts/account-others-popover.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { scopeSuffix } from './dashboard-format.ts';
 
@@ -36,6 +39,9 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
   const dates = transactionsDatesOf(dashboard);
   const suffix = scopeSuffix(dashboard, locale);
   const nets = new Map(dashboard.accounts.map((flow) => [flow.accountId, flow.inflowMinor - flow.outflowMinor]));
+  const [othersOpen, setOthersOpen] = useState(false);
+  // The "N lainnya" card that was pressed: its list opens under it, and an account picked there opens its transactions.
+  const othersCard = useRef<HTMLElement | null>(null);
   const open = (ids: readonly string[]) =>
     void navigate({ to: '/transactions', search: { ...dates, account: listParamOf(ids) } });
 
@@ -82,48 +88,62 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
           {m.overview_accounts_all()}
         </Link>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        <button
-          type="button"
-          className={CARD}
-          onClick={() => {
-            open(available.map((account) => account.id));
-          }}
-        >
-          <span className="flex items-start justify-between gap-2">
-            <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-tint-06 text-muted-fg">
-              <Wallet aria-hidden="true" className="size-3.5" />
+      <AccountOthersPopover
+        others={cardSlots(active).others}
+        baseCurrency={baseCurrency}
+        open={othersOpen}
+        onOpenChange={setOthersOpen}
+        anchor={othersCard}
+        hint={m.overview_accounts_hint()}
+        pickedIds={[]}
+        onPick={open}
+      >
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          <button
+            type="button"
+            className={CARD}
+            onClick={() => {
+              open(available.map((account) => account.id));
+            }}
+          >
+            <span className="flex items-start justify-between gap-2">
+              <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-tint-06 text-muted-fg">
+                <Wallet aria-hidden="true" className="size-3.5" />
+              </span>
+              <span className="rounded-[4px] border border-border px-1.5 text-[10.5px] text-subtle">
+                {baseCurrency}
+              </span>
             </span>
-            <span className="rounded-[4px] border border-border px-1.5 text-[10.5px] text-subtle">{baseCurrency}</span>
-          </span>
-          <span className="flex flex-col">
-            <span className="text-[13px] font-medium text-fg">{m.transactions_accounts_available()}</span>
-            <span className="font-mono text-[11px] text-subtle">{m.transactions_accounts_available_note()}</span>
-          </span>
-          <Money
-            minor={overview.availableMinor}
-            currency={baseCurrency}
-            context="amount"
-            locale={locale}
-            className="text-[17px] font-semibold text-fg"
-          />
-          {footer(available)}
-        </button>
-        {/* At least the tiles' own width: on a tablet the strip scrolls sideways instead of squeezing amounts. */}
-        <div className="flex-1">
-          <AccountCards
-            accounts={active}
-            baseCurrency={baseCurrency}
-            onSelect={(account) => {
-              open([account.id]);
-            }}
-            onShowOthers={() => {
-              open(cardSlots(active).others.map((account) => account.id));
-            }}
-            footer={footer}
-          />
+            <span className="flex flex-col">
+              <span className="text-[13px] font-medium text-fg">{m.transactions_accounts_available()}</span>
+              <span className="font-mono text-[11px] text-subtle">{m.transactions_accounts_available_note()}</span>
+            </span>
+            <Money
+              minor={overview.availableMinor}
+              currency={baseCurrency}
+              context="amount"
+              locale={locale}
+              className="text-[17px] font-semibold text-fg"
+            />
+            {footer(available)}
+          </button>
+          {/* At least the tiles' own width: on a tablet the strip scrolls sideways instead of squeezing amounts. */}
+          <div className="flex-1">
+            <AccountCards
+              accounts={active}
+              baseCurrency={baseCurrency}
+              onSelect={(account) => {
+                open([account.id]);
+              }}
+              onShowOthers={(card) => {
+                othersCard.current = card;
+                setOthersOpen(true);
+              }}
+              footer={footer}
+            />
+          </div>
         </div>
-      </div>
+      </AccountOthersPopover>
     </section>
   );
 }
