@@ -144,17 +144,22 @@ interface SavingsMove {
   readonly savedMinor: bigint;
 }
 
+/** An everyday account: counted in "Saldo tersedia"; a credit card is a bill, not a wallet. */
+const everyday = (alias: string) => sql.raw(`(${alias}.include_in_available and ${alias}.type <> 'credit_card')`);
+/** Where money is set aside: a "Rekening tabungan", or an investment account outside the available balance. */
+const setAside = (alias: string) =>
+  sql.raw(`(${alias}.is_savings or (${alias}.type = 'investment' and not ${alias}.include_in_available))`);
+
 /**
- * Saving, as it happened: transfers from an everyday account (counted in "Saldo tersedia") to a savings or
- * investment account (not counted), less transfers back, per day and savings account, in the base currency. Moves
- * between two everyday accounts or between two savings accounts are not saving, and a credit card on either side
- * is a bill being paid, not money put aside.
+ * Saving, as it happened: transfers from an everyday account to a savings account ("Rekening tabungan") or an
+ * investment account, less transfers back, per day and savings account, in the base currency. Moves between two
+ * everyday accounts or between two savings accounts are not saving, and neither is paying a credit card.
  */
 async function savingsIn(tx: Transaction, range: DateRange): Promise<SavingsMove[]> {
   const rows = await tx.execute<{ date: string; account_id: string; saved: string }>(sql`
     select t.local_date::text as date,
-           case when sa.include_in_available then ra.id else sa.id end as account_id,
-           sum(case when sa.include_in_available then -s.amount_base_minor else -r.amount_base_minor end)::text as saved
+           case when ${everyday('sa')} then ra.id else sa.id end as account_id,
+           sum(case when ${everyday('sa')} then -s.amount_base_minor else -r.amount_base_minor end)::text as saved
     from transactions t
     join postings s on s.transaction_id = t.id and s.role = 'principal' and s.amount_minor < 0
     join postings r on r.transaction_id = t.id and r.role = 'principal' and r.amount_minor > 0
@@ -162,8 +167,7 @@ async function savingsIn(tx: Transaction, range: DateRange): Promise<SavingsMove
     join accounts ra on ra.id = r.account_id
     where t.deleted_at is null and t.type = 'transfer'
       and t.local_date between ${range.from} and ${range.to}
-      and sa.type <> 'credit_card' and ra.type <> 'credit_card'
-      and sa.include_in_available <> ra.include_in_available
+      and ((${everyday('sa')} and ${setAside('ra')}) or (${setAside('sa')} and ${everyday('ra')}))
     group by 1, 2`);
   return rows.map((row) => ({
     date: row.date as LocalDate,

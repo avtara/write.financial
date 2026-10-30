@@ -1,0 +1,2 @@
+ALTER TABLE "accounts" ADD COLUMN "is_savings" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_savings_check" CHECK (not "accounts"."is_savings" or (not "accounts"."include_in_available" and "accounts"."type" in ('bank', 'ewallet', 'cash')));
