@@ -117,14 +117,18 @@ export interface MoneyFlowInput {
 export interface MoneyFlowOptions {
   /** "Tampilkan sumber < 1%"; otherwise sources below 1% of the total merge into one `other` source. */
   readonly showSmallSources: boolean;
-  /** "Hitung transfer antar rekening": split savings into the transfer destinations and what stays unallocated. */
+  /**
+   * "Hitung transfer antar rekening": the money that actually moved to savings and investment accounts is shown as
+   * "Tabungan" (each destination, plus what stays put). Off, the income left over is named as such: a leftover is not
+   * a saving, and calling it one hid that income was merely unspent.
+   */
   readonly countTransfers: boolean;
 }
 
 /**
  * Node ids: `source:<categoryId|uncategorized>`, `source:other` (merged small sources), `source:deficit` (spending
- * beyond income), `total`, `group:<group>`, `group:savings`, `category:<categoryId|uncategorized>`,
- * `account:<accountId>`, `unallocated` ("Belum dialokasikan, tetap di rekening").
+ * beyond income), `total`, `group:<group>`, `group:savings` (transfers out, when counted), `group:leftover` (income
+ * not spent), `category:<categoryId|uncategorized>`, `account:<accountId>`.
  */
 export interface MoneyFlowNode {
   readonly id: string;
@@ -153,7 +157,7 @@ const SMALL_SOURCE_BPS = 100;
 
 /**
  * FR-D2 Money flow: sources (income categories) → total → groups (Needs, Wants, …, Savings) → categories, and with
- * {@link MoneyFlowOptions.countTransfers} Savings → destination accounts + unallocated. Every node's inflow equals its
+ * {@link MoneyFlowOptions.countTransfers} Savings → destination accounts; the rest is the leftover. Every node's inflow equals its
  * outflow. Zero amounts are left out.
  */
 export function moneyFlow(input: MoneyFlowInput, options: MoneyFlowOptions): MoneyFlow {
@@ -189,15 +193,22 @@ export function moneyFlow(input: MoneyFlowInput, options: MoneyFlowOptions): Mon
     flow('total', `group:${expense.group}`, expense.amountMinor, 2);
     flow(`group:${expense.group}`, `category:${key(expense.categoryId)}`, expense.amountMinor, 3);
   }
-  flow('total', 'group:savings', savedMinor, 2);
-  if (options.countTransfers) {
-    let left = savedMinor;
+  // Only money that actually left for savings or investments is "Tabungan"; the rest is income left unspent.
+  const allocated = options.countTransfers
+    ? input.transfers.reduce((total, transfer) => total + transfer.amountMinor, 0n)
+    : 0n;
+  if (allocated > 0n) {
+    const moved = allocated < savedMinor ? allocated : savedMinor;
+    flow('total', 'group:savings', moved, 2);
+    let left = moved;
     for (const transfer of input.transfers) {
       const amountMinor = transfer.amountMinor < left ? transfer.amountMinor : left;
       flow('group:savings', `account:${transfer.accountId}`, amountMinor, 3);
       left -= amountMinor;
     }
-    flow('group:savings', 'unallocated', left, 3);
+    flow('total', 'group:leftover', savedMinor - moved, 2);
+  } else {
+    flow('total', 'group:leftover', savedMinor, 2);
   }
 
   const nodes = [...values].map(([id, { column, valueMinor }]): MoneyFlowNode => ({
