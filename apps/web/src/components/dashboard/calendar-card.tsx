@@ -19,7 +19,7 @@ import { m } from '@wf/i18n/messages';
 import { formatTime, weekdayNames } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { DashboardSearch } from '../../lib/dashboard-search.ts';
 import { RichMessage } from '../rich-message.tsx';
 import { categoryName } from '../../lib/ledger-labels.ts';
@@ -103,6 +103,30 @@ export function CalendarCard({
   const [active, setActive] = useState<LocalDate>(costliest?.date ?? ranges.full.from);
   // Per date, so a slow answer for an earlier choice never shows under a later one.
   const [loaded, setLoaded] = useState<Readonly<Record<string, Breakdown>>>({});
+  // Another range (the arrows, Minggu/Bulan/Tahun) starts again on its costliest day. The card itself stays mounted, so
+  // the arrow just pressed keeps its place on screen.
+  const rangeKey = `${ranges.full.from}-${scope}`;
+  const [shownRange, setShownRange] = useState(rangeKey);
+  if (shownRange !== rangeKey) {
+    setShownRange(rangeKey);
+    setSelected(costliest?.date ?? null);
+    setActive(costliest?.date ?? ranges.full.from);
+    setLoaded({});
+  }
+  // While a day's transactions load, its panel keeps the height it had, so the page below does not jump up and back.
+  const breakdownBox = useRef<HTMLDivElement>(null);
+  const breakdownHeight = useRef(0);
+  const loading = !months && selected !== null && loaded[selected] === undefined;
+  useLayoutEffect(() => {
+    const box = breakdownBox.current;
+    if (box === null) return;
+    if (loading) {
+      box.style.minHeight = `${String(breakdownHeight.current)}px`;
+      return;
+    }
+    box.style.minHeight = '';
+    breakdownHeight.current = box.getBoundingClientRect().height;
+  });
   const grid = useRef<HTMLDivElement>(null);
   const byId = new Map(categories.map((category) => [category.id, category]));
   const billsOn = new Map<LocalDate, ScheduledItem[]>();
@@ -126,7 +150,8 @@ export function CalendarCard({
         keep({ status: 'failed' });
       },
     );
-  }, [selected, months]);
+    // `shownRange`: a new range clears the loaded days, so its first day loads again even when it is the same date.
+  }, [selected, months, shownRange]);
 
   const weeks = months ? [] : calendarWeeks(ranges.full, calendar.days, today);
   const days = weeks.flat().filter((day) => day.inRange);
@@ -264,22 +289,28 @@ export function CalendarCard({
           </ul>
         </div>
 
-        {months ? null : selected === null ? (
-          <p className="text-[12.5px] text-subtle">{m.overview_calendar_pick()}</p>
-        ) : (
-          <DayBreakdown
-            date={selected}
-            breakdown={loaded[selected]}
-            day={days.find((day) => day.date === selected) as CalendarDay}
-            costliest={costliest?.date === selected}
-            averageMinor={calendar.averageDailySpendMinor}
-            scope={scope}
-            bills={billsOn.get(selected) ?? []}
-            byId={byId}
-            currency={currency}
-            locale={locale}
-            timeZone={timeZone}
-          />
+        {months ? null : (
+          // Beside the month, one height whatever the day holds (its list scrolls), so another day or week never
+          // changes the page's length under the reader.
+          <div ref={breakdownBox} className="min-w-0 @[860px]:h-[480px]">
+            {selected === null ? (
+              <p className="text-[12.5px] text-subtle">{m.overview_calendar_pick()}</p>
+            ) : (
+              <DayBreakdown
+                date={selected}
+                breakdown={loaded[selected]}
+                day={days.find((day) => day.date === selected) as CalendarDay}
+                costliest={costliest?.date === selected}
+                averageMinor={calendar.averageDailySpendMinor}
+                scope={scope}
+                bills={billsOn.get(selected) ?? []}
+                byId={byId}
+                currency={currency}
+                locale={locale}
+                timeZone={timeZone}
+              />
+            )}
+          </div>
         )}
       </div>
     </section>
@@ -400,7 +431,7 @@ function DayBreakdown({
   const times = averageMinor > 0n ? Number(day.outMinor) / Number(averageMinor) : 0;
   const ready = breakdown?.status === 'ready' ? breakdown : null;
   return (
-    <div aria-live="polite" className="flex flex-col rounded-[10px] border border-border">
+    <div aria-live="polite" className="flex h-full flex-col rounded-[10px] border border-border">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
         <h3 className="text-[13px] font-semibold text-fg">{dayTitle(date, locale)}</h3>
         <span className="text-[12px] text-subtle">{m.overview_calendar_count({ count: day.count })}</span>
@@ -429,7 +460,7 @@ function DayBreakdown({
         </span>
       </div>
       {day.future ? (
-        <ul className="flex flex-col">
+        <ul className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {bills.length === 0 ? (
             <li className="px-4 py-3 text-[12.5px] text-subtle">{m.overview_calendar_nothing_due()}</li>
           ) : (
@@ -457,7 +488,7 @@ function DayBreakdown({
       ) : ready.rows.length === 0 ? (
         <p className="px-4 py-3 text-[12.5px] text-subtle">{m.overview_calendar_no_transactions()}</p>
       ) : (
-        <ul className="flex flex-col">
+        <ul className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {ready.rows.map((row) => {
             const category = row.categoryId === null ? undefined : byId.get(row.categoryId);
             return (

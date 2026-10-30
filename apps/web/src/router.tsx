@@ -16,10 +16,35 @@ export function getRouter() {
     const nonce = document.querySelector<HTMLMetaElement>('meta[property="csp-nonce"]')?.content;
     if (nonce !== undefined) setNonce(nonce);
   }
-  return createRouter({
+  // Whether the navigation being rendered stays on the same page (only the search changed: a filter, a period, a tab,
+  // `?settings=`, or a reload of the data). Per router: the server builds one per request.
+  let samePage = false;
+  const router = createRouter({
     routeTree,
-    scrollRestoration: true,
+    // A new page starts at the top (or where Back left it); changing a filter keeps the scroll where it is, instead of
+    // jumping to the top under the reader's eyes (TanStack resets it on every navigation by default).
+    scrollRestoration: () => !samePage,
     defaultPreload: 'intent',
     ...(start === undefined ? {} : { ssr: { nonce: start.nonce } }),
   });
+  // The control the change came from (the focused link, tab, or button) and where it was on screen: content above it
+  // that grows or shrinks with the new filter (another week's money flow, say) must not slide it away.
+  let anchor: { readonly element: Element; readonly top: number } | null = null;
+  router.subscribe('onBeforeLoad', (event) => {
+    samePage = event.fromLocation !== undefined && !event.pathChanged;
+    if (typeof document === 'undefined') return;
+    const element = document.activeElement;
+    anchor =
+      samePage && element !== null && element !== document.body
+        ? { element, top: element.getBoundingClientRect().top }
+        : null;
+  });
+  router.subscribe('onRendered', () => {
+    if (anchor?.element.isConnected === true) {
+      const shift = anchor.element.getBoundingClientRect().top - anchor.top;
+      if (Math.abs(shift) >= 1) window.scrollBy({ top: shift, behavior: 'instant' });
+    }
+    anchor = null;
+  });
+  return router;
 }
