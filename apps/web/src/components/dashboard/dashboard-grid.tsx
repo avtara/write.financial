@@ -2,9 +2,9 @@
 /**
  * The Overview's customizable cards (FR-D3): a 3-column grid from 1280 px (each card ⅓, ⅔, or full width; one
  * column below), and "Atur dashboard" — the edit mode (design `iBCvF`, `e1r8q`) with a ⋮⋮ handle to drag a card (or
- * move it with the keyboard; dnd-kit announces the moves), the eye to hide or show it, its width, and the cards that
- * can still be added; plus "Kelola kartu" (design `GcXr5`), the same controls as one sortable list. Nothing here
- * saves: the page holds the draft and saves it with "Simpan tata letak".
+ * move it with the keyboard; dnd-kit announces the moves), × to remove it (it joins the cards that can be added back),
+ * its width, and the cards that can still be added; plus "Kelola kartu" (design `GcXr5`), the same controls as one
+ * sortable list. Nothing here saves: the page holds the draft and saves it with "Simpan tata letak".
  */
 import {
   closestCenter,
@@ -29,10 +29,9 @@ import { m } from '@wf/i18n/messages';
 import { SegmentedControl } from '@wf/ui/segmented-control';
 import { Sheet } from '@wf/ui/sheet';
 import { Switch } from '@wf/ui/switch';
-import { Eye, EyeOff, GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Plus, X } from 'lucide-react';
 import { useId, type CSSProperties, type ReactNode } from 'react';
 import {
-  ADDABLE_CARDS,
   moveCard,
   updateCard,
   type CardWidth,
@@ -77,8 +76,8 @@ const GRID = 'grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-3';
 const ICON_BUTTON =
   'inline-flex size-8 shrink-0 items-center justify-center rounded-[7px] text-muted-fg hover:bg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:size-10';
 
-/** An addable card that is off sits in "Kartu lain yang bisa ditambahkan", not in the grid. */
-const placed = (card: DashboardCardPrefs) => card.visible || !ADDABLE_CARDS.includes(card.id);
+/** Only shown cards sit in the grid; a removed one waits in "Kartu lain yang bisa ditambahkan" with the never-added. */
+const placed = (card: DashboardCardPrefs) => card.visible;
 
 const nameOf = (id: UniqueIdentifier) => CARD_NAME[id as DashboardCard]();
 
@@ -188,7 +187,7 @@ export interface DashboardEditorProps {
   readonly render: (id: DashboardCard) => ReactNode;
 }
 
-/** Edit mode: every placed card with its handle, width, and eye; hidden ones as a placeholder; then the addable ones. */
+/** Edit mode: every shown card with its handle, width, and ×; then the removed and not-yet-added ones to add. */
 export function DashboardEditor({ layout, onChange, render }: DashboardEditorProps) {
   const addable = layout.cards.filter((card) => !placed(card));
   return (
@@ -197,7 +196,7 @@ export function DashboardEditor({ layout, onChange, render }: DashboardEditorPro
         <div className={GRID}>
           {layout.cards.filter(placed).map((card) => (
             <EditableCard key={card.id} card={card} layout={layout} onChange={onChange}>
-              {card.visible ? render(card.id) : null}
+              {render(card.id)}
             </EditableCard>
           ))}
         </div>
@@ -241,7 +240,7 @@ interface EditableCardProps {
   readonly card: DashboardCardPrefs;
   readonly layout: DashboardLayout;
   readonly onChange: (layout: DashboardLayout) => void;
-  /** The card's content; `null` while it is hidden. */
+  /** The card's content. */
   readonly children: ReactNode;
 }
 
@@ -278,29 +277,20 @@ function EditableCard({ card, layout, onChange, children }: EditableCardProps) {
         />
         <button
           type="button"
-          aria-label={card.visible ? m.dashboard_hide_card({ name }) : m.dashboard_show_card({ name })}
+          aria-label={m.dashboard_remove_card({ name })}
+          title={m.dashboard_remove_card({ name })}
           onClick={() => {
-            onChange(updateCard(layout, card.id, { visible: !card.visible }));
+            onChange(updateCard(layout, card.id, { visible: false }));
           }}
           className={ICON_BUTTON}
         >
-          {card.visible ? (
-            <Eye aria-hidden="true" className="size-4" />
-          ) : (
-            <EyeOff aria-hidden="true" className="size-4" />
-          )}
+          <X aria-hidden="true" className="size-4" />
         </button>
       </div>
-      {card.visible ? (
-        // A preview: its links and buttons do nothing while the layout is edited.
-        <div inert className="pointer-events-none">
-          {children}
-        </div>
-      ) : (
-        <p className="rounded-[10px] bg-surface-sunken px-4 py-6 text-center text-[12.5px] text-subtle">
-          {m.dashboard_card_hidden()}
-        </p>
-      )}
+      {/* A preview: its links and buttons do nothing while the layout is edited. */}
+      <div inert className="pointer-events-none">
+        {children}
+      </div>
     </div>
   );
 }
@@ -312,7 +302,7 @@ export interface ManageCardsProps {
   readonly onChange: (layout: DashboardLayout) => void;
 }
 
-/** "Kelola kartu": every card as a row (drag to order, switch to show, width), the addable ones last. */
+/** "Kelola kartu": every shown card as a row (drag to order, switch, width), then the ones that are off. */
 export function ManageCards({ open, onOpenChange, layout, onChange }: ManageCardsProps) {
   const ordered = layout.cards.filter(placed);
   const addable = layout.cards.filter((card) => !placed(card));
@@ -400,7 +390,7 @@ interface RowLayoutProps {
   readonly handle?: ReactNode;
 }
 
-/** A card's switch (shown) and width; an addable card not added yet joins the order once switched on. */
+/** A card's switch (shown) and width; a card that is off waits below the order and joins it once switched on. */
 function ManageRow({ card, layout, onChange, rowRef, style, handle }: ManageRowProps & RowLayoutProps) {
   return (
     <li

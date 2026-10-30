@@ -265,8 +265,6 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
       }
     };
 
-  const hiddenCount = draft?.cards.filter((card) => !card.visible && !ADDABLE_CARDS.includes(card.id)).length ?? 0;
-
   return (
     <>
       <DashboardHeader
@@ -332,10 +330,7 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
                 <h2 id="dashboard-edit-title" className="text-[14px] font-semibold text-fg">
                   {m.dashboard_edit_title()}
                 </h2>
-                <p className="text-[12px] text-muted-fg">
-                  {m.dashboard_edit_hint()}
-                  {hiddenCount === 0 ? null : ` · ${m.dashboard_hidden_count({ count: hiddenCount })}`}
-                </p>
+                <p className="text-[12px] text-muted-fg">{m.dashboard_edit_hint()}</p>
               </div>
               <Button
                 size="sm"

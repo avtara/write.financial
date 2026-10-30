@@ -166,6 +166,7 @@ describe('OverviewPage dashboard layout (FR-D3)', () => {
   const editBar = () => page.getByRole('region', { name: 'Mode atur dashboard' });
   const customize = () => userEvent.click(page.getByRole('button', { name: 'Atur dashboard' }));
   const saveButton = () => editBar().getByRole('button', { name: 'Simpan tata letak' });
+  const addable = () => page.getByRole('region', { name: 'Kartu lain yang bisa ditambahkan' });
 
   beforeEach(async () => {
     await page.viewport(1440, 900);
@@ -196,18 +197,20 @@ describe('OverviewPage dashboard layout (FR-D3)', () => {
     expect(none.getByRole('region', { name: 'Langganan' }).query()).toBeNull();
   });
 
-  it('saves a hidden card, then "Urungkan" saves the previous layout back', async () => {
+  it('saves a removed card, then "Urungkan" saves the previous layout back', async () => {
     const { screen, router } = await renderOverview(data());
     const invalidate = vi.spyOn(router, 'invalidate');
     await customize();
-    await expect.element(editBar()).toMatchTextContent('Seret ⋮⋮ untuk memindah kartu · klik mata untuk sembunyikan');
+    await expect.element(editBar()).toMatchTextContent('Seret ⋮⋮ untuk memindah kartu · klik × untuk menghapus kartu');
     await expect.element(saveButton()).toBeDisabled();
     await expect.element(editBar().getByRole('button', { name: 'Reset ke default' })).toBeDisabled();
     // Editing replaces the header's action until it ends.
     expect(screen.getByRole('button', { name: 'Atur dashboard' }).query()).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Langganan' }));
-    await expect.element(editBar()).toMatchTextContent('Tersembunyi: 1');
+    await userEvent.click(screen.getByRole('button', { name: 'Hapus kartu Langganan' }));
+    // The removed card leaves the grid and waits with the cards to add.
+    await expect.element(addable().getByRole('button', { name: 'Tambah Langganan' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Pindahkan Langganan' }).query()).toBeNull();
     await userEvent.click(saveButton());
     expect(layouts.saveDashboardLayout).toHaveBeenLastCalledWith({ data: subscriptionsOff });
     await expect.element(editBar()).not.toBeInTheDocument();
@@ -247,7 +250,7 @@ describe('OverviewPage dashboard layout (FR-D3)', () => {
   it('keeps the draft when saving fails, and Reset, "Kelola kartu", and Batal work on the draft', async () => {
     const { screen } = await renderOverview(data({ layout: ok(subscriptionsOff) }));
     await customize();
-    await userEvent.click(screen.getByRole('button', { name: 'Tampilkan Langganan' }));
+    await userEvent.click(addable().getByRole('button', { name: 'Tambah Langganan' }));
 
     layouts.saveDashboardLayout.mockResolvedValueOnce(failed).mockRejectedValueOnce(new Error('offline'));
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -262,16 +265,30 @@ describe('OverviewPage dashboard layout (FR-D3)', () => {
     }
     expect(toasts.toast.undo).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Arus Uang' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hapus kartu Arus Uang' }));
     await userEvent.click(editBar().getByRole('button', { name: 'Reset ke default' }));
-    await expect.element(screen.getByRole('button', { name: 'Sembunyikan Arus Uang' })).toBeVisible();
+    await expect.element(screen.getByRole('button', { name: 'Hapus kartu Arus Uang' })).toBeVisible();
 
     await userEvent.click(editBar().getByRole('button', { name: 'Kelola kartu' }));
     const sheet = screen.getByRole('dialog', { name: 'Kelola kartu dashboard' });
     await userEvent.click(sheet.getByRole('switch', { name: /Pemasukan vs Pengeluaran/ }));
+    // Switched off, the card moves from the order to the ones to add.
+    await expect
+      .element(
+        sheet
+          .getByRole('region', { name: 'Bisa ditambahkan' })
+          .getByRole('switch', { name: /Pemasukan vs Pengeluaran/ }),
+      )
+      .not.toBeChecked();
+    expect(
+      sheet
+        .getByRole('region', { name: 'Urutan di dashboard' })
+        .getByRole('switch', { name: /Pemasukan vs Pengeluaran/ })
+        .query(),
+    ).toBeNull();
     await userEvent.keyboard('{Escape}');
     await expect.element(sheet).not.toBeInTheDocument();
-    await expect.element(screen.getByRole('button', { name: 'Tampilkan Pemasukan vs Pengeluaran' })).toBeVisible();
+    await expect.element(addable().getByRole('button', { name: 'Tambah Pemasukan vs Pengeluaran' })).toBeVisible();
 
     await userEvent.click(editBar().getByRole('button', { name: 'Batal' }));
     await expect.element(editBar()).not.toBeInTheDocument();
@@ -282,7 +299,7 @@ describe('OverviewPage dashboard layout (FR-D3)', () => {
   it('reports a failed "Urungkan" without claiming the old layout is back', async () => {
     const { screen } = await renderOverview(data());
     await customize();
-    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Langganan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hapus kartu Langganan' }));
     await userEvent.click(saveButton());
     await vi.waitFor(() => {
       expect(toasts.toast.undo).toHaveBeenCalledOnce();

@@ -20,7 +20,10 @@ export const DASHBOARD_CARDS = [
 ] as const;
 export type DashboardCard = (typeof DASHBOARD_CARDS)[number];
 
-/** "Kartu lain yang bisa ditambahkan": off until added; hiding one puts it back there. */
+/**
+ * Off until added (their data loads only once shown). Any card removed from the dashboard joins them in "Kartu lain
+ * yang bisa ditambahkan".
+ */
 export const ADDABLE_CARDS: readonly DashboardCard[] = ['goals', 'bills'];
 
 export const CARD_WIDTHS = ['third', 'twoThirds', 'full'] as const;
