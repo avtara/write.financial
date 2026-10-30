@@ -5245,6 +5245,7 @@
   "transactions_summary_label": "Transaction summary",
   "transactions_summary_out": "Out",
   "transactions_summary_transfer": "Transfer",
+  "transactions_summary_transfer_in": "In",
   "transactions_summary_transfer_note": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -5255,6 +5256,7 @@
       }
     }
   ],
+  "transactions_summary_transfer_out": "Out",
   "transactions_table_attachment": "Has attachment",
   "transactions_table_empty": "No transactions in this date range",
   "transactions_table_label": "Transactions",
@@ -5288,6 +5290,8 @@
   "transactions_table_view_day": "By day",
   "transactions_table_view_flat": "Flat",
   "transactions_table_view_label": "View",
+  "transactions_transfer_from": "from {name}",
+  "transactions_transfer_to": "to {name}",
   "unsupported_description": "write.financial is built for desktop. A mobile version is on the way.",
   "unsupported_title": "Desktop or Tablet only for now",
   "user_guest_name": "Guest",

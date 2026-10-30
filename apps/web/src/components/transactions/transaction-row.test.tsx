@@ -30,6 +30,7 @@ async function renderRow(props: Partial<TransactionRowViewProps> = {}) {
       locale="id"
       query={undefined}
       balance={null}
+      viewAccountId={null}
       label="Gojek"
       open={false}
       checked={false}
@@ -75,10 +76,22 @@ describe('amounts', () => {
   it('signs incomes in green, expenses with a minus, transfers neutral', async () => {
     const { screen } = await renderApp(
       <>
-        <RowAmount row={transactionRow('a', { type: 'income', amountMinor: 6_200_000n })} locale="id" baseCurrency="IDR" />
+        <RowAmount
+          row={transactionRow('a', { type: 'income', amountMinor: 6_200_000n })}
+          locale="id"
+          baseCurrency="IDR"
+        />
         <RowAmount row={transactionRow('b')} locale="id" baseCurrency="IDR" />
-        <RowAmount row={transactionRow('c', { type: 'transfer', amountMinor: -3_000_000n })} locale="id" baseCurrency="IDR" />
-        <RowAmount row={transactionRow('d', { type: 'transfer', amountMinor: 5_000n })} locale="id" baseCurrency="IDR" />
+        <RowAmount
+          row={transactionRow('c', { type: 'transfer', amountMinor: -3_000_000n })}
+          locale="id"
+          baseCurrency="IDR"
+        />
+        <RowAmount
+          row={transactionRow('d', { type: 'transfer', amountMinor: 5_000n })}
+          locale="id"
+          baseCurrency="IDR"
+        />
       </>,
     );
     await expect.element(screen.getByText('+Rp6.200.000')).toHaveClass('text-green-fg');

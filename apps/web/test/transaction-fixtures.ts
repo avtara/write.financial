@@ -61,6 +61,8 @@ export function transactionsView(
       inMinor: 0n,
       outMinor: 0n,
       transferMinor: 0n,
+      transferInMinor: null,
+      transferOutMinor: null,
       inCount: 0,
       outCount: 0,
       transferCount: 0,
