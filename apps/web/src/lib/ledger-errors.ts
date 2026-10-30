@@ -13,7 +13,6 @@ import { authErrorMessage } from './auth-errors.ts';
 const MESSAGES: Readonly<Record<LedgerErrorCode, () => string>> = {
   NOT_FOUND: m.ledger_error_not_found,
   ACCOUNT_LOCKED: m.ledger_error_account_locked,
-  TOO_MANY_CARDS: m.ledger_error_too_many_cards,
   INVALID_ACCOUNT: m.ledger_error_invalid_account,
   ACCOUNT_ARCHIVED: m.ledger_error_account_archived,
   ACCOUNT_NOT_ARCHIVED: m.ledger_error_account_not_archived,

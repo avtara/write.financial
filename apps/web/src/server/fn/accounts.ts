@@ -50,7 +50,6 @@ const accountFields = z.object({
     .optional(),
   phoneMasked: z.string().max(20).nullable().optional(),
   includeInAvailable: z.boolean().optional(),
-  showAsCard: z.boolean().optional(),
   isDefaultQuickEntry: z.boolean().optional(),
   lowBalanceThresholdMinor: nonNegative.nullable().optional(),
   ccLimitMinor: nonNegative.nullable().optional(),

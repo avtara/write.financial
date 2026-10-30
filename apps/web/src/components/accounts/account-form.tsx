@@ -20,7 +20,7 @@ import { SegmentedControl } from '@wf/ui/segmented-control';
 import { Switch } from '@wf/ui/switch';
 import { ChevronsUpDown, Lock, Upload } from 'lucide-react';
 import { useRef, useState, type SyntheticEvent, type ReactNode } from 'react';
-import { MAX_CARDS, maskPhone } from '../../lib/accounts.ts';
+import { maskPhone } from '../../lib/accounts.ts';
 import { colorProps, HEX_COLOR, isColorToken, PALETTE_COLORS } from '../../lib/colors.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { accountTypeLabel } from '../../lib/ledger-labels.ts';
@@ -61,7 +61,6 @@ export interface AccountDraft {
   readonly openingDate: LocalDate;
   readonly color: string;
   readonly includeInAvailable: boolean;
-  readonly showAsCard: boolean;
   readonly isDefaultQuickEntry: boolean;
   readonly lowBalanceMinor: bigint | null;
   readonly ccLimitMinor: bigint | null;
@@ -83,7 +82,6 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
       openingDate: today,
       color: 'blue',
       includeInAvailable: type !== 'investment',
-      showAsCard: false,
       isDefaultQuickEntry: false,
       lowBalanceMinor: null,
       ccLimitMinor: null,
@@ -103,7 +101,6 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
     openingDate: account.openingDate,
     color: account.color,
     includeInAvailable: account.includeInAvailable,
-    showAsCard: account.showAsCard,
     isDefaultQuickEntry: account.isDefaultQuickEntry,
     lowBalanceMinor: account.lowBalanceThresholdMinor,
     ccLimitMinor: account.ccLimitMinor,
@@ -143,7 +140,6 @@ export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input
       last4: usesLast4 && draft.last4 !== '' ? draft.last4 : null,
       ...(draft.type !== 'ewallet' ? { phoneMasked: null } : phoneMasked === null ? {} : { phoneMasked }),
       includeInAvailable: draft.includeInAvailable,
-      showAsCard: draft.showAsCard,
       isDefaultQuickEntry: draft.isDefaultQuickEntry,
       lowBalanceThresholdMinor: card ? null : draft.lowBalanceMinor,
       ccLimitMinor: card ? draft.ccLimitMinor : null,
@@ -167,7 +163,6 @@ export interface AccountFormProps {
   readonly baseCurrency: string;
   readonly today: LocalDate;
   /** Names of the other accounts that already show as cards (FR-R2 limit). */
-  readonly cardHolders: readonly string[];
   readonly submitLabel: string;
   /** Left of the buttons (e.g. "Tidak perlu login bank"). */
   readonly footerNote?: ReactNode;
@@ -181,7 +176,6 @@ export function AccountForm({
   initial,
   baseCurrency,
   today,
-  cardHolders,
   submitLabel,
   footerNote,
   onSaved,
@@ -200,7 +194,6 @@ export function AccountForm({
   const fileInput = useRef<HTMLInputElement>(null);
   const catalogLogo = getCatalogRecord(draft.catalogId)?.logoPath;
   const locked = account?.locked === true;
-  const cardsFull = cardHolders.length >= MAX_CARDS && account?.showAsCard !== true;
   const set = (patch: Partial<AccountDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
   };
@@ -630,22 +623,6 @@ export function AccountForm({
           checked={draft.includeInAvailable}
           onChange={(event) => {
             set({ includeInAvailable: event.target.checked });
-          }}
-        />
-        <Switch
-          className="px-3.5 py-3"
-          label={m.accounts_form_card()}
-          description={
-            cardsFull && !draft.showAsCard
-              ? m.accounts_card_limit_detail({
-                  names: new Intl.ListFormat(locale, { type: 'conjunction' }).format(cardHolders),
-                })
-              : m.accounts_form_card_hint()
-          }
-          disabled={cardsFull && !draft.showAsCard}
-          checked={draft.showAsCard}
-          onChange={(event) => {
-            set({ showAsCard: event.target.checked });
           }}
         />
         <Switch

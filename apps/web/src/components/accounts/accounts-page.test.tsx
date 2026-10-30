@@ -68,7 +68,7 @@ vi.mock('./account-detail.tsx', () => ({
       <button
         type="button"
         onClick={() => {
-          props.onToggle('showAsCard', true);
+          props.onToggle('includeInAvailable', true);
         }}
       >
         stub toggle
@@ -107,17 +107,15 @@ const BCA = accountView({
   displayName: 'BCA Tahapan',
   balanceMinor: 42_810_000n,
   balanceBaseMinor: 42_810_000n,
-  showAsCard: true,
   isDefaultQuickEntry: true,
   lastReconciledAt: new Date(),
 });
-const JAGO = accountView({ displayName: 'Bank Jago', showAsCard: true, lastReconciledAt: new Date() });
+const JAGO = accountView({ displayName: 'Bank Jago', lastReconciledAt: new Date() });
 const MANDIRI = accountView({ displayName: 'Mandiri', lastReconciledAt: new Date() });
 const OVO = accountView({
   displayName: 'OVO',
   type: 'ewallet',
   last4: null,
-  showAsCard: true,
   createdAt: new Date('2026-01-01T00:00:00Z'),
 });
 const GOTRADE = accountView({
@@ -244,7 +242,6 @@ describe('AccountsPage', () => {
     fake.updateAccount.mockResolvedValueOnce({ ok: false, code: 'TOO_MANY_CARDS' });
     const { screen, invalidate } = await renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'stub toggle' }));
-    expect(fake.updateAccount).toHaveBeenCalledWith({ data: { id: BCA.id, patch: { showAsCard: true } } });
     await userEvent.click(screen.getByRole('button', { name: 'Menu Mandiri' }));
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Hitung di saldo tersedia' }));
     await expect.poll(() => fake.toast.mock.calls.length).toBe(1);
@@ -364,7 +361,7 @@ describe('AccountsPage', () => {
   });
 
   it('shows no stale accounts and no "≈" in a single-currency ledger', async () => {
-    const { screen } = await renderPage({ overview: overview([{ ...BCA, showAsCard: false }]) });
+    const { screen } = await renderPage({ overview: overview([{ ...BCA }]) });
     const text = screen.getByRole('region', { name: 'Ringkasan rekening' }).element().textContent;
     expect(text).toContain('Semua dicek dalam 14 hari');
     expect(text).not.toContain('≈');

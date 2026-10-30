@@ -33,7 +33,6 @@ async function renderForm(props: Partial<AccountFormProps> = {}) {
     <AccountForm
       baseCurrency="IDR"
       today={TODAY}
-      cardHolders={[]}
       submitLabel="Tambah rekening"
       onSaved={onSaved}
       onCancel={onCancel}
@@ -143,7 +142,6 @@ describe('AccountForm', () => {
         last4: '7710',
         phoneMasked: null,
         includeInAvailable: true,
-        showAsCard: false,
         isDefaultQuickEntry: false,
         lowBalanceThresholdMinor: null,
         ccLimitMinor: null,
@@ -224,7 +222,7 @@ describe('AccountForm', () => {
   });
 
   it('sets the flags, the threshold, a custom color, the currency, and the date', async () => {
-    const { screen } = await renderForm({ cardHolders: ['BCA Tahapan'] });
+    const { screen } = await renderForm();
     await userEvent.fill(screen.getByRole('combobox', { name: 'Nama bank / penyedia' }), 'Wise');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Nama tampilan' }), 'Wise');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Saldo awal' }), '100');
@@ -256,7 +254,6 @@ describe('AccountForm', () => {
         openingDate: '2026-10-01',
         color: '#22c55e',
         includeInAvailable: false,
-        showAsCard: true,
         isDefaultQuickEntry: true,
         lowBalanceThresholdMinor: 50n,
       }) as unknown,
@@ -264,7 +261,7 @@ describe('AccountForm', () => {
   });
 
   it('explains the card limit and keeps the switch off', async () => {
-    const { screen } = await renderForm({ cardHolders: ['BCA Tahapan', 'Bank Jago', 'GoPay'] });
+    const { screen } = await renderForm();
     const card = screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ });
     await expect.element(card).toBeDisabled();
     await expect.element(screen.getByText(/Kartu sudah dipakai BCA Tahapan, Bank Jago, dan GoPay/)).toBeVisible();
@@ -276,12 +273,10 @@ describe('AccountForm', () => {
       locked: true,
       transactionCount: 214,
       isDefaultQuickEntry: true,
-      showAsCard: true,
     });
     const { screen, onCancel } = await renderForm({
       account,
       submitLabel: 'Simpan perubahan',
-      cardHolders: ['A', 'B', 'C'],
       footerNote: 'Tidak perlu login bank',
     });
     await expect.element(screen.getByText('Mata uang & saldo awal terkunci')).toBeVisible();

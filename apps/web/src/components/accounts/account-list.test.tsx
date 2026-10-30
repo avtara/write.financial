@@ -7,7 +7,7 @@ import { renderApp } from '../../../test/render.tsx';
 import { groupByType } from '../../lib/accounts.ts';
 import { AccountList, ArchivedList, dragAnnouncements, reorderedIds, type AccountListProps } from './account-list.tsx';
 
-const BCA = accountView({ displayName: 'BCA Tahapan', isDefaultQuickEntry: true, showAsCard: true });
+const BCA = accountView({ displayName: 'BCA Tahapan', isDefaultQuickEntry: true });
 const JAGO = accountView({ displayName: 'Bank Jago', providerName: 'Bank Jago', last4: '0377' });
 const MANDIRI = accountView({ displayName: 'Mandiri', providerName: 'Bank Mandiri' });
 const GOPAY = accountView({
@@ -40,7 +40,7 @@ async function renderList(props: Partial<AccountListProps> = {}) {
     onReorder: vi.fn(),
   };
   const result = await renderApp(
-    <AccountList accounts={ACTIVE} baseCurrency="IDR" selectedId={BCA.id} cardsFull={false} {...handlers} {...props} />,
+    <AccountList accounts={ACTIVE} baseCurrency="IDR" selectedId={BCA.id} {...handlers} {...props} />,
   );
   return { ...result, ...handlers };
 }
@@ -147,10 +147,7 @@ describe('AccountList', () => {
     await userEvent.click(page.getByRole('menuitem', { name: 'Arsipkan' }));
     expect(onEdit).toHaveBeenCalledWith(BCA);
     expect(onReconcile).toHaveBeenCalledWith(BCA);
-    expect(onToggle.mock.calls).toEqual([
-      [BCA, 'showAsCard', false],
-      [BCA, 'includeInAvailable', false],
-    ]);
+    expect(onToggle.mock.calls).toEqual([[BCA, 'includeInAvailable', false]]);
     expect(onArchive).toHaveBeenCalledWith(BCA);
   });
 
@@ -163,7 +160,7 @@ describe('AccountList', () => {
   });
 
   it('disables "Tampil sebagai kartu" when the cards are full', async () => {
-    const { screen } = await renderList({ cardsFull: true });
+    const { screen } = await renderList();
     await userEvent.click(screen.getByRole('button', { name: 'Menu Mandiri' }));
     await expect
       .element(page.getByRole('menuitemcheckbox', { name: 'Tampil sebagai kartu' }))

@@ -51,7 +51,6 @@ function inputOf(account: SeedAccount): AccountInput {
     openingDate: day(account.openingDate),
     color: account.color,
     includeInAvailable: account.includeInAvailable,
-    showAsCard: account.showAsCard,
     isDefaultQuickEntry: account.isDefaultQuickEntry,
   };
 }
@@ -165,7 +164,6 @@ describe('list and get', () => {
     expect(overview.accounts[0]).toMatchObject({
       providerName: 'Bank Central Asia',
       last4: '4821',
-      showAsCard: true,
       isDefaultQuickEntry: true,
       status: 'active',
       openingDate: seedAccount('bca').openingDate,
@@ -263,15 +261,6 @@ describe('create', () => {
     ).toEqual(['created']);
   });
 
-  it('allows at most three cards among active accounts', async () => {
-    const ids = await createAvailable(alice);
-    await expect(asApp(() => repo.create(alice, plain({ showAsCard: true })))).rejects.toMatchObject({
-      code: 'TOO_MANY_CARDS',
-    });
-    await asApp(() => repo.archive(alice, ids.jago as string));
-    expect(await asApp(() => repo.create(alice, plain({ showAsCard: true })))).toMatchObject({ showAsCard: true });
-  });
-
   it('trims names, ignores unknown keys, and links a parent account', async () => {
     const parent = await asApp(() => repo.create(alice, plain()));
     const smuggled = {
@@ -348,33 +337,22 @@ describe('update', () => {
     expect(renamed).toMatchObject({ displayName: 'Utama', locked: true, transactionCount: 1, balanceMinor: -995n });
   });
 
-  it('keeps one default and at most three cards', async () => {
+  it('keeps one default', async () => {
     const ids = await createAvailable(alice);
     await asApp(() => repo.update(alice, ids.mandiri as string, { isDefaultQuickEntry: true }));
     expect(await defaults(alice)).toEqual(['Mandiri']);
     await asApp(() => repo.update(alice, ids.mandiri as string, { isDefaultQuickEntry: true }));
     expect(await defaults(alice)).toEqual(['Mandiri']);
-
-    await expect(asApp(() => repo.update(alice, ids.ovo as string, { showAsCard: true }))).rejects.toMatchObject({
-      code: 'TOO_MANY_CARDS',
-    });
-    expect(await asApp(() => repo.update(alice, ids.bca as string, { showAsCard: true }))).toMatchObject({
-      showAsCard: true,
-    });
-    await asApp(() => repo.update(alice, ids.bca as string, { showAsCard: false }));
-    expect(await asApp(() => repo.update(alice, ids.ovo as string, { showAsCard: true }))).toMatchObject({
-      showAsCard: true,
-    });
   });
 
-  it('refuses default and card flags on archived accounts', async () => {
+  it('refuses the default flag on archived accounts', async () => {
     const ids = await createAvailable(alice);
     await asApp(() => repo.archive(alice, ids.ovo as string));
-    for (const patch of [{ isDefaultQuickEntry: true }, { showAsCard: true }]) {
-      await expect(asApp(() => repo.update(alice, ids.ovo as string, patch))).rejects.toMatchObject({
-        code: 'ACCOUNT_ARCHIVED',
-      });
-    }
+    await expect(
+      asApp(() => repo.update(alice, ids.ovo as string, { isDefaultQuickEntry: true })),
+    ).rejects.toMatchObject({
+      code: 'ACCOUNT_ARCHIVED',
+    });
   });
 
   it('validates the patch and the parent', async () => {
@@ -418,7 +396,6 @@ describe('archive and restore', () => {
     expect(archived).toMatchObject({
       status: 'archived',
       archivedAt: NOW,
-      showAsCard: false,
       isDefaultQuickEntry: false,
     });
     expect(await defaults(alice)).toEqual(['Bank Jago']);

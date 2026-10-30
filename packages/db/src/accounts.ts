@@ -35,7 +35,6 @@ const ACCOUNT_COLUMNS = {
   openingDate: accounts.openingDate,
   color: accounts.color,
   includeInAvailable: accounts.includeInAvailable,
-  showAsCard: accounts.showAsCard,
   isDefaultQuickEntry: accounts.isDefaultQuickEntry,
   sortOrder: accounts.sortOrder,
   status: accounts.status,
@@ -98,8 +97,6 @@ export interface AccountInput {
   readonly last4?: string | null;
   readonly phoneMasked?: string | null;
   readonly includeInAvailable?: boolean;
-  /** At most three active accounts (FR-R2). */
-  readonly showAsCard?: boolean;
   /** One per user; the first active account becomes the default automatically. */
   readonly isDefaultQuickEntry?: boolean;
   readonly lowBalanceThresholdMinor?: bigint | null;
@@ -202,7 +199,6 @@ export interface AccountsOptions {
 const CURRENCY = /^[A-Z]{3}$/;
 const LAST4 = /^[0-9]{4}$/;
 const DISPLAY_NAME_MAX = 40;
-const MAX_CARDS = 3;
 const MAX_SERIES_MONTHS = 120;
 
 /** Fields of {@link AccountInput}; anything else smuggled into an input object is ignored. */
@@ -219,7 +215,6 @@ const INPUT_KEYS = [
   'last4',
   'phoneMasked',
   'includeInAvailable',
-  'showAsCard',
   'isDefaultQuickEntry',
   'lowBalanceThresholdMinor',
   'ccLimitMinor',
@@ -379,7 +374,6 @@ async function viewIn(tx: Transaction, userId: string, id: string, now: Date): P
 interface LockedAccount {
   readonly id: string;
   readonly status: 'active' | 'archived';
-  readonly showAsCard: boolean;
   readonly isDefaultQuickEntry: boolean;
   readonly sortOrder: number;
 }
@@ -390,7 +384,6 @@ function lockAllIn(tx: Transaction): Promise<LockedAccount[]> {
     .select({
       id: accounts.id,
       status: accounts.status,
-      showAsCard: accounts.showAsCard,
       isDefaultQuickEntry: accounts.isDefaultQuickEntry,
       sortOrder: accounts.sortOrder,
     })
@@ -410,11 +403,6 @@ async function checkParentIn(tx: Transaction, parentId: string | null | undefine
   if (parentId === selfId) throw invalid('An account cannot be its own parent');
   const [parent] = await tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, parentId));
   if (parent === undefined) throw new LedgerError('NOT_FOUND', 'No such parent account');
-}
-
-function checkCards(rows: readonly LockedAccount[], exceptId?: string): void {
-  const cards = rows.filter((row) => row.status === 'active' && row.showAsCard && row.id !== exceptId).length;
-  if (cards >= MAX_CARDS) throw new LedgerError('TOO_MANY_CARDS');
 }
 
 /** The month `offset` months after `month` (may be negative). */
@@ -459,7 +447,6 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         checkCatalog(values);
         await checkParentIn(tx, values.parentAccountId);
         const rows = await lockAllIn(tx);
-        if (values.showAsCard === true) checkCards(rows);
         // A default can only be active (check constraint), so any default row means the user has one.
         const isDefault = values.isDefaultQuickEntry === true || !rows.some((row) => row.isDefaultQuickEntry);
         if (isDefault) {
@@ -496,10 +483,6 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
           if (archived) throw new LedgerError('ACCOUNT_ARCHIVED');
           await tx.update(accounts).set({ isDefaultQuickEntry: false }).where(eq(accounts.isDefaultQuickEntry, true));
         }
-        if (values.showAsCard === true && !current.showAsCard) {
-          if (archived) throw new LedgerError('ACCOUNT_ARCHIVED');
-          checkCards(rows, id);
-        }
         await checkParentIn(tx, values.parentAccountId, id);
         const fields = Object.keys(values);
         if (fields.length > 0) await tx.update(accounts).set(values).where(eq(accounts.id, id));
@@ -524,7 +507,7 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         }
         await tx
           .update(accounts)
-          .set({ status: 'archived', archivedAt: now(), showAsCard: false, isDefaultQuickEntry: false })
+          .set({ status: 'archived', archivedAt: now(), isDefaultQuickEntry: false })
           .where(eq(accounts.id, id));
         if (nextDefault !== undefined) {
           await tx.update(accounts).set({ isDefaultQuickEntry: true }).where(eq(accounts.id, nextDefault));
