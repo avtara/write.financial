@@ -103,20 +103,31 @@ export function SignedMoney({
 }
 
 /**
- * The "Jumlah" cell: transfers neutral and unsigned, everything else signed. A row in another currency keeps its
- * value in the base currency below, so the day's total (always in the base) can be read from the rows.
+ * The "Jumlah" cell: transfers neutral, everything else signed. With one account in view, a transfer is read from that
+ * account's side: "+US$1.024,24" where it came in (the received leg, in its currency), "−Rp18.501.500" where it went
+ * out; still uncoloured, since it is neither income nor spending. Without one, it is the sent amount, unsigned. A row
+ * in another currency keeps its value in the base currency below, so the day's total can be read from the rows.
  */
 export function RowAmount({
   row,
   locale,
   baseCurrency,
+  viewAccountId = null,
 }: {
   readonly row: TransactionRow;
   readonly locale: Locale;
   readonly baseCurrency: string;
+  /** The one account the table is filtered to, if any. */
+  readonly viewAccountId?: string | null;
 }) {
+  const leg = transferLeg(row, viewAccountId);
   const amount =
-    row.type === 'transfer' ? (
+    leg !== null ? (
+      <span className="font-mono whitespace-nowrap text-muted-fg">
+        {leg.incoming ? '+' : null}
+        <Money minor={leg.minor} currency={leg.currency} context="amount" locale={locale} />
+      </span>
+    ) : row.type === 'transfer' ? (
       <Money
         minor={row.amountMinor < 0n ? -row.amountMinor : row.amountMinor}
         currency={row.currency}
@@ -127,30 +138,78 @@ export function RowAmount({
     ) : (
       <SignedMoney amountMinor={row.amountMinor} currency={row.currency} locale={locale} className="font-medium" />
     );
-  if (row.currency === baseCurrency) return amount;
+  if ((leg?.currency ?? row.currency) === baseCurrency) return amount;
   return (
     <span className="flex flex-col items-end gap-0.5">
       {amount}
-      <BaseApprox row={row} locale={locale} baseCurrency={baseCurrency} />
+      <BaseApprox row={row} locale={locale} baseCurrency={baseCurrency} viewAccountId={viewAccountId} />
     </span>
   );
 }
 
-/** "≈ Rp36.546" under a row in another currency (unsigned for a transfer); nothing in the base currency. */
+/**
+ * A transfer's leg on `viewAccountId`: the received amount where it came in, the sent one (negative) where it went
+ * out; `null` for other rows or without an account in view. The received leg's base value is the sent one plus the
+ * FX difference, as its posting holds it.
+ */
+export function transferLeg(
+  row: TransactionRow,
+  viewAccountId: string | null,
+): {
+  readonly incoming: boolean;
+  readonly minor: bigint;
+  readonly currency: string;
+  readonly baseMinor: bigint;
+  /** The account on the other side. */
+  readonly otherAccountId: string | null;
+} | null {
+  if (row.type !== 'transfer' || viewAccountId === null) return null;
+  if (row.accountId === viewAccountId) {
+    return {
+      incoming: false,
+      minor: row.amountMinor,
+      currency: row.currency,
+      baseMinor: row.amountBaseMinor,
+      otherAccountId: row.toAccountId,
+    };
+  }
+  if (row.toAccountId !== viewAccountId) return null;
+  return {
+    incoming: true,
+    minor: row.receivedMinor ?? -row.amountMinor,
+    currency: row.receivedCurrency ?? row.currency,
+    baseMinor: -row.amountBaseMinor + (row.fxDiffBaseMinor ?? 0n),
+    otherAccountId: row.accountId,
+  };
+}
+
+/**
+ * "≈ Rp36.546" under a row in another currency (unsigned for a transfer; with an account in view, the transfer's leg
+ * there, signed like the amount above it); nothing in the base currency.
+ */
 export function BaseApprox({
   row,
   locale,
   baseCurrency,
+  viewAccountId = null,
 }: {
-  readonly row: Pick<TransactionRow, 'type' | 'currency' | 'amountBaseMinor'>;
+  readonly row: TransactionRow;
   readonly locale: Locale;
   readonly baseCurrency: string;
+  readonly viewAccountId?: string | null;
 }) {
-  if (row.currency === baseCurrency) return null;
-  const base = row.type === 'transfer' && row.amountBaseMinor < 0n ? -row.amountBaseMinor : row.amountBaseMinor;
+  const leg = transferLeg(row, viewAccountId);
+  if ((leg?.currency ?? row.currency) === baseCurrency) return null;
+  const base =
+    leg !== null
+      ? leg.baseMinor
+      : row.type === 'transfer' && row.amountBaseMinor < 0n
+        ? -row.amountBaseMinor
+        : row.amountBaseMinor;
   return (
     <span className="text-[11px] text-subtle">
-      {m.transactions_approx()} <Money minor={base} currency={baseCurrency} context="amount" locale={locale} />
+      {m.transactions_approx()} {leg?.incoming === true ? '+' : null}
+      <Money minor={base} currency={baseCurrency} context="amount" locale={locale} />
     </span>
   );
 }
@@ -196,6 +255,8 @@ export interface TransactionRowViewProps {
   readonly query: string | undefined;
   /** "Saldo berjalan" after this row, when one account is filtered. */
   readonly balance: { readonly minor: bigint; readonly currency: string } | null;
+  /** The one account the table is filtered to: transfers are read from its side. */
+  readonly viewAccountId: string | null;
   /** Its accessible name ("Shopee"). */
   readonly label: string;
   /** Open in the detail panel. */
@@ -223,6 +284,7 @@ export function TransactionRowView({
   locale,
   query,
   balance,
+  viewAccountId,
   label,
   open,
   checked,
@@ -302,16 +364,24 @@ export function TransactionRowView({
             <span className="truncate">{category.label}</span>
           </span>
         );
-      case 'account':
+      case 'account': {
+        // A transfer seen from the account in view names the other side: "dari BCA" / "ke Pluang USD".
+        const leg = transferLeg(row, viewAccountId);
+        const name = (id: string | null) => ledger.accounts.find((account) => account.id === id)?.displayName ?? '—';
         return (
           <span key={column} className={`truncate text-[13px] text-muted-fg ${COLUMN_CLASS.account}`}>
-            {ledger.accounts.find((account) => account.id === row.accountId)?.displayName}
+            {leg === null
+              ? name(row.accountId)
+              : leg.incoming
+                ? m.transactions_transfer_from({ name: name(leg.otherAccountId) })
+                : m.transactions_transfer_to({ name: name(leg.otherAccountId) })}
           </span>
         );
+      }
       case 'amount':
         return (
           <span key={column} className={`text-[13.5px] ${COLUMN_CLASS.amount}`}>
-            <RowAmount row={row} locale={locale} baseCurrency={ledger.baseCurrency} />
+            <RowAmount row={row} locale={locale} baseCurrency={ledger.baseCurrency} viewAccountId={viewAccountId} />
           </span>
         );
       case 'attachment':

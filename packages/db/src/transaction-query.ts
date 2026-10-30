@@ -157,6 +157,12 @@ export interface TransactionSummary {
   readonly outMinor: bigint;
   /** Σ amounts sent by transfers, in the base currency. */
   readonly transferMinor: bigint;
+  /**
+   * With an account filter, what transfers moved into / out of the filtered accounts (base currency, received and
+   * sent legs); `null` without one.
+   */
+  readonly transferInMinor: bigint | null;
+  readonly transferOutMinor: bigint | null;
   readonly inCount: number;
   readonly outCount: number;
   readonly transferCount: number;
@@ -344,13 +350,22 @@ async function whereIn(tx: Transaction, userId: string, filter: TransactionFilte
   return and(...conditions) as SQL;
 }
 
-const daysIn = (tx: Transaction, where: SQL) =>
-  tx
+/** Per day; with `accountIds`, also what transfers moved into and out of those accounts. */
+const daysIn = (tx: Transaction, where: SQL, accountIds: readonly string[] = []) => {
+  const own = accountIds.length === 0 ? sql`false` : inArray(postings.accountId, [...accountIds]);
+  return tx
     .select({
       date: transactions.localDate,
       inMinor: sumIn.mapWith(BigInt),
       outMinor: sumOut.mapWith(BigInt),
       transferMinor: sql`sum(case when ${isSent} then -${postings.amountBaseMinor} else 0 end)`.mapWith(BigInt),
+      transferInMinor:
+        sql`sum(case when ${transactions.type} = 'transfer' and ${postings.role} = 'principal' and ${postings.amountMinor} > 0 and ${own} then ${postings.amountBaseMinor} else 0 end)`.mapWith(
+          BigInt,
+        ),
+      transferOutMinor: sql`sum(case when ${isSent} and ${own} then -${postings.amountBaseMinor} else 0 end)`.mapWith(
+        BigInt,
+      ),
       count: sql<number>`count(distinct ${transactions.id})::int`,
       inCount: countOf('income'),
       outCount: countOf('expense'),
@@ -361,6 +376,7 @@ const daysIn = (tx: Transaction, where: SQL) =>
     .where(where)
     .groupBy(transactions.localDate)
     .orderBy(desc(transactions.localDate));
+};
 
 const dayGroupsIn = async (tx: Transaction, where: SQL): Promise<DayGroup[]> =>
   (await daysIn(tx, where)).map(({ date, inMinor, outMinor, count }) => ({ date, inMinor, outMinor, count }));
@@ -512,7 +528,7 @@ export function createTransactionQuery(
 
     summary: (userId, filter) =>
       query(userId, filter, async (tx, where) => {
-        const days = await daysIn(tx, where);
+        const days = await daysIn(tx, where, filter.accountIds);
         const sum = (pick: (day: (typeof days)[number]) => bigint) =>
           days.reduce((total, day) => total + pick(day), 0n);
         const count = (pick: (day: (typeof days)[number]) => number) =>
@@ -531,6 +547,12 @@ export function createTransactionQuery(
           inMinor: sum((day) => day.inMinor),
           outMinor,
           transferMinor: sum((day) => day.transferMinor),
+          ...(filter.accountIds?.length
+            ? {
+                transferInMinor: sum((day) => day.transferInMinor),
+                transferOutMinor: sum((day) => day.transferOutMinor),
+              }
+            : { transferInMinor: null, transferOutMinor: null }),
           inCount: count((day) => day.inCount),
           outCount: count((day) => day.outCount),
           transferCount: count((day) => day.transferCount),

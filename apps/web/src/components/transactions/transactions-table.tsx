@@ -366,6 +366,7 @@ export function TransactionsTable({
         balance={
           balance === undefined || balanceCurrency === undefined ? null : { minor: balance, currency: balanceCurrency }
         }
+        viewAccountId={listValues(search.account).length === 1 ? (balanceAccount ?? null) : null}
         label={label}
         open={row.id === selectedId}
         checked={selection.has(row.id)}

@@ -2,10 +2,12 @@
 /**
  * The Transactions page summary (FR-L1, design `t7l0Cj`; filtered `NCqkQ`/`h26Rk`): Masuk and Keluar of the rows the
  * filters select, Transfer shown but "tidak dihitung" (moving money between own accounts is neither income nor
- * spending), and the daily spending chart with its average.
+ * spending; filtered to accounts, split into what came into and went out of them), and the daily spending chart with
+ * its average.
  */
 import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
+import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import type { TransactionsView } from '../../server/fn/transactions.ts';
 import { usePreferences } from '../preferences.tsx';
 import { DailyChart } from './daily-chart.tsx';
@@ -64,13 +66,38 @@ export function TransactionSummary({ view, currency }: TransactionSummaryProps) 
           <span aria-hidden="true" className="size-1.5 rounded-full bg-subtle" />
           {m.transactions_summary_transfer()}
         </h2>
-        <Money
-          minor={summary.transferMinor}
-          currency={currency}
-          context="amount"
-          locale={locale}
-          className="text-[20px] font-semibold text-fg"
-        />
+        {summary.transferInMinor === null || summary.transferOutMinor === null ? (
+          <Money
+            minor={summary.transferMinor}
+            currency={currency}
+            context="amount"
+            locale={locale}
+            className="text-[20px] font-semibold text-fg"
+          />
+        ) : (
+          // Filtered to accounts: what came into them and what went out, neither counted as In or Out.
+          <dl className="flex flex-col gap-0.5 text-[13px]">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="flex items-center gap-1 text-muted-fg">
+                <ArrowDownLeft aria-hidden="true" className="size-3.5" />
+                {m.transactions_summary_transfer_in()}
+              </dt>
+              <dd className="font-mono text-[15px] font-semibold text-fg">
+                {'+'}
+                <Money minor={summary.transferInMinor} currency={currency} context="amount" locale={locale} />
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="flex items-center gap-1 text-muted-fg">
+                <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                {m.transactions_summary_transfer_out()}
+              </dt>
+              <dd className="font-mono text-[15px] font-semibold text-fg">
+                <Money minor={-summary.transferOutMinor} currency={currency} context="amount" locale={locale} />
+              </dd>
+            </div>
+          </dl>
+        )}
         <p className="text-[12px] text-subtle">
           {m.transactions_summary_transfer_note({ count: summary.transferCount })}
         </p>

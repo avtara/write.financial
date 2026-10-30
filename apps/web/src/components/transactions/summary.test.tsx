@@ -20,6 +20,8 @@ describe('TransactionSummary', () => {
         inMinor: 18_500_000n,
         outMinor: 16_500_000n,
         transferMinor: 3_000_000n,
+        transferInMinor: null,
+        transferOutMinor: null,
         inCount: 2,
         outCount: 41,
         transferCount: 3,
