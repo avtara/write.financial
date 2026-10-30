@@ -234,7 +234,6 @@ export function OverviewPage({ data, timeZone, refreshing = false, offline = fal
         case 'calendar':
           return (
             <CalendarCard
-              key={`${dashboard.ranges.full.from}-${dashboard.scope}`}
               dashboard={dashboard}
               categories={categories}
               scheduled={valueOf(data.scheduled)}
