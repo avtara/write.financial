@@ -193,8 +193,12 @@ describe('AccountForm', () => {
 
     await userEvent.click(screen.getByRole('radio', { name: 'Investasi' }));
     await expect.element(screen.getByRole('textbox', { name: 'Nilai saat ini' })).toBeVisible();
-    await expect.element(screen.getByRole('switch', { name: /Hitung dalam total saldo/ })).not.toBeChecked();
-    await expect.element(screen.getByText('Masuk kekayaan bersih · tidak masuk saldo tersedia')).toBeVisible();
+    await expect.element(screen.getByRole('switch', { name: /Hitung dalam saldo tersedia/ })).not.toBeChecked();
+    await expect
+      .element(
+        screen.getByText('Biasanya mati: transfer ke sini dihitung sebagai Ditabung. Tetap masuk kekayaan bersih.'),
+      )
+      .toBeVisible();
 
     await userEvent.click(screen.getByRole('radio', { name: 'Kartu kredit' }));
     await expect.element(screen.getByRole('combobox', { name: 'Penerbit' })).toBeVisible();
@@ -226,7 +230,7 @@ describe('AccountForm', () => {
     await userEvent.fill(screen.getByRole('combobox', { name: 'Nama bank / penyedia' }), 'Wise');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Nama tampilan' }), 'Wise');
     await userEvent.fill(screen.getByRole('textbox', { name: 'Saldo awal' }), '100');
-    await userEvent.click(screen.getByRole('switch', { name: /Hitung dalam total saldo/ }));
+    await userEvent.click(screen.getByRole('switch', { name: /Hitung dalam saldo tersedia/ }));
     await userEvent.click(screen.getByRole('switch', { name: /Tampilkan sebagai kartu/ }));
     await userEvent.click(screen.getByRole('switch', { name: /Default Catat Cepat/ }));
     await userEvent.fill(screen.getByRole('textbox', { name: 'Batas saldo rendah' }), '50');
