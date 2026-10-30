@@ -70,16 +70,18 @@ describe('DashboardGrid', () => {
 });
 
 describe('DashboardEditor', () => {
-  it('hides a card behind a placeholder, shows it again, and changes its width', async () => {
+  it('removes a card into "Kartu lain yang bisa ditambahkan", adds it back, and changes a width', async () => {
     const onChange = vi.fn();
     const { screen } = await renderApp(<Harness onChange={onChange} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Langganan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hapus kartu Langganan' }));
     expect(onChange).toHaveBeenLastCalledWith(
       updateCard(DEFAULT_DASHBOARD_LAYOUT, 'subscriptions', { visible: false }),
     );
+    // Gone from the grid (no placeholder left behind), waiting with the cards that can be added.
     expect(screen.getByRole('region', { name: 'card subscriptions' }).query()).toBeNull();
-    await expect.element(screen.getByText('Disembunyikan · klik mata untuk tampilkan lagi')).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: 'Tampilkan Langganan' }));
+    expect(screen.getByRole('button', { name: 'Pindahkan Langganan' }).query()).toBeNull();
+    const addable = screen.getByRole('region', { name: 'Kartu lain yang bisa ditambahkan' });
+    await userEvent.click(addable.getByRole('button', { name: 'Tambah Langganan' }));
     await expect.element(screen.getByRole('region', { name: 'card subscriptions' })).toBeInTheDocument();
 
     await userEvent.click(
@@ -94,7 +96,7 @@ describe('DashboardEditor', () => {
     expect(preview.element().closest('[inert]')).not.toBeNull();
   });
 
-  it('adds an addable card from "Kartu lain yang bisa ditambahkan", and hiding it puts it back there', async () => {
+  it('adds an addable card from "Kartu lain yang bisa ditambahkan", and removing it puts it back there', async () => {
     const onChange = vi.fn();
     const { screen } = await renderApp(<Harness onChange={onChange} />);
     const addable = screen.getByRole('region', { name: 'Kartu lain yang bisa ditambahkan' });
@@ -104,7 +106,7 @@ describe('DashboardEditor', () => {
     await expect.element(screen.getByRole('button', { name: 'Pindahkan Tujuan tabungan' })).toBeVisible();
     expect(addable.getByRole('button', { name: 'Tambah Tujuan tabungan' }).query()).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Sembunyikan Tujuan tabungan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hapus kartu Tujuan tabungan' }));
     await expect.element(addable.getByRole('button', { name: 'Tambah Tujuan tabungan' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Pindahkan Tujuan tabungan' }).query()).toBeNull();
   });

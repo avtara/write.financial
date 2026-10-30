@@ -138,7 +138,7 @@ test('offline, the last data stays available', async ({ page, context }) => {
   await context.setOffline(false);
 });
 
-test('"Atur dashboard" saves hidden, resized, and added cards across a reload; Reset and "Urungkan" work', async ({
+test('"Atur dashboard" saves removed, resized, and added cards across a reload; Reset and "Urungkan" work', async ({
   page,
 }) => {
   await openOverview(page);
@@ -152,10 +152,16 @@ test('"Atur dashboard" saves hidden, resized, and added cards across a reload; R
 
   await page.getByRole('button', { name: 'Atur dashboard' }).click();
   await expect(bar).toBeVisible();
-  await page.getByRole('button', { name: 'Sembunyikan Langganan' }).click();
+  await page.getByRole('button', { name: 'Hapus kartu Langganan' }).click();
   await page.getByRole('radiogroup', { name: 'Lebar Anggaran Kategori' }).getByRole('radio', { name: 'Penuh' }).click();
   await page.getByRole('button', { name: 'Tambah Tujuan tabungan' }).click();
-  await expect(bar).toContainText('Tersembunyi: 1');
+  // The removed card leaves the grid and waits with the cards to add.
+  await expect(
+    page
+      .getByRole('region', { name: 'Kartu lain yang bisa ditambahkan' })
+      .getByRole('button', { name: 'Tambah Langganan' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pindahkan Langganan' })).toHaveCount(0);
   await screenshot(page, 'dashboard-customize-1440');
   await bar.getByRole('button', { name: 'Simpan tata letak' }).click();
   await expect(bar).toBeHidden();
