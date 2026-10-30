@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * The Record Transaction form body (FR-T2–T4, T8; design `airjf`, `PKtGi`, `qB5s3`): type, amount with chips,
- * category tiles, account, date and time, description, tags, a private note, the insufficient-balance warning, and
- * the balance impact (FR-T3). {@link TransactionFormFields} renders the fields of a {@link useTransactionForm}
- * state, for hosts that place their own actions (the sheet pins them in its footer); {@link TransactionForm} is
- * the self-contained form with "Batal" / "Simpan" for detail panels (create or edit).
+ * category tiles, account, date and time, the title ("Judul", one line), tags, the note ("Catatan", encrypted, free
+ * text), the insufficient-balance warning, and the balance impact (FR-T3). {@link TransactionFormFields} renders the
+ * fields of a {@link useTransactionForm} state, for hosts that place their own actions (the sheet pins them in its
+ * footer); {@link TransactionForm} is the self-contained form with "Batal" / "Simpan" for detail panels (create or
+ * edit).
  */
 import type { Locale } from '@wf/domain/money';
 import type { LocalDate } from '@wf/domain/period';
@@ -20,12 +21,11 @@ import {
   CalendarClock,
   CircleAlert,
   Info,
-  Plus,
   TriangleAlert,
 } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 import type { RecordTransactionInput } from '../../server/fn/transactions-write.ts';
-import { Button, Field, FormError } from '../form.tsx';
+import { Button, Field, FormError, TextInput } from '../form.tsx';
 import { AccountPicker, AccountTrigger } from './account-picker.tsx';
 import { BudgetImpact, budgetNotes } from '../budget/budget-note.tsx';
 import { CategoryPicker } from './category-picker.tsx';
@@ -82,7 +82,6 @@ export function TransactionFormFields({
     fee: `${id}-fee`,
   };
   const { values, update, showErrors, figures } = form;
-  const [noteOpen, setNoteOpen] = useState(values.note !== '');
   const error = <K extends keyof typeof form.errors>(field: K) => (showErrors ? form.errors[field] : undefined);
   const account = data.accounts.find((candidate) => candidate.id === values.accountId);
   const currency = account?.currency ?? data.baseCurrency;
@@ -290,16 +289,15 @@ export function TransactionFormFields({
 
       <Field label={m.record_description()}>
         {({ id: fieldId }) => (
-          <textarea
+          <TextInput
             id={fieldId}
-            rows={2}
+            type="text"
             maxLength={200}
             value={values.description}
             placeholder={m.record_description_placeholder()}
             onChange={(event) => {
               update({ description: event.currentTarget.value });
             }}
-            className="w-full min-w-0 resize-none rounded-[9px] border border-border-input bg-input px-3 py-2.5 text-[14px] text-fg outline-none placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         )}
       </Field>
@@ -317,37 +315,22 @@ export function TransactionFormFields({
         )}
       </Field>
 
-      {noteOpen ? (
-        <Field label={m.record_note()} hint={m.record_note_hint()}>
-          {({ id: fieldId, describedBy }) => (
-            <textarea
-              id={fieldId}
-              rows={2}
-              maxLength={2000}
-              aria-describedby={describedBy}
-              value={values.note}
-              onChange={(event) => {
-                update({ note: event.currentTarget.value });
-              }}
-              className="w-full min-w-0 resize-none rounded-[9px] border border-border-input bg-input px-3 py-2.5 text-[14px] text-fg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            />
-          )}
-        </Field>
-      ) : (
-        <div className="flex items-center gap-2 text-[12.5px] text-muted-fg">
-          {m.record_more()}
-          <button
-            type="button"
-            onClick={() => {
-              setNoteOpen(true);
+      <Field label={m.record_note()} hint={m.record_note_hint()}>
+        {({ id: fieldId, describedBy }) => (
+          <textarea
+            id={fieldId}
+            rows={3}
+            maxLength={2000}
+            aria-describedby={describedBy}
+            value={values.note}
+            placeholder={m.record_note_placeholder()}
+            onChange={(event) => {
+              update({ note: event.currentTarget.value });
             }}
-            className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-border px-2.5 text-fg hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            <Plus aria-hidden="true" className="size-3.5" />
-            {m.record_note_add()}
-          </button>
-        </div>
-      )}
+            className="w-full min-w-0 resize-y rounded-[9px] border border-border-input bg-input px-3 py-2.5 text-[14px] text-fg outline-none placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        )}
+      </Field>
 
       {schedule?.repeat}
       {goalUse}
