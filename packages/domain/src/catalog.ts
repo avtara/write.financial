@@ -754,6 +754,27 @@ export const CATALOG: readonly CatalogRecord[] = [
     'https://www.primevideo.com/',
     commons('prime-video', 'Amazon Prime Video logo (2024).svg'),
   ),
+  service(
+    'youtube-membership',
+    'YouTube Membership',
+    ['Membership YouTube', 'YouTube channel membership', 'Join channel YouTube'],
+    'https://www.youtube.com/',
+    commons('youtube', 'YouTube full-color icon (2024).svg', 'Public domain (PD-textlogo)'),
+  ),
+  service(
+    'discord-nitro',
+    'Discord Nitro',
+    ['Discord', 'Nitro'],
+    'https://discord.com/nitro',
+    official('discord', 'https://apps.apple.com/id/app/id985746746'),
+  ),
+  service(
+    'bpjs-kesehatan',
+    'BPJS Kesehatan',
+    ['BPJS', 'JKN', 'JKN-KIS', 'Mobile JKN'],
+    'https://www.bpjs-kesehatan.go.id/',
+    official('bpjs-kesehatan', 'https://www.bpjs-kesehatan.go.id/assets/img/favicon.png'),
+  ),
 ];
 const BY_ID: Readonly<Record<string, CatalogRecord>> = Object.fromEntries(CATALOG.map((record) => [record.id, record]));
 export function getCatalogRecord(id: string | null | undefined): CatalogRecord | null {
