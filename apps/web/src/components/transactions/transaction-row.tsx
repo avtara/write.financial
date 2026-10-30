@@ -102,13 +102,41 @@ export function SignedMoney({
   );
 }
 
-/** The "Jumlah" cell: transfers neutral and unsigned, everything else signed. */
-export function RowAmount({ row, locale }: { readonly row: TransactionRow; readonly locale: Locale }) {
-  if (row.type === 'transfer') {
-    const sent = row.amountMinor < 0n ? -row.amountMinor : row.amountMinor;
-    return <Money minor={sent} currency={row.currency} context="amount" locale={locale} className="text-muted-fg" />;
-  }
-  return <SignedMoney amountMinor={row.amountMinor} currency={row.currency} locale={locale} className="font-medium" />;
+/**
+ * The "Jumlah" cell: transfers neutral and unsigned, everything else signed. A row in another currency keeps its
+ * value in the base currency below, so the day's total (always in the base) can be read from the rows.
+ */
+export function RowAmount({
+  row,
+  locale,
+  baseCurrency,
+}: {
+  readonly row: TransactionRow;
+  readonly locale: Locale;
+  readonly baseCurrency: string;
+}) {
+  const amount =
+    row.type === 'transfer' ? (
+      <Money
+        minor={row.amountMinor < 0n ? -row.amountMinor : row.amountMinor}
+        currency={row.currency}
+        context="amount"
+        locale={locale}
+        className="text-muted-fg"
+      />
+    ) : (
+      <SignedMoney amountMinor={row.amountMinor} currency={row.currency} locale={locale} className="font-medium" />
+    );
+  if (row.currency === baseCurrency) return amount;
+  const base = row.type === 'transfer' && row.amountBaseMinor < 0n ? -row.amountBaseMinor : row.amountBaseMinor;
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      {amount}
+      <span className="text-[11px] text-subtle">
+        {m.transactions_approx()} <Money minor={base} currency={baseCurrency} context="amount" locale={locale} />
+      </span>
+    </span>
+  );
 }
 
 function Highlighted({ text, words }: { readonly text: string; readonly words: readonly string[] }) {
@@ -267,7 +295,7 @@ export function TransactionRowView({
       case 'amount':
         return (
           <span key={column} className={`text-[13.5px] ${COLUMN_CLASS.amount}`}>
-            <RowAmount row={row} locale={locale} />
+            <RowAmount row={row} locale={locale} baseCurrency={ledger.baseCurrency} />
           </span>
         );
       case 'attachment':

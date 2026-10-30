@@ -4866,6 +4866,7 @@
   "transactions_accounts_manage": "Manage accounts",
   "transactions_accounts_others_all": "All other accounts",
   "transactions_accounts_others_title": "Other accounts",
+  "transactions_approx": "≈",
   "transactions_action_failed": "That didn't work",
   "transactions_activity_account": "Account changed",
   "transactions_activity_attachments": "Attachments changed",
