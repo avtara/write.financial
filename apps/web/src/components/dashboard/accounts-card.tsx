@@ -10,7 +10,7 @@ import type { Dashboard } from '@wf/db/dashboard';
 import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
 import { usePrivacy } from '@wf/ui/privacy';
-import { ArrowDownLeft, ArrowUpRight, Minus, Wallet } from 'lucide-react';
+import { ArrowDown, ArrowUp, Minus, Wallet } from 'lucide-react';
 import { cardSlots } from '../../lib/accounts.ts';
 import { transactionsDatesOf } from '../../lib/dashboard-search.ts';
 import { listParamOf } from '../../lib/transactions-search.ts';
@@ -45,8 +45,9 @@ export function AccountsCard({ overview, dashboard }: AccountsCardProps) {
     const counted = single === undefined ? accounts.filter((a) => a.currency === baseCurrency) : accounts;
     const netMinor = counted.reduce((total, account) => total + (nets.get(account.id) ?? 0n), 0n);
     // In privacy mode the arrow and its colour would give the direction away (`<Money>` drops its colour too).
+    // Money coming in points up, money going out points down: the amount's sign read as an arrow.
     const direction = hidden ? 0 : Number(netMinor > 0n) - Number(netMinor < 0n);
-    const Icon = direction > 0 ? ArrowDownLeft : direction < 0 ? ArrowUpRight : Minus;
+    const Icon = direction > 0 ? ArrowUp : direction < 0 ? ArrowDown : Minus;
     return (
       <span className="mt-auto flex items-center gap-1.5 border-t border-border pt-2 text-[11px] text-subtle">
         <Icon

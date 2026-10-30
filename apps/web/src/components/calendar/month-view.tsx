@@ -11,7 +11,7 @@ import { m } from '@wf/i18n/messages';
 import { formatDate, formatMonth, weekdayNames } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { Tooltip } from '@wf/ui/tooltip';
-import { ArrowDownLeft, CalendarDays, Flame, Leaf, PiggyBank, Sparkles, Wallet } from 'lucide-react';
+import { ArrowUp, CalendarDays, Flame, Leaf, PiggyBank, Sparkles, Wallet } from 'lucide-react';
 import { RichMessage } from '../rich-message.tsx';
 import { Kpi, KpiStrip } from './calendar-kpi.tsx';
 import { CALENDAR_LAYERS, weekTotal, type CalendarLayer, type DayDetail, type MonthStats } from './calendar-model.ts';
@@ -283,7 +283,7 @@ export function MonthGrid({
           ) : null}
           {shown('income') && day.inMinor > 0n ? (
             <span className="flex items-center gap-0.5 truncate text-[10px] text-green-fg">
-              <ArrowDownLeft aria-hidden="true" className="size-2.5 shrink-0 max-lg:hidden" />
+              <ArrowUp aria-hidden="true" className="size-2.5 shrink-0 max-lg:hidden" />
               {received}
             </span>
           ) : null}
