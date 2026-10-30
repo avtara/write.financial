@@ -130,8 +130,9 @@ export function monthGrid(month: YearMonth, inputs: CalendarInputs, pattern?: Ca
   return dayDetails(weeks, inputs, pattern === undefined ? undefined : paydays(month, pattern));
 }
 
-/** Out, net and still-scheduled bills of a week's days within the month (W1–W6). */
+/** In, out, net and still-scheduled bills of a week's days within the month (W1–W6). */
 export function weekTotal(week: readonly DayDetail[]): {
+  readonly inMinor: bigint;
   readonly outMinor: bigint;
   readonly netMinor: bigint;
   readonly scheduledMinor: bigint;
@@ -139,6 +140,7 @@ export function weekTotal(week: readonly DayDetail[]): {
 } {
   const days = week.filter((day) => day.inRange);
   return {
+    inMinor: sum(days.map((day) => day.inMinor)),
     outMinor: sum(days.map((day) => day.outMinor)),
     netMinor: sum(days.map((day) => day.inMinor - day.outMinor)),
     scheduledMinor: sum(
