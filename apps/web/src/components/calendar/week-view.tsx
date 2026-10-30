@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 import type { CategoryView } from '@wf/db/categories';
 import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { RichMessage } from '../rich-message.tsx';
-import { SignedMoney } from '../transactions/transaction-row.tsx';
+import { BaseApprox, SignedMoney } from '../transactions/transaction-row.tsx';
 import { abs, type WeekStats } from './calendar-model.ts';
 import { Kpi, KpiStrip } from './calendar-kpi.tsx';
 import { CALENDAR_RECORD_TIME } from './day-panel.tsx';
@@ -220,6 +220,7 @@ export function WeekView({ week, today, safeDailyMinor, categories, baseCurrency
                             className="text-[12px]"
                           />
                         )}
+                        <BaseApprox row={row} locale={locale} baseCurrency={baseCurrency} />
                       </li>
                     );
                   })}
