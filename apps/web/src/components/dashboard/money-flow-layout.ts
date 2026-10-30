@@ -49,14 +49,19 @@ export function flowGraph(flow: Pick<MoneyFlow, 'nodes' | 'links'>, levels: Flow
       (a.column >= 2 ? rank(a) - rank(b) : 0) ||
       (a.column === 3 && b.valueMinor !== a.valueMinor ? (b.valueMinor > a.valueMinor ? 1 : -1) : 0),
   );
-  if (levels === 'full') return { nodes: ordered, links: all };
+  // d3-sankey stacks a node's bands in the order the links come (`linkSort(null)`): ordering them by the node at
+  // the other end, as the columns are ordered, is what keeps bands from crossing.
+  const position = new Map(ordered.map((node, index) => [node.id, index]));
+  const at = (id: string): number => position.get(id) ?? ordered.length;
+  const bands = all.toSorted((a, b) => at(a.to) - at(b.to) || at(a.from) - at(b.from));
+  if (levels === 'full') return { nodes: ordered, links: bands };
   if (levels === 'groups') {
     return {
       nodes: ordered.filter((node) => node.column <= 2),
-      links: all.filter((link) => !link.from.startsWith('group:')),
+      links: bands.filter((link) => !link.from.startsWith('group:')),
     };
   }
-  const links = all.filter((link) => link.from === levels.group);
+  const links = bands.filter((link) => link.from === levels.group);
   const ids = new Set([levels.group, ...links.map((link) => link.to)]);
   return { nodes: ordered.filter((node) => ids.has(node.id)), links };
 }
