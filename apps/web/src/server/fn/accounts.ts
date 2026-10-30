@@ -234,6 +234,8 @@ export interface AccountDetail {
   /** Flows of the current calendar month up to today. */
   readonly flows: AccountFlows;
   readonly recent: TransactionRow[];
+  /** The day of the account's oldest transaction, so "Lihat semua" opens all of them; `null` without any. */
+  readonly firstDate: LocalDate | null;
   /** The categories of {@link recent}. */
   readonly categories: DetailCategory[];
 }
@@ -245,10 +247,11 @@ export const getAccountDetail = createServerFn({ method: 'GET' })
     forUser(context, async (userId, { accounts, categories, transactionQuery, now }, timezone) => {
       const today = localDateOf(now(), timezone);
       const from = `${today.slice(0, 8)}01` as LocalDate;
-      const [series, flows, recent] = await Promise.all([
+      const [series, flows, recent, first] = await Promise.all([
         accounts.series(userId, data.id, { months: DETAIL_MONTHS, end: today }),
         accounts.flows(userId, data.id, { from, to: today }),
         transactionQuery.list(userId, { accountIds: [data.id] }, { sort: 'date_desc', limit: RECENT_LIMIT }),
+        transactionQuery.list(userId, { accountIds: [data.id] }, { sort: 'date_asc', limit: 1 }),
       ]);
       const used = new Set(recent.rows.map((row) => row.categoryId));
       const all = used.size === 0 ? [] : await categories.list(userId, { includeArchived: true });
@@ -257,6 +260,7 @@ export const getAccountDetail = createServerFn({ method: 'GET' })
         series,
         flows,
         recent: recent.rows,
+        firstDate: first.rows[0]?.localDate ?? null,
         categories: all
           .filter((category) => used.has(category.id))
           .map(({ id, name, builtInKey, icon, color }) => ({ id, name, builtInKey, icon, color })),

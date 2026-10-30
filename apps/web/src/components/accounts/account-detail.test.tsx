@@ -62,6 +62,7 @@ function detail(overrides: Partial<AccountDetail> = {}): { ok: true; value: Acco
       series: [point('2026-09', 41_610_000n), point('2026-10', 42_810_000n)],
       flows: { inflowMinor: 24_700_000n, outflowMinor: 14_000_000n, transferInMinor: 0n, transferOutMinor: 9_500_000n },
       recent: [],
+      firstDate: null,
       categories: [],
       ...overrides,
     } as AccountDetail,
@@ -101,6 +102,7 @@ describe('AccountDetailPanel', () => {
           row({}),
         ],
         categories: [FOOD] as AccountDetail['categories'],
+        firstDate: '2025-03-02' as AccountDetail['today'],
       }),
     );
     const { screen, onReconcile, onEdit, onArchive } = await renderPanel();
@@ -115,9 +117,10 @@ describe('AccountDetailPanel', () => {
     await expect.element(screen.getByText('+24.700.000')).toBeVisible();
     await expect.element(screen.getByText('Transfer masuk')).not.toBeInTheDocument();
     const recent = screen.getByRole('region', { name: 'Transaksi terakhir' });
+    // "Lihat semua" opens every transaction of the account, from its first one, not only this period's.
     await expect
       .element(recent.getByRole('link', { name: 'Lihat semua' }))
-      .toHaveAttribute('href', `/transactions?account=${BCA.id}`);
+      .toHaveAttribute('href', `/transactions?account=${BCA.id}&range=2025-03-02..2026-10-15`);
     const titles = recent
       .getByRole('listitem')
       .elements()
