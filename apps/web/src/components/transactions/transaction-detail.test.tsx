@@ -315,6 +315,7 @@ describe('TransactionDetailPanel', () => {
         rateSource: 'frankfurter',
         rateAsOf: '2026-10-15' as LocalDate,
         fxDiffBaseMinor: -22_665n,
+        fxDiffAsExpense: true,
       },
     });
     const { screen } = await renderPanel(detail, { variant: 'sheet' });
@@ -346,6 +347,7 @@ describe('TransactionDetailPanel', () => {
         rateSource: null,
         rateAsOf: null,
         fxDiffBaseMinor: 0n,
+        fxDiffAsExpense: true,
       },
     });
     const { screen } = await renderPanel(detail);

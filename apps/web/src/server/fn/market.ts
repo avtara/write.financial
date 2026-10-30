@@ -67,6 +67,8 @@ export interface MarketSettings {
     readonly count: number;
     readonly asOf: Date;
   }[];
+  /** "Hitung selisih kurs sebagai pengeluaran" (on by default). */
+  readonly fxDiffAsExpense: boolean;
 }
 
 export interface MarketTestResult {
@@ -129,6 +131,7 @@ export const getMarketSettings = createServerFn({ method: 'GET' }).handler(
         cmcConfigured: s.config.market.cmcApiKey !== null,
         symbolCounts,
         prices: [...grouped.values()],
+        fxDiffAsExpense: (await s.preferences.get(user.id)).fxDiffAsExpense,
       };
     });
   },
@@ -164,6 +167,17 @@ export const removeMarketKey = createServerFn({ method: 'POST' })
     return attempt(async () => {
       const { user } = await requireSession(context.session, {}, s.now());
       return s.marketCredentials.remove(user.id, data.provider);
+    });
+  });
+
+/** "Hitung selisih kurs sebagai pengeluaran": whether transfers' FX losses count in spending everywhere. */
+export const setFxDiffAsExpense = createServerFn({ method: 'POST' })
+  .validator(z.object({ enabled: z.boolean() }))
+  .handler(async ({ context, data }): Promise<Result<boolean>> => {
+    const s = await services();
+    return attempt(async () => {
+      const { user } = await requireSession(context.session, {}, s.now());
+      return (await s.preferences.update(user.id, { fxDiffAsExpense: data.enabled })).fxDiffAsExpense;
     });
   });
 

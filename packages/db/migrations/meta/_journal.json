@@ -218,6 +218,13 @@
       "when": 1793350152065,
       "tag": "0030_drop_show_as_card",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793354964297,
+      "tag": "0031_fx_diff_as_expense",
+      "breakpoints": true
     }
   ]
 }

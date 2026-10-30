@@ -364,6 +364,7 @@ describe('valuesFromDetail', () => {
     rateSource: 'manual',
     rateAsOf: '2026-10-15' as LocalDate,
     fxDiffBaseMinor: -22_665n,
+    fxDiffAsExpense: true,
   };
   const fxTransferDetail = (transfer: Partial<TransferView> = {}) =>
     transactionDetail('tx-fx', {

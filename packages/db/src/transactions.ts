@@ -84,6 +84,8 @@ export interface TransferView {
   readonly rateSource: string | null;
   readonly rateAsOf: LocalDate | null;
   readonly fxDiffBaseMinor: bigint;
+  /** Whether the user counts the FX loss as spending ("Hitung selisih kurs sebagai pengeluaran"). */
+  readonly fxDiffAsExpense: boolean;
 }
 
 export interface AttachmentView {
@@ -345,6 +347,9 @@ async function loadIn(tx: Transaction, id: string): Promise<StoredDetail> {
       rateSource: transferMeta.rateSource,
       rateAsOf: transferMeta.rateAsOf,
       fxDiffBaseMinor: transferMeta.fxDiffBaseMinor,
+      // How the user counts the FX loss now (the money totals read the same preference). Explicit aliases: drizzle
+      // leaves columns unqualified in a one-table select, which would make `user_id` ambiguous in here.
+      fxDiffAsExpense: sql<boolean>`coalesce((select up.fx_diff_as_expense from user_preferences up join transactions t on t.user_id = up.user_id where t.id = "transfer_meta"."transaction_id"), true)`,
     })
     .from(transferMeta)
     .where(eq(transferMeta.transactionId, id));
