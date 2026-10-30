@@ -101,10 +101,11 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   const name = (id: string): string => {
     const [kind, key = ''] = id.split(':');
     if (id === 'total') return m.overview_flow_income();
-    if (id === 'unallocated') return m.overview_flow_unallocated();
     if (id === 'source:other') return m.overview_flow_other_sources();
     if (id === 'source:deficit') return m.overview_flow_deficit();
     if (id === 'group:savings') return m.overview_flow_savings();
+    // Income that was simply not spent: not a saving, so it does not borrow the savings name.
+    if (id === 'group:leftover') return m.overview_flow_leftover();
     if (kind === 'group') return categoryGroupLabel(key as CategoryGroup);
     if (kind === 'account') return accountById.get(key)?.displayName ?? m.overview_flow_account();
     const category = categoryById.get(key);
@@ -118,7 +119,9 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   /** `/transactions` for a node: a category, every category of a group, transfers for savings, else all. */
   const searchOf = (id: string): TransactionsSearch => {
     const [kind, key = ''] = id.split(':');
-    if (id === 'group:savings' || kind === 'account' || id === 'unallocated') return { ...dates, type: 'transfer' };
+    if (id === 'group:savings' || kind === 'account') return { ...dates, type: 'transfer' };
+    // The leftover is every transaction of the range: what was spent and what was kept.
+    if (id === 'group:leftover') return dates;
     if (key === 'uncategorized') return { ...dates, uncategorized: true };
     if (kind === 'group') {
       const ids = flow.links.filter((link) => link.from === id).map((link) => link.to.slice('category:'.length));
