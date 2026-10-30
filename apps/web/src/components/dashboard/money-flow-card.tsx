@@ -156,7 +156,9 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
       previousLeft = middle;
     }
     // The percentage sits under the amount (its own line), so a label reads: name, amount, percentage.
-    const lines = shown === 'percent' ? [percent] : narrow && node.id === 'total' ? [amount] : [amount, percent];
+    // The leftover names its basis: it is a share of the income, not a flow of its own.
+    const basis = node.id === 'group:leftover' ? `${percent} ${m.overview_flow_of_income()}` : percent;
+    const lines = shown === 'percent' ? [basis] : narrow && node.id === 'total' ? [amount] : [amount, basis];
     texts.set(node.id, {
       // The visible text word for word (WCAG 2.5.3): "Gaji Rp18.500.000 71%".
       label: [name(node.id), ...lines].join(' '),
@@ -598,6 +600,9 @@ function FlowTooltip({ hover, width, name, parent, nodeById, dashboard, money, s
           </div>
         ))}
       </dl>
+      {node.id === 'group:leftover' ? (
+        <p className="border-t border-border px-3 py-2 text-[11.5px] text-subtle">{m.overview_flow_leftover_hint()}</p>
+      ) : null}
       {spending === undefined ? null : (
         <p className="border-t border-border px-3 py-2 text-[11.5px] text-subtle">
           {m.overview_flow_tip_open({ count: spending.count })}
