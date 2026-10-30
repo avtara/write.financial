@@ -11,7 +11,7 @@ export type Locale = 'id' | 'en';
 /**
  * - `table`: ledger/table cells, no currency symbol, minus sign only when negative.
  * - `amount`: headline figures and sentences, with currency symbol.
- * - `delta`: flows and differences, always signed (+/−), no currency symbol.
+ * - `delta`: flows and differences, signed (+/−; zero unsigned), no currency symbol.
  * - `signed`: a `delta` with the currency symbol ("+US$128,44", "−Rp45.000"), where currencies mix or a row stands
  *   alone without a currency column.
  */
@@ -83,12 +83,13 @@ export function formatMoney(minor: bigint, currency: string, options: FormatMone
       return negative && !options.privacy ? `${MINUS}${digits}` : digits;
     case 'amount':
       return `${negative && !options.privacy ? MINUS : ''}${info.symbol}${digits}`;
+    // Zero is neither a gain nor a loss: no sign ("0", not "+0").
     case 'delta':
       if (options.privacy) return digits;
-      return `${negative ? MINUS : '+'}${digits}`;
+      return `${negative ? MINUS : minor > 0n ? '+' : ''}${digits}`;
     case 'signed':
       if (options.privacy) return `${info.symbol}${digits}`;
-      return `${negative ? MINUS : '+'}${info.symbol}${digits}`;
+      return `${negative ? MINUS : minor > 0n ? '+' : ''}${info.symbol}${digits}`;
   }
 }
 

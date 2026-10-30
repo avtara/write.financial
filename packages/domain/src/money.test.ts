@@ -47,7 +47,7 @@ describe('formatMoney — golden values from the design (PRD §7.1)', () => {
     [9_500_000n, 'IDR', 'id', 'delta', '+9.500.000'],
     [-2_277_000n, 'IDR', 'id', 'delta', `${MINUS}2.277.000`],
     [-2_277_000n, 'IDR', 'en', 'delta', `${MINUS}2,277,000`],
-    [0n, 'IDR', 'id', 'delta', '+0'],
+    [0n, 'IDR', 'id', 'delta', '0'],
     [0n, 'IDR', 'id', 'amount', 'Rp0'],
     [69_010n, 'USD', 'id', 'amount', 'US$690,10'],
     [69_010n, 'USD', 'en', 'amount', 'US$690.10'],
@@ -59,7 +59,7 @@ describe('formatMoney — golden values from the design (PRD §7.1)', () => {
     [12_844n, 'USD', 'id', 'signed', '+US$128,44'],
     [-12_844n, 'USD', 'en', 'signed', `${MINUS}US$128.44`],
     [-1n, 'IDR', 'id', 'signed', `${MINUS}Rp1`],
-    [0n, 'IDR', 'id', 'signed', '+Rp0'],
+    [0n, 'IDR', 'id', 'signed', 'Rp0'],
     [1_000n, 'JPY', 'en', 'signed', '+JPY 1,000'],
   ])('%s %s %s %s → %s', (minor, currency, locale, context, expected) => {
     expect(formatMoney(minor, currency, { locale, context })).toBe(expected);
