@@ -49,7 +49,6 @@ const existing = (patch: Partial<TransactionRow> = {}): TransactionRow => ({
   receivedCurrency: null,
   amountBaseMinor: -25_000n,
   feeMinor: null,
-  feeBaseMinor: 0n,
   fxDiffBaseMinor: null,
   tags: [],
   hasAttachment: false,

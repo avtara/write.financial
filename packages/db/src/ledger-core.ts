@@ -4,6 +4,8 @@
  * user's base currency and time zone, rates for valuation, built-in categories, tags, and turning a transaction
  * draft into a header + postings (`@wf/domain/transactions`) and writing it.
  */
+import { createHash } from 'node:crypto';
+
 import { encrypt } from '@wf/crypto/cipher';
 import type { Dek } from '@wf/crypto/envelope';
 import { BUILT_IN_CATEGORIES, FX_DIFFERENCE_CATEGORY, type BuiltInCategoryKey } from '@wf/domain/categories';
@@ -252,7 +254,8 @@ export type TransactionDraft = EntryDraft | TransferDraft;
 /** A draft resolved against the database, ready to be written. */
 export interface TransactionPlan {
   readonly header: {
-    readonly type: TransactionDraft['type'];
+    /** The transaction's type: an entry, a transfer, or a trade's cash leg (`investment`, `dividend`). */
+    readonly type: typeof transactions.$inferSelect.type;
     readonly occurredAt: Date;
     readonly localDate: LocalDate;
     readonly description: string | null;
@@ -424,17 +427,57 @@ export async function planTransactionIn(
 }
 
 /** Writes a plan's postings, transfer details, and tags for `transactionId` (replacing existing ones). */
+/** A fee's own client id: derived from the parent's, so a replay or an edit keeps the same child. */
+export function feeChildClientId(parentClientId: string, index: number): string {
+  const hex = createHash('sha256')
+    .update(`${parentClientId}:fee:${String(index)}`)
+    .digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+const isFeeLine = (line: PostingDraft): boolean => line.role === 'fee' || line.role === 'tax';
+
+/**
+ * Writes a plan's postings: the principal (and the transfer's FX difference) on the transaction itself, and each fee
+ * or tax line as its own expense transaction linked back to it (one transaction, one action). The parent's earlier fee
+ * children are replaced, so an edit never leaves a stale one behind.
+ */
 export async function writeLinesIn(
   tx: Transaction,
   userId: string,
   transactionId: string,
   plan: TransactionPlan,
+  parent: { readonly clientId: string; readonly confirmedAt: Date },
 ): Promise<void> {
   await tx.delete(postings).where(eq(postings.transactionId, transactionId));
   await tx.delete(transferMeta).where(eq(transferMeta.transactionId, transactionId));
-  await tx.insert(postings).values(plan.postings.map((line) => ({ ...line, userId, transactionId })));
+  await tx.delete(transactions).where(eq(transactions.parentTransactionId, transactionId));
+  const parentLines = plan.postings.filter((line) => !isFeeLine(line));
+  await tx.insert(postings).values(parentLines.map((line) => ({ ...line, userId, transactionId })));
   if (plan.transferMeta !== null) await tx.insert(transferMeta).values({ ...plan.transferMeta, userId, transactionId });
   await setTransactionTagsIn(tx, userId, transactionId, plan.tagIds);
+  const feeLines = plan.postings.filter(isFeeLine);
+  for (const [index, line] of feeLines.entries()) {
+    const child = firstRow(
+      await tx
+        .insert(transactions)
+        .values({
+          userId,
+          type: 'expense',
+          occurredAt: plan.header.occurredAt,
+          localDate: plan.header.localDate,
+          description: plan.header.description,
+          source: plan.header.source,
+          categoryId: line.categoryId,
+          parentTransactionId: transactionId,
+          clientId: feeChildClientId(parent.clientId, index),
+          confirmedByUserAt: parent.confirmedAt,
+        })
+        .returning({ id: transactions.id }),
+      'transactions',
+    );
+    await tx.insert(postings).values({ ...line, role: 'principal', categoryId: null, userId, transactionId: child.id });
+  }
 }
 
 export interface RecordResult {
@@ -475,7 +518,7 @@ export async function recordTransactionIn(
     );
     return { id: first.id, created: false, fxDifference: null };
   }
-  await writeLinesIn(tx, userId, row.id, plan);
+  await writeLinesIn(tx, userId, row.id, plan, { clientId: draft.clientId, confirmedAt: now });
   await logActivity(tx, userId, 'transaction', [row.id], 'created', { source: plan.header.source });
   return { id: row.id, created: true, fxDifference: plan.fxDifference };
 }

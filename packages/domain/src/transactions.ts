@@ -2,7 +2,7 @@
 /**
  * Transactions and their postings (PRD §8, plan §4.1). A transaction is a header; its postings are one line per
  * account, signed (+ in, − out) in the account currency and valued in the base currency. A transfer has two
- * principal postings, an optional `fee` posting (a separate expense in a fee category, FR-T4), and, across
+ * principal postings, an optional `fee` line (FR-T4; the repository writes it as its own expense transaction), and, across
  * currencies, an `fx_diff` posting that moves no money (amount 0) but carries the FX difference in the base
  * currency for the "Selisih kurs" category. Balances therefore only see real money movements.
  */

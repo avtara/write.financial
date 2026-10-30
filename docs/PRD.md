@@ -299,7 +299,7 @@ Input accepts abbreviations in both languages ("25rb", "1,5jt", "25k", "1.5m") a
 
 ## 8. Domain model (summary)
 
-User · Session/Device · Preference · **Account** (bank/ewallet/cash/investment/credit_card) · **Category** · Tag · **Transaction** (header) + **Posting** (line per account; transfer = 2 postings; fee/FX difference = expense posting) · Attachment · Recurrence · **ScheduledOccurrence** (source of the Review queue) · Subscription + SubscriptionCharge · **Period** · BudgetVersion + BudgetLine + BudgetTransfer · Goal + GoalFundingSource + GoalContributionPlan · Debt + InstallmentSchedule + DebtAllocation · Receivable · Asset/Holding + InvestmentTrade + PriceQuote + FxRate + PortfolioSnapshot · Report (JSON snapshot) · Notification · AutoRule · AiProviderConfig + AiUsageLog · GmailConnection + EmailIngestLog · ImportBatch · Backup.
+User · Session/Device · Preference · **Account** (bank/ewallet/cash/investment/credit_card) · **Category** · Tag · **Transaction** (header) + **Posting** (line per account; transfer = 2 postings; a fee or tax is its own expense transaction linked to its parent; FX difference = posting) · Attachment · Recurrence · **ScheduledOccurrence** (source of the Review queue) · Subscription + SubscriptionCharge · **Period** · BudgetVersion + BudgetLine + BudgetTransfer · Goal + GoalFundingSource + GoalContributionPlan · Debt + InstallmentSchedule + DebtAllocation · Receivable · Asset/Holding + InvestmentTrade + PriceQuote + FxRate + PortfolioSnapshot · Report (JSON snapshot) · Notification · AutoRule · AiProviderConfig + AiUsageLog · GmailConnection + EmailIngestLog · ImportBatch · Backup.
 
 The detailed schema is in the implementation plan §4.
 
@@ -364,7 +364,7 @@ I made the following decisions so work can proceed. All of them can be changed b
 
 | # | Topic | Decision | Rationale | Status |
 |---|---|---|---|---|
-| D1 | Transfer model | Ledger: 1 transaction + N postings | Transfers, fees, FX differences, splits, credit cards are consistent; balance = Σ postings | Default |
+| D1 | Transfer model | Ledger: 1 transaction + N postings; every fee or tax is its own linked transaction (one action each) | Transfers, fees, FX differences, splits, credit cards are consistent; balance = Σ postings | Default |
 | D2 | Devices | **Desktop + tablet** (icon rail at 768–1279 px). Phones postponed | Product owner decision 17 Oct | **Decided** |
 | D3 | BYOK API keys | Stored encrypted **on the server** with a per-user DEK | Workers need the key; the design copy "di perangkat" (on the device) has been replaced in Section 19 | Default |
 | D4 | Import parsing | CSV/XLSX parsed in the browser, only resulting rows are sent. PDF e-statement = P2 | Privacy; PDFs need per-bank parsers | Default |

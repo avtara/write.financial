@@ -3,7 +3,8 @@
  * Investments (FR-I1–I4, FR-G2/G5): assets on platforms (investment accounts with cash in their currency), "Daftar
  * saya" categories, allocation targets per class, and trades. The cash leg of a trade goes through the ledger on the
  * platform account (a managed transaction, changed only here):
- * - buy (also a pending one, "diproses"): an `investment` transaction, −amount, fee and tax as fee postings
+ * - buy (also a pending one, "diproses"): an `investment` transaction, −amount, with fee and tax as their own
+ *   linked expense transactions
  *   ("Biaya platform", "Pajak & meterai");
  * - sell: an `investment` transaction, +gross proceeds, fee and tax; proceeds withdrawn to a bank add a transfer of
  *   the net amount from the platform;
@@ -53,7 +54,7 @@ import {
   type PositionValue,
   type TrailingDividends,
 } from '@wf/domain/valuation';
-import { and, asc, eq, inArray, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { viewsIn as accountViewsIn } from './accounts.ts';
 import { logActivity } from './activity.ts';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
@@ -65,6 +66,7 @@ import {
   localDateOf,
   recordTransactionIn,
   userContextIn,
+  writeLinesIn,
   valuationIn,
   type LedgerAccount,
 } from './ledger-core.ts';
@@ -80,7 +82,6 @@ import {
   goals,
   investmentTrades,
   portfolioSnapshots,
-  postings,
   transactions,
   type JsonObject,
 } from './schema.ts';
@@ -562,7 +563,29 @@ async function insertCashLegIn(
       .returning({ id: transactions.id }),
     'transactions',
   );
-  await tx.insert(postings).values(lines.map((line) => ({ ...line, userId, transactionId: row.id })));
+  // The principal stays on the transaction; each fee or tax becomes its own expense transaction (one action each).
+  await writeLinesIn(
+    tx,
+    userId,
+    row.id,
+    {
+      header: {
+        type: header.type,
+        occurredAt: header.occurredAt,
+        localDate: header.localDate,
+        description: header.description,
+        merchant: null,
+        noteEnc: null,
+        categoryId: header.categoryId ?? null,
+        source: 'manual',
+      },
+      postings: lines,
+      transferMeta: null,
+      tagIds: [],
+      fxDifference: null,
+    },
+    { clientId: header.clientId, confirmedAt: now },
+  );
   await logActivity(tx, userId, 'transaction', [row.id], 'created', { source: 'manual' });
   return row.id;
 }
@@ -1465,6 +1488,11 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
             .update(transactions)
             .set({ deletedAt: now(), updatedAt: now() })
             .where(inArray(transactions.id, linked));
+          // A trade's fee and tax are their own transactions: they go with their parent.
+          await tx
+            .update(transactions)
+            .set({ deletedAt: now(), updatedAt: now() })
+            .where(and(inArray(transactions.parentTransactionId, linked), isNull(transactions.deletedAt)));
           await logActivity(tx, userId, 'transaction', linked, 'deleted', { source: 'manual' });
         }
         await tx.delete(investmentTrades).where(eq(investmentTrades.id, tradeId));

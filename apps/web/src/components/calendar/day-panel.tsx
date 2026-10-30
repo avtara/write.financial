@@ -214,31 +214,6 @@ export function DayPanel({
                       .filter((part) => part !== null)
                       .join(' · ')}
                   </span>
-                  {/* A dividend's tax and its rupiah value, under the row's own line: the day's total is net of it. */}
-                  {row.feeMinor === null ? null : (
-                    <span className="text-[11px] text-subtle">
-                      {m.calendar_day_fee()}{' '}
-                      <Money
-                        minor={-row.feeMinor}
-                        currency={row.currency}
-                        context="signed"
-                        locale={locale}
-                        className="text-red-fg"
-                      />
-                      {row.currency === baseCurrency ? null : (
-                        <>
-                          {' · '}
-                          {m.calendar_day_approx()}{' '}
-                          <Money
-                            minor={row.amountBaseMinor - row.feeBaseMinor}
-                            currency={baseCurrency}
-                            context="amount"
-                            locale={locale}
-                          />
-                        </>
-                      )}
-                    </span>
-                  )}
                 </span>
                 <span className="shrink-0">
                   {row.type === 'transfer' ? (

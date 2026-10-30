@@ -118,8 +118,10 @@ export interface TransactionDetail {
   readonly updatedAt: Date;
   /** Set for soft-deleted rows (shown by Undo UIs). */
   readonly deletedAt: Date | null;
-  /** Principal postings first (outgoing before incoming), then fee, FX difference, tax. */
+  /** Principal postings first (outgoing before incoming), then the FX difference. */
   readonly postings: PostingView[];
+  /** Its fee and tax, each its own transaction: the principal posting of that transaction. */
+  readonly fees: PostingView[];
   /** Slugs, sorted. */
   readonly tags: string[];
   readonly transfer: TransferView | null;
@@ -242,6 +244,7 @@ type EntryType = EntryDraft['type'];
 interface StoredDetail {
   readonly header: Header;
   readonly postings: PostingView[];
+  readonly fees: PostingView[];
   readonly tags: string[];
   readonly transfer: TransferView | null;
   readonly attachments: (Omit<AttachmentView, 'name'> & { readonly nameEnc: Uint8Array | null })[];
@@ -315,6 +318,21 @@ async function loadIn(tx: Transaction, id: string): Promise<StoredDetail> {
     .from(postings)
     .where(eq(postings.transactionId, id))
     .orderBy(asc(postings.role), asc(postings.amountMinor), asc(postings.id));
+  const fees = await tx
+    .select({
+      id: postings.id,
+      accountId: postings.accountId,
+      amountMinor: postings.amountMinor,
+      currency: postings.currency,
+      fxRateToBase: postings.fxRateToBase,
+      amountBaseMinor: postings.amountBaseMinor,
+      role: postings.role,
+      categoryId: transactions.categoryId,
+    })
+    .from(postings)
+    .innerJoin(transactions, eq(transactions.id, postings.transactionId))
+    .where(and(eq(transactions.parentTransactionId, id), isNull(transactions.deletedAt)))
+    .orderBy(asc(postings.amountMinor), asc(postings.id));
   const [meta] = await tx
     .select({
       sentMinor: transferMeta.sentMinor,
@@ -353,6 +371,7 @@ async function loadIn(tx: Transaction, id: string): Promise<StoredDetail> {
   return {
     header,
     postings: lines.map((line) => ({ ...line, fxRateToBase: canonicalRate(line.fxRateToBase) })),
+    fees: fees.map((line) => ({ ...line, fxRateToBase: canonicalRate(line.fxRateToBase) })),
     tags: await tagSlugsIn(tx, id),
     transfer: meta === undefined ? null : { ...meta, referenceRate: canonicalRate(meta.referenceRate) },
     attachments: files,
@@ -383,7 +402,7 @@ async function entryDraftIn(tx: Transaction, header: Header, type: EntryType): P
   };
 }
 
-/** A transfer as a draft: same legs, the manual rate if one was used, and the fee from the fee posting. */
+/** A transfer as a draft: same legs, the manual rate if one was used, and the fee from its own fee transaction. */
 async function transferDraftIn(tx: Transaction, header: Header): Promise<TransactionDraft> {
   const lines = await tx
     .select({
@@ -406,7 +425,13 @@ async function transferDraftIn(tx: Transaction, header: Header): Promise<Transac
     lines.filter((line) => line.role === 'principal' && line.amountMinor > 0n),
     'postings',
   );
-  const [fee] = lines.filter((line) => line.role === 'fee');
+  // The fee is its own expense transaction now, linked to this one.
+  const [fee] = await tx
+    .select({ amountMinor: postings.amountMinor, categoryId: transactions.categoryId })
+    .from(transactions)
+    .innerJoin(postings, and(eq(postings.transactionId, transactions.id), eq(postings.role, 'principal')))
+    .where(and(eq(transactions.parentTransactionId, header.id), isNull(transactions.deletedAt)))
+    .limit(1);
   // The rate check constraint makes rate, base and quote non-null together, and rate_source is set with them.
   const manualRate =
     meta.rateSource === 'manual'
@@ -425,7 +450,7 @@ async function transferDraftIn(tx: Transaction, header: Header): Promise<Transac
     sentMinor: meta.sentMinor,
     receivedMinor: meta.receivedMinor,
     manualRate,
-    fee: fee === undefined ? null : { minor: -fee.amountMinor, categoryId: fee.categoryId as string },
+    fee: fee === undefined || fee.categoryId === null ? null : { minor: -fee.amountMinor, categoryId: fee.categoryId },
     description: header.description,
     merchant: header.merchant,
     tags: await tagSlugsIn(tx, header.id),
@@ -448,6 +473,7 @@ export function createTransactions(
       ...header,
       note: open(noteEnc, NOTE_PURPOSE),
       postings: stored.postings,
+      fees: stored.fees,
       tags: stored.tags,
       transfer: stored.transfer,
       attachments: stored.attachments.map(({ nameEnc, ...file }) => ({
@@ -500,7 +526,7 @@ export function createTransactions(
           .update(transactions)
           .set({ ...plan.header, updatedAt: now() })
           .where(eq(transactions.id, id));
-        await writeLinesIn(tx, userId, id, plan);
+        await writeLinesIn(tx, userId, id, plan, { clientId: before.clientId, confirmedAt: now() });
         const { header } = plan;
         const compared: Record<string, readonly [unknown, unknown]> = {
           type: [before.type, header.type],
@@ -546,6 +572,13 @@ export function createTransactions(
           .where(and(inArray(transactions.id, [...ids]), isNull(transactions.deletedAt)))
           .returning({ id: transactions.id });
         const deleted = rows.map((row) => row.id);
+        if (deleted.length > 0) {
+          // A fee or tax lives and dies with the transaction it belongs to.
+          await tx
+            .update(transactions)
+            .set({ deletedAt: now() })
+            .where(and(inArray(transactions.parentTransactionId, deleted), isNull(transactions.deletedAt)));
+        }
         await logActivity(tx, userId, 'transaction', deleted, 'deleted');
         return { deleted };
       }),
@@ -559,6 +592,12 @@ export function createTransactions(
           .where(and(inArray(transactions.id, [...ids]), isNotNull(transactions.deletedAt)))
           .returning({ id: transactions.id });
         const restored = rows.map((row) => row.id);
+        if (restored.length > 0) {
+          await tx
+            .update(transactions)
+            .set({ deletedAt: null })
+            .where(and(inArray(transactions.parentTransactionId, restored), isNotNull(transactions.deletedAt)));
+        }
         await logActivity(tx, userId, 'transaction', restored, 'restored');
         return { restored };
       }),
@@ -719,7 +758,10 @@ export function createTransactions(
           }
           if (principalAccountId === accountId) continue;
           const draft = await entryDraftIn(tx, row, type);
-          await writeLinesIn(tx, userId, row.id, await planTransactionIn(tx, userId, { ...draft, accountId }, null));
+          await writeLinesIn(tx, userId, row.id, await planTransactionIn(tx, userId, { ...draft, accountId }, null), {
+            clientId: row.clientId,
+            confirmedAt: now(),
+          });
           updated.push(row.id);
         }
         await tx.update(transactions).set({ updatedAt: now() }).where(inArray(transactions.id, updated));
