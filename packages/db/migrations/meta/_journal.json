@@ -225,6 +225,13 @@
       "when": 1793354964297,
       "tag": "0031_fx_diff_as_expense",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793365864269,
+      "tag": "0032_catalog_services",
+      "breakpoints": true
     }
   ]
 }
