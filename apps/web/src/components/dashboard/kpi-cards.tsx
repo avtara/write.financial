@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The four KPIs (FR-D2, design `iUqiN`): Pemasukan, Pengeluaran, Ditabung & Investasi, and the saving rate against
- * the 30% target, each with its like-for-like change (FR-D1: "+4,1% vs Sep"). Without data (design `olRpH`) they read
- * "Rp0 · belum ada data" and "—".
+ * The KPIs (FR-D2, design `iUqiN`): Pemasukan, Pengeluaran, Sisa pemasukan (income − expense), Ditabung (moved to
+ * savings and investment accounts), and the saving rate (saved ÷ income) against the 30% target, each amount with its
+ * like-for-like change (FR-D1: "+4,1% vs Sep"). Without data (design `olRpH`) they read "Rp0 · belum ada data" and
+ * "—".
  */
 import type { Kpis } from '@wf/db/dashboard';
 import { formatPercent } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import { Tooltip } from '@wf/ui/tooltip';
+import { Info, TrendingDown, TrendingUp } from 'lucide-react';
 
 export interface KpiCardsProps {
   /** `null`: no data yet. */
@@ -18,6 +20,7 @@ export interface KpiCardsProps {
     readonly change: {
       readonly incomeBps: number | null;
       readonly expenseBps: number | null;
+      readonly leftoverBps: number | null;
       readonly savedBps: number | null;
     };
     readonly savingRateTargetBps: number;
@@ -28,11 +31,12 @@ export interface KpiCardsProps {
   readonly locale: Locale;
 }
 
-type Kind = 'income' | 'expense' | 'saved';
+type Kind = 'income' | 'expense' | 'leftover' | 'saved';
 
 const DOT: Readonly<Record<Kind | 'rate', string>> = {
   income: 'bg-fg',
   expense: 'bg-red',
+  leftover: 'bg-subtle',
   saved: 'bg-green',
   rate: 'bg-blue',
 };
@@ -51,8 +55,29 @@ function Change({ bps, kind, locale }: { bps: number; kind: Kind; locale: Locale
   );
 }
 
+/** The label with its dot and, when the number needs explaining, an ⓘ that shows how it is counted. */
+function Label({ kind, label, hint }: { kind: Kind | 'rate'; label: string; hint?: string | undefined }) {
+  return (
+    <span className="flex items-center gap-2 text-[12.5px] text-muted-fg">
+      <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${DOT[kind]}`} />
+      <span className="truncate">{label}</span>
+      {hint === undefined ? null : (
+        <Tooltip content={hint}>
+          <button
+            type="button"
+            aria-label={hint}
+            className="-m-1 shrink-0 rounded-full p-1 text-subtle hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Info aria-hidden="true" className="size-3.5" />
+          </button>
+        </Tooltip>
+      )}
+    </span>
+  );
+}
+
 export function KpiCards({ kpis, comparison, currency, locale }: KpiCardsProps) {
-  const cards: { kind: Kind; label: string; valueMinor: bigint; bps: number | null }[] = [
+  const cards: { kind: Kind; label: string; hint?: string; valueMinor: bigint; bps: number | null }[] = [
     {
       kind: 'income',
       label: m.overview_kpi_income(),
@@ -66,8 +91,16 @@ export function KpiCards({ kpis, comparison, currency, locale }: KpiCardsProps) 
       bps: kpis?.change.expenseBps ?? null,
     },
     {
+      kind: 'leftover',
+      label: m.overview_kpi_leftover(),
+      hint: m.overview_kpi_leftover_hint(),
+      valueMinor: kpis?.current.leftoverMinor ?? 0n,
+      bps: kpis?.change.leftoverBps ?? null,
+    },
+    {
       kind: 'saved',
       label: m.overview_kpi_saved(),
+      hint: m.overview_kpi_saved_hint(),
       valueMinor: kpis?.current.savedMinor ?? 0n,
       bps: kpis?.change.savedBps ?? null,
     },
@@ -76,25 +109,22 @@ export function KpiCards({ kpis, comparison, currency, locale }: KpiCardsProps) 
   return (
     <section
       aria-label={m.overview_kpis_label()}
-      className="grid grid-cols-2 overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-4"
+      className="grid grid-cols-2 overflow-hidden rounded-[12px] border border-border bg-card xl:grid-cols-5"
     >
-      {cards.map(({ kind, label, valueMinor, bps }) => (
+      {cards.map(({ kind, label, hint, valueMinor, bps }) => (
         <div
           key={kind}
           role="group"
           aria-label={label}
-          className="flex min-w-0 flex-col gap-2 border-border p-5 not-last:border-r max-lg:nth-2:border-r-0 max-lg:nth-[-n+2]:border-b"
+          className="flex min-w-0 flex-col gap-2 border-border p-5 max-xl:border-b max-xl:odd:border-r xl:border-r"
         >
-          <span className="flex items-center gap-2 text-[12.5px] text-muted-fg">
-            <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT[kind]}`} />
-            {label}
-          </span>
+          <Label kind={kind} label={label} hint={hint} />
           <Money
             minor={valueMinor}
             currency={currency}
             context="amount"
             locale={locale}
-            className="truncate text-[24px] leading-tight font-medium text-fg"
+            className="truncate text-[22px] leading-tight font-medium text-fg"
           />
           <span className="flex min-h-5 items-center gap-1.5 text-[11.5px] text-subtle">
             {kpis === null ? (
@@ -109,12 +139,13 @@ export function KpiCards({ kpis, comparison, currency, locale }: KpiCardsProps) 
           </span>
         </div>
       ))}
-      <div role="group" aria-label={m.overview_kpi_saving_rate()} className="flex min-w-0 flex-col gap-2 p-5">
-        <span className="flex items-center gap-2 text-[12.5px] text-muted-fg">
-          <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT.rate}`} />
-          {m.overview_kpi_saving_rate()}
-        </span>
-        <span className="font-mono text-[24px] leading-tight font-medium text-fg tabular-nums">
+      <div
+        role="group"
+        aria-label={m.overview_kpi_saving_rate()}
+        className="flex min-w-0 flex-col gap-2 p-5 max-xl:col-span-2"
+      >
+        <Label kind="rate" label={m.overview_kpi_saving_rate()} hint={m.overview_kpi_saving_rate_hint()} />
+        <span className="font-mono text-[22px] leading-tight font-medium text-fg tabular-nums">
           {rateBps === null ? '—' : formatPercent(rateBps / 10_000, locale, {})}
         </span>
         {kpis === null ? null : (

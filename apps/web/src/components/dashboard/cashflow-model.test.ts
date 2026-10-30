@@ -16,6 +16,7 @@ const column = (key: string, expenseMinor: bigint, future = false): CashflowColu
   title: key,
   incomeMinor: 0n,
   expenseMinor,
+  savedMinor: null,
   current: false,
   future,
 });

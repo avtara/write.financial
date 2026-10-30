@@ -28,6 +28,7 @@ export function dashboard(patch: Partial<Dashboard> = {}): Dashboard {
     end: d(`${label}-${label === '2026-06' || label === '2026-09' ? '30' : '31'}`),
     incomeMinor: index === 4 ? 25_800_000n : index === 5 ? 26_000_000n : 0n,
     expenseMinor: index === 4 ? 18_300_000n : index === 5 ? 16_500_000n : 0n,
+    leftoverMinor: index === 4 ? 7_500_000n : index === 5 ? 9_500_000n : 0n,
     savedMinor: index === 4 ? 7_500_000n : index === 5 ? 9_500_000n : 0n,
   }));
   return {
@@ -42,9 +43,21 @@ export function dashboard(patch: Partial<Dashboard> = {}): Dashboard {
     period: OCTOBER,
     summary: { days: 31, periodCount: 1 },
     kpis: {
-      current: { incomeMinor: 26_000_000n, expenseMinor: 16_500_000n, savedMinor: 9_500_000n, savingRateBps: 3654 },
-      previous: { incomeMinor: 25_800_000n, expenseMinor: 18_300_000n, savedMinor: 7_500_000n, savingRateBps: 2907 },
-      change: { incomeBps: 78, expenseBps: -984, savedBps: 2667, savingRateBps: 747 },
+      current: {
+        incomeMinor: 26_000_000n,
+        expenseMinor: 16_500_000n,
+        leftoverMinor: 9_500_000n,
+        savedMinor: 9_500_000n,
+        savingRateBps: 3654,
+      },
+      previous: {
+        incomeMinor: 25_800_000n,
+        expenseMinor: 18_300_000n,
+        leftoverMinor: 7_500_000n,
+        savedMinor: 7_500_000n,
+        savingRateBps: 2907,
+      },
+      change: { incomeBps: 78, expenseBps: -984, leftoverBps: 2667, savedBps: 2667, savingRateBps: 747 },
       savingRateTargetBps: 3000,
     },
     flow: {
@@ -119,6 +132,7 @@ export function yearDashboard(patch: Partial<Dashboard> = {}): Dashboard {
       end: d(`${label}-28`),
       incomeMinor: index === 8 ? 25_800_000n : index === 9 ? 26_000_000n : 0n,
       expenseMinor: index === 8 ? 18_300_000n : index === 9 ? 16_500_000n : 0n,
+      leftoverMinor: index === 8 ? 7_500_000n : index === 9 ? 9_500_000n : 0n,
       savedMinor: index === 8 ? 7_500_000n : index === 9 ? 9_500_000n : 0n,
     };
   });

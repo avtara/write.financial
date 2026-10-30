@@ -94,7 +94,7 @@ export function FlowSection({ view, locale }: FlowSectionProps) {
       </div>
       <div className="grid grid-cols-1 gap-3 text-[12.5px] md:grid-cols-3">
         <div className="flex flex-col gap-1">
-          <span className="text-muted-fg">{m.overview_kpi_saved()}</span>
+          <span className="text-muted-fg">{m.overview_kpi_leftover()}</span>
           <Money
             minor={totals.savedMinor}
             currency={REPORTS_CURRENCY}

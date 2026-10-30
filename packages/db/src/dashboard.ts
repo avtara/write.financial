@@ -5,7 +5,7 @@
  * menu options), spending per category with a series for the small multiples, six periods of income vs expense, the
  * spending calendar, per-account flows, and the budget card. Amounts are in the base currency unless noted.
  */
-import { ratioBps, savingRateBps, SAVING_RATE_TARGET_BPS, weeklyBudget, type BudgetLineState } from '@wf/domain/budget';
+import { ratioBps, SAVING_RATE_TARGET_BPS, weeklyBudget, type BudgetLineState } from '@wf/domain/budget';
 import type { CategoryGroup } from '@wf/domain/categories';
 import {
   changeBps,
@@ -22,7 +22,7 @@ import {
 } from '@wf/domain/dashboard';
 import { addDays, countDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import { and, asc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
-import { withUser, type Database } from './db.ts';
+import { withUser, type Database, type Transaction } from './db.ts';
 import { budgetStatusIn } from './budgets.ts';
 import { userContextIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
@@ -42,9 +42,14 @@ export interface Kpis {
   readonly incomeMinor: bigint;
   /** Expense principal + fees + FX-difference losses; transfers are not spending. */
   readonly expenseMinor: bigint;
-  /** "Ditabung & Investasi" = income − expense. */
+  /** "Sisa pemasukan" = income − expense: what was not spent, wherever it stayed. */
+  readonly leftoverMinor: bigint;
+  /**
+   * "Ditabung": transfers from everyday accounts (counted in "Saldo tersedia") to savings and investment accounts,
+   * less transfers back; can be negative when more came back than went in.
+   */
   readonly savedMinor: bigint;
-  /** `null` without income. */
+  /** Saved ÷ income; `null` without income. */
   readonly savingRateBps: number | null;
 }
 
@@ -66,6 +71,9 @@ export interface TrendPeriod {
   readonly end: LocalDate;
   readonly incomeMinor: bigint;
   readonly expenseMinor: bigint;
+  /** Income − expense. */
+  readonly leftoverMinor: bigint;
+  /** Net moved to savings and investment accounts (see {@link Kpis.savedMinor}). */
   readonly savedMinor: bigint;
 }
 
@@ -95,6 +103,7 @@ export interface Dashboard {
     readonly change: {
       readonly incomeBps: number | null;
       readonly expenseBps: number | null;
+      readonly leftoverBps: number | null;
       readonly savedBps: number | null;
       readonly savingRateBps: number | null;
     };
@@ -128,8 +137,43 @@ export interface DashboardRepository {
 
 const MAX_RANGE_DAYS = 366;
 
-/** The KPIs of `range` from day totals (newest first) covering it. */
-function kpisOf(days: readonly DayGroup[], range: DateRange): Kpis {
+/** One day's net move into one savings or investment account ({@link savingsIn}). */
+interface SavingsMove {
+  readonly date: LocalDate;
+  readonly accountId: string;
+  readonly savedMinor: bigint;
+}
+
+/**
+ * Saving, as it happened: transfers from an everyday account (counted in "Saldo tersedia") to a savings or
+ * investment account (not counted), less transfers back, per day and savings account, in the base currency. Moves
+ * between two everyday accounts or between two savings accounts are not saving, and a credit card on either side
+ * is a bill being paid, not money put aside.
+ */
+async function savingsIn(tx: Transaction, range: DateRange): Promise<SavingsMove[]> {
+  const rows = await tx.execute<{ date: string; account_id: string; saved: string }>(sql`
+    select t.local_date::text as date,
+           case when sa.include_in_available then ra.id else sa.id end as account_id,
+           sum(case when sa.include_in_available then -s.amount_base_minor else -r.amount_base_minor end)::text as saved
+    from transactions t
+    join postings s on s.transaction_id = t.id and s.role = 'principal' and s.amount_minor < 0
+    join postings r on r.transaction_id = t.id and r.role = 'principal' and r.amount_minor > 0
+    join accounts sa on sa.id = s.account_id
+    join accounts ra on ra.id = r.account_id
+    where t.deleted_at is null and t.type = 'transfer'
+      and t.local_date between ${range.from} and ${range.to}
+      and sa.type <> 'credit_card' and ra.type <> 'credit_card'
+      and sa.include_in_available <> ra.include_in_available
+    group by 1, 2`);
+  return rows.map((row) => ({
+    date: row.date as LocalDate,
+    accountId: row.account_id,
+    savedMinor: BigInt(row.saved),
+  }));
+}
+
+/** The KPIs of `range` from day totals (newest first) and savings moves covering it. */
+function kpisOf(days: readonly DayGroup[], savings: readonly SavingsMove[], range: DateRange): Kpis {
   let incomeMinor = 0n;
   let expenseMinor = 0n;
   for (const day of days) {
@@ -137,11 +181,16 @@ function kpisOf(days: readonly DayGroup[], range: DateRange): Kpis {
     incomeMinor += day.inMinor;
     expenseMinor += day.outMinor;
   }
+  let savedMinor = 0n;
+  for (const move of savings) {
+    if (move.date >= range.from && move.date <= range.to) savedMinor += move.savedMinor;
+  }
   return {
     incomeMinor,
     expenseMinor,
-    savedMinor: incomeMinor - expenseMinor,
-    savingRateBps: savingRateBps(incomeMinor, expenseMinor),
+    leftoverMinor: incomeMinor - expenseMinor,
+    savedMinor,
+    savingRateBps: ratioBps(savedMinor, incomeMinor),
   };
 }
 
@@ -216,37 +265,30 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
           ranges.previous,
           ...trendPeriods.filter((item) => item.start <= today).map((item) => ({ from: item.start, to: item.end })),
         ];
-        const allDays = await dayTotalsIn(tx, userId, {
+        const span = {
           from: spanned.reduce((from, range) => (range.from < from ? range.from : from), current.from),
           to: spanned.reduce((to, range) => (range.to > to ? range.to : to), current.to),
-        });
-        const currentKpis = kpisOf(allDays, current);
-        const previousKpis = kpisOf(allDays, ranges.previous);
+        };
+        const allDays = await dayTotalsIn(tx, userId, span);
+        const savings = await savingsIn(tx, span);
+        const currentKpis = kpisOf(allDays, savings, current);
+        const previousKpis = kpisOf(allDays, savings, ranges.previous);
 
         // Money flow and categories.
         const totals = await categoryTotalsIn(tx, userId, current);
         const groupRows = await tx.select({ id: categories.id, group: categories.group }).from(categories);
         const groupOf = new Map(groupRows.map((row) => [row.id, row.group]));
         const expenses = totals.filter((row) => row.kind === 'expense');
-        const transfers = await tx
-          .select({
-            accountId: postings.accountId,
-            amountMinor: sql`sum(${postings.amountBaseMinor})`.mapWith(BigInt),
-          })
-          .from(postings)
-          .innerJoin(transactions, eq(transactions.id, postings.transactionId))
-          .where(
-            and(
-              isNull(transactions.deletedAt),
-              eq(transactions.type, 'transfer'),
-              eq(postings.role, 'principal'),
-              sql`${postings.amountMinor} > 0`,
-              gte(transactions.localDate, current.from),
-              lte(transactions.localDate, current.to),
-            ),
-          )
-          .groupBy(postings.accountId)
-          .orderBy(sql`sum(${postings.amountBaseMinor}) desc`, asc(postings.accountId));
+        // "Tabungan" in the money flow: what reached each savings or investment account (net of what came back).
+        const savedTo = new Map<string, bigint>();
+        for (const row of savings) {
+          if (row.date < current.from || row.date > current.to) continue;
+          savedTo.set(row.accountId, (savedTo.get(row.accountId) ?? 0n) + row.savedMinor);
+        }
+        const transfers = [...savedTo]
+          .filter(([, amountMinor]) => amountMinor > 0n)
+          .map(([accountId, amountMinor]) => ({ accountId, amountMinor }))
+          .sort((a, b) => (b.amountMinor > a.amountMinor ? 1 : b.amountMinor < a.amountMinor ? -1 : 0));
         const flow: MoneyFlowInput = {
           incomes: totals
             .filter((row) => row.kind === 'income')
@@ -297,13 +339,14 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
         });
 
         const trend: TrendPeriod[] = trendPeriods.map((item) => {
-          const kpis = item.start > today ? null : kpisOf(allDays, { from: item.start, to: item.end });
+          const kpis = item.start > today ? null : kpisOf(allDays, savings, { from: item.start, to: item.end });
           return {
             label: item.label,
             start: item.start,
             end: item.end,
             incomeMinor: kpis?.incomeMinor ?? 0n,
             expenseMinor: kpis?.expenseMinor ?? 0n,
+            leftoverMinor: kpis?.leftoverMinor ?? 0n,
             savedMinor: kpis?.savedMinor ?? 0n,
           };
         });
@@ -369,6 +412,7 @@ export function createDashboard(db: Database, options: { readonly now?: () => Da
             change: {
               incomeBps: changeBps(currentKpis.incomeMinor, previousKpis.incomeMinor),
               expenseBps: changeBps(currentKpis.expenseMinor, previousKpis.expenseMinor),
+              leftoverBps: changeBps(currentKpis.leftoverMinor, previousKpis.leftoverMinor),
               savedBps: changeBps(currentKpis.savedMinor, previousKpis.savedMinor),
               savingRateBps:
                 currentKpis.savingRateBps === null || previousKpis.savingRateBps === null
