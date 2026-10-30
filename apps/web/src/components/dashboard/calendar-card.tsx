@@ -25,6 +25,7 @@ import { RichMessage } from '../rich-message.tsx';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { rangeParamOf } from '../../lib/transactions-search.ts';
 import { listTransactionRows } from '../../server/fn/transactions.ts';
+import { MINI_MONTH_CARD, MINI_MONTH_LINK, MINI_MONTH_SWATCH, MiniMonth } from '../calendar/mini-month.tsx';
 import { CategoryIcon } from '../category-icon.tsx';
 import { RowAmount } from '../transactions/transaction-row.tsx';
 import {
@@ -235,15 +236,23 @@ export function CalendarCard({
             aria-label={m.overview_calendar_legend()}
             className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-subtle"
           >
+            {/* The year draws its months with the Calendar page's tiles, so the swatches follow them there. */}
             <li className="flex items-center gap-1">
               {m.overview_calendar_little()}
               {([1, 2, 3, 4] as const).map((level) => (
-                <span key={level} aria-hidden="true" className={`size-3 rounded-[3px] ${HEAT[level]}`} />
+                <span
+                  key={level}
+                  aria-hidden="true"
+                  className={`size-3 rounded-[3px] ${months ? MINI_MONTH_SWATCH.heat[level] : HEAT[level]}`}
+                />
               ))}
               {m.overview_calendar_lots()}
             </li>
             <li className="flex items-center gap-1.5">
-              <span aria-hidden="true" className="size-3 rounded-[3px] bg-heat-green" />
+              <span
+                aria-hidden="true"
+                className={`size-3 rounded-[3px] ${months ? MINI_MONTH_SWATCH.surplus : 'bg-heat-green'}`}
+              />
               {m.overview_calendar_surplus()}
             </li>
             {months ? null : (
@@ -524,48 +533,27 @@ function YearView({ dashboard, periodLabels, locale }: YearViewProps) {
     <>
       <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {months.map((month) => {
-          const linked = periodLabels.includes(month.label);
-          const body = (
-            <>
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="text-[12.5px] font-medium text-fg">{monthName(month.label, locale)}</span>
-                {month.future ? (
-                  <span className="text-[11px] text-subtle">—</span>
-                ) : (
-                  <Money
-                    minor={-month.outMinor}
-                    currency={currency}
-                    context="amount"
-                    locale={locale}
-                    className="text-[11px] text-subtle"
-                  />
-                )}
-              </span>
-              <span aria-hidden="true" className="grid grid-cols-7 gap-[3px]">
-                {month.weeks.flat().map((day) => (
-                  <span
-                    key={day.date}
-                    className={`aspect-square rounded-[2px] ${!day.inRange ? 'invisible' : day.future ? 'bg-surface-2 opacity-50' : day.surplus ? 'bg-heat-green' : HEAT[day.heat]}`}
-                  />
-                ))}
-              </span>
-            </>
-          );
           const current = month.label === today.slice(0, 7);
-          // Full height: six-week months are taller, and a row's tiles keep one edge.
-          const classes = `flex h-full flex-col gap-2 rounded-[10px] border p-3 ${current ? 'border-fg' : 'border-border'} ${month.future ? 'opacity-60' : ''}`;
+          const body = <MiniMonth month={month} current={current} baseCurrency={currency} locale={locale} />;
+          const shared = {
+            'aria-current': current ? ('date' as const) : undefined,
+            'data-future': month.future ? 'true' : undefined,
+          };
           return (
             <li key={month.label}>
-              {linked ? (
+              {periodLabels.includes(month.label) ? (
                 <Link
                   to="/"
                   search={{ period: month.label }}
-                  className={`${classes} hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring`}
+                  {...shared}
+                  className={`${MINI_MONTH_CARD} ${MINI_MONTH_LINK}`}
                 >
                   {body}
                 </Link>
               ) : (
-                <div className={classes}>{body}</div>
+                <div {...shared} className={MINI_MONTH_CARD}>
+                  {body}
+                </div>
               )}
             </li>
           );

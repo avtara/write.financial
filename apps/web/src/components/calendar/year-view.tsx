@@ -9,7 +9,7 @@ import type { DayGroup } from '@wf/db/transaction-query';
 import type { LocalDate } from '@wf/domain/period';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
-import { formatDate, weekdayNames } from '@wf/ui/dates';
+import { formatDate } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { Percent } from '@wf/ui/percent';
 import { calendarMonths, costliestDay } from '../dashboard/calendar-model.ts';
@@ -17,9 +17,8 @@ import { RichMessage } from '../rich-message.tsx';
 import { SignedMoney } from '../transactions/transaction-row.tsx';
 import { calendarSearch } from './calendar-header.tsx';
 import { Kpi, KpiStrip } from './calendar-kpi.tsx';
+import { MINI_MONTH_CARD, MINI_MONTH_LINK, MiniMonth } from './mini-month.tsx';
 import { yearMonths } from './calendar-model.ts';
-
-const HEAT: readonly string[] = ['fill-surface-3', 'fill-red-tint-2', 'fill-red-tint-3', 'fill-red-tint-4', 'fill-red'];
 
 export interface YearViewProps {
   readonly year: number;
@@ -56,7 +55,6 @@ export function YearView({ year, days, today, baseCurrency, locale }: YearViewPr
   );
   const bar = (value: bigint) => Math.max(value === 0n ? 0 : 2, (Number(value) / Number(highest)) * 100);
   const trend = months.map((month) => ({ month, in: bar(month.inMinor), out: bar(month.outMinor) }));
-  const initials = weekdayNames(locale, 1).map((name) => name.short.slice(0, 1));
 
   return (
     <div className="flex flex-col gap-4">
@@ -104,8 +102,7 @@ export function YearView({ year, days, today, baseCurrency, locale }: YearViewPr
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       >
         {grids.map((grid, index) => {
-          const totals = months[index];
-          const current = totals?.current === true;
+          const current = months[index]?.current === true;
           return (
             <li key={grid.label}>
               <Link
@@ -113,50 +110,9 @@ export function YearView({ year, days, today, baseCurrency, locale }: YearViewPr
                 search={calendarSearch('month', `${grid.label}-01` as LocalDate, today)}
                 data-future={grid.future ? 'true' : undefined}
                 aria-current={current ? 'date' : undefined}
-                className="flex flex-col gap-2 rounded-[12px] border border-border bg-card p-4 hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring aria-[current=date]:border-fg data-[future=true]:opacity-60"
+                className={`${MINI_MONTH_CARD} ${MINI_MONTH_LINK}`}
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-[13.5px] font-semibold text-fg">
-                    {monthName(grid.label, 'long')}
-                    {current ? (
-                      <span className="rounded-[4px] bg-blue px-1 text-[9.5px] font-normal text-on-accent">
-                        {m.calendar_year_running()}
-                      </span>
-                    ) : null}
-                  </span>
-                  {grid.future || grid.outMinor === 0n ? (
-                    <span className="font-mono text-[11.5px] text-subtle">—</span>
-                  ) : (
-                    <SignedMoney
-                      amountMinor={-grid.outMinor}
-                      currency={baseCurrency}
-                      locale={locale}
-                      className="text-[11.5px] text-subtle"
-                    />
-                  )}
-                </span>
-                <span aria-hidden="true" className="grid grid-cols-7 text-center text-[9.5px] text-subtle">
-                  {initials.map((initial, column) => (
-                    <span key={column}>{initial}</span>
-                  ))}
-                </span>
-                <svg aria-hidden="true" viewBox={`0 0 70 ${String(grid.weeks.length * 10)}`} className="block w-full">
-                  {grid.weeks.flatMap((week, row) =>
-                    week.map((day, column) =>
-                      day.inRange ? (
-                        <rect
-                          key={day.date}
-                          x={column * 10 + 0.75}
-                          y={row * 10 + 0.75}
-                          width="8.5"
-                          height="8.5"
-                          rx="1.5"
-                          className={day.surplus ? 'fill-green' : day.future ? 'fill-surface-2' : HEAT[day.heat]}
-                        />
-                      ) : null,
-                    ),
-                  )}
-                </svg>
+                <MiniMonth month={grid} current={current} baseCurrency={baseCurrency} locale={locale} />
               </Link>
             </li>
           );
