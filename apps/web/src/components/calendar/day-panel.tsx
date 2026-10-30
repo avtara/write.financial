@@ -19,7 +19,7 @@ import { CategoryIcon } from '../category-icon.tsx';
 import { Button } from '../form.tsx';
 import { useRecordTransaction } from '../ledger/record-transaction.tsx';
 import { daysFrom } from '../subscriptions/subscriptions-model.ts';
-import { SignedMoney } from '../transactions/transaction-row.tsx';
+import { RowAmount, SignedMoney } from '../transactions/transaction-row.tsx';
 import { abs, type DayDetail } from './calendar-model.ts';
 
 /** "Catat di tanggal ini" records at noon (FR-C3). */
@@ -216,11 +216,7 @@ export function DayPanel({
                   </span>
                 </span>
                 <span className="shrink-0">
-                  {row.type === 'transfer' ? (
-                    <Money minor={abs(row.amountMinor)} currency={row.currency} context="amount" locale={locale} />
-                  ) : (
-                    <SignedMoney amountMinor={row.amountMinor} currency={row.currency} locale={locale} />
-                  )}
+                  <RowAmount row={row} locale={locale} baseCurrency={baseCurrency} />
                 </span>
               </li>
             );

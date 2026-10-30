@@ -128,13 +128,29 @@ export function RowAmount({
       <SignedMoney amountMinor={row.amountMinor} currency={row.currency} locale={locale} className="font-medium" />
     );
   if (row.currency === baseCurrency) return amount;
-  const base = row.type === 'transfer' && row.amountBaseMinor < 0n ? -row.amountBaseMinor : row.amountBaseMinor;
   return (
     <span className="flex flex-col items-end gap-0.5">
       {amount}
-      <span className="text-[11px] text-subtle">
-        {m.transactions_approx()} <Money minor={base} currency={baseCurrency} context="amount" locale={locale} />
-      </span>
+      <BaseApprox row={row} locale={locale} baseCurrency={baseCurrency} />
+    </span>
+  );
+}
+
+/** "≈ Rp36.546" under a row in another currency (unsigned for a transfer); nothing in the base currency. */
+export function BaseApprox({
+  row,
+  locale,
+  baseCurrency,
+}: {
+  readonly row: Pick<TransactionRow, 'type' | 'currency' | 'amountBaseMinor'>;
+  readonly locale: Locale;
+  readonly baseCurrency: string;
+}) {
+  if (row.currency === baseCurrency) return null;
+  const base = row.type === 'transfer' && row.amountBaseMinor < 0n ? -row.amountBaseMinor : row.amountBaseMinor;
+  return (
+    <span className="text-[11px] text-subtle">
+      {m.transactions_approx()} <Money minor={base} currency={baseCurrency} context="amount" locale={locale} />
     </span>
   );
 }
