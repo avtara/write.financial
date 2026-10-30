@@ -72,8 +72,14 @@ export function AccountStrip({ accounts, baseCurrency, availableMinor, view, sel
             }}
             className="flex w-[188px] shrink-0 flex-col gap-2 rounded-[10px] border border-border bg-card p-3.5 text-left hover:border-border-strong focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-fg"
           >
-            <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-tint-06 text-muted-fg">
-              <Wallet aria-hidden="true" className="size-3.5" />
+            <span className="flex items-start justify-between gap-2">
+              <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-tint-06 text-muted-fg">
+                <Wallet aria-hidden="true" className="size-3.5" />
+              </span>
+              {/* The total is in the base currency, not any one account's. */}
+              <span className="rounded-[4px] border border-border px-1.5 text-[10.5px] whitespace-nowrap text-subtle">
+                {baseCurrency}
+              </span>
             </span>
             <span className="flex flex-col">
               <span className="text-[13px] font-medium text-fg">{m.transactions_accounts_available()}</span>
