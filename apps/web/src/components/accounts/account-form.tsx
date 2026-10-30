@@ -9,7 +9,7 @@
 import type { AccountView } from '@wf/db/accounts';
 import { getCatalogRecord } from '@wf/domain/catalog';
 import type { AccountType } from '@wf/domain/ledger';
-import { ACCOUNT_TYPES } from '@wf/domain/ledger';
+import { ACCOUNT_TYPES, canBeSavings } from '@wf/domain/ledger';
 import type { LocalDate } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
 import { AmountInput } from '@wf/ui/amount-input';
@@ -61,6 +61,8 @@ export interface AccountDraft {
   readonly openingDate: LocalDate;
   readonly color: string;
   readonly includeInAvailable: boolean;
+  /** "Rekening tabungan": turning it on turns "Hitung dalam saldo tersedia" off. */
+  readonly isSavings: boolean;
   readonly lowBalanceMinor: bigint | null;
   readonly ccLimitMinor: bigint | null;
   readonly ccStatementDay: number | null;
@@ -81,6 +83,7 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
       openingDate: today,
       color: 'blue',
       includeInAvailable: type !== 'investment',
+      isSavings: false,
       lowBalanceMinor: null,
       ccLimitMinor: null,
       ccStatementDay: null,
@@ -99,6 +102,7 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
     openingDate: account.openingDate,
     color: account.color,
     includeInAvailable: account.includeInAvailable,
+    isSavings: account.isSavings,
     lowBalanceMinor: account.lowBalanceThresholdMinor,
     ccLimitMinor: account.ccLimitMinor,
     ccStatementDay: account.ccStatementDay,
@@ -123,6 +127,7 @@ export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input
   if (draft.openingMinor === null) errors.opening = m.accounts_form_error_amount();
   if (Object.keys(errors).length > 0 || draft.openingMinor === null) return { errors, input: null };
   const card = draft.type === 'credit_card';
+  const savings = canBeSavings(draft.type) && draft.isSavings;
   return {
     errors,
     input: {
@@ -136,7 +141,8 @@ export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input
       color: draft.color,
       last4: usesLast4 && draft.last4 !== '' ? draft.last4 : null,
       ...(draft.type !== 'ewallet' ? { phoneMasked: null } : phoneMasked === null ? {} : { phoneMasked }),
-      includeInAvailable: draft.includeInAvailable,
+      includeInAvailable: savings ? false : draft.includeInAvailable,
+      isSavings: savings,
       lowBalanceThresholdMinor: card ? null : draft.lowBalanceMinor,
       ccLimitMinor: card ? draft.ccLimitMinor : null,
       ccStatementDay: card ? draft.ccStatementDay : null,
@@ -194,6 +200,7 @@ export function AccountForm({
     setDraft((current) => ({ ...current, ...patch }));
   };
   const card = draft.type === 'credit_card';
+  const savings = canBeSavings(draft.type) && draft.isSavings;
   const names = new Intl.DisplayNames([locale], { type: 'currency' });
 
   const submit = async (event: SyntheticEvent) => {
@@ -281,6 +288,7 @@ export function AccountForm({
             set({
               type,
               includeInAvailable: type !== 'investment',
+              isSavings: false,
               catalogId: reference?.accountTypes.includes(type) === true ? draft.catalogId : null,
             });
           }}
@@ -607,6 +615,17 @@ export function AccountForm({
       </fieldset>
 
       <div className="flex flex-col divide-y divide-border rounded-[10px] border border-border">
+        {canBeSavings(draft.type) ? (
+          <Switch
+            className="px-3.5 py-3"
+            label={m.accounts_form_savings()}
+            description={m.accounts_form_savings_hint()}
+            checked={draft.isSavings}
+            onChange={(event) => {
+              set(event.target.checked ? { isSavings: true, includeInAvailable: false } : { isSavings: false });
+            }}
+          />
+        ) : null}
         <Switch
           className="px-3.5 py-3"
           label={card ? m.accounts_form_cc_available() : m.accounts_form_available()}
@@ -618,6 +637,7 @@ export function AccountForm({
                 : m.accounts_form_available_hint()
           }
           checked={draft.includeInAvailable}
+          disabled={savings}
           onChange={(event) => {
             set({ includeInAvailable: event.target.checked });
           }}

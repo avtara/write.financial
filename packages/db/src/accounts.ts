@@ -9,7 +9,7 @@
  */
 import { getCatalogRecord, matchProvider } from '@wf/domain/catalog';
 import type { FxRate } from '@wf/domain/fx';
-import { availableBalance, type AccountType } from '@wf/domain/ledger';
+import { availableBalance, canBeSavings, type AccountType } from '@wf/domain/ledger';
 import { parseLocalDate, type LocalDate, type YearMonth } from '@wf/domain/period';
 import { toBase } from '@wf/domain/transactions';
 import { and, asc, eq, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
@@ -35,6 +35,7 @@ const ACCOUNT_COLUMNS = {
   openingDate: accounts.openingDate,
   color: accounts.color,
   includeInAvailable: accounts.includeInAvailable,
+  isSavings: accounts.isSavings,
   sortOrder: accounts.sortOrder,
   status: accounts.status,
   archivedAt: accounts.archivedAt,
@@ -96,6 +97,8 @@ export interface AccountInput {
   readonly last4?: string | null;
   readonly phoneMasked?: string | null;
   readonly includeInAvailable?: boolean;
+  /** "Rekening tabungan" (bank, e-wallet, cash): takes the account out of the available balance. */
+  readonly isSavings?: boolean;
   readonly lowBalanceThresholdMinor?: bigint | null;
   readonly ccLimitMinor?: bigint | null;
   /** 1–31. */
@@ -208,6 +211,7 @@ const INPUT_KEYS = [
   'last4',
   'phoneMasked',
   'includeInAvailable',
+  'isSavings',
   'lowBalanceThresholdMinor',
   'ccLimitMinor',
   'ccStatementDay',
@@ -264,6 +268,25 @@ function checkCatalog(input: Pick<AccountInput, 'type' | 'catalogId'>): void {
 /** A provider typed by hand that names exactly one catalog provider of this type ("BCA") gets its reference. */
 function linkedCatalog(input: Pick<AccountInput, 'type' | 'providerName' | 'catalogId'>): string | null {
   return input.catalogId ?? matchProvider(input.providerName, input.type);
+}
+
+/**
+ * A savings account ("Rekening tabungan": a bank, e-wallet, or cash account) is never in the available balance:
+ * marking one takes it out, and counting it in again or turning it into another type unmarks it.
+ */
+function withSavingsRule(
+  values: Partial<AccountInput>,
+  current: { readonly type: AccountType; readonly isSavings: boolean },
+): Partial<AccountInput> {
+  const type = values.type ?? current.type;
+  if (values.isSavings === true) {
+    if (!canBeSavings(type)) throw invalid('Only bank, e-wallet, and cash accounts can be savings accounts');
+    return { ...values, includeInAvailable: false };
+  }
+  const savings = values.isSavings ?? current.isSavings;
+  return savings && (values.includeInAvailable === true || !canBeSavings(type))
+    ? { ...values, isSavings: false }
+    : values;
 }
 
 /** Postgres `sum`/`count` results as `bigint`. */
@@ -429,7 +452,10 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
     create: (userId, input) =>
       withUser(db, userId, async (tx) => {
         const normalized = normalize(input) as AccountInput;
-        const values = { ...normalized, catalogId: linkedCatalog(normalized) };
+        const values = withSavingsRule(
+          { ...normalized, catalogId: linkedCatalog(normalized) },
+          { type: normalized.type, isSavings: false },
+        ) as AccountInput;
         checkCatalog(values);
         await checkParentIn(tx, values.parentAccountId);
         const rows = await lockAllIn(tx);
@@ -453,7 +479,10 @@ export function createAccounts(db: Database, options: AccountsOptions = {}): Acc
         const before = await viewIn(tx, userId, id, now());
         const relinks =
           patched.providerName !== undefined || patched.type !== undefined || patched.catalogId !== undefined;
-        const values = relinks ? { ...patched, catalogId: linkedCatalog({ ...before, ...patched }) } : patched;
+        const values = withSavingsRule(
+          relinks ? { ...patched, catalogId: linkedCatalog({ ...before, ...patched }) } : patched,
+          before,
+        );
         checkCatalog({ ...before, ...values });
         if (before.locked && LOCKED_KEYS.some((key) => values[key] !== undefined && values[key] !== before[key])) {
           throw new LedgerError('ACCOUNT_LOCKED');

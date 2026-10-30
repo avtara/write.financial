@@ -8,6 +8,11 @@
 export const ACCOUNT_TYPES = ['bank', 'ewallet', 'cash', 'investment', 'credit_card'] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
+/** "Rekening tabungan" can be marked on these types (an investment account is set aside by nature). */
+export function canBeSavings(type: AccountType): boolean {
+  return type === 'bank' || type === 'ewallet' || type === 'cash';
+}
+
 export interface AvailableBalanceAccount {
   /** `accounts.include_in_available` ("Hitung dalam saldo tersedia"). */
   readonly includeInAvailable: boolean;

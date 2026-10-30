@@ -44,6 +44,7 @@ export function account(overrides: Partial<AccountView> & Pick<AccountView, 'id'
     openingDate: '2026-01-01' as LocalDate,
     color: 'blue',
     includeInAvailable: true,
+    isSavings: false,
     sortOrder: 0,
     status: 'active',
     archivedAt: null,

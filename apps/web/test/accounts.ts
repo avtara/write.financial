@@ -23,6 +23,7 @@ export function accountView(overrides: Partial<AccountView> = {}): AccountView {
     openingDate: '2026-09-30' as AccountView['openingDate'],
     color: 'blue',
     includeInAvailable: true,
+    isSavings: false,
     sortOrder: next,
     status: 'active',
     archivedAt: null,

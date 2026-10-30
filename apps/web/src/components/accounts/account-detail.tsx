@@ -6,6 +6,7 @@
  */
 import { Link } from '@tanstack/react-router';
 import type { AccountFlows, AccountView } from '@wf/db/accounts';
+import { canBeSavings } from '@wf/domain/ledger';
 import { m } from '@wf/i18n/messages';
 import { DateLabel } from '@wf/ui/date-label';
 import { Money } from '@wf/ui/money';
@@ -27,7 +28,7 @@ import { AccountLogo } from './account-logo.tsx';
 import { BalanceChart } from './balance-chart.tsx';
 
 /** Flags the panel toggles in place. */
-export type AccountFlag = 'includeInAvailable';
+export type AccountFlag = 'includeInAvailable' | 'isSavings';
 
 export interface AccountDetailPanelProps {
   readonly account: AccountView;
@@ -169,10 +170,21 @@ export function AccountDetailPanel({
 
       {archived ? null : (
         <div className="flex flex-col gap-3 border-b border-border p-5">
+          {canBeSavings(account.type) ? (
+            <Switch
+              label={m.accounts_form_savings()}
+              description={m.accounts_flag_savings_hint()}
+              checked={account.isSavings}
+              onChange={(event) => {
+                onToggle('isSavings', event.target.checked);
+              }}
+            />
+          ) : null}
           <Switch
             label={m.accounts_flag_available()}
             description={m.accounts_flag_available_hint()}
             checked={account.includeInAvailable}
+            disabled={account.isSavings}
             onChange={(event) => {
               onToggle('includeInAvailable', event.target.checked);
             }}

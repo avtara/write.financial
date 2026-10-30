@@ -486,6 +486,8 @@ export const accounts = pgTable(
     openingDate: localDate('opening_date').notNull(),
     color: text('color').notNull(),
     includeInAvailable: boolean('include_in_available').notNull().default(true),
+    /** "Rekening tabungan": transfers into it from everyday accounts count as saved (the dashboard's "Ditabung"). */
+    isSavings: boolean('is_savings').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     status: accountStatus('status').notNull().default('active'),
     archivedAt: timestamptz('archived_at'),
@@ -513,6 +515,11 @@ export const accounts = pgTable(
       sql`${table.ccStatementDay} between 1 and 31 and ${table.ccDueDay} between 1 and 31`,
     ),
     check('accounts_archived_check', sql`(${table.status} = 'archived') = (${table.archivedAt} is not null)`),
+    // "Rekening tabungan": money set aside in a bank, e-wallet, or cash account, never in the available balance.
+    check(
+      'accounts_savings_check',
+      sql`not ${table.isSavings} or (not ${table.includeInAvailable} and ${table.type} in ('bank', 'ewallet', 'cash'))`,
+    ),
   ],
 );
 

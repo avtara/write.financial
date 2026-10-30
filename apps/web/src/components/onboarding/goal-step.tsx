@@ -34,12 +34,13 @@ const PRESETS: Readonly<Record<GoalPreset, { icon: LucideIcon; name: () => strin
 const DAYS = Array.from({ length: 28 }, (_, index) => index + 1);
 
 /**
- * "Simpan di" by default: an account set aside, not the everyday one (Bank Jago next to BCA Tahapan): one left out of
- * the available balance, else any but the first (the everyday one).
+ * "Simpan di" by default: an account set aside, not the everyday one (Bank Jago next to BCA Tahapan): a savings
+ * account, else one left out of the available balance, else any but the first (the everyday one).
  */
 function defaultGoalAccount(accounts: readonly AccountView[]): AccountView | undefined {
   const savings = accounts.filter((account) => account.type !== 'credit_card');
   return (
+    savings.find((account) => account.isSavings) ??
     savings.find((account) => !account.includeInAvailable) ??
     savings.find((account) => account !== accounts[0]) ??
     savings[0]
