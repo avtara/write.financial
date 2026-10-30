@@ -11,7 +11,7 @@ import { m } from '@wf/i18n/messages';
 import { formatDate, formatMonth, weekdayNames } from '@wf/ui/dates';
 import { Money } from '@wf/ui/money';
 import { Tooltip } from '@wf/ui/tooltip';
-import { ArrowUp, CalendarDays, Flame, Leaf, PiggyBank, Sparkles, Wallet } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, Equal, Flame, Leaf, PiggyBank, Sparkles, Wallet } from 'lucide-react';
 import { RichMessage } from '../rich-message.tsx';
 import { Kpi, KpiStrip } from './calendar-kpi.tsx';
 import { CALENDAR_LAYERS, weekTotal, type CalendarLayer, type DayDetail, type MonthStats } from './calendar-model.ts';
@@ -227,6 +227,12 @@ export function MonthGrid({
                 })}
               </span>
             )}
+            {day.inMinor === 0n ? null : (
+              <span className="flex justify-between gap-3">
+                <span>{m.calendar_tip_in()}</span>
+                {received}
+              </span>
+            )}
             <span className="flex justify-between gap-3">
               <span>{m.calendar_tip_out()}</span>
               {spent}
@@ -283,8 +289,15 @@ export function MonthGrid({
           ) : null}
           {shown('income') && day.inMinor > 0n ? (
             <span className="flex items-center gap-0.5 truncate text-[10px] text-green-fg">
-              <ArrowUp aria-hidden="true" className="size-2.5 shrink-0 max-lg:hidden" />
+              <ArrowUp aria-label={m.calendar_tip_in()} className="size-2.5 shrink-0 max-lg:hidden" />
               {received}
+            </span>
+          ) : null}
+          {/* Spending always has its own line, also on a day with more income (the cell is green then). */}
+          {shown('spending') && !day.future && day.outMinor > 0n ? (
+            <span className="flex items-center gap-0.5 truncate text-[10px] text-red-fg">
+              <ArrowDown aria-label={m.calendar_tip_out()} className="size-2.5 shrink-0 max-lg:hidden" />
+              {spentPlain}
             </span>
           ) : null}
           {shown('income')
@@ -321,21 +334,6 @@ export function MonthGrid({
               ))
             : null}
           <span className="mt-auto flex flex-col gap-1">
-            {day.inRange && !day.future && day.outMinor + day.inMinor > 0n ? (
-              surplus ? (
-                <Money
-                  minor={day.inMinor - day.outMinor}
-                  currency={baseCurrency}
-                  context="delta"
-                  locale={locale}
-                  className="truncate text-[10px] lg:text-[11px] xl:text-[10px]"
-                />
-              ) : shown('spending') ? (
-                <span className="truncate font-mono text-[10.5px] text-fg lg:text-[11.5px] xl:text-[10.5px]">
-                  {spentPlain}
-                </span>
-              ) : null
-            ) : null}
             {shown('spending') && needsShare !== null ? (
               <svg aria-hidden="true" viewBox="0 0 100 3" preserveAspectRatio="none" className="block h-[3px] w-full">
                 <rect x="0" width={needsShare * 100} height="3" className="fill-blue" />
@@ -415,9 +413,24 @@ export function MonthGrid({
                   <td className="p-0 pl-2 text-right align-middle max-lg:hidden">
                     <span className="flex flex-col items-end gap-0.5 text-[11px] text-subtle">
                       <span>{m.calendar_week_label({ week: index + 1 })}</span>
-                      {future ? null : <span className="font-mono text-[13px] text-fg">{weekSpent}</span>}
-                      {!future && total.netMinor > 0n && shown('income') ? (
-                        <Money minor={total.netMinor} currency={baseCurrency} context="delta" locale={locale} />
+                      {/* The same lines as the cells: ↑ in, ↓ out, then what is left of the week. */}
+                      {!future && total.inMinor > 0n && shown('income') ? (
+                        <span className="flex items-center gap-0.5 font-mono text-[12px] text-green-fg">
+                          <ArrowUp aria-label={m.calendar_tip_in()} className="size-3 shrink-0" />
+                          <Money minor={total.inMinor} currency={baseCurrency} context="table" locale={locale} />
+                        </span>
+                      ) : null}
+                      {!future && total.outMinor > 0n && shown('spending') ? (
+                        <span className="flex items-center gap-0.5 font-mono text-[12px] text-red-fg">
+                          <ArrowDown aria-label={m.calendar_tip_out()} className="size-3 shrink-0" />
+                          {weekSpent}
+                        </span>
+                      ) : null}
+                      {!future && total.inMinor > 0n && total.outMinor > 0n && shown('income') ? (
+                        <span className="flex items-center gap-1 border-t border-border pt-0.5 font-mono text-[12px]">
+                          <Equal aria-label={m.calendar_tip_net()} className="size-3 shrink-0 text-subtle" />
+                          <Money minor={total.netMinor} currency={baseCurrency} context="delta" locale={locale} />
+                        </span>
                       ) : null}
                       {total.projectedMinor > 0n ? (
                         <span className="font-mono text-green-fg">

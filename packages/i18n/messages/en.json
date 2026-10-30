@@ -820,7 +820,9 @@
     }
   ],
   "calendar_tip_future": "Not yet",
+  "calendar_tip_in": "In",
   "calendar_tip_largest": "largest {name}",
+  "calendar_tip_net": "In minus out",
   "calendar_tip_open": "Click for the breakdown",
   "calendar_tip_out": "Out",
   "calendar_tip_ratio": "{times}× the average",
