@@ -218,24 +218,27 @@ function partText(part: Record<string, unknown>, html: boolean): string {
   }
   return readable(html ? htmlText(text) : text);
 }
-/** The first non-empty `text/plain` part, else the first `text/html` part as text, else ''. */
+/** Letters and digits only: how much readable content a part carries, independent of layout whitespace. */
+function substance(text: string): number {
+  return text.replace(/[^\p{L}\p{N}]/gu, '').length;
+}
+/**
+ * The first `text/plain` part unless it is a stub (senders often put "-" there and the content only in HTML): plain
+ * wins when it carries at least half the letters/digits of the first `text/html` part, else the HTML as text.
+ */
 function bodyText(payload: unknown): string {
+  let plain = '';
   let html = '';
   let seen = 0;
-  const visit = (part: Record<string, unknown>, depth: number): string => {
-    if (depth > MAX_PART_DEPTH || ++seen > MAX_PARTS) return '';
+  const visit = (part: Record<string, unknown>, depth: number): void => {
+    if (depth > MAX_PART_DEPTH || ++seen > MAX_PARTS || (plain && html)) return;
     const mime = string(part.mimeType);
-    if (/^\s*text\/plain\s*(?:;|$)/i.test(mime)) {
-      const text = partText(part, false);
-      if (text) return text;
-    } else if (!html && /^\s*text\/html\s*(?:;|$)/i.test(mime)) html = partText(part, true);
-    for (const child of Array.isArray(part.parts) ? part.parts : []) {
-      const text = visit(object(child), depth + 1);
-      if (text) return text;
-    }
-    return '';
+    if (!plain && /^\s*text\/plain\s*(?:;|$)/i.test(mime)) plain = partText(part, false);
+    else if (!html && /^\s*text\/html\s*(?:;|$)/i.test(mime)) html = partText(part, true);
+    for (const child of Array.isArray(part.parts) ? part.parts : []) visit(object(child), depth + 1);
   };
-  return visit(object(payload), 0) || html;
+  visit(object(payload), 0);
+  return substance(plain) * 2 >= substance(html) ? plain || html : html;
 }
 export async function gmailConsentUrl(
   clientId: string,

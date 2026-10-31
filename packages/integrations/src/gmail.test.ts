@@ -398,6 +398,15 @@ describe('Gmail message text', () => {
     expect(await excerpt(client)).toBe('Jumlah: Rp10.000\nBerhasil');
   });
 
+  it('reads the HTML when the text/plain part is only a stub (BCA sends "-")', async () => {
+    const html =
+      '<table><tr><td>Merchant / ATM</td><td>: GoPayID</td></tr><tr><td>Sejumlah</td><td>: Rp848.500,00</td></tr></table>';
+    const text = await excerpt(
+      fullClient({ mimeType: 'multipart/alternative', parts: [part('text/plain', '-'), part('text/html', html)] }),
+    );
+    expect(text).toContain('Sejumlah : Rp848.500,00');
+  });
+
   it('reduces a Krom-style HTML body to readable text with entities decoded', async () => {
     const html = [
       '<html><head><title>Krom</title><style>.x { color: red }</style></head><body>',
