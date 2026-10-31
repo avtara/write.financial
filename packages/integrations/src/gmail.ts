@@ -251,6 +251,8 @@ export function createGmailClient(options: GmailClientOptions): GmailFetchPort {
     async listMessages(tokens, historyId, read = {}) {
       const request = session(tokens, read);
       // Snapshot BEFORE a full sync. Changes during pagination are read on the next history poll, never skipped.
+      // A full sync (no cursor yet, or expired history) reads only the newest page, then continues from the snapshot:
+      // older mail is never backfilled, and a large mailbox cannot exhaust MAX_PAGES and keep the cursor unset.
       const profile = checked(await request('/profile'));
       let cursor = historyId;
       let next = '';
@@ -308,7 +310,7 @@ export function createGmailClient(options: GmailClientOptions): GmailFetchPort {
           });
         }
         next = string(data.nextPageToken);
-        if (!next || read.latest !== undefined)
+        if (!next || read.latest !== undefined || cursor === null)
           return {
             messages: read.latest === undefined ? messages : messages.slice(0, read.latest),
             historyId: latest || null,

@@ -234,6 +234,21 @@ describe('Gmail pagination, recovery and minimization', () => {
     });
     expect(await client.listMessages(tokens, 'expired')).toMatchObject({ historyId: '500', messages: [{ id: 'a' }] });
   });
+  it('bounds a full sync to the newest page and continues from the pre-sync snapshot', async () => {
+    const urls: string[] = [];
+    const client = createGmailClient({
+      oauth,
+      fetch: (input) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        urls.push(url);
+        if (url.endsWith('/profile')) return json({ historyId: '700' });
+        if (url.includes('/messages?')) return json({ messages: [{ id: 'new' }], nextPageToken: 'older' });
+        return json(message('new'));
+      },
+    });
+    expect(await client.listMessages(tokens, null)).toMatchObject({ historyId: '700', messages: [{ id: 'new' }] });
+    expect(urls.some((url) => url.includes('pageToken='))).toBe(false);
+  });
   it('tests the latest five only and enforces bounded response/page/message evidence', async () => {
     const urls: string[] = [];
     const client = createGmailClient({
