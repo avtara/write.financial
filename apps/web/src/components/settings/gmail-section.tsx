@@ -43,12 +43,24 @@ const OUTCOME_LABEL: Readonly<Record<EmailLogView['outcome'], () => string>> = {
   filtered: m.gmail_log_filter_filtered,
 };
 
+/** The filter fields hold the typed text; lists are parsed only on save/test, so a trailing comma survives typing. */
+type FilterDrafts = Record<keyof GmailFilters, string>;
 const listValue = (values: readonly string[]): string => values.join(', ');
 const listParse = (value: string): string[] =>
   value
     .split(',')
     .map((entry) => entry.trim())
     .filter((entry) => entry !== '');
+const draftsOf = ({ senders, keywords, ignoreKeywords }: GmailFilters): FilterDrafts => ({
+  senders: listValue(senders),
+  keywords: listValue(keywords),
+  ignoreKeywords: listValue(ignoreKeywords),
+});
+const filtersOf = ({ senders, keywords, ignoreKeywords }: FilterDrafts) => ({
+  senders: listParse(senders),
+  keywords: listParse(keywords),
+  ignoreKeywords: listParse(ignoreKeywords),
+});
 
 /** "Uji filter"'s verdict cell, with the ignore-keyword win spelled out ("kata kunci pengabaian menang"). */
 function verdictText(verdict: GmailFilterResult): string {
@@ -77,7 +89,9 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
   const router = useRouter();
   const { locale } = usePreferences().preferences;
   const { hidden, hiddenLabel } = usePrivacy();
-  const [filters, setFilters] = useState<GmailFilters>(settings.connection?.filters ?? emptyGmailFilters());
+  const [drafts, setDrafts] = useState<FilterDrafts>(() =>
+    draftsOf(settings.connection?.filters ?? emptyGmailFilters()),
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -114,13 +128,7 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
   const save = async () => {
     setSaving(true);
     setSaveError(null);
-    const result = await updateFilters({
-      data: {
-        senders: [...filters.senders],
-        keywords: [...filters.keywords],
-        ignoreKeywords: [...filters.ignoreKeywords],
-      },
-    }).catch(() => null);
+    const result = await updateFilters({ data: filtersOf(drafts) }).catch(() => null);
     setSaving(false);
     if (result?.ok !== true) {
       setSaveError(result === null ? m.gmail_action_failed() : ledgerErrorMessage(result.code, locale));
@@ -133,13 +141,7 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
   const runTest = async () => {
     setTesting(true);
     setTestError(null);
-    const result = await testFilters({
-      data: {
-        senders: [...filters.senders],
-        keywords: [...filters.keywords],
-        ignoreKeywords: [...filters.ignoreKeywords],
-      },
-    }).catch(() => null);
+    const result = await testFilters({ data: filtersOf(drafts) }).catch(() => null);
     setTesting(false);
     if (result?.ok !== true) {
       setTestError(result === null ? m.gmail_test_failed() : ledgerErrorMessage(result.code, locale));
@@ -246,9 +248,9 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
                     aria-invalid={control.invalid}
                     autoComplete="off"
                     spellCheck={false}
-                    value={listValue(filters.senders)}
+                    value={drafts.senders}
                     onChange={(event) => {
-                      setFilters({ ...filters, senders: listParse(event.target.value) });
+                      setDrafts({ ...drafts, senders: event.target.value });
                     }}
                   />
                 )}
@@ -260,9 +262,9 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
                     aria-describedby={control.describedBy}
                     aria-invalid={control.invalid}
                     autoComplete="off"
-                    value={listValue(filters.keywords)}
+                    value={drafts.keywords}
                     onChange={(event) => {
-                      setFilters({ ...filters, keywords: listParse(event.target.value) });
+                      setDrafts({ ...drafts, keywords: event.target.value });
                     }}
                   />
                 )}
@@ -274,9 +276,9 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
                     aria-describedby={control.describedBy}
                     aria-invalid={control.invalid}
                     autoComplete="off"
-                    value={listValue(filters.ignoreKeywords)}
+                    value={drafts.ignoreKeywords}
                     onChange={(event) => {
-                      setFilters({ ...filters, ignoreKeywords: listParse(event.target.value) });
+                      setDrafts({ ...drafts, ignoreKeywords: event.target.value });
                     }}
                   />
                 )}

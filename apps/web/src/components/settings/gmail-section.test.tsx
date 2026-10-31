@@ -219,6 +219,18 @@ describe('Gmail settings interaction', () => {
     expect(rpc.updateFilters.mock.calls).toEqual([[{ data: expected }], [{ data: expected }], [{ data: expected }]]);
     expect(toast.toast).toHaveBeenCalledWith({ tone: 'success', title: 'Filters saved' });
   });
+  it('keeps a typed comma so a second sender can follow it', async () => {
+    rpc.updateFilters.mockResolvedValueOnce({ ok: true, value: connection });
+    await render();
+    const senders = page.getByRole('textbox', { name: 'From senders' });
+    await userEvent.clear(senders);
+    await userEvent.type(senders, 'bank.test, pln.test');
+    await expect.element(senders).toHaveValue('bank.test, pln.test');
+    await userEvent.click(page.getByRole('button', { name: 'Save changes' }));
+    expect(rpc.updateFilters).toHaveBeenCalledWith({
+      data: { senders: ['bank.test', 'pln.test'], keywords: ['payment'], ignoreKeywords: ['promo'] },
+    });
+  });
   it('explains each dry-run verdict, masks it in privacy mode, and reports an unreachable test', async () => {
     rpc.testFilters
       .mockResolvedValueOnce({
