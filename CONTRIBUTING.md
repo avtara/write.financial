@@ -37,7 +37,7 @@ pnpm ci:fast       # local feedback: static checks and unit tests of your change
 2. Make small, focused commits, each signed off (`git commit -s`, see [DCO](#developer-certificate-of-origin-dco)).
 3. Run `pnpm ci:fast` for local feedback and exercise the changed behavior before pushing.
 4. Push and open a pull request against `dev`. Describe what changed, why, and how you tested it.
-5. Pull requests and pushes to `dev` run the **staging lane**: every check except mutation and E2E, including the full unit suite with 100% per-file coverage, integration, Docker build/boot, and backup restore.
+5. Pull requests and pushes to `dev` run the **staging lane**: static checks only (format, lint, typecheck, repo checks, gitleaks, DCO), no tests. A merge to `dev` deploys to the dev VPS (https://dev.write.financial).
 6. Keep feature branches up to date by **rebasing** onto `dev` (`git fetch origin && git rebase origin/dev`), not by merging it into them. Merge with **rebase merge** to preserve linear history.
 7. Promote staging through a **`dev` → `main` pull request**. Every PR targeting `main` runs the full lane automatically, including mutation, every E2E project, and the Docker setup/2FA install proof. A label is not required and cannot reduce these checks.
 
@@ -54,14 +54,14 @@ One workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) with two t
 
 | Lane | Runs on | Jobs |
 |---|---|---|
-| **Staging** | pull requests targeting `dev`, pushes to `dev`, and manual runs on `dev` | format, lint, typecheck, repo checks (SPDX, test files, tokens, i18n, migration order), **all unit tests with 100% per-file coverage**, integration tests (Testcontainers), Docker image build/boot/restart, encrypted backup restore, gitleaks, DCO on PRs |
-| **Full** | every pull request targeting `main`, pushes to `main`, and manual runs on other branches | all staging checks **plus mutation** (domain + crypto, ≥90%), **every E2E project**, and the Docker setup wizard → admin sign-in with 2FA install proof |
+| **Staging** | pull requests targeting `dev`, pushes to `dev`, and manual runs on `dev` | **no tests**: format, lint, typecheck, repo checks (SPDX, tokens, i18n, migration order), gitleaks, DCO on PRs. Every push to `dev` also deploys to the dev VPS ([`deploy-dev.yml`](.github/workflows/deploy-dev.yml), [`deploy/dev-vps`](deploy/dev-vps/README.md)) |
+| **Full** | every pull request targeting `main`, pushes to `main`, and manual runs on other branches | all staging checks **plus every test**: co-located test files, unit tests with 100% per-file coverage, integration tests (Testcontainers), Docker image build/boot/restart, encrypted backup restore, mutation (domain + crypto, ≥90%), **every E2E project**, and the Docker setup wizard → admin sign-in with 2FA install proof |
 
-- **CI gate** is the only required check on both branches. A failed/cancelled job or an unexpectedly skipped required job blocks the merge. Only mutation and E2E may be skipped in staging; the Docker job skips its Playwright install proof there too.
-- **100% per-file unit coverage is required on every PR and push to `dev` and `main`**, not just milestone exits.
+- **CI gate** is the only required check on both branches. A failed/cancelled job or an unexpectedly skipped required job blocks the merge. In staging only the static checks, gitleaks, and DCO are required; every test job is skipped there.
+- **`dev` is for feature work**: it runs no unit, integration, Docker, backup, mutation, or E2E tests, and no co-located test-file check. The tests a change needs are owed by the `dev` → `main` promotion, whose full lane blocks until they pass.
 - Lane selection uses the **target branch**, never a label or PR source. A `dev` → `main` PR always runs full, even without `full-ci`; feature branches targeting `main` also run full. Changing a PR's base triggers a fresh run. Push runs on protected branches finish without cancellation.
 - **Mutation tests** reuse Stryker's incremental results cached per base branch. Pull requests re-test changed mutants; a changed domain/crypto test, mutation config, or lockfile invalidates the cache. Pushes to `main` re-test every mutant.
-- **`pnpm ci:fast`** is a local feedback helper, **not** the complete staging lane: static checks, DCO, and changed-code unit tests against `origin/dev` (override with `WF_CI_BASE=main`). It regenerates i18n messages before lint/typecheck. `pnpm ci:fast --e2e` optionally adds a production build and E2E core; CI on `dev` never runs E2E.
+- **`pnpm ci:fast`** is a local feedback helper: static checks, DCO, and changed-code unit tests against `origin/dev` (override with `WF_CI_BASE=main`). It regenerates i18n messages before lint/typecheck. `pnpm ci:fast --e2e` optionally adds a production build and E2E core; CI on `dev` never runs tests.
 
 ## Developer Certificate of Origin (DCO)
 
@@ -89,7 +89,7 @@ For just the last commit, `git commit --amend --no-edit -s` works too. If the au
 Every change ships with unit tests, and CI blocks the merge otherwise ([PRD D27](docs/PRD.md#12-default-decisions--questions-for-the-product-owner), [plan §9](docs/IMPLEMENTATION_PLAN.md#9-testing-strategy)).
 
 - **Co-located tests.** Every source file `src/**/*.ts(x)` in `apps/*`, `packages/*`, and `tools/*` has a test file next to it: `foo.ts` → `foo.test.ts`, `Foo.tsx` → `Foo.test.tsx`. `pnpm check:test-files` fails when one is missing.
-- **100% coverage per file.** Lines, branches, functions, and statements, enforced per file by Vitest (v8 provider). Every source file is included in the coverage report, so a file without tests counts as 0%. Both staging and full CI enforce the gate on every run.
+- **100% coverage per file.** Lines, branches, functions, and statements, enforced per file by Vitest (v8 provider). Every source file is included in the coverage report, so a file without tests counts as 0%. The full lane enforces the gate (everything on its way to `main`); `dev` does not run tests, so missing tests surface at the `dev` → `main` promotion.
 - **Integration tests** are named `*.integration.test.ts` and run against real Postgres/Valkey/SeaweedFS through Testcontainers (Docker required). They prove what unit tests fake (RLS, S3, queues), do not count toward coverage, and never replace the co-located unit test.
 - **Tenant isolation.** New server function: add its case to `apps/web/test/isolation/cases/<module>.ts`. New server-function module: add it to `FUNCTIONS` in `apps/web/test/isolation/harness.ts`, create `cases/<module>.ts`, and add one spread line to `MATRIX` in `apps/web/src/server/fn/isolation.integration.test.ts`; the completeness guard still fails on a missing case.
 - **Browser RPC boundaries.** When a route or component imports a new server-function module, update every affected browser test's RPC mock and loader fixture, including parent providers and layouts. Follow the existing module mocks: importing the real server module can pull database/auth/native Argon2 code into Vite and leave an error overlay blocking unrelated tests. Fix the missing boundary; do not disable the overlay, install a browser password-hashing fallback, or increase click timeouts to hide it.

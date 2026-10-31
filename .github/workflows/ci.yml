@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Two lanes (CONTRIBUTING.md › CI lanes); `CI gate` is the one required check on dev and main.
-# - staging (pushes and pull requests targeting dev): every check except mutation and E2E, including the
-#   100% per-file unit coverage gate, integration tests, Docker build/boot, and backup restore.
-# - full (all other targets, including every pull request to main): everything, including mutation,
-#   every E2E project, and the Docker setup/2FA install proof. Labels cannot bypass either branch policy.
+# - staging (pushes and pull requests targeting dev): no tests at all, dev is for feature work. Lint, format,
+#   typecheck, repo checks, the secret scan and DCO only; every push to dev deploys to the dev VPS
+#   (deploy-dev.yml), independently of this workflow.
+# - full (all other targets, including every pull request to main): everything: unit (100% per-file coverage),
+#   integration, Docker build/boot and backup restore, mutation, every E2E project, and the Docker setup/2FA install
+#   proof. Labels cannot bypass either branch policy.
 name: CI
 
 on:
@@ -44,10 +46,11 @@ jobs:
           if [ "$target" = dev ]; then mode=staging; full=false; else mode=full; full=true; fi
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "full=$full" >> "$GITHUB_OUTPUT"
-          echo "Lane: **$mode**, target: **$target**. Mutation and E2E: **$full**." >> "$GITHUB_STEP_SUMMARY"
+          echo "Lane: **$mode**, target: **$target**. Tests (unit, integration, Docker, backup, mutation, E2E): **$full**." >> "$GITHUB_STEP_SUMMARY"
 
   static:
     name: Lint, format, typecheck, repo checks
+    needs: changes
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,7 +64,9 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm check:spdx
-      - run: pnpm check:test-files
+      # Co-located tests (D27) are a testing rule: dev skips it with the tests; main still requires it.
+      - if: needs.changes.outputs.full == 'true'
+        run: pnpm check:test-files
       - run: pnpm check:tokens
       - run: pnpm check:i18n
       - run: pnpm check:migrations
@@ -69,6 +74,7 @@ jobs:
   unit:
     name: Unit tests (100% per-file coverage, D27)
     needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,6 +136,7 @@ jobs:
   integration:
     name: Integration tests (Testcontainers)
     needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -177,6 +184,7 @@ jobs:
   docker:
     name: Docker image (build + boot)
     needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -284,6 +292,7 @@ jobs:
   backup-restore:
     name: Backup restore (compose)
     needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -360,10 +369,11 @@ jobs:
           EVENT: ${{ github.event_name }}
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          required='changes static unit integration docker backup-restore secrets'
+          # dev (staging) runs no tests: static checks, the secret scan and DCO only. Every test lane is full-only.
+          required='changes static secrets'
           if [ "$EVENT" = pull_request ]; then required="$required dco"; fi
           if [ "$FULL" = true ]; then
-            required="$required mutation e2e"
+            required="$required unit integration docker backup-restore mutation e2e"
           elif [ "$MODE" != staging ]; then
             echo "::error::Missing or invalid CI lane"
             exit 1

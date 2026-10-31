@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Every push to dev goes to the dev VPS (https://dev.write.financial, deploy/dev-vps/README.md) with no tests: dev is
+# for feature work, and the full lane runs on the way to main. Build the image, stream it to the server over SSH
+# (no registry), sync the compose files, and run deploy/dev-vps/deploy.sh (pre-deploy dump, migrations, health).
+name: Deploy dev
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time, and every push gets deployed in order (never cancelled half-way).
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to the dev VPS
+    runs-on: ubuntu-24.04
+    environment:
+      name: dev
+      url: https://dev.write.financial
+    env:
+      VPS_HOST: ${{ secrets.DEV_VPS_HOST }}
+      VPS_USER: ${{ secrets.DEV_VPS_USER }}
+      ROOT: /opt/write.financial
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Image tag
+        id: tag
+        run: echo "tag=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the image (linux/amd64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: write-financial:${{ steps.tag.outputs.tag }}
+          build-args: REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=deploy-dev
+          cache-to: type=gha,mode=max,scope=deploy-dev
+      - name: SSH identity
+        env:
+          KEY: ${{ secrets.DEV_VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEV_VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host dev-vps\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' "$VPS_HOST" "$VPS_USER" > ~/.ssh/config
+      - name: Load the image on the server
+        run: docker save "write-financial:${{ steps.tag.outputs.tag }}" | gzip -1 | ssh dev-vps 'gzip -dc | docker load'
+      - name: Sync the compose files
+        run: rsync -rlt --delete --exclude .env deploy/compose/ deploy/dev-vps/ --relative dev-vps:"$ROOT/"
+      - name: Deploy
+        run: ssh dev-vps "bash $ROOT/deploy/dev-vps/deploy.sh ${{ steps.tag.outputs.tag }}"
