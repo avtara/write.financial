@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import * as z from 'zod';
 import { createAiClient, type AiCompletionInput } from './ai.ts';
 
@@ -484,5 +484,87 @@ describe('bounded authenticated completions', () => {
       fetch: () => Promise.resolve(new Response(broken)),
     }).complete(completion());
     expect(result).toMatchObject({ status: 'error', errorCode: 'invalid_response' });
+  });
+});
+
+describe('structured outputs', () => {
+  const responseSchema = {
+    name: 'gmail_extraction',
+    schema: { type: 'object', additionalProperties: false, required: ['ok'], properties: { ok: { type: 'boolean' } } },
+  };
+  const sentBodies = (fetcher: Mock<typeof fetch>) =>
+    fetcher.mock.calls.map(([, init]) => JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as unknown);
+  const answer = () => Response.json({ choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }] });
+
+  it('sends a strict json_schema response_format next to the unchanged OpenRouter provider block', async () => {
+    const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(answer()));
+    const result = await createAiClient({ allowedBaseUrls: [], fetch: fetcher }).complete(
+      completion({ responseSchema }),
+    );
+    expect(result).toMatchObject({ status: 'ok', content: '{"ok":true}' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(sentBodies(fetcher)[0]).toMatchObject({
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'gmail_extraction', strict: true, schema: responseSchema.schema },
+      },
+      provider: { allow_fallbacks: false, require_parameters: true },
+    });
+  });
+
+  it.each([400, 404, 422])(
+    'retries exactly once without response_format when the provider refuses it with %s',
+    async (status) => {
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response('private refusal', { status }))
+        .mockResolvedValueOnce(answer());
+      const result = await createAiClient({ allowedBaseUrls: [], fetch: fetcher }).complete(
+        completion({ responseSchema }),
+      );
+      expect(result).toMatchObject({ status: 'ok', httpStatus: 200, content: '{"ok":true}' });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      const [first, second] = sentBodies(fetcher);
+      expect(first).toHaveProperty('response_format');
+      expect(second).not.toHaveProperty('response_format');
+      expect(second).toMatchObject({ model: 'fixture/model', provider: { require_parameters: true } });
+    },
+  );
+
+  it('returns the second refusal as an error instead of retrying again', async () => {
+    const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 404 })));
+    const result = await createAiClient({ allowedBaseUrls: [], fetch: fetcher }).complete(
+      completion({ responseSchema }),
+    );
+    expect(result).toMatchObject({ status: 'error', httpStatus: 404, errorCode: 'http_404', content: null });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry other failures, or refusals of a request without a schema', async () => {
+    const failing = vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 500 })));
+    expect(
+      await createAiClient({ allowedBaseUrls: [], fetch: failing }).complete(completion({ responseSchema })),
+    ).toMatchObject({ status: 'error', errorCode: 'http_500' });
+    expect(failing).toHaveBeenCalledTimes(1);
+    const refused = vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 404 })));
+    expect(await createAiClient({ allowedBaseUrls: [], fetch: refused }).complete(completion())).toMatchObject({
+      status: 'error',
+      errorCode: 'http_404',
+    });
+    expect(refused).toHaveBeenCalledTimes(1);
+    expect(sentBodies(refused)[0]).not.toHaveProperty('response_format');
+  });
+
+  it('refuses a schema combined with tools or badly named before egress', async () => {
+    const fetcher = reply('{}');
+    const client = createAiClient({ allowedBaseUrls: [], fetch: fetcher });
+    const tools = [{ name: 'ringkasan_anggaran', description: 'Budget summary', parameters: { type: 'object' } }];
+    await expect(client.complete(completion({ responseSchema, tools }))).rejects.toMatchObject({
+      code: 'AI_INVALID_CONFIG',
+    });
+    await expect(
+      client.complete(completion({ responseSchema: { ...responseSchema, name: 'bad name' } })),
+    ).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

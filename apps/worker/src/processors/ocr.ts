@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { AiError, calculateAiCost } from '@wf/domain/ai';
-import { receiptPrompt, RECEIPT_INPUT_TOKENS, RECEIPT_MAX_TOKENS, UnreadableReceiptError } from '@wf/domain/receipt';
+import {
+  receiptPrompt,
+  RECEIPT_EXTRACTION_SCHEMA,
+  RECEIPT_INPUT_TOKENS,
+  RECEIPT_MAX_TOKENS,
+  UnreadableReceiptError,
+} from '@wf/domain/receipt';
 import { JOBS } from '@wf/jobs/queues';
 import type { Processor, ProcessorDeps } from '../processors.ts';
 
@@ -48,6 +54,7 @@ export function createOcrProcessor({ db, receipt }: ProcessorDeps): Processor {
         pricing,
         maxTokens: RECEIPT_MAX_TOKENS,
         messages: [{ role: 'user', content: prompt, images }],
+        responseSchema: { name: 'receipt_extraction', schema: RECEIPT_EXTRACTION_SCHEMA },
       });
       evidence = result.content;
       // Settlement precedes parsing: even an unreadable answer can cost money.

@@ -215,7 +215,7 @@ export function GmailReviewCard({
       <details className="min-w-0 rounded-[8px] border border-border px-3 py-2 text-[12px]">
         <summary className="cursor-pointer text-muted-fg">{m.gmail_source()}</summary>
         <p className="break-words text-fg">{hidden ? hiddenLabel : `${item.payload.from} · ${item.payload.subject}`}</p>
-        <blockquote className="mt-2 break-words text-muted-fg">
+        <blockquote className="mt-2 whitespace-pre-line break-words text-muted-fg">
           {hidden ? hiddenLabel : item.payload.excerpt}
         </blockquote>
         <a

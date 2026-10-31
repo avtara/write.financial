@@ -102,7 +102,10 @@ describe('nullable financial extraction and confidence', () => {
   it.each([
     { amountMinor: '0' },
     { amountMinor: '-1' },
-    { amountMinor: 350000 },
+    { amountMinor: 350000.5 },
+    { amountMinor: -350000 },
+    { amountMinor: 0 },
+    { amountMinor: Number.MAX_SAFE_INTEGER + 1 },
     { amountMinor: '1.2' },
     { amountMinor: '9'.repeat(40) },
     { occurredAt: 'not-a-date' },
@@ -122,13 +125,38 @@ describe('nullable financial extraction and confidence', () => {
   it('rejects unbounded and non-JSON provider answers', () => {
     expect(() => parseGmailExtraction('x'.repeat(16385))).toThrow();
     expect(() => parseGmailExtraction('not JSON')).toThrow();
-    expect(() => parseGmailExtraction(`Here you go:\n\`\`\`json\n${JSON.stringify(value)}\n\`\`\``)).toThrow();
+    expect(() => parseGmailExtraction(`[${JSON.stringify(value)}]`)).toThrow();
   });
-  it('accepts the JSON wrapped in one Markdown fence, as chat models often answer', () => {
+  it('accepts the JSON wrapped in one Markdown fence or prose, as chat models often answer', () => {
     expect(parseGmailExtraction(`\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\`\n`)).toMatchObject({
       amountMinor: 350000n,
     });
     expect(parseGmailExtraction(`\`\`\`\n${JSON.stringify(value)}\n\`\`\``)).toMatchObject({ amountMinor: 350000n });
+    expect(parseGmailExtraction(`Here you go:\n\`\`\`json\n${JSON.stringify(value)}\n\`\`\``)).toMatchObject({
+      amountMinor: 350000n,
+    });
+  });
+  it('accepts minor units sent as a JSON integer instead of a decimal string', () => {
+    expect(parseGmailExtraction(JSON.stringify({ ...value, amountMinor: 350000 }))).toMatchObject({
+      amountMinor: 350000n,
+    });
+  });
+  it('parses the answers ZenMux openai/gpt-4o-mini actually returned', () => {
+    const answer =
+      '{"amountMinor":"10000","occurredAt":"2026-10-31T23:31:00+07:00","merchant":null,"currency":"IDR","accountId":"01a1877c-1859-71f3-ab96-cf2e8c50c542","categoryId":"01a18b57-d73d-7201-a5fd-7d389b143e71","confidence":{"amount":100,"date":100,"merchant":0,"currency":100,"account":100,"category":100}}';
+    const expected = {
+      amountMinor: 10000n,
+      occurredAt: new Date('2026-10-31T16:31:00Z'),
+      merchant: null,
+      currency: 'IDR',
+      accountId: '01a1877c-1859-71f3-ab96-cf2e8c50c542',
+      categoryId: '01a18b57-d73d-7201-a5fd-7d389b143e71',
+    };
+    expect(parseGmailExtraction(`\`\`\`json\n${answer}\n\`\`\``)).toMatchObject(expected);
+    expect(
+      parseGmailExtraction(`\`\`\`json\n${answer.replace('"amountMinor":"10000"', '"amountMinor": 10000')}\n\`\`\``),
+    ).toMatchObject(expected);
+    expect(parseGmailExtraction(`Berikut hasilnya:\n\`\`\`json\n${answer}\n\`\`\``)).toMatchObject(expected);
   });
   it('dedupes on exact-decimal amount tolerance, instant and currency, not a guessed account or merchant', () => {
     const extraction = parseGmailExtraction(JSON.stringify(value));

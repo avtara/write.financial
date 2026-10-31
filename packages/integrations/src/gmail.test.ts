@@ -7,8 +7,10 @@ import {
   fromAddress,
   gmailConsentUrl,
   gmailRequest,
+  GMAIL_EXCERPT_MAX,
   GMAIL_SCOPE,
   GmailRevokedError,
+  type GmailFetchPort,
   verifyGmailPush,
 } from './gmail.ts';
 const tokens = { accessToken: 'fixture-access', refreshToken: 'fixture-refresh', expiresAt: new Date('2099-01-01') };
@@ -25,6 +27,23 @@ const message = (id: string) => ({
     ],
   },
 });
+const part = (mimeType: string, text: string, extra: Record<string, unknown> = {}) => ({
+  mimeType,
+  body: { data: Buffer.from(text).toString('base64url') },
+  ...extra,
+});
+const fullClient = (payload: Record<string, unknown>, snippet = 'Gmail snippet') =>
+  createGmailClient({
+    oauth,
+    fetch: (input) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      if (url.endsWith('/profile')) return json({ historyId: '1' });
+      if (url.includes('/messages?')) return json({ messages: [{ id: 'a' }] });
+      expect(url).toContain('format=full');
+      return json({ ...message('a'), snippet, payload: { ...message('a').payload, ...payload } });
+    },
+  });
+const excerpt = async (client: GmailFetchPort) => (await client.listMessages(tokens, null)).messages[0]?.excerpt;
 
 describe('separate Gmail OAuth and fixed egress', () => {
   it('requests only readonly Gmail with offline consent, session state and S256 PKCE', async () => {
@@ -186,7 +205,7 @@ describe('separate Gmail OAuth and fixed egress', () => {
 });
 
 describe('Gmail pagination, recovery and minimization', () => {
-  it('collects every added message across history entries/pages, dedupes IDs, and only asks for metadata', async () => {
+  it('collects every added message across history entries/pages, dedupes IDs, and reads each listed ID once', async () => {
     const urls: string[] = [];
     const client = createGmailClient({
       oauth,
@@ -206,8 +225,8 @@ describe('Gmail pagination, recovery and minimization', () => {
                 history: [{ messagesAdded: [{ message: { id: 'a' } }, { message: { id: 'b' } }] }],
               });
         const id = new URL(url).pathname.split('/').at(-1) ?? '';
-        expect(url).toContain('format=metadata');
-        expect(url).not.toContain('format=full');
+        expect(url).toContain('format=full');
+        expect(url).not.toContain('format=metadata');
         return json(message(id));
       },
     });
@@ -258,10 +277,12 @@ describe('Gmail pagination, recovery and minimization', () => {
         urls.push(url);
         if (url.endsWith('/profile')) return json({ historyId: '5' });
         if (url.includes('/messages?')) return json({ messages: [{ id: 'a' }], nextPageToken: 'unread' });
-        return json({ ...message('a'), snippet: 'x'.repeat(2000) });
+        return json({ ...message('a'), snippet: 'x'.repeat(GMAIL_EXCERPT_MAX + 1000) });
       },
     });
-    expect((await client.listMessages(tokens, null, { latest: 5 })).messages[0]?.excerpt).toHaveLength(1000);
+    expect((await client.listMessages(tokens, null, { latest: 5 })).messages[0]?.excerpt).toHaveLength(
+      GMAIL_EXCERPT_MAX,
+    );
     expect(urls.some((url) => url.includes('maxResults=5'))).toBe(true);
     expect(urls.some((url) => url.includes('pageToken='))).toBe(false);
     await expect(
@@ -352,6 +373,119 @@ describe('Gmail pagination, recovery and minimization', () => {
     await expect(createGmailClient({ oauth, fetch: fetcher }).listMessages(tokens, null)).rejects.toThrow(
       'Gmail is unavailable',
     );
+  });
+});
+
+describe('Gmail message text', () => {
+  it('prefers the first text/plain part of a nested multipart and never reads attachments', async () => {
+    const client = fullClient({
+      mimeType: 'multipart/mixed',
+      parts: [
+        part('text/plain', 'attached statement', { filename: 'statement.txt' }),
+        { mimeType: 'application/pdf', filename: 'a.pdf', body: { attachmentId: 'att', size: 9 } },
+        {
+          mimeType: 'multipart/alternative',
+          parts: [
+            part('text/html', '<p>HTML version</p>'),
+            {
+              mimeType: 'multipart/related',
+              parts: [part('text/plain', 'Jumlah:   Rp10.000\r\n\r\n\r\nBerhasil  \t ')],
+            },
+          ],
+        },
+      ],
+    });
+    expect(await excerpt(client)).toBe('Jumlah: Rp10.000\nBerhasil');
+  });
+
+  it('reduces a Krom-style HTML body to readable text with entities decoded', async () => {
+    const html = [
+      '<html><head><title>Krom</title><style>.x { color: red }</style></head><body>',
+      '<!-- tracking --><script>alert("private")</script>',
+      '<div><p>Transfer berhasil</p><table><tr><td>Tanggal &amp; Waktu</td><td>31 Okt 2026, 23:31 WIB</td></tr>',
+      '</table><ul><li>Jumlah: Rp10.000</li><li>Ke: Toko &quot;Maju&quot; &#38; &#x4B;o&nbsp;&#39;s&apos;</li></ul>',
+      'Baris<br/>baru &copy; &#xD800;</div></body></html>',
+    ].join('');
+    const text = await excerpt(fullClient(part('text/html', html)));
+    expect(text).toContain('Tanggal & Waktu 31 Okt 2026, 23:31 WIB');
+    expect(text).toContain('• Jumlah: Rp10.000\n• Ke: Toko "Maju" & Ko \'s\'');
+    expect(text).toContain('Baris\nbaru &copy; &#xD800;');
+    for (const hidden of ['Krom', 'color', 'tracking', 'alert', '<', '>']) expect(text).not.toContain(hidden);
+    expect(await excerpt(fullClient(part('text/html', 'Rp10.000<!-- unclosed <b>hidden</b>')))).toBe('Rp10.000');
+  });
+
+  it('decodes the declared charset and bounds the text without splitting a character', async () => {
+    const latin = {
+      mimeType: 'text/plain',
+      headers: [{ name: 'Content-Type', value: 'text/plain; charset="ISO-8859-1"' }],
+      body: { data: Buffer.from('Caf\u00e9 Rp10.000', 'latin1').toString('base64url') },
+    };
+    expect(await excerpt(fullClient(latin))).toBe('Caf\u00e9 Rp10.000');
+    const unknown = { ...latin, headers: [{ name: 'content-type', value: 'text/plain; charset=x-unknown' }] };
+    expect(await excerpt(fullClient({ ...unknown, ...part('text/plain', 'Rp10.000') }))).toBe('Rp10.000');
+    const emoji = await excerpt(fullClient(part('text/plain', `${'x'.repeat(GMAIL_EXCERPT_MAX - 1)}\u{1F600} tail`)));
+    expect(emoji).toBe('x'.repeat(GMAIL_EXCERPT_MAX - 1));
+  });
+
+  it('falls back to the decoded snippet when no readable text part exists within the walk bounds', async () => {
+    const deep = Array.from({ length: 10 }).reduce<Record<string, unknown>>(
+      (inner) => ({ mimeType: 'multipart/mixed', parts: [inner] }),
+      part('text/plain', 'too deep'),
+    );
+    for (const payload of [
+      {},
+      { mimeType: 'text/plain', body: { size: 0 } },
+      part('text/plain', '  \n '),
+      part('text/csv', 'a,b'),
+      deep,
+      {
+        mimeType: 'multipart/mixed',
+        parts: [...Array.from({ length: 70 }, () => part('image/png', 'x')), part('text/plain', 'too late')],
+      },
+    ])
+      expect(await excerpt(fullClient(payload, 'Tanggal &amp; Waktu&#58; 31 Okt'))).toBe('Tanggal & Waktu: 31 Okt');
+  });
+
+  it('falls back to metadata and the snippet for a message too large to read, without failing the sync', async () => {
+    const urls: string[] = [];
+    const client = createGmailClient({
+      oauth,
+      fetch: (input) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        urls.push(url);
+        if (url.endsWith('/profile')) return json({ historyId: '1' });
+        if (url.includes('/messages?')) return json({ messages: [{ id: 'big' }, { id: 'small' }] });
+        if (url.includes('/messages/big?format=full')) return Promise.resolve(new Response('x'.repeat(512 * 1024 + 1)));
+        if (url.includes('/messages/small?format=full'))
+          return json({ ...message('small'), payload: { ...message('small').payload, ...part('text/plain', 'Body') } });
+        return json({ ...message('big'), snippet: 'Tanggal &amp; Waktu' });
+      },
+    });
+    expect((await client.listMessages(tokens, null)).messages).toMatchObject([
+      { id: 'big', subject: 'PLN payment', excerpt: 'Tanggal & Waktu' },
+      { id: 'small', excerpt: 'Body' },
+    ]);
+    expect(urls.filter((url) => url.includes('/messages/big?'))).toEqual([
+      expect.stringContaining('format=full'),
+      expect.stringContaining('format=metadata&metadataHeaders=From&metadataHeaders=Subject'),
+    ]);
+    const refused = createGmailClient({
+      oauth,
+      fetch: (input) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        if (url.endsWith('/profile')) return json({ historyId: '1' });
+        if (url.includes('/messages?')) return json({ messages: [{ id: 'a' }] });
+        return json({}, 503);
+      },
+    });
+    await expect(refused.listMessages(tokens, null)).rejects.toMatchObject({ status: 503 });
+    const assertCurrent = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValue(new Error('disconnected'));
+    await expect(refused.listMessages(tokens, null, { assertCurrent })).rejects.toThrow('disconnected');
+    expect(assertCurrent).toHaveBeenCalledTimes(3);
   });
 });
 

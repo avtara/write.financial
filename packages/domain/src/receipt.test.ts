@@ -36,6 +36,11 @@ describe('receipt extraction', () => {
     { amountMinor: null },
     { amountMinor: '0' },
     { amountMinor: '96.500' },
+    { amountMinor: 96.5 },
+    { amountMinor: -96500 },
+    { amountMinor: 0 },
+    { items: [{ name: 'Vitamin C', quantity: '1', amountMinor: 450.5, uncertain: false }] },
+    { items: [{ name: 'Vitamin C', quantity: '1', amountMinor: -45000, uncertain: false }] },
     { date: null },
     { date: '2026-02-30' },
     { time: '25:20' },
@@ -48,6 +53,22 @@ describe('receipt extraction', () => {
   });
   it.each(['null', '[]', 'not JSON', ' '.repeat(32769)])('refuses non-structured or oversized responses', (text) => {
     expect(() => parseReceiptExtraction(text, 'Asia/Jakarta')).toThrow(UnreadableReceiptError);
+  });
+  it('accepts minor units sent as JSON integers and a fenced or prose-wrapped answer', () => {
+    const numeric = {
+      ...raw,
+      amountMinor: 96500,
+      items: raw.items.map((item) => ({
+        ...item,
+        amountMinor: item.amountMinor === null ? null : Number(item.amountMinor),
+      })),
+    };
+    const value = parseReceiptExtraction(JSON.stringify(numeric), 'Asia/Jakarta');
+    expect(value.amountMinor).toBe(96500n);
+    expect(value.items.map((item) => item.amountMinor)).toEqual([24000n, 45000n, null, 15000n]);
+    expect(
+      parseReceiptExtraction(`Berikut hasilnya:\n\`\`\`json\n${JSON.stringify(raw)}\n\`\`\``, 'Asia/Jakarta'),
+    ).toMatchObject({ amountMinor: 96500n, merchant: 'Apotek K-24' });
   });
 });
 describe('receipt duplicates', () => {
