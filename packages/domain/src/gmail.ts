@@ -60,10 +60,13 @@ export interface GmailExtraction {
   readonly confidence: Record<GmailField, number>;
 }
 
+/** Models often wrap "only JSON" in one Markdown fence (` ```json … ``` `); exactly that wrapper is unwrapped. */
+const FENCED = /^\s*```(?:json)?[ \t]*\n([\s\S]*?)\n[ \t]*```\s*$/i;
+
 /** Missing evidence stays null, never a zero-value or invented account draft. */
 export function parseGmailExtraction(text: string): GmailExtraction {
   if (text.length > 16_384) throw new Error('Gmail extraction rejected');
-  const value = JSON.parse(text) as Record<string, unknown>;
+  const value = JSON.parse(FENCED.exec(text)?.[1] ?? text) as Record<string, unknown>;
   const nullableString = (field: string, max: number): string | null => {
     const entry = value[field];
     if (entry === null) return null;

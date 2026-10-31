@@ -122,6 +122,13 @@ describe('nullable financial extraction and confidence', () => {
   it('rejects unbounded and non-JSON provider answers', () => {
     expect(() => parseGmailExtraction('x'.repeat(16385))).toThrow();
     expect(() => parseGmailExtraction('not JSON')).toThrow();
+    expect(() => parseGmailExtraction(`Here you go:\n\`\`\`json\n${JSON.stringify(value)}\n\`\`\``)).toThrow();
+  });
+  it('accepts the JSON wrapped in one Markdown fence, as chat models often answer', () => {
+    expect(parseGmailExtraction(`\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\`\n`)).toMatchObject({
+      amountMinor: 350000n,
+    });
+    expect(parseGmailExtraction(`\`\`\`\n${JSON.stringify(value)}\n\`\`\``)).toMatchObject({ amountMinor: 350000n });
   });
   it('dedupes on exact-decimal amount tolerance, instant and currency, not a guessed account or merchant', () => {
     const extraction = parseGmailExtraction(JSON.stringify(value));
