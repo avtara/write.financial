@@ -69,7 +69,7 @@ describe('CategoryPicker', () => {
       'Lihat semua',
       'Makan & Dapur',
       'Transportasi',
-      'Belanja Online',
+      'Belanja',
       'Tagihan & Utilitas',
       'Hiburan',
       'Lainnya',

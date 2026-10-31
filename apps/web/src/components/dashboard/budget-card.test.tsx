@@ -13,7 +13,7 @@ describe('BudgetCard', () => {
     await expect.element(region.getByText('1 lewat batas')).toBeVisible();
     const items = region.getByRole('listitem').elements();
     expect(items.map((item) => item.textContent)).toEqual([
-      'Belanja OnlineRp2.400.000 / 2.000.000',
+      'BelanjaRp2.400.000 / 2.000.000',
       'Makan & DapurRp3.200.000 / 3.500.000',
       'Sewa KosRp0 / 4.500.000',
     ]);

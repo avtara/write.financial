@@ -112,7 +112,7 @@ describe('CategoriesSection', () => {
     const archived = screen.getByRole('region', { name: 'Diarsipkan' });
     await expect.element(archived.getByText('Lama')).toBeVisible();
     // Alone in its group or archived: nothing to reorder.
-    await expect.element(screen.getByRole('button', { name: 'Ubah urutan Belanja Online' })).not.toBeInTheDocument();
+    await expect.element(screen.getByRole('button', { name: 'Ubah urutan Belanja' })).not.toBeInTheDocument();
 
     await screen.getByRole('tab', { name: 'Pemasukan · 1' }).click();
     await expect.element(screen.getByRole('region', { name: 'Aktif' }).getByText('Gaji')).toBeVisible();
@@ -170,10 +170,10 @@ describe('CategoriesSection', () => {
       });
     });
 
-    await screen.getByRole('button', { name: 'Menu Belanja Online' }).click();
+    await screen.getByRole('button', { name: 'Menu Belanja' }).click();
     await screen.getByRole('menuitem', { name: 'Arsipkan' }).click();
     await vi.waitFor(() => {
-      expect(toasts.toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Belanja Online diarsipkan' }));
+      expect(toasts.toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Belanja diarsipkan' }));
     });
     const [{ action }] = toasts.toast.mock.lastCall as [{ action: { label: string; onClick: () => void } }];
     expect(action.label).toBe('Urungkan');
@@ -213,23 +213,20 @@ describe('CategoriesSection', () => {
   it('merges into another category', async () => {
     server.mergeCategories.mockReturnValue(ok({ moved: 12 }));
     const { screen } = await renderApp(<Harness />);
-    await screen.getByRole('button', { name: 'Menu Belanja Online' }).click();
+    await screen.getByRole('button', { name: 'Menu Belanja' }).click();
     await screen.getByRole('menuitem', { name: 'Gabungkan dengan…' }).click();
-    await screen
-      .getByRole('dialog', { name: 'Gabungkan Belanja Online' })
-      .getByRole('button', { name: 'Batal' })
-      .click();
+    await screen.getByRole('dialog', { name: 'Gabungkan Belanja' }).getByRole('button', { name: 'Batal' }).click();
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument();
-    await screen.getByRole('button', { name: 'Menu Belanja Online' }).click();
+    await screen.getByRole('button', { name: 'Menu Belanja' }).click();
     await screen.getByRole('menuitem', { name: 'Gabungkan dengan…' }).click();
-    const dialog = screen.getByRole('dialog', { name: 'Gabungkan Belanja Online' });
+    const dialog = screen.getByRole('dialog', { name: 'Gabungkan Belanja' });
     await dialog.getByRole('combobox', { name: 'Gabungkan ke' }).click();
     await screen.getByRole('option', { name: /Makan & Dapur/ }).click();
     await dialog.getByRole('button', { name: 'Gabungkan' }).click();
     expect(server.mergeCategories).toHaveBeenCalledWith({ data: { sourceId: 'shop', targetId: 'food' } });
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument();
     expect(toasts.toast).toHaveBeenLastCalledWith({
-      title: 'Belanja Online digabung ke Makan & Dapur',
+      title: 'Belanja digabung ke Makan & Dapur',
       description: '12 transaksi dipindah.',
     });
   });
@@ -237,16 +234,16 @@ describe('CategoriesSection', () => {
   it('deletes after a confirmation that shows the impact', async () => {
     server.deleteCategory.mockReturnValueOnce(ok({ uncategorized: 12 })).mockReturnValueOnce(ok({ uncategorized: 0 }));
     const { screen } = await renderApp(<Harness />);
-    await screen.getByRole('button', { name: 'Menu Belanja Online' }).click();
+    await screen.getByRole('button', { name: 'Menu Belanja' }).click();
     await screen.getByRole('menuitem', { name: 'Hapus kategori' }).click();
-    const confirm = screen.getByRole('alertdialog', { name: 'Hapus kategori Belanja Online?' });
+    const confirm = screen.getByRole('alertdialog', { name: 'Hapus kategori Belanja?' });
     await expect.element(confirm.getByText(/masih dipakai di 12 transaksi/)).toBeVisible();
     await expect.element(confirm.getByText(/masuk Perlu kategori/)).toBeVisible();
     await confirm.getByRole('button', { name: 'Hapus kategori' }).click();
     expect(server.deleteCategory).toHaveBeenCalledWith({ data: { id: 'shop' } });
     await vi.waitFor(() => {
       expect(toasts.toast).toHaveBeenLastCalledWith({
-        title: 'Belanja Online dihapus',
+        title: 'Belanja dihapus',
         description: '12 transaksi perlu kategori baru.',
         tone: 'warning',
       });
@@ -312,7 +309,7 @@ describe('CategoriesSection', () => {
       expect(server.reorderCategories).toHaveBeenLastCalledWith({ data: { ids: ['rent', 'food'] } });
     });
     // Another group, the same row, or a drop without a drag: nothing changes.
-    await drag(row('Sewa Kos'), row('Belanja Online'));
+    await drag(row('Sewa Kos'), row('Belanja'));
     await drag(row('Sewa Kos'), row('Sewa Kos'));
     row('Makan & Dapur').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true }));
     const archived = row('Lama');

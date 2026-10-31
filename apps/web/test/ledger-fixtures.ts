@@ -11,7 +11,7 @@ export function categoryView(patch: Partial<CategoryView> = {}): CategoryView {
     id: 'c-1',
     kind: 'expense',
     group: 'wants',
-    name: 'Belanja Online',
+    name: 'Belanja',
     builtInKey: null,
     icon: 'shopping-bag',
     color: 'violet',

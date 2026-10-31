@@ -131,7 +131,7 @@ describe('BudgetHero', () => {
     await expect.element(region.getByText('sisa ÷ 17 hari')).toBeVisible();
     await expect.element(region.getByText('lewat Rp10.500.000')).toHaveClass('text-red-fg-soft');
     await expect.element(region.getByText('1 kategori')).toHaveClass('text-red-fg');
-    await expect.element(region.getByText('Belanja Online +Rp400.000')).toBeVisible();
+    await expect.element(region.getByText('Belanja +Rp400.000')).toBeVisible();
     expect(region.element().querySelector('rect.fill-amber')).not.toBeNull();
   });
 

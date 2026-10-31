@@ -293,7 +293,7 @@ export interface CloseProposals {
   readonly rollovers: LimitDelta[];
   /**
    * What is left to move to savings: total limit − total spent − rolled over, at least 0 (September: Rp1.150.000,
-   * the Belanja Online overspend reduces it).
+   * the Belanja overspend reduces it).
    */
   readonly leftoverMinor: bigint;
 }

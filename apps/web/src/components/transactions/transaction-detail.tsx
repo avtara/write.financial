@@ -529,7 +529,7 @@ function View({
   );
 }
 
-/** "56% dari anggaran Belanja Online (Rp2.000.000)" for an expense in the current period's budget. */
+/** "56% dari anggaran Belanja (Rp2.000.000)" for an expense in the current period's budget. */
 function BudgetBar({
   categoryId,
   label,

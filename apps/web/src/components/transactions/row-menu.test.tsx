@@ -84,7 +84,7 @@ describe('RowMenu', () => {
     expect(items.elements().map((item) => item.textContent)).toEqual([
       'Transportasi',
       'Makan & Dapur',
-      'Belanja Online',
+      'Belanja',
       'Tagihan & Utilitas',
     ]);
     await userEvent.click(items.first());

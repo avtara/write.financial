@@ -27,20 +27,20 @@ describe('MoveLeftoverDialog', () => {
       targetId: 'shopping',
       sources: [{ categoryId: 'fun', amountMinor: 400_000n }],
     });
-    const dialog = screen.getByRole('dialog', { name: 'Tutup kekurangan Belanja Online' });
+    const dialog = screen.getByRole('dialog', { name: 'Tutup kekurangan Belanja' });
     await expect
       .element(dialog.getByText('Pindahkan sisa dari kategori lain. Total anggaran tetap sama.'))
       .toBeVisible();
     await expect.element(dialog.getByRole('combobox', { name: 'Pindahkan ke' })).not.toBeInTheDocument();
-    // Belanja Online (the target) and Sewa (fixed) are no sources.
+    // Belanja (the target) and Sewa (fixed) are no sources.
     expect(dialog.getByRole('checkbox').elements()).toHaveLength(3);
     await expect.element(dialog.getByRole('checkbox', { name: /^Hiburan/ })).toBeChecked();
     await expect.element(dialog.getByText('sisa Rp1.000.000 → sisa Rp600.000')).toBeVisible();
     const result = dialog.getByRole('region', { name: 'Hasil' });
-    await expect.element(result).toMatchTextContent(/Belanja Online120,00%100,00%/);
+    await expect.element(result).toMatchTextContent(/Belanja120,00%100,00%/);
     await expect.element(result.getByText('Batas Rp2.000.000 → Rp2.400.000 · terpakai Rp2.400.000')).toBeVisible();
     await expect
-      .element(result.getByText('Belanja Online jadi pas di batas — transaksi berikutnya akan lewat lagi.'))
+      .element(result.getByText('Belanja jadi pas di batas — transaksi berikutnya akan lewat lagi.'))
       .toBeVisible();
     await expect.element(result.getByText('Total anggaran tetap Rp12.500.000.')).toBeVisible();
     await expect.element(dialog.getByText('Rp400.000 dari 1 kategori')).toBeVisible();
@@ -88,7 +88,7 @@ describe('MoveLeftoverDialog', () => {
       'Pilih kategori',
       'Makan',
       'Sewa',
-      'Belanja Online',
+      'Belanja',
       'Hiburan',
     ]);
     await expect.element(dialog.getByRole('region', { name: 'Hasil' })).not.toBeInTheDocument();

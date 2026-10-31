@@ -43,7 +43,7 @@ describe('NotesSection', () => {
   it('lists the facts the next period should watch', async () => {
     const { screen } = await renderApp(<NotesSection view={FINAL_VIEW} locale="id" />);
     await expect.element(screen.getByText('Catatan untuk periode berikutnya')).toBeVisible();
-    await expect.element(screen.getByText('Belanja Online lewat Rp600.000')).toBeVisible();
+    await expect.element(screen.getByText('Belanja lewat Rp600.000')).toBeVisible();
     await expect.element(screen.getByText('1 langganan tanpa kurs pada akhir periode.')).toBeVisible();
     await expect
       .element(screen.getByText('USD tidak dihitung karena tidak ada kurs pada akhir periode.'))

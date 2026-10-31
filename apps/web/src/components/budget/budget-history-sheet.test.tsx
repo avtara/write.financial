@@ -26,7 +26,7 @@ function entry(effectiveFrom: string, totalMinor: bigint, changes: BudgetHistory
 
 const CATEGORIES = [
   categoryView({ id: 'food', name: 'Makan', group: 'needs', icon: 'utensils' }),
-  categoryView({ id: 'shopping', name: 'Belanja Online' }),
+  categoryView({ id: 'shopping', name: 'Belanja' }),
   categoryView({ id: 'fun', name: 'Hiburan' }),
   categoryView({ id: 'unchanged', name: 'Kopi' }),
 ];
@@ -117,7 +117,7 @@ describe('BudgetHistorySheet', () => {
     expect([...(filter.element() as HTMLSelectElement).options].map((option) => option.text)).toEqual([
       'Semua kategori',
       'Makan',
-      'Belanja Online',
+      'Belanja',
       'Hiburan',
     ]);
     await filter.selectOptions('fun');

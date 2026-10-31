@@ -73,7 +73,7 @@ describe('RESULT_GROUPS', () => {
     expect(transactions.heading()).toBe('Transaksi');
     expect(await shown(transactions.view(EXPENSE, 'id'))).toEqual([
       'Shopee — Rak buku 5 susun',
-      '14 Okt · Belanja Online · BCA Tahapan',
+      '14 Okt · Belanja · BCA Tahapan',
       '−Rp250.000',
     ]);
     expect(transactions.view({ ...EXPENSE, title: null, category: null }, 'en')).toMatchObject({

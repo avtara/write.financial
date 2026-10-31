@@ -12,7 +12,7 @@ describe('SpendingSection', () => {
     await expect.element(section).toMatchTextContent('4.500.000');
     await expect.element(section).toMatchTextContent('/ 4.500.000');
     await expect.element(section).toMatchTextContent('100,00%');
-    await expect.element(section).toMatchTextContent('Belanja Online');
+    await expect.element(section).toMatchTextContent('Belanja');
     await expect.element(section).toMatchTextContent('2.600.000');
     await expect.element(section).toMatchTextContent('/ 2.000.000');
     await expect.element(section).toMatchTextContent('lewat Rp600.000');

@@ -48,7 +48,7 @@ test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', 
   await page.keyboard.type('shopee');
   const transactions = dialog.getByRole('group', { name: /^Transaksi/ });
   const shopee = transactions.getByRole('option', { name: /^Shopee/ }).first();
-  await expect(shopee).toContainText('Belanja Online');
+  await expect(shopee).toContainText('Belanja');
   await expect(shopee).toContainText('−Rp');
   await page.screenshot({ path: '/tmp/wf-cmdk-results.png' });
   await selectAndOpen(page, shopee);

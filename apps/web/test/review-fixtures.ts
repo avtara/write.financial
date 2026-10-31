@@ -114,7 +114,7 @@ export const GMAIL_ITEM = reviewItem('rv-gmail', {
   },
 });
 
-/** A Tokopedia expense whose category "Belanja Online" was deleted. */
+/** A Tokopedia expense whose category "Belanja" was deleted. */
 export const CATEGORY_ITEM = reviewItem('rv-mouse', {
   reason: 'category_deleted',
   source: 'system',
@@ -124,7 +124,7 @@ export const CATEGORY_ITEM = reviewItem('rv-mouse', {
     kind: 'category',
     transactionId: 'tx-mouse',
     previousCategoryId: 'cat-online',
-    previousCategoryName: 'Belanja Online',
+    previousCategoryName: 'Belanja',
   },
   subject: {
     type: 'expense',

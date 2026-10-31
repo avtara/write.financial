@@ -110,11 +110,11 @@ export const RENT = budgetLine({
   state: 'paid',
   isFixed: true,
 });
-/** Belanja Online: Rp400.000 over. */
+/** Belanja: Rp400.000 over. */
 export const SHOPPING = budgetLine({
   categoryId: 'shopping',
   group: 'wants',
-  name: 'Belanja Online',
+  name: 'Belanja',
   icon: 'shopping-bag',
   limitMinor: 2_000_000n,
   spentMinor: 2_400_000n,

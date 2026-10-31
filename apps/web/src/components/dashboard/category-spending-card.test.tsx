@@ -43,7 +43,7 @@ describe('CategorySpendingCard', () => {
       .element(region.getByRole('link', { name: /^Tanpa kategori/ }))
       .toHaveAttribute('href', '/transactions?period=2026-10&uncategorized=true');
     await expect
-      .element(region.getByRole('link', { name: /^Belanja Online/ }))
+      .element(region.getByRole('link').filter({ has: region.getByText('Belanja', { exact: true }) }))
       .toMatchTextContent('14,55% dari pengeluaran');
     await expect.element(region.getByRole('link', { name: 'Anggaran' })).toHaveAttribute('href', '/budget');
   });
@@ -58,7 +58,9 @@ describe('CategorySpendingCard', () => {
         caption="12–18 Okt"
       />,
     );
-    await expect.element(screen.getByRole('link', { name: /^Belanja Online/ })).toMatchTextContent('lewat Rp400.000');
+    await expect
+      .element(screen.getByRole('link').filter({ has: screen.getByText('Belanja', { exact: true }) }))
+      .toMatchTextContent('lewat Rp400.000');
     await expect.element(screen.getByRole('link', { name: /^Makan & Dapur/ })).toMatchTextContent('sisa Rp300.000');
     await expect.element(screen.getByRole('link', { name: /^Sewa Kos/ })).toMatchTextContent('belum terpakai');
   });
