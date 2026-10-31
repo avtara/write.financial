@@ -115,7 +115,8 @@ export interface GmailRepository {
   targets: (email?: string) => Promise<{ userId: string }[]>;
   recordEmail: (userId: string, email: NewEmail) => Promise<{ id: string | null; duplicate: boolean }>;
   claimExtraction: (userId: string, id: string) => Promise<GmailExtractionClaim | null>;
-  storeExtraction: (userId: string, id: string, evidence: string) => Promise<void>;
+  /** Encrypts the worker's parsed answer (`parseGmailAnswer`) in the stored form `parseGmailExtraction` reads. */
+  storeExtraction: (userId: string, id: string, extraction: GmailExtraction) => Promise<void>;
   failExtraction: (userId: string, id: string, code: string) => Promise<void>;
   complete: (userId: string, id: string) => Promise<'pending' | 'duplicate' | 'replay'>;
   listLogs: (
@@ -467,8 +468,7 @@ export function createGmail(
         };
       });
     },
-    async storeExtraction(userId, id, evidence) {
-      const extraction = parseGmailExtraction(evidence);
+    async storeExtraction(userId, id, extraction) {
       const dek = await getDek(userId);
       await withUser(db, userId, (tx) =>
         tx

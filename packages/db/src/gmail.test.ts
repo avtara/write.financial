@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { decryptText } from '@wf/crypto/cipher';
 import { generateDek } from '@wf/crypto/envelope';
+import type { GmailExtraction } from '@wf/domain/gmail';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { insertUser, PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '../test/pglite.ts';
 import { createGmail, GMAIL_TOKENS_PURPOSE, type NewEmail } from './gmail.ts';
@@ -29,15 +30,15 @@ const email = (id = 'mail-one', override: Partial<NewEmail> = {}): NewEmail => (
   filterResult: 'passed',
   ...override,
 });
-const evidence = JSON.stringify({
-  amountMinor: '350000',
-  occurredAt: '2026-10-18T02:00:00Z',
+const extraction: GmailExtraction = {
+  amountMinor: 350000n,
+  occurredAt: new Date('2026-10-18T02:00:00Z'),
   merchant: 'PLN',
   currency: 'IDR',
   accountId: null,
   categoryId: null,
   confidence: { amount: 97, date: 97, merchant: 97, currency: 97, account: 0, category: 0 },
-});
+};
 beforeAll(async () => {
   test = await startMigrated();
 }, PGLITE_HOOK_TIMEOUT);
@@ -173,7 +174,7 @@ describe('durable email processing and retention', () => {
     await test.query('INSERT INTO ai_settings(user_id) VALUES ($1)', [alice]);
     const claim = await worker(() => gmail().claimExtraction(alice, row.id ?? ''));
     expect(claim?.evidence.excerpt).toContain('Minimal payment');
-    await worker(() => gmail().storeExtraction(alice, row.id ?? '', evidence));
+    await worker(() => gmail().storeExtraction(alice, row.id ?? '', extraction));
     await worker(() => gmail().complete(alice, row.id ?? ''));
     expect((await app(() => gmail().listLogs(alice)))[0]?.extraction).toMatchObject({
       amountMinor: 350000n,
@@ -292,9 +293,7 @@ describe('durable email processing and retention', () => {
     ]);
     const row = await worker(() => gmail().recordEmail(alice, email()));
     await worker(() => gmail().claimExtraction(alice, row.id as string));
-    await worker(() =>
-      gmail().storeExtraction(alice, row.id as string, JSON.stringify({ ...JSON.parse(evidence), merchant: null })),
-    );
+    await worker(() => gmail().storeExtraction(alice, row.id as string, { ...extraction, merchant: null }));
     await worker(() => gmail().complete(alice, row.id as string));
     const reviews = await app(() => createReview(test.db, { getDek, now: () => clock }).list(alice));
     expect(reviews.items[0]?.payload).toMatchObject({

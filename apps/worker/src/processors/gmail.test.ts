@@ -136,7 +136,9 @@ beforeEach(async () => {
   );
   output = JSON.stringify({
     amountMinor: '350000',
-    occurredAt: clock.toISOString(),
+    // The email's WIB wall clock; the fixture user's zone is Asia/Jakarta, so it lands on `clock`.
+    date: '2026-10-18',
+    time: '09:00:00',
     merchant: 'PLN',
     currency: 'IDR',
     accountId,
@@ -194,7 +196,7 @@ describe('real Gmail processor with role-scoped repositories', () => {
     expect(items.items[0]?.aiConfidence).toBe(97);
     expect(items.items[0]?.payload).toMatchObject({
       kind: 'gmail',
-      extraction: { amountMinor: 350000n, confidence: { amount: 97 } },
+      extraction: { amountMinor: 350000n, occurredAt: clock, confidence: { amount: 97 } },
     });
     const id = items.items[0]?.id ?? '';
     const confirmed = await test.as('wf_app', () => review.confirm(userId, id));

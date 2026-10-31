@@ -4,6 +4,7 @@ import {
   emptyGmailFilters,
   filterEmail,
   isGmailManualDuplicate,
+  parseGmailAnswer,
   parseGmailExtraction,
   type GmailFilters,
 } from './gmail.ts';
@@ -141,23 +142,6 @@ describe('nullable financial extraction and confidence', () => {
       amountMinor: 350000n,
     });
   });
-  it('parses the answers ZenMux openai/gpt-4o-mini actually returned', () => {
-    const answer =
-      '{"amountMinor":"10000","occurredAt":"2026-10-31T23:31:00+07:00","merchant":null,"currency":"IDR","accountId":"01a1877c-1859-71f3-ab96-cf2e8c50c542","categoryId":"01a18b57-d73d-7201-a5fd-7d389b143e71","confidence":{"amount":100,"date":100,"merchant":0,"currency":100,"account":100,"category":100}}';
-    const expected = {
-      amountMinor: 10000n,
-      occurredAt: new Date('2026-10-31T16:31:00Z'),
-      merchant: null,
-      currency: 'IDR',
-      accountId: '01a1877c-1859-71f3-ab96-cf2e8c50c542',
-      categoryId: '01a18b57-d73d-7201-a5fd-7d389b143e71',
-    };
-    expect(parseGmailExtraction(`\`\`\`json\n${answer}\n\`\`\``)).toMatchObject(expected);
-    expect(
-      parseGmailExtraction(`\`\`\`json\n${answer.replace('"amountMinor":"10000"', '"amountMinor": 10000')}\n\`\`\``),
-    ).toMatchObject(expected);
-    expect(parseGmailExtraction(`Berikut hasilnya:\n\`\`\`json\n${answer}\n\`\`\``)).toMatchObject(expected);
-  });
   it('dedupes on exact-decimal amount tolerance, instant and currency, not a guessed account or merchant', () => {
     const extraction = parseGmailExtraction(JSON.stringify(value));
     const candidate = { amountMinor: 350000n, occurredAt: new Date('2026-10-18T04:00:00Z'), currency: 'IDR' };
@@ -171,5 +155,60 @@ describe('nullable financial extraction and confidence', () => {
     expect(isGmailManualDuplicate(extraction, { ...candidate, currency: 'USD' })).toBe(false);
     expect(isGmailManualDuplicate({ ...extraction, amountMinor: null }, candidate)).toBe(false);
     expect(isGmailManualDuplicate({ ...extraction, occurredAt: null }, candidate)).toBe(false);
+  });
+});
+
+describe('the model answer: wall-clock date and time placed in the user zone', () => {
+  const answer = {
+    amountMinor: '51000',
+    date: '2026-10-31',
+    time: '14:00:49',
+    merchant: 'Indomaret',
+    currency: 'IDR',
+    accountId: null,
+    categoryId: null,
+    confidence: { amount: 97, date: 97, merchant: 97, currency: 97, account: 0, category: 0 },
+  };
+  it('places "31-10-2026 14:00:49 WIB" in Asia/Jakarta instead of trusting a model offset', () => {
+    expect(parseGmailAnswer(JSON.stringify(answer), 'Asia/Jakarta')).toMatchObject({
+      amountMinor: 51000n,
+      occurredAt: new Date('2026-10-31T07:00:49.000Z'),
+    });
+    expect(parseGmailAnswer(JSON.stringify({ ...answer, time: '14:00' }), 'Asia/Jakarta').occurredAt).toEqual(
+      new Date('2026-10-31T07:00:00.000Z'),
+    );
+  });
+  it('leaves the instant null when the email states no date or no time', () => {
+    expect(parseGmailAnswer(JSON.stringify({ ...answer, date: null }), 'Asia/Jakarta').occurredAt).toBeNull();
+    expect(parseGmailAnswer(JSON.stringify({ ...answer, time: null }), 'Asia/Jakarta').occurredAt).toBeNull();
+  });
+  it.each([
+    { date: '2026-02-30' },
+    { date: '31-10-2026' },
+    { time: '24:00' },
+    { time: '14:00Z' },
+    { time: '14:00:49+07:00' },
+  ])('refuses a malformed date or time: %j', (override) => {
+    expect(() => parseGmailAnswer(JSON.stringify({ ...answer, ...override }), 'Asia/Jakarta')).toThrow();
+  });
+  it('parses the answers ZenMux openai/gpt-4o-mini actually returned, fenced and with an integer amount', () => {
+    const text =
+      '{"amountMinor":"10000","date":"2026-10-31","time":"23:31","merchant":null,"currency":"IDR","accountId":"01a1877c-1859-71f3-ab96-cf2e8c50c542","categoryId":"01a18b57-d73d-7201-a5fd-7d389b143e71","confidence":{"amount":100,"date":100,"merchant":0,"currency":100,"account":100,"category":100}}';
+    const expected = {
+      amountMinor: 10000n,
+      occurredAt: new Date('2026-10-31T16:31:00Z'),
+      merchant: null,
+      currency: 'IDR',
+      accountId: '01a1877c-1859-71f3-ab96-cf2e8c50c542',
+      categoryId: '01a18b57-d73d-7201-a5fd-7d389b143e71',
+    };
+    expect(parseGmailAnswer(`\`\`\`json\n${text}\n\`\`\``, 'Asia/Jakarta')).toMatchObject(expected);
+    expect(
+      parseGmailAnswer(
+        `\`\`\`json\n${text.replace('"amountMinor":"10000"', '"amountMinor": 10000')}\n\`\`\``,
+        'Asia/Jakarta',
+      ),
+    ).toMatchObject(expected);
+    expect(parseGmailAnswer(`Berikut hasilnya:\n\`\`\`json\n${text}\n\`\`\``, 'Asia/Jakarta')).toMatchObject(expected);
   });
 });
