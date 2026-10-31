@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The dev VPS (deploy/dev-vps/README.md): the app on dev.write.financial, and the apex and www sent there.
+# Same proxy rules as deploy/compose/Caddyfile; only the extra redirect site differs.
+{
+	skip_install_trust
+}
+
+{$WF_DOMAIN:dev.write.financial} {
+	header >Strict-Transport-Security "max-age=63072000; includeSubDomains"
+
+	reverse_proxy web:3000 {
+		# Exactly one hop: the address Caddy saw, never a client-supplied X-Forwarded-For.
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
+# 302, not 301: the apex is only parked on dev for now, so browsers must not remember the redirect.
+write.financial, www.write.financial {
+	redir https://{$WF_DOMAIN:dev.write.financial}{uri} 302
+}

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The dev VPS on top of deploy/compose/docker-compose.yml (deploy/dev-vps/README.md). Selected from the server's
+# deploy/compose/.env with COMPOSE_FILE=docker-compose.yml:../dev-vps/compose.override.yml; paths resolve from
+# deploy/compose. Only Caddy's site file differs: dev.write.financial plus the apex/www redirect.
+services:
+  caddy:
+    volumes:
+      - ../dev-vps/Caddyfile:/etc/caddy/Caddyfile:ro
