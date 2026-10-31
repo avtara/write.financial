@@ -3,7 +3,7 @@
  * FR-AI4's sender filter: an allowlist of senders, keywords that must appear, and ignore keywords that win over
  * everything (the last one wins). Pure text matching — the ingestion flow applies it to every fetched email.
  */
-import { parseAssistantAmount } from './assistant.ts';
+import { assistantInstant, parseAssistantAmount } from './assistant.ts';
 import { modelMinorUnits, parseModelJsonObject } from './model-json.ts';
 import { parseLocalDate } from './period.ts';
 
@@ -66,15 +66,20 @@ const confidenceScore = { type: 'integer', minimum: 0, maximum: 100 };
 
 /**
  * Strict JSON Schema of the extraction prompt (worker `gmail` processor), sent as an OpenAI-compatible
- * `response_format`: every property required, nothing extra, missing evidence as `null`.
+ * `response_format`: every property required, nothing extra, missing evidence as `null`. Date and time are the email's
+ * wall clock: models misplace offsets, so the app places them in the user's zone (`parseGmailAnswer`).
  */
 export const GMAIL_EXTRACTION_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['amountMinor', 'occurredAt', 'merchant', 'currency', 'accountId', 'categoryId', 'confidence'],
+  required: ['amountMinor', 'date', 'time', 'merchant', 'currency', 'accountId', 'categoryId', 'confidence'],
   properties: {
     amountMinor: { ...stringOrNull, description: 'Positive integer minor units as a decimal string' },
-    occurredAt: { ...stringOrNull, description: 'RFC3339 instant with offset' },
+    date: { ...stringOrNull, description: 'Calendar date exactly as written in the email, YYYY-MM-DD' },
+    time: {
+      ...stringOrNull,
+      description: 'Wall-clock time exactly as written in the email, HH:MM or HH:MM:SS; never convert time zones',
+    },
     merchant: stringOrNull,
     currency: { ...stringOrNull, description: 'ISO 4217 code' },
     accountId: { ...stringOrNull, description: 'Owned matching account ID' },
@@ -88,31 +93,31 @@ export const GMAIL_EXTRACTION_SCHEMA: Record<string, unknown> = {
   },
 };
 
-/** Missing evidence stays null, never a zero-value or invented account draft. */
-export function parseGmailExtraction(text: string): GmailExtraction {
-  if (text.length > 16_384) throw new Error('Gmail extraction rejected');
+type NullableString = (field: string, max: number, entry?: unknown) => string | null;
+
+const rejected = (): Error => new Error('Gmail extraction rejected');
+
+/**
+ * The checks both forms share; `instant` reads the form's own date fields. Missing evidence stays null, never a
+ * zero-value or invented account draft.
+ */
+function parseGmailFields(text: string, instant: (nullableString: NullableString) => Date | null): GmailExtraction {
+  if (text.length > 16_384) throw rejected();
   const value = parseModelJsonObject(text);
-  const nullableString = (field: string, max: number, entry = value[field]): string | null => {
+  const nullableString: NullableString = (field, max, entry = value[field]) => {
     if (entry === null) return null;
-    if (typeof entry !== 'string' || !entry.trim() || entry.length > max) throw new Error('Gmail extraction rejected');
+    if (typeof entry !== 'string' || !entry.trim() || entry.length > max) throw rejected();
     return entry.trim();
   };
   const amount = nullableString('amountMinor', 30, modelMinorUnits(value.amountMinor));
-  const date = nullableString('occurredAt', 40);
-  const occurredAt = date === null ? null : new Date(date);
-  if (
-    date !== null &&
-    (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(date) || !Number.isFinite(occurredAt?.getTime()))
-  )
-    throw new Error('Gmail extraction rejected');
-  if (date !== null) parseLocalDate(date.slice(0, 10));
+  const occurredAt = instant(nullableString);
   const currency = nullableString('currency', 3);
-  if (currency !== null && !/^[A-Z]{3}$/.test(currency)) throw new Error('Gmail extraction rejected');
+  if (currency !== null && !/^[A-Z]{3}$/.test(currency)) throw rejected();
   const accountId = nullableString('accountId', 36);
   const categoryId = nullableString('categoryId', 36);
   for (const id of [accountId, categoryId])
     if (id !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))
-      throw new Error('Gmail extraction rejected');
+      throw rejected();
   const confidence = value.confidence as Record<GmailField, number> | null;
   if (
     confidence === null ||
@@ -125,7 +130,7 @@ export function parseGmailExtraction(text: string): GmailExtraction {
         confidence[field] > 100,
     )
   )
-    throw new Error('Gmail extraction rejected');
+    throw rejected();
   return {
     amountMinor: amount === null ? null : parseAssistantAmount(amount),
     occurredAt,
@@ -135,6 +140,35 @@ export function parseGmailExtraction(text: string): GmailExtraction {
     categoryId,
     confidence,
   };
+}
+
+/**
+ * The model's answer: `date` and `time` are the email's wall clock, placed in `timeZone` here because models misplace
+ * offsets. Either one missing leaves the instant null; a malformed one rejects the answer.
+ */
+export function parseGmailAnswer(text: string, timeZone: string): GmailExtraction {
+  return parseGmailFields(text, (nullableString) => {
+    const date = nullableString('date', 10);
+    const time = nullableString('time', 8);
+    const day = date === null ? null : parseLocalDate(date);
+    if (time !== null && !/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(time)) throw rejected();
+    if (day === null || time === null) return null;
+    const seconds = time.length === 8 ? Number(time.slice(6)) : 0;
+    return new Date(assistantInstant(day, time.slice(0, 5), timeZone).getTime() + seconds * 1000);
+  });
+}
+
+/** The stored form (`extraction_enc`, review payloads): `occurredAt` is an RFC3339 instant with its offset. */
+export function parseGmailExtraction(text: string): GmailExtraction {
+  return parseGmailFields(text, (nullableString) => {
+    const date = nullableString('occurredAt', 40);
+    if (date === null) return null;
+    const occurredAt = new Date(date);
+    if (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(date) || !Number.isFinite(occurredAt.getTime()))
+      throw rejected();
+    parseLocalDate(date.slice(0, 10));
+    return occurredAt;
+  });
 }
 
 /** FR-AI4 deliberately ignores merchant/account guesses: same user's manual expense, same currency only. */
