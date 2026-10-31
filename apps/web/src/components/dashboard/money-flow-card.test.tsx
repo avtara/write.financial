@@ -129,7 +129,7 @@ describe('MoneyFlowCard on a desktop', () => {
     expect(router.state.location.search).toEqual({ period: '2026-10', uncategorized: true });
   });
 
-  it('switches values, small sources, and transfers from the menu, and opens the transactions', async () => {
+  it('switches values and small sources from the menu, shows savings, and opens the transactions', async () => {
     const { screen, router } = await renderFlow();
     const menu = screen.getByRole('button', { name: 'Opsi arus uang' });
     await userEvent.click(menu);
@@ -138,7 +138,6 @@ describe('MoneyFlowCard on a desktop', () => {
     await userEvent.click(menu);
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Tampilkan sumber < 1%' }));
     await expect.element(node(/^Dividen & bunga <1%$/i)).toBeInTheDocument();
-    await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Hitung transfer antar rekening' }));
     await expect.element(node(/^Bank Jago 13,46%$/)).toBeInTheDocument();
     await expect.element(node(/^Tetap di rekening 23,08%$/)).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
@@ -248,8 +247,10 @@ describe('MoneyFlowCard names', () => {
     pointer(uncategorized.element(), 'mouseover');
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Lainnya → Tanpa kategori');
     await expect.element(screen.getByRole('tooltip')).toMatchTextContent('Transaksi4×');
+    // Savings show by default; the menu switch leaves them in the leftover instead.
+    await expect.element(node(/^Rekening Rp3\.500\.000/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Opsi arus uang' }));
     await userEvent.click(page.getByRole('menuitemcheckbox', { name: 'Hitung transfer antar rekening' }));
-    await expect.element(node(/^Rekening Rp3\.500\.000/)).toBeInTheDocument();
+    await expect.element(node(/^Rekening Rp3\.500\.000/)).not.toBeInTheDocument();
   });
 });

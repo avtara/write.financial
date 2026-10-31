@@ -3,7 +3,8 @@
  * "Arus Uang" (FR-D2, design `iUqiN`, `UOdxM`, `q1pusQ`, `fqzal`): income sources → Pemasukan → groups → categories
  * as a Sankey drawn in SVG (laid out by `money-flow-layout.ts`). The chips focus one group; the ⋯ menu opens the
  * transactions behind it, exports the drawing (PNG download or copy), switches Rupiah/percent labels, shows sources
- * below 1%, and counts transfers between accounts (Tabungan → the destination accounts). Below 1280 px (FR-TB2) only
+ * below 1%, and shows the money moved to savings and investment accounts (Tabungan → the destination accounts; on by
+ * default, off leaves it in the income left over). Below 1280 px (FR-TB2) only
  * two levels show: sources → groups; a group opens its categories.
  */
 import { useNavigate } from '@tanstack/react-router';
@@ -87,7 +88,8 @@ export function MoneyFlowCard({ dashboard, categories, accounts, locale, timeZon
   const [focus, setFocus] = useState<string | null>(null);
   const [shown, setShown] = useState<Shown>('amount');
   const [showSmallSources, setShowSmallSources] = useState(false);
-  const [countTransfers, setCountTransfers] = useState(false);
+  // On by default: "Ditabung" on the KPIs always counts the money moved to savings, so the diagram shows it too.
+  const [countTransfers, setCountTransfers] = useState(true);
   const [hover, setHover] = useState<Hover | null>(null);
   const currency = dashboard.baseCurrency;
   const flow = moneyFlow(dashboard.flow, { showSmallSources, countTransfers });
