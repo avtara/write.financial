@@ -61,7 +61,8 @@ const push = (token = jwt(), mail = 'fixture@gmail.com') =>
           subscription: 'projects/fixture/subscriptions/mail',
           message: {
             messageId: '123',
-            data: Buffer.from(JSON.stringify({ emailAddress: mail, historyId: '501' })).toString('base64url'),
+            // The shape Gmail actually publishes: historyId is a JSON number.
+            data: Buffer.from(JSON.stringify({ emailAddress: mail, historyId: 8510161 })).toString('base64url'),
           },
         }),
       }),
@@ -271,7 +272,8 @@ describe('Pub/Sub authenticated ingress', () => {
       {},
       { emailAddress: 1, historyId: '501' },
       { emailAddress: 'x'.repeat(255), historyId: '501' },
-      { emailAddress: 'fixture@gmail.com', historyId: 501 },
+      { emailAddress: 'fixture@gmail.com', historyId: -1 },
+      { emailAddress: 'fixture@gmail.com', historyId: 1.5 },
       { emailAddress: 'fixture@gmail.com', historyId: 'bad' },
     ].map((event) => ({
       subscription: 'projects/fixture/subscriptions/mail',

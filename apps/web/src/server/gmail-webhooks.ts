@@ -92,11 +92,15 @@ export async function gmailPush({ request }: { request: Request }): Promise<Resp
       emailAddress?: unknown;
       historyId?: unknown;
     };
+    // Gmail sends historyId as a JSON number (Google's guide shows a string); only its shape is checked, the sync reads
+    // from the durable cursor.
+    const historyId = event.historyId;
     if (
       typeof event.emailAddress !== 'string' ||
       event.emailAddress.length > 254 ||
-      typeof event.historyId !== 'string' ||
-      !/^\d{1,40}$/.test(event.historyId)
+      !(typeof historyId === 'number'
+        ? Number.isInteger(historyId) && historyId >= 0
+        : typeof historyId === 'string' && /^\d{1,40}$/.test(historyId))
     )
       throw new Error();
     for (const { userId } of await s.gmail.targets(event.emailAddress.toLowerCase()))
