@@ -58,7 +58,7 @@ export const FINAL_VIEW: ReportView = {
       },
       {
         categoryId: 'c2',
-        name: 'Belanja Online',
+        name: 'Belanja',
         group: 'wants',
         isFixed: false,
         spentMinor: 2_600_000n,

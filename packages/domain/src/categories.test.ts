@@ -73,7 +73,7 @@ describe('BUILT_IN_CATEGORIES (FR-K1)', () => {
     );
     expect(byGroup).toEqual({
       needs: ['Sewa Kos', 'Makan & Dapur', 'Transportasi', 'Tagihan & Utilitas', 'Kesehatan'],
-      wants: ['Belanja Online', 'Hiburan', 'Langganan', 'Hobi', 'Perawatan Diri', 'Hadiah & Donasi'],
+      wants: ['Belanja', 'Hiburan', 'Langganan', 'Hobi', 'Perawatan Diri', 'Hadiah & Donasi'],
       financial: [
         'Biaya bank',
         'Biaya platform',

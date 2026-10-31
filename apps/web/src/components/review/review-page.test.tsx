@@ -69,7 +69,7 @@ describe('ReviewPage', () => {
       )
       .toBeVisible();
     await expect.element(panel(/hasil AI/)).toMatchTextContent('Yakin 62%');
-    await expect.element(panel(/^Perlu kategori · 1/)).toMatchTextContent('kategori Belanja Online dihapus');
+    await expect.element(panel(/^Perlu kategori · 1/)).toMatchTextContent('kategori Belanja dihapus');
     const bills = panel(/tagihan langganan jatuh tempo/);
     await expect.element(bills).toMatchTextContent('Perlu ditinjau · 2');
     await expect.element(bills).toMatchTextContent('Total menunggu Rp231.000');

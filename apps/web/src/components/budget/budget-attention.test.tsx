@@ -17,7 +17,7 @@ describe('BudgetAttention', () => {
     await expect.element(region.getByRole('heading', { name: 'Perlu perhatian 2' })).toBeVisible();
     const over = region.getByRole('listitem').nth(0);
     const warning = region.getByRole('listitem').nth(1);
-    await expect.element(over.getByRole('heading')).toHaveTextContent('Belanja Online lewat Rp400.000');
+    await expect.element(over.getByRole('heading')).toHaveTextContent('Belanja lewat Rp400.000');
     await expect.element(over.getByText('Tutup dari sisa Hiburan (Rp400.000).')).toBeVisible();
     await over.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
     expect(onCover).toHaveBeenCalledWith(SHOPPING, [{ categoryId: 'fun', amountMinor: 400_000n }]);

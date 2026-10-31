@@ -127,7 +127,7 @@ describe('Palette', () => {
     const recent = dialog().getByRole('group', { name: 'Baru dibuka' });
     await expect
       .element(recent.getByRole('option', { name: /Shopee/ }))
-      .toHaveTextContent('Shopee — Rak buku 5 susunTransaksi · 14 Okt · Belanja Online · BCA Tahapan−Rp250.000');
+      .toHaveTextContent('Shopee — Rak buku 5 susunTransaksi · 14 Okt · Belanja · BCA Tahapan−Rp250.000');
     await expect
       .element(recent.getByRole('option', { name: /GoPay/ }))
       .toHaveTextContent('GoPayRekening · Gojek · E-WalletRp367.000');
@@ -158,7 +158,7 @@ describe('Palette', () => {
     await expect.element(dialog().getByRole('group', { name: 'Transaksi · 2' })).toBeVisible();
     expect(server.searchEverything).toHaveBeenCalledTimes(1);
     expect(server.searchEverything).toHaveBeenCalledWith({ data: { query: 'netflix' } });
-    await expect.element(option(/18 Sep/)).toHaveTextContent('Netflix18 Sep · Belanja Online · BCA Tahapan−Rp186.000');
+    await expect.element(option(/18 Sep/)).toHaveTextContent('Netflix18 Sep · Belanja · BCA Tahapan−Rp186.000');
     await expect.element(dialog().getByRole('group', { name: 'Tag' })).toHaveTextContent('#netflixDipakai 2×');
     // Quick actions, recent items, and pages that do not match are gone.
     await expect.element(dialog().getByRole('group', { name: 'Baru dibuka' })).not.toBeInTheDocument();

@@ -108,7 +108,7 @@ describe('BudgetList', () => {
     await screen.getByRole('tab', { name: 'Keinginan' }).click();
     const panel = screen.getByRole('tabpanel');
     await expect.element(panel.getByText('2 kategori Keinginan · Rp2.400.000 dari Rp3.000.000 (80,00%)')).toBeVisible();
-    expect(names(panel)).toEqual(['Belanja Online', 'Hiburan']);
+    expect(names(panel)).toEqual(['Belanja', 'Hiburan']);
     await screen.getByRole('tab', { name: 'Biaya keuangan' }).click();
     await expect.element(screen.getByRole('tabpanel').getByText(/\(—\)$/)).toBeVisible();
     await screen.getByRole('tab', { name: 'Semua' }).click();
@@ -124,7 +124,7 @@ describe('BudgetList', () => {
     await screen.getByRole('button', { name: 'Urutkan: Nama A–Z' }).click();
     await screen.getByRole('menuitemcheckbox', { name: 'Kelompokkan Kebutuhan & Keinginan' }).click();
     await expect.element(screen.getByRole('region', { name: 'Kebutuhan' })).not.toBeInTheDocument();
-    expect(names(screen.getByRole('tabpanel'))).toEqual(['Belanja Online', 'Hiburan', 'Makan', 'Sewa', 'Transportasi']);
+    expect(names(screen.getByRole('tabpanel'))).toEqual(['Belanja', 'Hiburan', 'Makan', 'Sewa', 'Transportasi']);
   });
 
   it('edits a limit in place: ↵ saves, a failed save keeps the editor, Esc cancels', async () => {

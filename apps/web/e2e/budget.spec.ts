@@ -116,22 +116,22 @@ test('a later start day previews the prorated transition and is left without sav
 test('the leftover move from "Perlu perhatian" is undone from the toast', async ({ page }) => {
   await openBudget(page);
   // The button is named by its action and the limit it shows (WCAG 2.5.3).
-  const limit = page.getByRole('button', { name: 'Ubah batas Belanja Online' });
-  await expect(limit).toHaveAccessibleName('Ubah batas Belanja Online 2.000.000');
+  const limit = page.getByRole('button', { name: 'Ubah batas Belanja' });
+  await expect(limit).toHaveAccessibleName('Ubah batas Belanja 2.000.000');
 
   const attention = page.getByRole('region', { name: /^Perlu perhatian/ });
   await attention.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Tutup kekurangan Belanja Online' });
+  const dialog = page.getByRole('dialog', { name: 'Tutup kekurangan Belanja' });
   await expect(dialog).toBeVisible();
   await screenshot(page, 'budget-move-1440');
   await dialog.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
 
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByText('Rp400.000 dipindahkan ke Belanja Online')).toBeVisible();
-  await expect(limit).toHaveAccessibleName('Ubah batas Belanja Online 2.400.000');
+  await expect(page.getByText('Rp400.000 dipindahkan ke Belanja')).toBeVisible();
+  await expect(limit).toHaveAccessibleName('Ubah batas Belanja 2.400.000');
   await page.getByRole('button', { name: 'Urungkan' }).click();
   await expect(page.getByText('Pemindahan sisa dibatalkan')).toBeVisible();
-  await expect(limit).toHaveAccessibleName('Ubah batas Belanja Online 2.000.000');
+  await expect(limit).toHaveAccessibleName('Ubah batas Belanja 2.000.000');
 });
 
 test('a limit is edited inline with the keyboard only; Escape cancels', async ({ page }) => {

@@ -31,7 +31,7 @@ describe('CategoryMergeDialog', () => {
     const { screen } = await renderApp(
       <CategoryMergeDialog source={SOURCE} categories={OTHERS} onClose={close} onMerged={merged} />,
     );
-    const dialog = screen.getByRole('dialog', { name: 'Gabungkan Belanja Online' });
+    const dialog = screen.getByRole('dialog', { name: 'Gabungkan Belanja' });
     await expect.element(dialog.getByRole('button', { name: 'Gabungkan' })).toBeDisabled();
     // Submitting without a target (the button is disabled) does nothing.
     dialog.element().querySelector('form')?.requestSubmit();
@@ -41,7 +41,7 @@ describe('CategoryMergeDialog', () => {
     await screen.getByRole('option', { name: /Hiburan/ }).click();
     await expect
       .element(dialog.getByRole('status'))
-      .toHaveTextContent('12 transaksi dipindah dari Belanja Online ke Hiburan. Belanja Online dihapus.');
+      .toHaveTextContent('12 transaksi dipindah dari Belanja ke Hiburan. Belanja dihapus.');
 
     await dialog.getByRole('button', { name: 'Gabungkan' }).click();
     await expect.element(dialog.getByText('Kategori ini tidak cocok dengan jenis transaksinya.')).toBeVisible();

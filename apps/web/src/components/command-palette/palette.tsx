@@ -29,7 +29,7 @@ import { RESULT_GROUPS, type ResultGroup, type ResultView } from './result-group
 /** Pause after the last keystroke before searching. */
 export const SEARCH_DEBOUNCE_MS = 150;
 
-/** A two-line row: the name, then where it belongs ("14 Okt · Belanja Online · BCA Tahapan"). */
+/** A two-line row: the name, then where it belongs ("14 Okt · Belanja · BCA Tahapan"). */
 function RowText({ title, detail }: Pick<ResultView, 'title' | 'detail'>) {
   return (
     <span className="flex min-w-0 flex-col gap-px">

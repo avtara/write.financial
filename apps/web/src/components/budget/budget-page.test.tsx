@@ -235,7 +235,7 @@ describe('BudgetPage', () => {
     await expect.element(dialog).not.toBeInTheDocument();
     expect(toasts.toast.undo).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Rp400.000 dipindahkan ke Belanja Online',
+        title: 'Rp400.000 dipindahkan ke Belanja',
         description: 'Dari Transportasi Rp400.000.',
       }),
     );
@@ -266,7 +266,7 @@ describe('BudgetPage', () => {
     const attention = screen.getByRole('region', { name: /Perlu perhatian/ });
 
     await attention.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
-    const dialog = screen.getByRole('dialog', { name: 'Tutup kekurangan Belanja Online' });
+    const dialog = screen.getByRole('dialog', { name: 'Tutup kekurangan Belanja' });
     await dialog.getByRole('button', { name: 'Pindahkan Rp400.000' }).click();
     await expect.element(dialog).not.toBeInTheDocument();
     expect(writes.moveBudgetLeftover).toHaveBeenCalledWith({

@@ -293,7 +293,7 @@ export const BUILT_IN_NAMES_ID: Readonly<Record<BuiltInCategoryKey, string>> = {
   'system:transport': 'Transportasi',
   'system:bills': 'Tagihan & Utilitas',
   'system:health': 'Kesehatan',
-  'system:shopping': 'Belanja Online',
+  'system:shopping': 'Belanja',
   'system:entertainment': 'Hiburan',
   'system:subscriptions': 'Langganan',
   'system:hobby': 'Hobi',

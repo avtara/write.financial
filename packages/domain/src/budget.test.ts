@@ -257,7 +257,7 @@ describe('lineStatus', () => {
     });
   });
 
-  it('golden: Belanja Online 2.400.000 / 2.000.000 is over by 400.000', () => {
+  it('golden: Belanja 2.400.000 / 2.000.000 is over by 400.000', () => {
     expect(line(october, 'system:shopping')).toMatchObject({
       remainingMinor: -400_000n,
       usedBps: 12_000,

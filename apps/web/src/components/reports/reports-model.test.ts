@@ -155,7 +155,7 @@ describe('netWorthPoints', () => {
 describe('notesFor', () => {
   it('collects over-budget categories, unconverted subscriptions, and unvalued currencies', () => {
     expect(notesFor(FINAL_VIEW)).toEqual([
-      { kind: 'overBudget', name: 'Belanja Online', overMinor: 600_000n },
+      { kind: 'overBudget', name: 'Belanja', overMinor: 600_000n },
       { kind: 'subsUnconverted', count: 1 },
       { kind: 'unvalued', currencies: ['USD'] },
     ]);

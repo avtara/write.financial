@@ -72,7 +72,7 @@ describe('DESIGN_SEED transactions (Section 00, 1–15 Okt 2026)', () => {
     expect(inCategory(key)).toHaveLength(count);
   });
 
-  it('golden: Belanja Online = Erafone 2.150.000 + Shopee 250.000', () => {
+  it('golden: Belanja = Erafone 2.150.000 + Shopee 250.000', () => {
     expect(inCategory('system:shopping').map((expense) => [expense.merchant, expense.amountMinor])).toEqual([
       ['Erafone', 2_150_000n],
       ['Shopee', 250_000n],

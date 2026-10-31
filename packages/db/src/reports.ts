@@ -62,7 +62,7 @@ import {
 import { categoryTotalsIn, dayTotalsIn, isIn, isOut } from './transaction-query.ts';
 import type { JsonObject, JsonValue } from './schema.ts';
 
-/** FR-LP1 categories: spent against the budget line of the period ("Belanja Online 2.600.000/2.000.000"). */
+/** FR-LP1 categories: spent against the budget line of the period ("Belanja 2.600.000/2.000.000"). */
 export interface ReportCategoryLine {
   readonly categoryId: string | null;
   readonly name: string | null;
