@@ -35,6 +35,8 @@ import {
 export const GMAIL_TOKENS_PURPOSE = 'gmail_connections.tokens';
 export const GMAIL_QUOTE_PURPOSE = 'email_ingest_logs.quote';
 export const GMAIL_EXTRACTION_PURPOSE = 'email_ingest_logs.extraction';
+/** Characters of sealed email evidence (body text or snippet) kept per message. */
+const QUOTE_MAX = 4000;
 export interface GmailTokens {
   readonly accessToken: string;
   readonly refreshToken: string | null;
@@ -380,7 +382,7 @@ export function createGmail(
               messageId: email.messageId,
               fromAddr: email.fromAddr.slice(0, 254),
               subject: email.subject.slice(0, 500),
-              quoteEnc: encrypt(dek, email.excerpt.slice(0, 1000), aad(userId, GMAIL_QUOTE_PURPOSE, id)),
+              quoteEnc: encrypt(dek, email.excerpt.slice(0, QUOTE_MAX), aad(userId, GMAIL_QUOTE_PURPOSE, id)),
               receivedAt: email.receivedAt,
               filterResult: email.filterResult,
               outcome:

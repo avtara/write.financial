@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { AiError, calculateAiCost } from '@wf/domain/ai';
-import { filterEmail } from '@wf/domain/gmail';
+import { filterEmail, GMAIL_EXTRACTION_SCHEMA } from '@wf/domain/gmail';
 import { GmailRevokedError, GmailUnavailableError } from '@wf/integrations/gmail';
 import { JOBS } from '@wf/jobs/queues';
 import type { ProcessorDeps, ProcessorJob } from '../processors.ts';
@@ -101,6 +101,7 @@ export function createGmailProcessor({ db, gmail, now }: ProcessorDeps): (job: P
               maxTokens: MAX_TOKENS,
               messages: [{ role: 'user', content: prompt }],
               toolChoice: 'none',
+              responseSchema: { name: 'gmail_extraction', schema: GMAIL_EXTRACTION_SCHEMA },
             });
             await db.ai.settle(userId, id, {
               status: result.status,

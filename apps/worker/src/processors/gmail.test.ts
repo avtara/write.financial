@@ -7,6 +7,7 @@ import { createReview } from '@wf/db/review';
 import { createTransactions } from '@wf/db/transactions';
 import { seedLedger } from '@wf/db/seed';
 import { PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '@wf/db/testing';
+import { GMAIL_EXTRACTION_SCHEMA } from '@wf/domain/gmail';
 import { createAiClient } from '@wf/integrations/ai';
 import { createGmailClient } from '@wf/integrations/gmail';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -217,6 +218,12 @@ describe('real Gmail processor with role-scoped repositories', () => {
     expect(sent).toContain('UNTRUSTED DATA');
     expect(sent).not.toContain('transactions');
     expect(sent).not.toContain('fixture-access');
+    expect(JSON.parse(sent)).toMatchObject({
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'gmail_extraction', strict: true, schema: GMAIL_EXTRACTION_SCHEMA },
+      },
+    });
   });
   it('lets an explicit owned-account correction replace an incorrect AI currency while preserving original evidence', async () => {
     output = JSON.stringify({ ...JSON.parse(output), currency: 'USD' });

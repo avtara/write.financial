@@ -466,7 +466,7 @@ function View({
           <p className="mt-2 break-words text-muted-fg">
             {hidden ? hiddenLabel : `${detail.gmailEvidence.from} · ${detail.gmailEvidence.subject}`}
           </p>
-          <blockquote className="mt-2 break-words text-muted-fg">
+          <blockquote className="mt-2 whitespace-pre-line break-words text-muted-fg">
             {hidden ? hiddenLabel : detail.gmailEvidence.excerpt}
           </blockquote>
           <p className="mt-2 text-muted-fg">

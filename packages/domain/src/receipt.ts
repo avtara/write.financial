@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { assistantInstant, parseAssistantAmount } from './assistant.ts';
+import { modelMinorUnits, parseModelJsonObject } from './model-json.ts';
 import { parseLocalDate, type LocalDate } from './period.ts';
 
 export const RECEIPT_MAX_TOKENS = 2_000;
@@ -36,13 +37,62 @@ const object = (value: unknown): value is Record<string, unknown> =>
 const uuid = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
+const stringOrNull = { type: ['string', 'null'] };
+const RECEIPT_UNCERTAIN_FIELDS = ['amount', 'date', 'time', 'merchant', 'account', 'category'];
+
+/**
+ * Strict JSON Schema of {@link receiptPrompt}, sent as an OpenAI-compatible `response_format`: every property
+ * required, nothing extra, unreadable values as `null`. Bounds (lengths, counts) stay the parser's job.
+ */
+export const RECEIPT_EXTRACTION_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'merchant',
+    'description',
+    'amountMinor',
+    'currency',
+    'date',
+    'time',
+    'accountId',
+    'categoryId',
+    'uncertain',
+    'items',
+  ],
+  properties: {
+    merchant: { type: 'string' },
+    description: { type: 'string' },
+    amountMinor: { ...stringOrNull, description: 'Integer minor units as a decimal string' },
+    currency: { type: 'string', description: 'ISO 4217 code' },
+    date: { ...stringOrNull, description: 'YYYY-MM-DD' },
+    time: { type: 'string', description: 'HH:mm' },
+    accountId: { ...stringOrNull, description: 'Matching account ID' },
+    categoryId: { ...stringOrNull, description: 'Matching category ID' },
+    uncertain: { type: 'array', items: { type: 'string', enum: RECEIPT_UNCERTAIN_FIELDS } },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'quantity', 'amountMinor', 'uncertain'],
+        properties: {
+          name: { type: 'string' },
+          quantity: { type: 'string' },
+          amountMinor: { ...stringOrNull, description: 'Line total in integer minor units as a decimal string' },
+          uncertain: { type: 'boolean' },
+        },
+      },
+    },
+  },
+};
+
 /** Provider text is untrusted data, not instructions. Missing total/date is a failure, not a guessed transaction. */
 export function parseReceiptExtraction(text: string, timeZone: string): ReceiptExtraction {
   try {
     if (text.length > 32_768) throw new Error();
-    const value: unknown = JSON.parse(text);
-    if (!object(value)) throw new Error();
-    const { merchant, description, amountMinor, currency, date, time, accountId, categoryId, uncertain, items } = value;
+    const value = parseModelJsonObject(text);
+    const { merchant, description, currency, date, time, accountId, categoryId, uncertain, items } = value;
+    const amountMinor = modelMinorUnits(value.amountMinor);
     if (
       typeof merchant !== 'string' ||
       merchant.trim() === '' ||
@@ -60,16 +110,14 @@ export function parseReceiptExtraction(text: string, timeZone: string): ReceiptE
       !(categoryId === null || uuid(categoryId)) ||
       !Array.isArray(uncertain) ||
       uncertain.length > 8 ||
-      uncertain.some(
-        (field: unknown) =>
-          typeof field !== 'string' || !['amount', 'date', 'time', 'merchant', 'account', 'category'].includes(field),
-      ) ||
+      uncertain.some((field: unknown) => typeof field !== 'string' || !RECEIPT_UNCERTAIN_FIELDS.includes(field)) ||
       !Array.isArray(items) ||
       items.length > 60
     )
       throw new Error();
     parseLocalDate(date);
     const parsedItems = (items as unknown[]).map((item): ReceiptItem => {
+      const amount = object(item) ? modelMinorUnits(item.amountMinor) : undefined;
       if (
         !object(item) ||
         typeof item.name !== 'string' ||
@@ -78,13 +126,13 @@ export function parseReceiptExtraction(text: string, timeZone: string): ReceiptE
         typeof item.quantity !== 'string' ||
         item.quantity.length > 20 ||
         typeof item.uncertain !== 'boolean' ||
-        !(item.amountMinor === null || typeof item.amountMinor === 'string')
+        !(amount === null || typeof amount === 'string')
       )
         throw new Error();
       return {
         name: item.name.trim(),
         quantity: item.quantity,
-        amountMinor: item.amountMinor === null ? null : parseAssistantAmount(item.amountMinor),
+        amountMinor: amount === null ? null : parseAssistantAmount(amount),
         uncertain: item.uncertain,
       };
     });

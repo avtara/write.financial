@@ -6,6 +6,7 @@ import { createReceiptJobs } from '@wf/db/receipt-jobs';
 import { createReceipts } from '@wf/db/receipts';
 import { seedLedger } from '@wf/db/seed';
 import { PGLITE_HOOK_TIMEOUT, startMigrated, type TestDatabase } from '@wf/db/testing';
+import { RECEIPT_EXTRACTION_SCHEMA } from '@wf/domain/receipt';
 import { createAiClient } from '@wf/integrations/ai';
 import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeDb, fakeDeps } from '../../test/fakes.ts';
@@ -130,12 +131,17 @@ describe('real queued receipt processor', () => {
     const body = JSON.parse(requestBody as string) as {
       messages: { content: { type: string; image_url?: { url: string } }[] }[];
       tools?: unknown;
+      response_format?: { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
     };
     expect(body.messages[0]?.content[1]).toEqual({
       type: 'image_url',
       image_url: { url: 'data:image/webp;base64,UklGRg==' },
     });
     expect(body.tools).toBeUndefined();
+    expect(body.response_format).toEqual({
+      type: 'json_schema',
+      json_schema: { name: 'receipt_extraction', strict: true, schema: RECEIPT_EXTRACTION_SCHEMA },
+    });
     expect(await test.query('SELECT count(*) FROM transactions')).toEqual(before);
     expect(
       await test.query('SELECT count(*)::int AS n FROM review_items WHERE dedupe_key=$1', [`receipt.${id}`]),

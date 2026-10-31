@@ -2838,7 +2838,7 @@ export const gmailOauthStates = pgTable('gmail_oauth_states', {
   createdAt: createdAt(),
 });
 
-/** One ingested email (FR-AI4): sender, subject, and a sealed excerpt — never the body. */
+/** One ingested email (FR-AI4): sender, subject, and a sealed excerpt of the body text (≤ 4000 chars), never attachments. */
 export const emailIngestLogs = pgTable(
   'email_ingest_logs',
   {

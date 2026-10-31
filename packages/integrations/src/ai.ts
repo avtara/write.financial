@@ -45,6 +45,12 @@ export interface AiCompletionInput {
   /** At most {@link MAX_TOOLS}; omitted for a plain completion. */
   tools?: readonly AiToolDefinition[];
   toolChoice?: 'auto' | 'none' | 'required';
+  /**
+   * Strict JSON Schema for a plain (tool-free) answer, sent as OpenAI-compatible
+   * `response_format: { type: 'json_schema' }`. Best effort: a provider/model that refuses structured outputs is
+   * retried once without it, so the caller still validates every answer itself. Not allowed together with `tools`.
+   */
+  responseSchema?: { readonly name: string; readonly schema: Record<string, unknown> };
   /** Shorter deadline for one call inside a bounded multi-step loop; never above the adapter's own limit. */
   timeoutMs?: number;
 }
@@ -74,6 +80,12 @@ const MAX_TOOLS = 8;
 const MAX_TOOL_CALLS = 8;
 const MAX_TOOL_ARGUMENTS = 8_192;
 const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+/**
+ * Statuses a provider uses to refuse an unsupported `response_format` before any generation (OpenRouter with
+ * `require_parameters: true` answers 404 when no endpoint supports structured outputs; others 400/422). Nothing is
+ * billed for such a refusal, so exactly one retry without the schema is safe.
+ */
+const SCHEMA_REFUSALS: ReadonlySet<number> = new Set([400, 404, 422]);
 const recordSchema = z.record(z.string(), z.unknown());
 const catalogSchema = z.object({ data: z.array(recordSchema) });
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -327,8 +339,12 @@ export function createAiClient(options: {
         throw new AiError('AI_INVALID_CONFIG');
       if (
         input.tools !== undefined &&
-        (input.tools.length > MAX_TOOLS || input.tools.some((tool) => !TOOL_NAME.test(tool.name)))
+        (input.tools.length > MAX_TOOLS ||
+          input.tools.some((tool) => !TOOL_NAME.test(tool.name)) ||
+          (input.tools.length > 0 && input.responseSchema !== undefined))
       )
+        throw new AiError('AI_INVALID_CONFIG');
+      if (input.responseSchema !== undefined && !TOOL_NAME.test(input.responseSchema.name))
         throw new AiError('AI_INVALID_CONFIG');
       if (
         input.messages.some(
@@ -370,45 +386,64 @@ export function createAiClient(options: {
         // JSON.rawJSON is provided by the required Node 24 runtime: numeric provider ceilings stay exact.
         const nativeJson = JSON as typeof JSON & { rawJSON: (value: string) => unknown };
         const raw = nativeJson.rawJSON;
-        const response = await send(`${base}/chat/completions`, {
-          method: 'POST',
-          redirect: 'error',
-          signal,
-          headers: {
-            Authorization: `Bearer ${input.apiKey}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({
-            model: input.modelId,
-            messages: wireMessages(input.messages),
-            max_tokens: input.maxTokens,
-            stream: false,
-            ...(input.tools === undefined || input.tools.length === 0
-              ? {}
-              : {
-                  tools: input.tools.map((tool) => ({
-                    type: 'function',
-                    function: { name: tool.name, description: tool.description, parameters: tool.parameters },
-                  })),
-                  tool_choice: input.toolChoice ?? 'auto',
-                }),
-            ...(input.provider === 'openrouter'
-              ? {
-                  provider: {
-                    allow_fallbacks: false,
-                    require_parameters: true,
-                    max_price: {
-                      prompt: raw(pricing.inputUsdPerMillion),
-                      completion: raw(pricing.outputUsdPerMillion),
-                      request: raw(pricing.requestUsd),
-                      image: raw(pricing.imageUsd),
-                    },
+        const request = {
+          model: input.modelId,
+          messages: wireMessages(input.messages),
+          max_tokens: input.maxTokens,
+          stream: false,
+          ...(input.tools === undefined || input.tools.length === 0
+            ? {}
+            : {
+                tools: input.tools.map((tool) => ({
+                  type: 'function',
+                  function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+                })),
+                tool_choice: input.toolChoice ?? 'auto',
+              }),
+          ...(input.provider === 'openrouter'
+            ? {
+                provider: {
+                  allow_fallbacks: false,
+                  require_parameters: true,
+                  max_price: {
+                    prompt: raw(pricing.inputUsdPerMillion),
+                    completion: raw(pricing.outputUsdPerMillion),
+                    request: raw(pricing.requestUsd),
+                    image: raw(pricing.imageUsd),
                   },
-                }
-              : {}),
-          }),
-        });
+                },
+              }
+            : {}),
+        };
+        const post = (body: unknown) =>
+          send(`${base}/chat/completions`, {
+            method: 'POST',
+            redirect: 'error',
+            signal,
+            headers: {
+              Authorization: `Bearer ${input.apiKey}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify(body),
+          });
+        const schema = input.responseSchema;
+        let response = await post(
+          schema === undefined
+            ? request
+            : {
+                ...request,
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: { name: schema.name, strict: true, schema: schema.schema },
+                },
+              },
+        );
+        if (schema !== undefined && SCHEMA_REFUSALS.has(response.status)) {
+          // Refused before generation: retry once, plain, within the same deadline; the answer is validated anyway.
+          await response.body?.cancel();
+          response = await post(request);
+        }
         httpStatus = response.status;
         if (!response.ok) {
           errorCode = `http_${response.status}`;

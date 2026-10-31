@@ -48,10 +48,15 @@ export class GmailUnavailableError extends Error {
 export const GMAIL_HOSTS = ['oauth2.googleapis.com', 'gmail.googleapis.com'] as const;
 export const GMAIL_PAGE_SIZE = 25;
 export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+/** Characters of message text kept as evidence: the body text (HTML reduced to text), else the snippet. */
+export const GMAIL_EXCERPT_MAX = 4000;
 const ROOT = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const MAX_BODY = 512 * 1024;
 const MAX_PAGES = 100;
+/** A MIME tree is walked at most this deep and this wide; deeper or later parts are ignored. */
+const MAX_PART_DEPTH = 8;
+const MAX_PARTS = 64;
 export interface GmailClientOptions {
   readonly oauth: { readonly clientId: string; readonly clientSecret: string };
   readonly fetch?: typeof fetch;
@@ -126,6 +131,111 @@ function checked(answer: { status: number; body: unknown }): Record<string, unkn
 }
 export function fromAddress(from: string): string {
   return (/^\s*(?:[^<>]*<)?([^<>\s]+@[^<>\s]+)>?\s*$/.exec(from)?.[1] ?? '').toLowerCase();
+}
+const ENTITIES: Readonly<Record<string, string>> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  bull: '•',
+  middot: '·',
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  euro: '€',
+};
+function decodeEntities(text: string): string {
+  return text.replace(
+    /&(?:#(\d{1,7})|#[xX]([\da-fA-F]{1,6})|([a-zA-Z]{2,6}));/g,
+    (entity: string, decimal: string | undefined, hex: string | undefined, name: string | undefined) => {
+      if (name !== undefined) return ENTITIES[name] ?? entity;
+      const code = hex === undefined ? Number(decimal) : Number.parseInt(hex, 16);
+      return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : entity;
+    },
+  );
+}
+/** Single spaces within a line, single line breaks between lines; never splits a surrogate pair at the bound. */
+function readable(text: string): string {
+  const tidy = text
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ ?\n[\n ]*/g, '\n')
+    .trim();
+  const end = /[\uD800-\uDBFF]/.test(tidy.charAt(GMAIL_EXCERPT_MAX - 1)) ? GMAIL_EXCERPT_MAX - 1 : GMAIL_EXCERPT_MAX;
+  return tidy.slice(0, end).trimEnd();
+}
+/**
+ * HTML reduced to its visible text. Every pattern scans forward from its own start only (no nested quantifiers,
+ * no `[^>]*` past the next `<`), so hostile markup stays linear in the bounded response size.
+ */
+function htmlText(html: string): string {
+  let visible = '';
+  let at = 0;
+  const hidden = /<!--|<(script|style|head|title|noscript)\b/gi;
+  for (let match = hidden.exec(html); match !== null; match = hidden.exec(html)) {
+    visible += `${html.slice(at, match.index)} `;
+    const close = match[1] === undefined ? /-->/g : new RegExp(`</${match[1]}\\s*>`, 'gi');
+    close.lastIndex = hidden.lastIndex;
+    if (close.exec(html) === null) {
+      at = html.length;
+      break;
+    }
+    hidden.lastIndex = close.lastIndex;
+    at = close.lastIndex;
+  }
+  visible += html.slice(at);
+  return decodeEntities(
+    visible
+      .replace(/<li\b[^<>]*>/gi, '\n• ')
+      .replace(/<br\b[^<>]*>|<\/?(?:p|div|tr|li|ul|ol|table|h[1-6]|blockquote)\b[^<>]*>/gi, '\n')
+      .replace(/<\/t[dh]\s*>/gi, ' ')
+      .replace(/<[^<>]*>/g, ''),
+  );
+}
+function partText(part: Record<string, unknown>, html: boolean): string {
+  const data = string(object(part.body).data);
+  // Attachments (named, or only an `attachmentId`) are never downloaded or read, even when textual.
+  if (!data || string(part.filename)) return '';
+  const headers = Array.isArray(part.headers) ? part.headers : [];
+  const contentType = headers
+    .map((entry) => object(entry))
+    .find((entry) => string(entry.name).toLowerCase() === 'content-type');
+  const charset = /charset\s*=\s*"?([\w.:-]+)/i.exec(string(contentType?.value))?.[1] ?? 'utf-8';
+  const bytes = Buffer.from(data, 'base64url');
+  let text: string;
+  try {
+    text = new TextDecoder(charset).decode(bytes);
+  } catch {
+    text = new TextDecoder().decode(bytes);
+  }
+  return readable(html ? htmlText(text) : text);
+}
+/** The first non-empty `text/plain` part, else the first `text/html` part as text, else ''. */
+function bodyText(payload: unknown): string {
+  let html = '';
+  let seen = 0;
+  const visit = (part: Record<string, unknown>, depth: number): string => {
+    if (depth > MAX_PART_DEPTH || ++seen > MAX_PARTS) return '';
+    const mime = string(part.mimeType);
+    if (/^\s*text\/plain\s*(?:;|$)/i.test(mime)) {
+      const text = partText(part, false);
+      if (text) return text;
+    } else if (!html && /^\s*text\/html\s*(?:;|$)/i.test(mime)) html = partText(part, true);
+    for (const child of Array.isArray(part.parts) ? part.parts : []) {
+      const text = visit(object(child), depth + 1);
+      if (text) return text;
+    }
+    return '';
+  };
+  return visit(object(payload), 0) || html;
 }
 export async function gmailConsentUrl(
   clientId: string,
@@ -289,9 +399,16 @@ export function createGmailClient(options: GmailClientOptions): GmailFetchPort {
           const id = string(object(row).id);
           if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id) || ids.has(id)) continue;
           ids.add(id);
-          const answer = await request(
-            `/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
-          );
+          const path = `/messages/${encodeURIComponent(id)}`;
+          let answer: { status: number; body: unknown };
+          try {
+            answer = await request(`${path}?format=full`);
+          } catch (error) {
+            // An oversized or unreadable full message degrades to its metadata and snippet instead of stalling the
+            // whole sync. Revocation, a stale grant and refusals with an HTTP status still propagate.
+            if (!(error instanceof GmailUnavailableError) || error.status !== null) throw error;
+            answer = await request(`${path}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`);
+          }
           if (answer.status === 404) continue;
           const message = checked(answer);
           const headers = object(message.payload).headers;
@@ -305,7 +422,7 @@ export function createGmailClient(options: GmailClientOptions): GmailFetchPort {
             id,
             from: fromAddress(header('from')).slice(0, 254),
             subject: header('subject').slice(0, 500),
-            excerpt: string(message.snippet).slice(0, 1000),
+            excerpt: bodyText(message.payload) || readable(decodeEntities(string(message.snippet))),
             receivedAt,
           });
         }

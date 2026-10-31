@@ -4,6 +4,7 @@
  * everything (the last one wins). Pure text matching — the ingestion flow applies it to every fetched email.
  */
 import { parseAssistantAmount } from './assistant.ts';
+import { modelMinorUnits, parseModelJsonObject } from './model-json.ts';
 import { parseLocalDate } from './period.ts';
 
 /** The user's Gmail filter (design `kHEuC`): senders, keywords, ignore keywords. */
@@ -60,20 +61,43 @@ export interface GmailExtraction {
   readonly confidence: Record<GmailField, number>;
 }
 
-/** Models often wrap "only JSON" in one Markdown fence (` ```json … ``` `); exactly that wrapper is unwrapped. */
-const FENCED = /^\s*```(?:json)?[ \t]*\n([\s\S]*?)\n[ \t]*```\s*$/i;
+const stringOrNull = { type: ['string', 'null'] };
+const confidenceScore = { type: 'integer', minimum: 0, maximum: 100 };
+
+/**
+ * Strict JSON Schema of the extraction prompt (worker `gmail` processor), sent as an OpenAI-compatible
+ * `response_format`: every property required, nothing extra, missing evidence as `null`.
+ */
+export const GMAIL_EXTRACTION_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['amountMinor', 'occurredAt', 'merchant', 'currency', 'accountId', 'categoryId', 'confidence'],
+  properties: {
+    amountMinor: { ...stringOrNull, description: 'Positive integer minor units as a decimal string' },
+    occurredAt: { ...stringOrNull, description: 'RFC3339 instant with offset' },
+    merchant: stringOrNull,
+    currency: { ...stringOrNull, description: 'ISO 4217 code' },
+    accountId: { ...stringOrNull, description: 'Owned matching account ID' },
+    categoryId: { ...stringOrNull, description: 'Owned matching category ID' },
+    confidence: {
+      type: 'object',
+      additionalProperties: false,
+      required: [...GMAIL_FIELDS],
+      properties: Object.fromEntries(GMAIL_FIELDS.map((field) => [field, confidenceScore])),
+    },
+  },
+};
 
 /** Missing evidence stays null, never a zero-value or invented account draft. */
 export function parseGmailExtraction(text: string): GmailExtraction {
   if (text.length > 16_384) throw new Error('Gmail extraction rejected');
-  const value = JSON.parse(FENCED.exec(text)?.[1] ?? text) as Record<string, unknown>;
-  const nullableString = (field: string, max: number): string | null => {
-    const entry = value[field];
+  const value = parseModelJsonObject(text);
+  const nullableString = (field: string, max: number, entry = value[field]): string | null => {
     if (entry === null) return null;
     if (typeof entry !== 'string' || !entry.trim() || entry.length > max) throw new Error('Gmail extraction rejected');
     return entry.trim();
   };
-  const amount = nullableString('amountMinor', 30);
+  const amount = nullableString('amountMinor', 30, modelMinorUnits(value.amountMinor));
   const date = nullableString('occurredAt', 40);
   const occurredAt = date === null ? null : new Date(date);
   if (
