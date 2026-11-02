@@ -161,6 +161,25 @@ describe('CategorySelect', () => {
     await expect.element(page.getByRole('option', { name: /Biaya bank/ })).toHaveTextContent('Biaya banksisa 3');
   });
 
+  it('offers an expense the "Biaya keuangan" categories too, but never income ones', async () => {
+    await renderApp(
+      <CategorySelect
+        categories={CATEGORIES}
+        kind="expense"
+        value={null}
+        onValueChange={() => undefined}
+        label="Kategori"
+        searchPlaceholder="Cari kategori…"
+        placeholder="Pilih kategori"
+        aria-label="Kategori"
+      />,
+    );
+    await userEvent.click(page.getByRole('button', { name: 'Kategori' }));
+    await expect.element(page.getByText('Biaya keuangan', { exact: true })).toBeVisible();
+    await expect.element(page.getByRole('option', { name: 'Biaya bank' })).toBeVisible();
+    await expect.element(page.getByRole('option', { name: 'Gaji' })).not.toBeInTheDocument();
+  });
+
   it('takes extra classes', async () => {
     await renderApp(
       <CategorySelect
