@@ -266,10 +266,8 @@ describe('ReviewPage', () => {
     // All at once.
     const apply = categories.getByRole('button', { name: 'Terapkan' });
     await expect.element(apply).toBeDisabled();
-    await userEvent.selectOptions(
-      categories.getByRole('combobox', { name: 'Set kategori untuk semua 3 transaksi' }),
-      categoryId('system:shopping'),
-    );
+    await userEvent.click(categories.getByRole('button', { name: 'Set kategori untuk semua 3 transaksi' }));
+    await userEvent.click(page.getByRole('option', { name: 'Belanja' }));
     await userEvent.click(apply);
     const dialog = page.getByRole('dialog', { name: /^Set Belanja.* untuk 3 transaksi\?$/ });
     await userEvent.click(dialog.getByRole('button', { name: 'Batal' }));
@@ -352,8 +350,11 @@ describe('ReviewPage', () => {
     const confirm = dialog.getByRole('button', { name: 'Konfirmasi' });
     // Both default to the first active account: the same, so it cannot be confirmed yet.
     await expect.element(confirm).toBeDisabled();
-    await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Ke rekening' }), JAGO.id);
-    await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Dari rekening' }), BCA.id);
+    // The account pickers open their own popover (portalled outside the dialog).
+    await userEvent.click(dialog.getByRole('button', { name: 'Ke rekening' }));
+    await userEvent.click(page.getByRole('option', { name: new RegExp(`^${JAGO.displayName}`) }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Dari rekening' }));
+    await userEvent.click(page.getByRole('option', { name: new RegExp(`^${BCA.displayName}`) }));
     await userEvent.click(confirm);
     expect(server.confirmReview).toHaveBeenCalledWith({
       data: { itemId: open.id, edits: { fromAccountId: BCA.id, toAccountId: JAGO.id } },
