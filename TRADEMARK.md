@@ -93,6 +93,7 @@ Every catalog record has a locally bundled mark in `apps/web/public/catalog-logo
 | Local file | Identifies | Downloaded from |
 |---|---|---|
 | `jenius.png` | Jenius | <https://www.jenius.com/assets/ico/apple-touch-icon.png> |
+| `krom.png` | Krom | <https://krom.id/wp-content/uploads/2022/08/cropped-ic_krom_logo.png> (512 × 512 rendition). Commons has only the wide public-domain wordmark [Krom Bank.png](https://commons.wikimedia.org/wiki/File:Krom_Bank.png), which is unreadable at account-icon size |
 | `shopeepay.png` | ShopeePay | <https://shopeepay.co.id/favicon.png> |
 | `stockbit.png` | Stockbit | <https://web-assets.stockbit.com/apple-touch-icon.png> |
 | `ajaib.png` | Ajaib | <https://ajaib.co.id/apple-touch-icon.png> |

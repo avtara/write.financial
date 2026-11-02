@@ -185,6 +185,14 @@ export const CATALOG: readonly CatalogRecord[] = [
     commons('seabank', 'SeaBank.svg'),
   ),
   provider(
+    'krom',
+    'Krom',
+    ['Krom Bank', 'Bank Krom', 'Krom Bank Indonesia'],
+    ['bank'],
+    'https://krom.id/',
+    official('krom', 'https://krom.id/wp-content/uploads/2022/08/cropped-ic_krom_logo.png'),
+  ),
+  provider(
     'gopay',
     'GoPay',
     ['Go Pay', 'Gojek'],
