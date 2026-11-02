@@ -26,7 +26,6 @@ const common = {
   clientId: z.uuid(),
   occurredAt: z.date(),
   description: z.string().max(200).nullable().optional(),
-  merchant: z.string().max(200).nullable().optional(),
   note: z.string().max(2000).nullable().optional(),
   tags: z.array(z.string().min(1).max(64)).max(5).optional(),
   source: z.enum(['manual', 'quick', 'assistant']).optional(),

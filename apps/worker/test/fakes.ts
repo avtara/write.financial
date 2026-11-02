@@ -398,9 +398,9 @@ export function richReportView(): ReportView {
         { categoryId: 'inc-1', name: 'Gaji', group: 'active', totalMinor: 25_000_000n, shareBps: 9_690 },
         { categoryId: null, name: null, group: null, totalMinor: 800_000n, shareBps: 310 },
       ],
-      merchants: [
-        { merchant: 'Indomaret', totalMinor: 1_200_000n, count: 12, shareBps: 656 },
-        { merchant: '"Kopi", Nugget & <Ayam>', totalMinor: 300_000n, count: 3, shareBps: 164 },
+      titles: [
+        { title: 'Indomaret', totalMinor: 1_200_000n, count: 12, shareBps: 656 },
+        { title: '"Kopi", Nugget & <Ayam>', totalMinor: 300_000n, count: 3, shareBps: 164 },
       ],
       tags: [{ tagId: 'tag-1', name: 'akhir-pekan', totalMinor: 500_000n, count: 5 }],
       accounts: [
@@ -435,7 +435,6 @@ export function richReportView(): ReportView {
           transactionId: 'tx-1',
           date: '2026-09-05' as LocalDate,
           description: 'Sewa Kos',
-          merchant: null,
           amountMinor: 4_500_000n,
           shareBps: 2_459,
         },
@@ -443,7 +442,6 @@ export function richReportView(): ReportView {
           transactionId: 'tx-2',
           date: '2026-09-12' as LocalDate,
           description: 'MacBook',
-          merchant: 'Apple Store',
           amountMinor: 2_000_000n,
           shareBps: 1_093,
         },
@@ -508,7 +506,7 @@ export function fakeReportView(): ReportView {
     sections: {
       categories: [],
       incomeSources: [],
-      merchants: [],
+      titles: [],
       tags: [],
       accounts: [],
       goals: [],

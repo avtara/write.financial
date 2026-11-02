@@ -22,7 +22,7 @@ const actions = vi.hoisted(() => ({
 vi.mock('./transaction-actions.tsx', () => ({ useTransactionActions: () => actions }));
 
 const GOJEK = transactionRow('t-1', {
-  merchant: 'Gojek',
+  description: 'Gojek',
   categoryId: categoryId('system:transport'),
   amountMinor: -42_000n,
 });

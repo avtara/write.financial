@@ -68,7 +68,7 @@ vi.mock('./bulk-dialogs.tsx', () => ({
   AddTagDialog: stub('tag', { onCancel: [], onApply: ['kopi'] }),
 }));
 
-const SHOPEE = transactionRow('a', { merchant: 'Shopee', amountMinor: -389_000n });
+const SHOPEE = transactionRow('a', { description: 'Shopee', amountMinor: -389_000n });
 const OTHER = transactionRow('b', { accountId: 'acc-gone' });
 const TRANSFER = transactionRow('t', { type: 'transfer', categoryId: null });
 

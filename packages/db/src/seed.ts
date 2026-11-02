@@ -125,7 +125,7 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
   };
 
   const transactions = createTransactions(db, { getDek, now });
-  /** Transaction id by `occurredAt` and merchant (expenses) or destination account key (transfers): what bills they paid. */
+  /** Transaction id by `occurredAt` and title (expenses) or destination account key (transfers): what bills they paid. */
   const paidBy = new Map<string, string>();
   for (const entry of [...seed.septemberTransactions, ...seed.transactions]) {
     const common = {
@@ -151,10 +151,9 @@ export async function seedLedger(db: Database, userId: string, options: SeedOpti
             accountId: accountOf(entry.accountKey),
             amountMinor: entry.amountMinor,
             categoryId: categoryOf(entry.categoryKey),
-            merchant: entry.merchant,
           },
     );
-    paidBy.set(`${entry.occurredAt}|${entry.kind === 'transfer' ? entry.toAccountKey : entry.merchant}`, id);
+    paidBy.set(`${entry.occurredAt}|${entry.kind === 'transfer' ? entry.toAccountKey : entry.description}`, id);
   }
 
   // M5: the portfolio, before September closes (its DCA buys are September trades).

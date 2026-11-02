@@ -86,7 +86,7 @@ beforeEach(() => {
   fake.goals.list.mockResolvedValue([DANA_DARURAT, LIBURAN_BALI, SERVIS_MOTOR]);
   fake.goals.get.mockResolvedValue(DANA_DARURAT);
   fake.periods.list.mockResolvedValue({ today: '2026-10-15', baseCurrency: 'IDR', current: { id: 'period' } });
-  fake.periods.payday.mockResolvedValue({ day: 25, merchant: 'PT Kinarya', count: 2 });
+  fake.periods.payday.mockResolvedValue({ day: 25, count: 2 });
   fake.budgets.fillFromAverage.mockResolvedValue([
     { categoryId: 'a', averageMinor: 10_000_000n },
     { categoryId: 'b', averageMinor: 8_000_000n },

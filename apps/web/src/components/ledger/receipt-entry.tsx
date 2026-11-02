@@ -18,7 +18,7 @@ import { listAccounts, listCategories, listTags } from '../../server/fn/ledger.t
 import { cancelReceipt, getReceipt, prepareManualReceipt, uploadReceipt } from '../../server/fn/receipts.ts';
 import { confirmReview } from '../../server/fn/review.ts';
 import { removeTransactions } from '../../server/fn/transactions-write.ts';
-import { Button, Field, FormError, TextInput } from '../form.tsx';
+import { Button, FormError } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { announceSaved } from './announce-saved.tsx';
 import { defaultAccountId, emptyValues, wallTime, type TransactionFormValues } from './transaction-draft.ts';
@@ -404,18 +404,18 @@ function ReceiptEditor({
       date: view.extraction?.date ?? today,
       time: view.extraction?.time ?? wallTime(new Date(), timeZone),
     }),
+    // "Judul": the draft's title, else the store name the receipt was read for.
+    description: draft?.description ?? view.extraction?.merchant ?? '',
     ...(draft === null
       ? {}
       : {
           amountMinor: draft.amountMinor,
           categoryId: draft.categoryId,
-          description: draft.description ?? '',
           tags: draft.tags ?? [],
         }),
   }));
   const form = useTransactionForm({ initial, data: formData, locale });
   const [items, setItems] = useState<readonly ReceiptItem[]>(view.extraction?.items ?? []);
-  const [merchant, setMerchant] = useState(draft?.merchant ?? view.extraction?.merchant ?? '');
   const [failure, setFailure] = useState<string | null>(null);
   const reviewItemId = view.reviewItemId;
   const account = formData.accounts.find((entry) => entry.id === form.values.accountId);
@@ -468,7 +468,6 @@ function ReceiptEditor({
             accountId: input.accountId,
             categoryId: input.categoryId,
             description: input.description,
-            merchant: merchant.trim() || null,
             note: input.note,
             tags: input.tags,
             receiptItems: [...items],
@@ -505,7 +504,8 @@ function ReceiptEditor({
     amount: m.record_amount(),
     date: m.record_date(),
     time: m.assistant_draft_time(),
-    merchant: m.receipt_merchant(),
+    // The extraction's store name is the transaction's title.
+    merchant: m.record_description(),
     account: m.assistant_draft_account(),
     category: m.assistant_draft_category(),
   };
@@ -575,8 +575,7 @@ function ReceiptEditor({
           {view.duplicates.map((entry) => (
             <div key={entry.id} className="flex flex-col items-start gap-1 text-[12px]">
               <span>
-                {entry.merchant ?? entry.description} ·{' '}
-                {formatDate(toLocalDate(entry.occurredAt, timeZone), locale, 'date')} ·{' '}
+                {entry.description} · {formatDate(toLocalDate(entry.occurredAt, timeZone), locale, 'date')} ·{' '}
                 {wallTime(entry.occurredAt, timeZone)}
               </span>
               <span>
@@ -601,19 +600,6 @@ function ReceiptEditor({
           ))}
         </section>
       )}
-      <Field label={m.receipt_merchant()}>
-        {({ id }) => (
-          <TextInput
-            id={id}
-            size="sm"
-            value={merchant}
-            maxLength={200}
-            onChange={(event) => {
-              setMerchant(event.currentTarget.value);
-            }}
-          />
-        )}
-      </Field>
       <TransactionFormFields form={form} data={formData} locale={locale} timeZone={timeZone} today={today} hideKind />
       {failure === null ? null : <FormError>{failure}</FormError>}
       <div className="flex items-center justify-end gap-2">

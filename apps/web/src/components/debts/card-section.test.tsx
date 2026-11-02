@@ -43,14 +43,14 @@ describe('CardStrip', () => {
       .toMatchTextContent(/Rekening koran 20 Novcicilan 333\.334 \+ tagihan 1\.000\.000 · tempo 5 Des1\.333\.334/);
   });
 
-  it('names a single bill transaction by its merchant, or by its date alone', async () => {
-    const one = (description: string | null, merchant: string | null) => ({
+  it('names a single bill transaction by its title, or by its date alone', async () => {
+    const one = (description: string | null) => ({
       ...visa(),
-      transactions: [{ ...(OCTOBER_BILL[0] as (typeof OCTOBER_BILL)[number]), description, merchant }],
+      transactions: [{ ...(OCTOBER_BILL[0] as (typeof OCTOBER_BILL)[number]), description }],
     });
     const { screen } = await renderApp(
       <>
-        {[one(null, 'Superindo'), one(null, null)].map((bill, index) => (
+        {[one('Superindo'), one(null)].map((bill, index) => (
           <CardStrip
             key={index}
             bill={{ ...bill, accountId: `card-${String(index)}`, name: `Kartu ${String(index)}` }}
@@ -115,7 +115,7 @@ describe('CardBillCard', () => {
     expect(onConvert).toHaveBeenCalled();
   });
 
-  it('shows an empty cycle, no due date or usage without them, and names a transaction by merchant or card', async () => {
+  it('shows an empty cycle, no due date or usage without them, and names a transaction by title or card', async () => {
     const bare = {
       ...visa({ balanceMinor: 0n, limitMinor: null, statementDay: null, dueDay: null }),
       transactions: [],
@@ -138,8 +138,8 @@ describe('CardBillCard', () => {
     const named = {
       ...visa(),
       transactions: [
-        { ...(OCTOBER_BILL[0] as (typeof OCTOBER_BILL)[number]), description: null, merchant: 'Tokopedia' },
-        { ...(OCTOBER_BILL[1] as (typeof OCTOBER_BILL)[number]), description: null, merchant: null },
+        { ...(OCTOBER_BILL[0] as (typeof OCTOBER_BILL)[number]), description: 'Tokopedia' },
+        { ...(OCTOBER_BILL[1] as (typeof OCTOBER_BILL)[number]), description: null },
       ],
     };
     const second = await renderApp(

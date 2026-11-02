@@ -47,7 +47,7 @@ describe('TableSearch', () => {
     const onChange = vi.fn();
     const { screen } = await renderApp(<Harness onChange={onChange} />);
     const input = screen.getByRole('searchbox', { name: 'Cari transaksi' });
-    await expect.element(input).toHaveAttribute('placeholder', 'Cari merchant, catatan, atau #tag');
+    await expect.element(input).toHaveAttribute('placeholder', 'Cari judul, catatan, atau #tag');
     await expect.element(screen.getByText('/')).toBeVisible();
     await userEvent.keyboard('/');
     await expect.element(input).toHaveFocus();

@@ -137,7 +137,7 @@ describe('schedule server functions', () => {
   it('never passes undefined properties, also inside a recurrence template', async () => {
     const parsed = parse(fns.createRecurrence, {
       ...RULE,
-      template: { ...RULE.template, merchant: undefined, tags: undefined },
+      template: { ...RULE.template, tags: undefined },
       interval: undefined,
     });
     await call(fns.createRecurrence, { context: signedIn(), data: parsed });

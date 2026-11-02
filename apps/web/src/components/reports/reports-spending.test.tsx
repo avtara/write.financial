@@ -27,10 +27,10 @@ describe('SpendingSection', () => {
     await expect.element(section).toMatchTextContent('1%');
   });
 
-  it('ranks the merchants, lists the tag chips, and shows the accounts', async () => {
+  it('ranks the top titles, lists the tag chips, and shows the accounts', async () => {
     const { screen } = await renderApp(<SpendingSection view={FINAL_VIEW} locale="id" />);
     const section = screen.getByRole('region', { name: 'Pengeluaran' });
-    await expect.element(section.getByRole('heading', { name: 'Merchant' })).toBeVisible();
+    await expect.element(section.getByRole('heading', { name: 'Judul teratas' })).toBeVisible();
     await expect.element(section).toMatchTextContent('GoPay');
     await expect.element(section).toMatchTextContent('34 transaksi');
     await expect.element(section).toMatchTextContent('17,49%');
@@ -44,11 +44,11 @@ describe('SpendingSection', () => {
     await expect.element(section).toMatchTextContent('−15.000.000');
   });
 
-  it('keeps a bare provisional report honest: no categories, merchants, tags, or accounts', async () => {
+  it('keeps a bare provisional report honest: no categories, titles, tags, or accounts', async () => {
     const { screen } = await renderApp(<SpendingSection view={PROVISIONAL_VIEW} locale="id" />);
     const section = screen.getByRole('region', { name: 'Pengeluaran' });
     await expect.element(section).not.toMatchTextContent('lewat');
-    await expect.element(section).not.toMatchTextContent('Merchant');
+    await expect.element(section).not.toMatchTextContent('Judul teratas');
     await expect.element(section).not.toMatchTextContent('#akhir-pekan');
     await expect.element(section).not.toMatchTextContent('BCA Tahapan');
   });

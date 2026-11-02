@@ -174,8 +174,7 @@ describe('recordTransactionIn', () => {
     const food = await inUser((tx) => builtInCategoryIn(tx, alice, 'system:food'));
     const draft = expense({
       categoryId: food,
-      merchant: '  Warteg Bahari ',
-      description: ' ',
+      description: '  Warteg Bahari ',
       note: 'makan siang',
       tags: ['makan', '#Kantor'],
       source: 'quick',
@@ -191,16 +190,14 @@ describe('recordTransactionIn', () => {
     const [row] = await test.query<{
       type: string;
       local_date: string;
-      merchant: string;
       description: string | null;
       note_enc: Uint8Array;
       source: string;
-    }>('SELECT type, local_date::text, merchant, description, note_enc, source FROM transactions');
+    }>('SELECT type, local_date::text, description, note_enc, source FROM transactions');
     expect(row).toMatchObject({
       type: 'expense',
       local_date: '2026-10-15',
-      merchant: 'Warteg Bahari',
-      description: null,
+      description: 'Warteg Bahari',
       source: 'quick',
     });
     expect(decryptText(dek, row?.note_enc as Uint8Array, { userId: alice, purpose: NOTE_PURPOSE })).toBe('makan siang');

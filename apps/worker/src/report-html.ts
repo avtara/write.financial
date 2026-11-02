@@ -177,12 +177,12 @@ function spendingPage(view: ReportView, format: Fmt): string {
         : esc(format.pct(line.shareBps)),
     ]),
   )}
-  <h2>Merchant</h2>
+  <h2>Judul teratas</h2>
   ${table(
-    ['Merchant', 'Jumlah', 'Transaksi'],
-    view.sections.merchants
+    ['Judul', 'Jumlah', 'Transaksi'],
+    view.sections.titles
       .slice(0, 10)
-      .map((line) => [esc(line.merchant), esc(format.money(line.totalMinor)), String(line.count)]),
+      .map((line) => [esc(line.title), esc(format.money(line.totalMinor)), String(line.count)]),
   )}
   <h2>Tag</h2>
   ${table(
@@ -206,7 +206,7 @@ function largestPage(view: ReportView, format: Fmt): string {
     ['Tanggal', 'Keterangan', 'Jumlah', 'Bagian'],
     view.sections.largest.map((line) => [
       esc(format.date(line.date)),
-      esc(line.merchant === null || line.merchant === '' ? line.description : `${line.description} · ${line.merchant}`),
+      esc(line.description),
       esc(format.money(line.amountMinor)),
       esc(format.pct(line.shareBps)),
     ]),

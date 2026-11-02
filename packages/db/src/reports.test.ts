@@ -229,7 +229,7 @@ describe('ranges and listings', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
               accountId: bank,
               amountMinor,
               categoryId: null,
-              merchant: 'Night shop',
+              description: 'Night shop',
               tags: ['night'],
             },
             dek,
@@ -271,9 +271,7 @@ describe('ranges and listings', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
     const request = { kind: 'custom' as const, from: '2026-10-14' as LocalDate, to: '2026-10-14' as LocalDate };
     const before = await asApp(() => reports().generate(owner, request, new Date('2026-10-15T06:40:00Z')));
     expect(before.totals).toMatchObject({ expenseMinor: 300n, txCount: 1, netWorthMinor: 5_850n });
-    expect(before.sections.merchants).toEqual([
-      { merchant: 'Night shop', totalMinor: 300n, count: 1, shareBps: 10_000 },
-    ]);
+    expect(before.sections.titles).toEqual([{ title: 'Night shop', totalMinor: 300n, count: 1, shareBps: 10_000 }]);
     expect(before.sections.tags).toEqual([expect.objectContaining({ totalMinor: 300n, count: 1 })]);
     expect(before.sections.accounts).toEqual([
       { accountId: bank, name: 'Main', type: 'bank', inMinor: 0n, outMinor: 300n },

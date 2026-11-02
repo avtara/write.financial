@@ -108,7 +108,7 @@ const expense = (overrides: Partial<EntryDraft> = {}): EntryDraft => ({
   accountId: bca,
   amountMinor: 45_000n,
   categoryId: food,
-  merchant: 'Kopi Kenangan',
+  description: 'Kopi Kenangan',
   ...overrides,
 });
 
@@ -183,7 +183,6 @@ describe('create and get', () => {
       occurredAt: draft.occurredAt,
       localDate: '2026-10-12',
       description: 'Kopi susu',
-      merchant: 'Kopi Kenangan',
       note: 'rapat tim',
       categoryId: food,
       source: 'manual',
@@ -338,7 +337,7 @@ describe('update', () => {
     expect(lines(updated)).toMatchObject([{ amountMinor: -50_000n }]);
     // Unchanged: nothing listed.
     await asApp(() => repo.update(alice, id, edited));
-    // Into an income: the note is cleared, the merchant dropped.
+    // Into an income: the note is cleared.
     const asIncome = income({ amountMinor: 50_000n, description: 'Rapat', note: '', source: 'quick' });
     expect(await asApp(() => repo.update(alice, id, asIncome))).toMatchObject({ type: 'income', note: null });
     // Into a transfer (no note at all).
@@ -348,7 +347,7 @@ describe('update', () => {
       ['created', { source: 'manual' }],
       ['updated', { fields: ['description', 'note', 'categoryId', 'amounts', 'tags'] }],
       ['updated', { fields: [] }],
-      ['updated', { fields: ['type', 'occurredAt', 'merchant', 'note', 'categoryId', 'source', 'amounts', 'tags'] }],
+      ['updated', { fields: ['type', 'occurredAt', 'note', 'categoryId', 'source', 'amounts', 'tags'] }],
       ['updated', { fields: ['type', 'occurredAt', 'categoryId', 'source', 'amounts', 'tags'] }],
     ]);
   });
@@ -400,7 +399,6 @@ describe('duplicate', () => {
       occurredAt: minutes(100),
       localDate: '2026-10-15',
       description: 'Kopi susu',
-      merchant: 'Kopi Kenangan',
       note: 'rapat tim',
       categoryId: food,
       duplicatedFromId: id,
@@ -479,7 +477,6 @@ describe('split', () => {
     const shared = {
       type: 'expense',
       occurredAt: new Date('2026-10-12T12:30:00+07:00'),
-      merchant: 'Kopi Kenangan',
       note: 'makan siang tim',
       tags: ['kerja'],
       splitParentId: parent,

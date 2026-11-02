@@ -193,8 +193,7 @@ describe('split bill (FR-L5 "Pisah tagihan")', () => {
     accountId: alice.bca,
     amountMinor: 242_500n,
     categoryId: alice.category('system:entertainment'),
-    description: '  ',
-    merchant: 'CGV Grand Indonesia',
+    description: '  CGV Grand Indonesia ',
     ...overrides,
   });
   const nadia = () => ({
@@ -234,10 +233,10 @@ describe('split bill (FR-L5 "Pisah tagihan")', () => {
     expect(await count()).toBe(recorded);
   });
 
-  it('takes the description first and records several people', async () => {
+  it('takes the bill’s title and records several people', async () => {
     const made = await asApp(() =>
       repo().recordSplitBill(alice.userId, {
-        draft: bill({ description: 'Nonton bareng', merchant: null }),
+        draft: bill({ description: 'Nonton bareng' }),
         shares: [nadia(), { ...nadia(), counterparty: 'Dimas', amountMinor: 100_000n }],
       }),
     );

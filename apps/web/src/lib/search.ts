@@ -22,7 +22,7 @@ export interface TransactionHit {
   readonly id: string;
   readonly type: TransactionType;
   readonly localDate: LocalDate;
-  /** "Merchant — description", or whichever of the two exists; `null` when the transaction has neither. */
+  /** The title (description); `null` when the transaction has none. */
   readonly title: string | null;
   /** Signed principal on the (source) account, in `currency`. */
   readonly amountMinor: bigint;
@@ -72,7 +72,7 @@ export interface SubscriptionHit {
 export interface ReviewHit {
   readonly id: string;
   readonly reason: ReviewReason;
-  /** What it is about (subscription, merchant, goal); `null` when it has no name (a rollover). */
+  /** What it is about (subscription, transaction title, goal); `null` when it has no name (a rollover). */
   readonly title: string | null;
   readonly dueDate: LocalDate | null;
   /** The signed amount confirming it would move, in `currency`. */

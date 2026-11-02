@@ -25,10 +25,10 @@ beforeEach(async () => {
   ledger = await ledgerFixture(test, 'avtara@example.test');
 });
 
-/** Expenses of `amountMinor` at `merchant` on each date, in Langganan. */
-async function charges(merchant: string, amountMinor: bigint, dates: readonly string[]) {
+/** Expenses of `amountMinor` titled `description` on each date, in Langganan. */
+async function charges(description: string, amountMinor: bigint, dates: readonly string[]) {
   for (const date of dates) {
-    await ledger.entry('expense', date, amountMinor, ledger.category('system:subscriptions'), { merchant });
+    await ledger.entry('expense', date, amountMinor, ledger.category('system:subscriptions'), { description });
   }
 }
 
@@ -56,7 +56,7 @@ describe('subscription detection', () => {
     await charges('Indomaret', 120_000n, ['2026-09-20']);
     await charges('Indomaret', 75_000n, ['2026-10-09']);
     for (const date of ['2026-07-25', '2026-08-25', '2026-09-25']) {
-      await ledger.entry('income', date, 26_000_000n, ledger.category('system:salary'), { merchant: 'PT Arunika' });
+      await ledger.entry('income', date, 26_000_000n, ledger.category('system:salary'), { description: 'PT Arunika' });
     }
     await test.query(
       `INSERT INTO subscriptions (user_id, name, price_minor, currency, cycle, next_billing_date, pay_from_account_id,
@@ -127,6 +127,21 @@ describe('subscription detection', () => {
     expect(await candidates()).toEqual([]);
     // 16 Okt: two months.
     expect(await detect(new Date('2026-10-15T20:00:00Z'))).toEqual({ created: 1, updated: 0 });
+  });
+
+  it('groups charges by their normalized title and ignores untitled ones', async () => {
+    const langganan = ledger.category('system:subscriptions');
+    await charges('Vidio', 39_000n, ['2026-08-12']);
+    await charges(' vidio ', 39_000n, ['2026-09-12']);
+    await charges('VIDIO', 39_000n, ['2026-10-12']);
+    for (const date of ['2026-08-07', '2026-09-07', '2026-10-07']) {
+      await ledger.entry('expense', date, 99_000n, langganan);
+    }
+
+    expect(await detect()).toEqual({ created: 1, updated: 0 });
+    expect(await candidates()).toEqual([
+      expect.objectContaining({ merchant_key: 'vidio', merchant: 'VIDIO', occurrences: 3, amount: '39000' }),
+    ]);
   });
 
   it('finds nothing without transactions', async () => {

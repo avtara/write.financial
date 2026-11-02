@@ -129,7 +129,7 @@ export const cases = {
       const ids = await ledgerIds(bId);
       expect(ofB.ok && ofB.value.overview.periods.filter((period) => !ids.includes(period.id as string))).toEqual([]);
       expect(ofB.ok && ids).toContain(ofB.ok && ofB.value.overview.current.id);
-      expect(ofB.ok && ofB.value.payday).toEqual({ day: null, merchant: null, count: 0 });
+      expect(ofB.ok && ofB.value.payday).toEqual({ day: null, count: 0 });
     },
   },
 } satisfies Partial<Record<Name, Case>>;

@@ -335,7 +335,7 @@ async function generate(
   const expenses = categories.filter((category) => category.kind === 'expense').map((category) => category.id);
   const incomes = categories.filter((category) => category.kind === 'income').map((category) => category.id);
   const tags = ['makan', 'kantor', 'keluarga', 'liburan', 'anak', 'kesehatan', 'rumah', 'hobi'];
-  const merchants = ['Indomaret', 'Alfamart', 'GrabFood', 'Gojek', 'Tokopedia', 'Shopee', 'Kopi Kenangan', 'Pertamina'];
+  const titles = ['Indomaret', 'Alfamart', 'GrabFood', 'Gojek', 'Tokopedia', 'Shopee', 'Kopi Kenangan', 'Pertamina'];
   // The seed's closed period (September) refuses new rows: those days keep only the persona's transactions.
   const closed = await superuser<{ first: string; last: string }[]>`
     SELECT start_date::text AS first, end_date::text AS last FROM periods WHERE user_id = ${userId} AND status = 'closed'`;
@@ -372,8 +372,7 @@ async function generate(
         accountId: pick(accounts),
         amountMinor: income ? amountMinor * 10n : amountMinor,
         categoryId: pick(income ? incomes : expenses),
-        merchant: income ? null : pick(merchants),
-        description: income ? 'Pemasukan' : pick(merchants),
+        description: income ? 'Pemasukan' : pick(titles),
       });
     }
   }

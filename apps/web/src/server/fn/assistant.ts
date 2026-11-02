@@ -235,7 +235,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
           { amountMinor, occurredAt },
           nearby.rows.map((row) => ({
             transactionId: row.id,
-            description: row.description ?? row.merchant ?? '',
+            description: row.description ?? '',
             localDate: row.localDate,
             amountMinor: row.amountMinor < 0n ? -row.amountMinor : row.amountMinor,
             occurredAt: row.occurredAt,
@@ -355,7 +355,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
             const category = categories.find((candidate) => candidate.id === row.categoryId);
             return {
               id: row.id,
-              description: row.description ?? row.merchant ?? '',
+              description: row.description ?? '',
               amountMinor: -row.amountMinor,
               localDate: row.localDate,
               categoryName: category === undefined ? null : categoryNameIn(category, locale),

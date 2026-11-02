@@ -12,7 +12,6 @@ export type ActionRow = Pick<
   | 'id'
   | 'type'
   | 'occurredAt'
-  | 'merchant'
   | 'description'
   | 'categoryId'
   | 'accountId'
@@ -34,7 +33,6 @@ export function actionRowOf(detail: TransactionDetail): ActionRow {
     id: detail.id,
     type: detail.type,
     occurredAt: detail.occurredAt,
-    merchant: detail.merchant,
     description: detail.description,
     categoryId: detail.categoryId,
     accountId: from?.accountId ?? '',
@@ -47,12 +45,8 @@ export function actionRowOf(detail: TransactionDetail): ActionRow {
   };
 }
 
-/** "Shopee", else the description, else the category (or "Transfer"): how toasts and dialogs name a transaction. */
+/** The title (description), else the category (or "Transfer"): how toasts and dialogs name a transaction. */
 export function rowLabel(row: ActionRow, ledger: LedgerData): string {
   const category = ledger.categories.find((candidate) => candidate.id === row.categoryId);
-  return (
-    row.merchant ??
-    row.description ??
-    (category === undefined ? m.transactions_label_transfer() : categoryName(category))
-  );
+  return row.description ?? (category === undefined ? m.transactions_label_transfer() : categoryName(category));
 }

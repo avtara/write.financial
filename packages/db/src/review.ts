@@ -61,7 +61,6 @@ export interface ReviewEdits {
   readonly categoryId?: string | null;
   readonly occurredAt?: Date;
   readonly description?: string | null;
-  readonly merchant?: string | null;
   readonly note?: string | null;
   readonly tags?: readonly string[];
   /** Leftover target goal (its tag is put on the transfer); `null` = no goal. */
@@ -83,7 +82,6 @@ export interface ReviewOccurrenceView {
 export interface ReviewSubject {
   readonly type: TransactionType;
   readonly occurredAt: Date;
-  readonly merchant: string | null;
   readonly description: string | null;
   readonly accountId: string;
   /** Signed principal on `accountId`, in `currency`. */
@@ -106,7 +104,7 @@ export interface ReviewItemView {
   readonly payload: ReviewPayload;
   readonly occurrence: ReviewOccurrenceView | null;
   /**
-   * What the card is about: the subscription or recurrence name, the transaction's merchant or description, or the
+   * What the card is about: the subscription or recurrence name, the transaction's title, or the
    * leftover's goal name; `null` when there is none (e.g. a rollover: show its category).
    */
   readonly label: string | null;
@@ -195,7 +193,6 @@ function applyEdits(draft: ReviewDraft, edits: ReviewEdits): ReviewDraft {
   const common = definedOnly({
     occurredAt: edits.occurredAt,
     description: edits.description,
-    merchant: edits.merchant,
     note: edits.note,
     tags: edits.tags,
   });
@@ -384,7 +381,8 @@ async function confirmIn(
       const amountMinor = edits.amountMinor ?? extraction.amountMinor;
       const occurredAt = edits.occurredAt ?? extraction.occurredAt;
       const categoryId = edits.categoryId === undefined ? extraction.categoryId : edits.categoryId;
-      const merchant = edits.merchant === undefined ? extraction.merchant : edits.merchant;
+      // The proposed title is the extracted merchant; the card's "Judul" field edits it.
+      const title = edits.description === undefined ? extraction.merchant : edits.description;
       if (
         accountId === null ||
         amountMinor === null ||
@@ -392,7 +390,7 @@ async function confirmIn(
         occurredAt === null ||
         !Number.isFinite(occurredAt.getTime()) ||
         categoryId === null ||
-        !merchant?.trim()
+        !title?.trim()
       )
         throw new LedgerError('INVALID_TRANSACTION', 'Correct the missing Gmail fields before confirming');
       const [account] = await tx
@@ -405,8 +403,8 @@ async function confirmIn(
         (edits.accountId === undefined && extraction.currency !== null && account.currency !== extraction.currency)
       )
         throw new LedgerError('INVALID_ACCOUNT', 'Choose an account with the email currency');
-      // Like a manually recorded transaction (whose form has only "Judul"), the merchant is the title: it goes to the
-      // description and no separate merchant is stored. The email subject stays evidence, never the title.
+      // Like a manually recorded transaction (whose form has only "Judul"), the extracted merchant is only the
+      // proposed title. The email subject stays evidence, never the title.
       transactionId = (
         await recordTransactionIn(
           tx,
@@ -417,8 +415,7 @@ async function confirmIn(
             amountMinor,
             occurredAt,
             categoryId,
-            merchant: null,
-            description: edits.description ?? merchant.trim(),
+            description: title.trim(),
             note: edits.note ?? null,
             tags: edits.tags ?? payload.tags,
             source: 'gmail',
@@ -553,12 +550,11 @@ export function createReview(
             },
             label: sql<
               string | null
-            >`coalesce(${subscriptions.name}, ${recurrences.template}->>'merchant', ${recurrences.template}->>'description', ${transactions.merchant}, ${transactions.description})`,
+            >`coalesce(${subscriptions.name}, ${recurrences.template}->>'description', ${transactions.description})`,
             periodLabel: periods.label,
             subject: {
               type: transactions.type,
               occurredAt: transactions.occurredAt,
-              merchant: transactions.merchant,
               description: transactions.description,
               deletedAt: transactions.deletedAt,
             },
@@ -619,7 +615,7 @@ export function createReview(
           const payload = readReviewPayload(dek, userId, item.payloadEnc);
           const proposed =
             payload.kind === 'transaction'
-              ? (payload.draft.merchant ?? payload.draft.description ?? null)
+              ? (payload.draft.description ?? null)
               : payload.kind === 'gmail'
                 ? (payload.extraction.merchant ?? payload.subject)
                 : payload.kind === 'leftover' && payload.goalId !== null
@@ -642,7 +638,6 @@ export function createReview(
                 : {
                     type: subject.type,
                     occurredAt: subject.occurredAt,
-                    merchant: subject.merchant,
                     description: subject.description,
                     ...principal,
                   },

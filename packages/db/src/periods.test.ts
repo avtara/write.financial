@@ -219,7 +219,7 @@ describe('previewStartDay', () => {
 
   it('recalculate: lists the transactions that change period, largest first', async () => {
     const food = ledger.category('system:food');
-    const tokopedia = await ledger.entry('expense', '2026-09-26', 449_000n, food, { merchant: 'Tokopedia' });
+    const tokopedia = await ledger.entry('expense', '2026-09-26', 449_000n, food, { description: 'Tokopedia' });
     await ledger.entry('expense', '2026-09-27', 100_000n, food);
     await ledger.entry('expense', '2026-09-28', 50_000n, food);
     await ledger.entry('expense', '2026-09-29', 20_000n, food);
@@ -241,7 +241,7 @@ describe('previewStartDay', () => {
     expect(preview.moved).toEqual({
       count: 4,
       largest: [
-        { id: tokopedia, localDate: '2026-09-26', merchant: 'Tokopedia', description: null, amountMinor: 449_000n },
+        { id: tokopedia, localDate: '2026-09-26', description: 'Tokopedia', amountMinor: 449_000n },
         expect.objectContaining({ localDate: '2026-09-27', amountMinor: 100_000n }),
         expect.objectContaining({ localDate: '2026-09-28', amountMinor: 50_000n }),
       ],
@@ -265,21 +265,16 @@ describe('previewStartDay', () => {
 });
 
 describe('payday', () => {
-  it('derives the payday and the payer from the latest six salary incomes', async () => {
-    expect(await asApp(() => periodsAt('2026-10-15').payday(userId))).toEqual({ day: null, merchant: null, count: 0 });
+  it('derives the payday from the latest six salary incomes', async () => {
+    expect(await asApp(() => periodsAt('2026-10-15').payday(userId))).toEqual({ day: null, count: 0 });
     const salary = ledger.category('system:salary');
-    await ledger.entry('income', '2026-03-25', 20_000_000n, salary, { merchant: 'PT Lama' });
-    for (const month of ['04', '05', '06', '07', '08']) {
-      await ledger.entry('income', `2026-${month}-01`, 20_000_000n, salary, { merchant: 'PT Lama' });
+    await ledger.entry('income', '2026-03-25', 20_000_000n, salary);
+    for (const month of ['04', '05', '06', '07', '08', '10']) {
+      await ledger.entry('income', `2026-${month}-01`, 20_000_000n, salary);
     }
-    await ledger.entry('income', '2026-10-01', 20_000_000n, salary, { merchant: 'PT Kinarya' });
     // Other incomes do not count.
     await ledger.entry('income', '2026-10-09', 5_000_000n, ledger.category('system:freelance'));
-    expect(await asApp(() => periodsAt('2026-10-15').payday(userId))).toEqual({
-      day: 1,
-      merchant: 'PT Kinarya',
-      count: 6,
-    });
+    expect(await asApp(() => periodsAt('2026-10-15').payday(userId))).toEqual({ day: 1, count: 6 });
   });
 });
 

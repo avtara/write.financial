@@ -73,9 +73,8 @@ describe('receipt extraction', () => {
 });
 describe('receipt duplicates', () => {
   const receipt = { merchant: ' Indomaret ', amountMinor: 110000n, occurredAt: new Date('2026-10-15T00:55:00Z') };
-  const candidate = {
-    merchant: 'INDOMARET',
-    description: null,
+  const candidate: { description: string | null; amountMinor: bigint; occurredAt: Date } = {
+    description: 'INDOMARET',
     amountMinor: 110000n,
     occurredAt: new Date('2026-10-15T02:55:00Z'),
   };
@@ -87,8 +86,8 @@ describe('receipt duplicates', () => {
     expect(
       isReceiptDuplicate(receipt, { ...candidate, occurredAt: new Date(candidate.occurredAt.getTime() + 1) }),
     ).toBe(false);
-    expect(isReceiptDuplicate(receipt, { ...candidate, merchant: 'Other' })).toBe(false);
-    expect(isReceiptDuplicate(receipt, { ...candidate, merchant: null, description: 'Indomaret' })).toBe(true);
-    expect(isReceiptDuplicate(receipt, { ...candidate, merchant: null, description: null })).toBe(false);
+    expect(isReceiptDuplicate(receipt, { ...candidate, description: 'Other' })).toBe(false);
+    expect(isReceiptDuplicate(receipt, { ...candidate, description: '  indomaret ' })).toBe(true);
+    expect(isReceiptDuplicate(receipt, { ...candidate, description: null })).toBe(false);
   });
 });

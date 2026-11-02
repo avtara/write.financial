@@ -43,7 +43,7 @@ describe('balanceChanges', () => {
 
 describe('DeleteDialog', () => {
   it('asks to delete one transaction, showing it and the balance before → after', async () => {
-    const row = transactionRow('tx-1', { categoryId: KOPI.id, merchant: 'Kopi Kenangan', amountMinor: -389_000n });
+    const row = transactionRow('tx-1', { categoryId: KOPI.id, description: 'Kopi Kenangan', amountMinor: -389_000n });
     const { onCancel, onConfirm } = await renderDialog([row]);
     const dialog = page.getByRole('dialog', { name: 'Hapus transaksi ini?' });
     await expect

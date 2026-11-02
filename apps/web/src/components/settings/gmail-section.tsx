@@ -392,7 +392,7 @@ export function GmailSection({ settings, timeZone, viewer }: GmailSectionProps) 
                               · {m.gmail_confidence({ percent: row.extraction.confidence.date })}
                             </p>
                             <p>
-                              {m.review_ai_merchant()} ·{' '}
+                              {m.record_description()} ·{' '}
                               {m.gmail_confidence({ percent: row.extraction.confidence.merchant })}
                             </p>
                             <p>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * ⌘K (FR-S4), keyboard only, as its own invited user with the design persona's ledger: open with Ctrl+K, find a seeded
- * transaction by merchant, open it, find it again under "Baru dibuka", record an unmatched query through the Record
+ * transaction by title, open it, find it again under "Baru dibuka", record an unmatched query through the Record
  * Transaction sheet, the `G` navigation sequence, the tablet rail's search button, and account and category results
  * opening their pages.
  */
@@ -34,7 +34,7 @@ async function visit(page: Page, path: string) {
   await page.waitForLoadState('networkidle');
 }
 
-test('finds a seeded transaction by merchant and lists it under "Baru dibuka"', async ({ page }) => {
+test('finds a seeded transaction by title and lists it under "Baru dibuka"', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await visit(page, '/');
   await expect(page.getByRole('button', { name: 'Cari… Ctrl K' })).toBeVisible();

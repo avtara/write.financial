@@ -176,7 +176,7 @@ export interface AiModelCatalog {
   catalogPublic: boolean;
 }
 
-/** Counts only. Never put names, balances, merchant text, prompts, or tool arguments here. */
+/** Counts only. Never put names, balances, transaction titles, prompts, or tool arguments here. */
 export interface AiDataCounts {
   images: number;
   categories: number;

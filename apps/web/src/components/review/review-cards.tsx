@@ -275,10 +275,8 @@ export function AiCard({ item, lookup, locale, timeZone, pending, onRecord, onIg
         </p>
       )}
       <dl className="grid grid-cols-[84px_1fr] gap-x-3 gap-y-1.5 text-[12.5px]">
-        <dt className="text-muted-fg">{m.review_ai_merchant()}</dt>
-        <dd className={draft.type !== 'transfer' && draft.merchant ? 'text-fg' : 'text-subtle'}>
-          {(draft.type === 'transfer' ? null : draft.merchant) || m.review_ai_unknown()}
-        </dd>
+        <dt className="text-muted-fg">{m.record_description()}</dt>
+        <dd className={draft.description ? 'text-fg' : 'text-subtle'}>{draft.description || m.review_ai_unknown()}</dd>
         <dt className="text-muted-fg">{m.review_ai_account()}</dt>
         <dd className="text-fg">{accountOf(lookup, accountId)?.displayName ?? m.review_ai_unknown()}</dd>
         {draft.type === 'transfer' ? null : (
@@ -328,7 +326,7 @@ export interface CategoryRowProps {
 /** A recorded transaction whose category was deleted (design `Ju8vG`): pick one, or take a suggestion. */
 export function CategoryRow({ item, lookup, locale, timeZone, value, onValueChange, onIgnore }: CategoryRowProps) {
   const { subject } = item;
-  const title = subject?.merchant ?? subject?.description ?? item.label ?? m.review_untitled();
+  const title = subject?.description ?? item.label ?? m.review_untitled();
   if (subject === null) {
     return (
       <article aria-label={title} data-review-item={item.id} className={CARD}>
@@ -348,7 +346,7 @@ export function CategoryRow({ item, lookup, locale, timeZone, value, onValueChan
       <CardHead
         tile={null}
         title={title}
-        subtitle={subject.merchant === null ? null : subject.description}
+        subtitle={null}
         amount={<Money minor={subject.amountMinor} currency={subject.currency} context="amount" locale={locale} />}
         date={`${formatDate(day, locale, 'day')} ${formatTime(subject.occurredAt, timeZone, locale)}`}
       />

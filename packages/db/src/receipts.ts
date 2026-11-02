@@ -26,7 +26,6 @@ export interface ReceiptView {
   draft: ReviewDraft | null;
   duplicates: {
     id: string;
-    merchant: string | null;
     description: string | null;
     occurredAt: Date;
     amountMinor: bigint;
@@ -53,7 +52,6 @@ async function duplicatesIn(tx: Transaction, extraction: ReceiptExtraction) {
     .select({
       id: transactions.id,
       description: transactions.description,
-      merchant: transactions.merchant,
       occurredAt: transactions.occurredAt,
       amountMinor: postings.amountMinor,
       accountId: postings.accountId,

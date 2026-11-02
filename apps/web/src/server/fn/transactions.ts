@@ -203,17 +203,13 @@ export const getTransactionDetail = createServerFn({ method: 'GET' })
     forUser(context, (userId, { transactions }) => transactions.get(userId, data.id)),
   );
 
-/**
- * FR-L4 inline edit: replaces the transaction with the form's input. Its source is kept, and so is its merchant
- * unless the input sets one (the form has no merchant field).
- */
+/** FR-L4 inline edit: replaces the transaction with the form's input, keeping its source. */
 export const updateTransaction = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.uuid(), input: RECORD_TRANSACTION_INPUT }))
   .handler(({ context, data }): Promise<Result<TransactionDetail>> =>
     forUser(context, async (userId, { transactions }) => {
       const before = await transactions.get(userId, data.id);
       return transactions.update(userId, data.id, {
-        merchant: before.merchant,
         ...defined(data.input),
         source: before.source,
       });

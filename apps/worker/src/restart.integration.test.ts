@@ -192,7 +192,7 @@ beforeAll(async () => {
     accountId: bca,
     amountMinor: 186_000n,
     categoryId: subscriptionsCategory,
-    merchant: 'Netflix',
+    description: 'Netflix',
   });
   const netflix = await createSchedules(app, { now: () => created }).createSubscription(userId, {
     name: 'Netflix',

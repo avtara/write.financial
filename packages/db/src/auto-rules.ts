@@ -43,7 +43,6 @@ import {
   managedTransactionIdsIn,
   proposalOf,
   ruleScopeIn,
-  subjectDescription,
   subscriptionIdsIn,
   tagsIn,
   timezoneIn,
@@ -378,7 +377,6 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
               occurredAt: transactions.occurredAt,
               localDate: transactions.localDate,
               description: transactions.description,
-              merchant: transactions.merchant,
               source: transactions.source,
               categoryId: transactions.categoryId,
             })
@@ -408,7 +406,7 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
           ]);
           for (const row of scanned) {
             const result = evaluateRules([rule], {
-              description: subjectDescription(row.description, row.merchant),
+              description: row.description,
               date: row.localDate,
               // An imported statement row's 09:00 is synthetic; a time condition cannot use it.
               minuteOfDay: row.source === 'import' ? null : minuteOfDayIn(row.occurredAt, timezone),
@@ -423,7 +421,7 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
               samples.push({
                 id: row.id,
                 localDate: row.localDate,
-                description: subjectDescription(row.description, row.merchant),
+                description: row.description,
                 currentCategoryId: row.categoryId,
                 matched: match.matched,
                 reasons: match.reasons,
@@ -465,7 +463,6 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
               occurredAt: transactions.occurredAt,
               localDate: transactions.localDate,
               description: transactions.description,
-              merchant: transactions.merchant,
               source: transactions.source,
               categoryId: transactions.categoryId,
               version: sql<string>`${transactions.updatedAt}::text`,
@@ -555,14 +552,13 @@ export async function recordCategoryCorrectionIn(
   input: {
     readonly transactionId: string;
     readonly description: string | null;
-    readonly merchant: string | null;
     readonly fromCategoryId: string | null;
     readonly toCategoryId: string | null;
   },
 ): Promise<void> {
   if (input.fromCategoryId === null || input.toCategoryId === null) return;
   if (input.fromCategoryId === input.toCategoryId) return;
-  const pattern = correctionPattern(input.description, input.merchant);
+  const pattern = correctionPattern(input.description);
   if (pattern === null) return;
   await tx
     .insert(autoRuleCorrections)

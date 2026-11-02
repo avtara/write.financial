@@ -134,7 +134,7 @@ describe('M2 exit on the design seed', () => {
       createPeriods(test.db, { now }).previewStartDay(userId, { day: 25, apply: 'recalculate' }),
     );
     expect(recalc.periods[0]).toMatchObject({ start: '2026-09-25', end: '2026-10-24', label: '2026-10' });
-    expect(recalc.moved.largest[0]).toMatchObject({ merchant: 'Tokopedia', amountMinor: 449_000n });
+    expect(recalc.moved.largest[0]).toMatchObject({ description: 'Tokopedia', amountMinor: 449_000n });
   });
 
   it('range 14 Sep – 13 Okt: 30 hari · melintasi 2 periode', async () => {

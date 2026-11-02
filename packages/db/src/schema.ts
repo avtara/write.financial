@@ -615,8 +615,8 @@ export const transactions = pgTable(
     occurredAt: timestamptz('occurred_at').notNull(),
     /** `occurred_at` as a calendar date in the user's time zone. */
     localDate: localDate('local_date').notNull(),
+    /** The title ("Judul"): a transaction has exactly one name. */
     description: text('description'),
-    merchant: text('merchant'),
     noteEnc: bytea('note_enc'),
     categoryId: uuid('category_id'),
     source: transactionSource('source').notNull().default('manual'),
@@ -652,7 +652,6 @@ export const transactions = pgTable(
     index('transactions_user_id_category_id_idx').on(table.userId, table.categoryId),
     index('transactions_split_parent_id_idx').on(table.splitParentId),
     index('transactions_parent_transaction_id_idx').on(table.parentTransactionId),
-    index('transactions_merchant_trgm_idx').using('gin', table.merchant.op('gin_trgm_ops')),
     index('transactions_description_trgm_idx').using('gin', table.description.op('gin_trgm_ops')),
     foreignKey({
       name: 'transactions_category_fk',
@@ -1589,8 +1588,9 @@ export const detectedRecurring = pgTable(
   {
     id: id(),
     userId: ownerId(),
-    /** Normalized merchant (`@wf/domain/subscriptions`). */
+    /** Normalized name (`merchantKey` of `@wf/domain/subscriptions`) of the charges' title. */
     merchantKey: text('merchant_key').notNull(),
+    /** The charges' title as written on the latest one: the proposed subscription name. */
     merchant: text('merchant').notNull(),
     dayOfMonth: smallint('day_of_month').notNull(),
     amountMinor: money('amount_minor').notNull(),
@@ -2495,7 +2495,7 @@ export const reportStatus = pgEnum('report_status', REPORT_STATUSES);
  * FR-LP1–LP3: one row per report — a monthly report snapshots its closed period, and a quarter, year, or custom
  * range aggregates final monthly reports plus live boundary segments ("sementara"). Final monthly snapshots keep
  * their figures and names; provisional aggregates refresh on request. `sections` holds income sources, categories
- * against budgets, merchants, tags, accounts, goals, largest transactions, subscriptions, the daily series and six
+ * against budgets, top titles, tags, accounts, goals, largest transactions, subscriptions, the daily series and six
  * month-end net-worth valuations. JSON amounts are decimal strings because `jsonb` has no bigint.
  */
 export const reports = pgTable(
@@ -2627,7 +2627,7 @@ export const autoRules = pgTable(
 );
 
 /**
- * Minimal, auditable evidence of a manual category correction: the transaction, its normalized description/merchant
+ * Minimal, auditable evidence of a manual category correction: the transaction, its normalized title (description)
  * pattern, and the category it was changed from and to. Four distinct corrected transactions of one pattern suggest a
  * rule (FR-AI1). Only the manual edit path writes this table; rule backfill and seed creation never do.
  */

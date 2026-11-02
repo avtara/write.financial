@@ -97,7 +97,7 @@ test('a later start day previews the prorated transition and is left without sav
   await page.keyboard.press('Enter');
   await expect(start).toHaveText('Tanggal 25');
 
-  await expect(page.getByText('Gaji PT Kinarya biasanya masuk tgl 1, bukan tgl 25')).toBeVisible();
+  await expect(page.getByText('Gaji biasanya masuk tgl 1, bukan tgl 25')).toBeVisible();
   await expect(page.getByText('Tidak sejalan gajian')).toBeVisible();
   await expect(page.getByText('Transisi', { exact: true })).toBeVisible();
   await expect(page.getByText('1 Nov – 24 Nov', { exact: true })).toBeVisible();

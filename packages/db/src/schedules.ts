@@ -329,7 +329,7 @@ export interface ScheduledItem {
   /** `installment`: a non-card debt's row (FR-U6; source = the debt). */
   readonly sourceType: ScheduleSourceType | 'installment';
   readonly sourceId: string;
-  /** Subscription name, the recurrence's description / merchant, or the debt's name. */
+  /** Subscription name, the recurrence's title (description), or the debt's name. */
   readonly name: string | null;
   readonly icon: string | null;
   readonly dueDate: LocalDate;
@@ -525,7 +525,7 @@ async function checkTemplateIn(tx: Transaction, input: ScheduleTemplate): Promis
     if (input.categoryId !== null && !(await isCategoryIn(tx, input.categoryId, [input.type]))) {
       throw invalidRecurrence('Unknown category');
     }
-    return { template: { ...input, description, merchant: clean(input.merchant), tags }, allocations: undefined };
+    return { template: { ...input, description, tags }, allocations: undefined };
   }
   const { allocations, ...template } = input;
   if (template.sentMinor <= 0n || template.receivedMinor <= 0n) throw invalidRecurrence('Amount must be positive');
@@ -1756,8 +1756,7 @@ export function createSchedules(db: Database, options: SchedulesOptions = {}): S
           const template = templates.get(row.id) as RecurrenceTemplate;
           const { accountId, amountMinor } = templateAmount(template);
           sources.set(row.id, {
-            // Decoded templates always carry `merchant` (`null` when blank).
-            name: template.description ?? (template.type === 'transfer' ? null : (template.merchant as string | null)),
+            name: template.description ?? null,
             icon:
               template.type === 'transfer' || template.categoryId === null
                 ? null

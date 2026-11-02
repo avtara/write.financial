@@ -292,35 +292,30 @@ describe('suggestions from manual corrections', () => {
         await recordCategoryCorrectionIn(tx, alice, {
           transactionId: id,
           description: '12345',
-          merchant: null,
           fromCategoryId: food,
           toCategoryId: transport,
         });
         await recordCategoryCorrectionIn(tx, alice, {
           transactionId: id,
           description: 'Kopi',
-          merchant: null,
           fromCategoryId: null,
           toCategoryId: transport,
         });
         await recordCategoryCorrectionIn(tx, alice, {
           transactionId: id,
           description: 'Kopi',
-          merchant: null,
           fromCategoryId: food,
           toCategoryId: food,
         });
         await recordCategoryCorrectionIn(tx, alice, {
           transactionId: id,
           description: 'Kopi',
-          merchant: null,
           fromCategoryId: food,
           toCategoryId: transport,
         });
         await recordCategoryCorrectionIn(tx, alice, {
           transactionId: id,
           description: 'Kopi',
-          merchant: null,
           fromCategoryId: food,
           toCategoryId: transport,
         });
@@ -943,7 +938,6 @@ describe('review regressions', () => {
         recordCategoryCorrectionIn(tx, alice, {
           transactionId: id,
           description: 'Kopi',
-          merchant: null,
           fromCategoryId: food,
           toCategoryId: transport,
         }),
@@ -1003,7 +997,7 @@ describe('repository edges', () => {
     expect(await asApp(() => rules.suggestions(alice))).toEqual([]);
   });
 
-  it('has no description for a row with neither description nor merchant', async () => {
+  it('has no description for a row with a blank description', async () => {
     await asApp(() =>
       rules.create(alice, {
         input: definition({ conditions: [{ field: 'time', op: 'before', minute: 600 }] }),

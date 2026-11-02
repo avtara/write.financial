@@ -118,7 +118,7 @@ beforeEach(async () => {
     'DELETE FROM gmail_connections',
     'DELETE FROM ai_logs',
     'DELETE FROM ai_usage_months',
-    "DELETE FROM transactions WHERE source='gmail' OR merchant='Manual Gmail fixture'",
+    "DELETE FROM transactions WHERE source='gmail' OR description='Manual Gmail fixture'",
   ])
     await test.query(statement);
   await test.query('UPDATE users SET two_factor_enabled=true WHERE id=$1', [userId]);
@@ -354,7 +354,7 @@ describe('real Gmail processor with role-scoped repositories', () => {
         categoryId,
         amountMinor: 350000n,
         occurredAt: new Date(clock.getTime() + 7200000),
-        merchant: 'Manual Gmail fixture',
+        description: 'Manual Gmail fixture',
         source: 'manual',
       }),
     );

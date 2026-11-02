@@ -19,7 +19,6 @@ function row(id: string, patch: Partial<TransactionRow> = {}): TransactionRow {
     type: 'expense',
     occurredAt: new Date('2026-10-15T05:00:00Z'),
     localDate: '2026-10-15' as LocalDate,
-    merchant: null,
     description: null,
     categoryId: 'food',
     accountId: 'bca',

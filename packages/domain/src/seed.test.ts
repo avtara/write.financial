@@ -73,7 +73,7 @@ describe('DESIGN_SEED transactions (Section 00, 1–15 Okt 2026)', () => {
   });
 
   it('golden: Belanja = Erafone 2.150.000 + Shopee 250.000', () => {
-    expect(inCategory('system:shopping').map((expense) => [expense.merchant, expense.amountMinor])).toEqual([
+    expect(inCategory('system:shopping').map((expense) => [expense.description, expense.amountMinor])).toEqual([
       ['Erafone', 2_150_000n],
       ['Shopee', 250_000n],
     ]);
@@ -148,10 +148,10 @@ describe('DESIGN_SEED September (Section 10 "Laporan September 2026", the closed
     expect(total(inSeptemberCategory(key))).toBe(amount);
   });
 
-  it('golden: the 9.9 sale — 7 Shopee orders including Kursi kerja ergonomis 1.050.000 on 9 Sep', () => {
-    const shopee = inSeptemberCategory('system:shopping').filter((expense) => expense.merchant === 'Shopee');
+  it('golden: the 9.9 sale — 7 Shopee orders including 1.050.000 on 9 Sep', () => {
+    const shopee = inSeptemberCategory('system:shopping').filter((expense) => expense.description === 'Shopee');
     expect(shopee).toHaveLength(7);
-    expect(shopee.find((expense) => expense.description === 'Kursi kerja ergonomis')).toMatchObject({
+    expect(shopee.find((expense) => expense.amountMinor === 1_050_000n)).toMatchObject({
       amountMinor: 1_050_000n,
       occurredAt: expect.stringMatching(/^2026-09-09T/) as unknown,
     });
@@ -162,8 +162,7 @@ describe('DESIGN_SEED September (Section 10 "Laporan September 2026", the closed
       .filter((flow) => flow.occurredAt >= '2026-09-25')
       .toSorted((a, b) => (a.amountMinor < b.amountMinor ? 1 : -1));
     expect(largest).toMatchObject({
-      merchant: 'Tokopedia',
-      description: 'Sepatu lari',
+      description: 'Tokopedia',
       amountMinor: 449_000n,
       occurredAt: expect.stringMatching(/^2026-09-27T/) as unknown,
     });
@@ -398,7 +397,7 @@ describe('DESIGN_SEED subscriptions (Section 07 "Langganan", 15 Okt)', () => {
             (row) =>
               row.kind === 'expense' &&
               row.occurredAt === bill.occurredAt &&
-              row.merchant === name &&
+              row.description === name &&
               row.amountMinor === priceMinor,
           ),
         ).toHaveLength(1);
@@ -676,7 +675,6 @@ describe('seedClosingBalances', () => {
           accountKey: 'ovo',
           categoryKey: 'system:food',
           amountMinor: 6_000n,
-          merchant: null,
           description: null,
           tags: [],
         },
@@ -686,7 +684,6 @@ describe('seedClosingBalances', () => {
           accountKey: 'ovo',
           categoryKey: 'system:cashback',
           amountMinor: 1_000n,
-          merchant: null,
           description: null,
           tags: [],
         },
@@ -743,7 +740,6 @@ describe('seedClosingBalances', () => {
           accountKey: 'nope',
           categoryKey: 'system:food',
           amountMinor: 1n,
-          merchant: null,
           description: null,
           tags: [],
         },

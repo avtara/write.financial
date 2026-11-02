@@ -233,7 +233,7 @@ describe('RuleSuggestion', () => {
     expect(onApply).toHaveBeenCalledWith({ categoryId: transport });
   });
 
-  it('matches a merchant without a category action', async () => {
+  it('matches a title without a category action', async () => {
     const { onApply } = await render({
       rules: [rule({ actions: [{ type: 'addTag', tag: 'kantor' }] })],
       values: values({ description: 'KRL' }),

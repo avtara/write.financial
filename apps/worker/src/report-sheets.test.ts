@@ -15,13 +15,13 @@ describe('reportBlocks', () => {
       'Pemasukan',
       'Rekening',
       'Pengeluaran',
-      'Merchant',
+      'Judul teratas',
       'Tag',
       'Transaksi Terbesar',
       'Langganan',
     ]);
     const onlySpending = reportBlocks(richReportView(), { ...ALL, sections: ['spending'] }).map((block) => block.name);
-    expect(onlySpending).toEqual(['Pengeluaran', 'Merchant', 'Tag']);
+    expect(onlySpending).toEqual(['Pengeluaran', 'Judul teratas', 'Tag']);
   });
 
   it('skips the empty optional blocks of a bare report and always keeps the subscription summary', () => {

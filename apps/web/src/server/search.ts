@@ -114,12 +114,6 @@ async function names(context: SourceContext): Promise<Names> {
   };
 }
 
-/** "Shopee — Rak buku 5 susun": the merchant and the description, whichever exist. */
-function titleOf({ merchant, description }: { merchant: string | null; description: string | null }): string | null {
-  if (merchant !== null && description !== null && merchant !== description) return `${merchant} — ${description}`;
-  return merchant ?? description;
-}
-
 /** The hit for a stored transaction: the principal postings are listed outgoing first. */
 function detailHit(detail: TransactionDetail, lookup: Names): TransactionHit | null {
   const [from, to] = detail.postings.filter((posting) => posting.role === 'principal');
@@ -128,7 +122,7 @@ function detailHit(detail: TransactionDetail, lookup: Names): TransactionHit | n
     id: detail.id,
     type: detail.type,
     localDate: detail.localDate,
-    title: titleOf(detail),
+    title: detail.description,
     amountMinor: from.amountMinor,
     currency: from.currency,
     category: lookup.category(detail.categoryId),
@@ -149,7 +143,7 @@ const transactions: SearchSource<TransactionHit> = {
       id: row.id,
       type: row.type,
       localDate: row.localDate,
-      title: titleOf(row),
+      title: row.description,
       amountMinor: row.amountMinor,
       currency: row.currency,
       category: lookup.category(row.categoryId),

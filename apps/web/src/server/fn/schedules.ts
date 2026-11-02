@@ -38,7 +38,6 @@ const template = z.discriminatedUnion('type', [
     amountMinor: positiveMinor,
     categoryId: id.nullable(),
     description: text,
-    merchant: text,
     tags,
   }),
   z.object({

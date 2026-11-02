@@ -216,9 +216,6 @@ describe('convertCardTransaction (OEZIG)', () => {
     fake.transactions.get.mockResolvedValue(kulkas());
     expect(await call(fns.convertCardTransaction, { context: signedIn(), data: terms })).toMatchObject({ ok: true });
     expect(fake.debts.create).toHaveBeenCalledWith(USER_ID, { ...PLAN, sourceTransactionId: 'tx-kulkas' });
-    fake.transactions.get.mockResolvedValue(kulkas({ description: null, merchant: 'Tokopedia' }));
-    await call(fns.convertCardTransaction, { context: signedIn(), data: terms });
-    expect(fake.debts.create).toHaveBeenLastCalledWith(USER_ID, expect.objectContaining({ name: 'Tokopedia' }));
     fake.transactions.get.mockResolvedValue(kulkas({ description: null }));
     await call(fns.convertCardTransaction, { context: signedIn(), data: terms });
     expect(fake.debts.create).toHaveBeenLastCalledWith(USER_ID, expect.objectContaining({ name: 'BCA Visa' }));
@@ -261,14 +258,6 @@ describe('recordCardInstallment (hNvip)', () => {
     expect(fake.debts.recordInstallmentPurchase).toHaveBeenCalledWith(USER_ID, { draft: KULKAS_EXPENSE, plan: PLAN });
     const { description, ...unnamed } = KULKAS_EXPENSE;
     expect(description).toBe('Tokopedia — Kulkas 2 pintu');
-    await call(fns.recordCardInstallment, {
-      context: signedIn(),
-      data: { ...data, transaction: { ...unnamed, merchant: 'Tokopedia' } },
-    });
-    expect(fake.debts.recordInstallmentPurchase).toHaveBeenLastCalledWith(
-      USER_ID,
-      expect.objectContaining({ plan: expect.objectContaining({ name: 'Tokopedia' }) as unknown }),
-    );
     await call(fns.recordCardInstallment, { context: signedIn(), data: { ...data, transaction: unnamed } });
     expect(fake.debts.recordInstallmentPurchase).toHaveBeenLastCalledWith(
       USER_ID,

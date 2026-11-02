@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from 'node:crypto';
-import { DecryptionError } from '@wf/crypto/cipher';
+import { DecryptionError, encrypt } from '@wf/crypto/cipher';
 import { generateDek } from '@wf/crypto/envelope';
 import type { LocalDate } from '@wf/domain/period';
 import { sql } from 'drizzle-orm';
@@ -12,6 +12,7 @@ import {
   insertReviewItemIn,
   occurrenceReviewItemIn,
   readReviewPayload,
+  REVIEW_PAYLOAD_PURPOSE,
   type NewReviewItem,
   type ReviewPayload,
 } from './review-items.ts';
@@ -46,7 +47,7 @@ const payloads: ReviewPayload[] = [
       accountId: randomUUID(),
       amountMinor: 186_000n,
       categoryId: null,
-      merchant: 'Netflix',
+      description: 'Netflix',
       source: 'recurring',
     },
   },
@@ -61,6 +62,7 @@ const payloads: ReviewPayload[] = [
       receivedMinor: 1_000_000n,
       fee: { minor: 2_500n, categoryId: randomUUID() },
       tags: ['dana-darurat'],
+      description: null,
     },
   },
   {
@@ -141,8 +143,44 @@ describe('insertReviewItemIn', () => {
         sentMinor: 5n,
         receivedMinor: 6n,
         fee: null,
+        description: null,
       },
     });
+  });
+
+  it('folds the merchant of a draft stored before single titles into a missing description and drops it', () => {
+    const legacy = {
+      type: 'expense',
+      occurredAt: occurredAt.toISOString(),
+      accountId: 'a',
+      amountMinor: '186000',
+      categoryId: null,
+      merchant: 'Netflix',
+      source: 'recurring',
+    };
+    // A description of its own wins over the old merchant.
+    for (const [draft, description] of [
+      [legacy, 'Netflix'],
+      [{ ...legacy, description: 'Langganan' }, 'Langganan'],
+    ] as const) {
+      const blob = encrypt(dek, JSON.stringify({ kind: 'transaction', draft }), {
+        userId: alice,
+        purpose: REVIEW_PAYLOAD_PURPOSE,
+      });
+      // toEqual: the decoded draft has no `merchant` key.
+      expect(readReviewPayload(dek, alice, blob)).toEqual({
+        kind: 'transaction',
+        draft: {
+          type: 'expense',
+          occurredAt,
+          accountId: 'a',
+          amountMinor: 186_000n,
+          categoryId: null,
+          description,
+          source: 'recurring',
+        },
+      });
+    }
   });
 
   it('keeps the plain columns and is idempotent per dedupe key', async () => {
@@ -248,8 +286,7 @@ describe('occurrenceReviewItemIn', () => {
           accountId: account,
           amountMinor: 186_000n,
           categoryId: null,
-          merchant: 'Netflix',
-          description: 'Premium',
+          description: 'Netflix',
         },
       },
     });
@@ -258,7 +295,14 @@ describe('occurrenceReviewItemIn', () => {
   it('proposes a recurrence template with the expected amount', async () => {
     const [accountId, from, to, categoryId] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
     const entry = await recurrence(
-      encodeTemplate({ type: 'income', accountId, amountMinor: 1n, categoryId, merchant: 'PT Maju', tags: ['gaji'] }),
+      encodeTemplate({
+        type: 'income',
+        accountId,
+        amountMinor: 1n,
+        categoryId,
+        description: 'PT Maju',
+        tags: ['gaji'],
+      }),
     );
     const entryItem = await build(await occurrence('recurrence', entry, '2026-10-18', 25_000_000));
     expect(entryItem.payload).toEqual({
@@ -268,8 +312,7 @@ describe('occurrenceReviewItemIn', () => {
         accountId,
         amountMinor: 25_000_000n,
         categoryId,
-        merchant: 'PT Maju',
-        description: null,
+        description: 'PT Maju',
         tags: ['gaji'],
         occurredAt: noon,
         source: 'recurring',

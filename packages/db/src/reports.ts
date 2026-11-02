@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Reports (FR-LP1–LP5). A report is a stored snapshot of a range: the KPIs with their comparison, the savings rate,
- * the spending lines (categories against their budget, merchants, tags, accounts), goals, the largest transactions,
+ * the spending lines (categories against their budget, top titles, tags, accounts), goals, the largest transactions,
  * subscriptions, the daily series, and net worth at the range end. Closed monthly reports are final and never
  * rewritten. Quarterly/yearly/custom reports always remain provisional (D10): full closed periods reuse their
  * final monthly snapshots, while only partial boundaries and the current period read the live ledger.
@@ -85,8 +85,9 @@ export interface ReportIncomeLine {
   readonly shareBps: number;
 }
 
-export interface ReportMerchantLine {
-  readonly merchant: string;
+/** Spending grouped by transaction title ("Judul teratas"); untitled spending is grouped under `''`. */
+export interface ReportTitleLine {
+  readonly title: string;
   readonly totalMinor: bigint;
   readonly count: number;
   /** Of all expenses. */
@@ -124,7 +125,6 @@ export interface ReportLargestLine {
   readonly transactionId: string;
   readonly date: LocalDate;
   readonly description: string;
-  readonly merchant: string | null;
   readonly amountMinor: bigint;
   /** Of all expenses ("Sewa Kos 24,6%"). */
   readonly shareBps: number;
@@ -200,7 +200,7 @@ export interface ReportDayLine {
 export interface ReportSections {
   readonly categories: readonly ReportCategoryLine[];
   readonly incomeSources: readonly ReportIncomeLine[];
-  readonly merchants: readonly ReportMerchantLine[];
+  readonly titles: readonly ReportTitleLine[];
   readonly tags: readonly ReportTagLine[];
   readonly accounts: readonly ReportAccountLine[];
   readonly goals: readonly ReportGoalLine[];
@@ -306,8 +306,8 @@ function encodeSections(sections: ReportSections): JsonObject {
       usedBps: line.usedBps,
       overMinor: str(line.overMinor),
     })),
-    merchants: sections.merchants.map((line) => ({
-      merchant: line.merchant,
+    titles: sections.titles.map((line) => ({
+      title: line.title,
       totalMinor: str(line.totalMinor),
       count: line.count,
       shareBps: line.shareBps,
@@ -340,7 +340,6 @@ function encodeSections(sections: ReportSections): JsonObject {
       transactionId: line.transactionId,
       date: line.date,
       description: line.description,
-      merchant: line.merchant,
       amountMinor: str(line.amountMinor),
       shareBps: line.shareBps,
     })),
@@ -390,7 +389,7 @@ function decodeSections(raw: JsonObject): ReportSections {
       totalMinor: string;
       shareBps: number;
     }[];
-    merchants: { merchant: string; totalMinor: JsonValue; count: number; shareBps: number }[];
+    titles: { title: string; totalMinor: JsonValue; count: number; shareBps: number }[];
     tags: { tagId: string; name: string; totalMinor: JsonValue; count: number }[];
     accounts: { accountId: string; name: string; type: AccountType; inMinor: JsonValue; outMinor: JsonValue }[];
     goals: {
@@ -408,7 +407,6 @@ function decodeSections(raw: JsonObject): ReportSections {
       transactionId: string;
       date: LocalDate;
       description: string;
-      merchant: string | null;
       amountMinor: JsonValue;
       shareBps: number;
     }[];
@@ -439,8 +437,8 @@ function decodeSections(raw: JsonObject): ReportSections {
       usedBps: line.usedBps,
       overMinor: big(line.overMinor),
     })),
-    merchants: data.merchants.map((line) => ({
-      merchant: line.merchant,
+    titles: data.titles.map((line) => ({
+      title: line.title,
       totalMinor: big(line.totalMinor),
       count: line.count,
       shareBps: line.shareBps,
@@ -473,7 +471,6 @@ function decodeSections(raw: JsonObject): ReportSections {
       transactionId: line.transactionId,
       date: line.date,
       description: line.description,
-      merchant: line.merchant,
       amountMinor: big(line.amountMinor),
       shareBps: line.shareBps,
     })),
@@ -1062,9 +1059,9 @@ export function createReports(db: Database): ReportsRepository {
       };
     });
 
-    const merchantRows = await tx
+    const titleRows = await tx
       .select({
-        merchant: sql<string>`coalesce(nullif(btrim(${transactions.merchant}), ''), nullif(btrim(${transactions.description}), ''), '')`,
+        title: sql<string>`coalesce(btrim(${transactions.description}), '')`,
         totalMinor: sql<string>`sum(-${postings.amountBaseMinor})`,
         count: sql<number>`count(distinct ${transactions.id})::int`,
       })
@@ -1080,16 +1077,15 @@ export function createReports(db: Database): ReportsRepository {
       )
       .groupBy(sql`1`)
       .orderBy(desc(sql`sum(-${postings.amountBaseMinor})`), asc(sql`1`));
-    const merchantShares = shareLines(
-      merchantRows.map((row) => ({ key: row.merchant, totalMinor: BigInt(row.totalMinor) })),
+    const titleShares = shareLines(
+      titleRows.map((row) => ({ key: row.title, totalMinor: BigInt(row.totalMinor) })),
       totals.expenseMinor,
     );
-    const merchants: ReportMerchantLine[] = merchantRows.map((row, index) => ({
-      merchant: row.merchant,
-      // The description falls back to the merchant and then to an empty string, as the SQL above does.
+    const titles: ReportTitleLine[] = titleRows.map((row, index) => ({
+      title: row.title,
       totalMinor: BigInt(row.totalMinor),
       count: row.count,
-      shareBps: (merchantShares[index] as ShareLine<string>).shareBps,
+      shareBps: (titleShares[index] as ShareLine<string>).shareBps,
     }));
 
     const tagRows = await tx
@@ -1170,8 +1166,7 @@ export function createReports(db: Database): ReportsRepository {
       .select({
         id: transactions.id,
         date: transactions.localDate,
-        description: sql<string>`coalesce(nullif(btrim(${transactions.description}), ''), nullif(btrim(${transactions.merchant}), ''), '')`,
-        merchant: transactions.merchant,
+        description: sql<string>`coalesce(btrim(${transactions.description}), '')`,
         amountMinor: sql<string>`sum(-${postings.amountBaseMinor})`,
       })
       .from(postings)
@@ -1195,8 +1190,7 @@ export function createReports(db: Database): ReportsRepository {
       transactionId: row.id,
       date: row.date,
       description: row.description,
-      merchant: row.merchant,
-      // The description falls back to the merchant and then to an empty string, as the SQL above does.
+      // An untitled transaction has an empty description, as the SQL above makes it.
       amountMinor: BigInt(row.amountMinor),
       shareBps: (largestShares[index] as ShareLine<string>).shareBps,
     }));
@@ -1252,7 +1246,7 @@ export function createReports(db: Database): ReportsRepository {
     return {
       categories: categoriesLines,
       incomeSources,
-      merchants,
+      titles,
       tags: tagLines,
       accounts: accountLines,
       goals: goalLines,

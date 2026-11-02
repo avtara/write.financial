@@ -35,7 +35,7 @@ const OVERVIEW: PeriodsOverview = {
   periods: [OCTOBER, SEPTEMBER],
   upcoming: [NOVEMBER, DECEMBER],
 };
-const PAYDAY: Payday = { day: 1 as PeriodStartDay, merchant: 'PT Kinarya', count: 6 };
+const PAYDAY: Payday = { day: 1 as PeriodStartDay, count: 6 };
 
 const TRANSITION = period('2026-11-01', '2026-11-24', 24, 'transition');
 const NEW_OCTOBER = period('2026-09-25', '2026-10-24', 30);
@@ -66,7 +66,6 @@ const RECALCULATE = preview({
       {
         id: 'tx-1',
         localDate: '2026-09-27' as LocalDate,
-        merchant: 'Tokopedia',
         description: 'Sepatu lari',
         amountMinor: 449_000n,
       },
@@ -106,7 +105,7 @@ describe('recalculation', () => {
       name: 'Oktober',
       range: '25 Sep – 24 Okt',
       moved: '25–30 Sep',
-      largest: { ...RECALCULATE.moved.largest[0], label: 'Tokopedia — Sepatu lari' },
+      largest: { ...RECALCULATE.moved.largest[0], label: 'Sepatu lari' },
     });
   });
 
@@ -116,9 +115,7 @@ describe('recalculation', () => {
       periods: [period('2026-10-05', '2026-11-04', 31)],
       moved: {
         count: 1,
-        largest: [
-          { id: 'tx', localDate: '2026-10-02' as LocalDate, merchant: null, description: null, amountMinor: 1n },
-        ],
+        largest: [{ id: 'tx', localDate: '2026-10-02' as LocalDate, description: null, amountMinor: 1n }],
       },
     });
     expect(recalculation(later, OCTOBER, TODAY, 'id')).toMatchObject({
@@ -140,7 +137,7 @@ describe('PeriodSection', () => {
       .element(start.getByRole('button', { name: 'Bulan keuangan dimulai Tanggal 1' }))
       .toHaveTextContent('Tanggal 1');
     await expect.element(start.getByText('Tanggal 1–28 · sama di setiap bulan, termasuk Februari')).toBeVisible();
-    await expect.element(start.getByText('Gaji PT Kinarya masuk tiap tgl 1 (6 bulan terakhir)')).toBeVisible();
+    await expect.element(start.getByText('Gaji masuk tiap tgl 1 (6 bulan terakhir)')).toBeVisible();
     await expect.element(start.getByText('Sudah sesuai')).toBeVisible();
     await expect.element(start.getByText(/Dihitung dari transaksi Gaji terakhir/)).toBeVisible();
     await expect.element(start.getByText('Dipakai di judul & laporan')).toBeVisible();
@@ -177,7 +174,7 @@ describe('PeriodSection', () => {
 
     const start = screen.getByRole('region', { name: 'Awal periode' });
     await expect.element(start.getByRole('button', { name: /Bulan keuangan dimulai/ })).toHaveTextContent('Tanggal 25');
-    await expect.element(start.getByText('Gaji PT Kinarya biasanya masuk tgl 1, bukan tgl 25')).toBeVisible();
+    await expect.element(start.getByText('Gaji biasanya masuk tgl 1, bukan tgl 25')).toBeVisible();
     await expect.element(start.getByText('Tidak sejalan gajian')).toBeVisible();
     await expect.element(start.getByText('25 Sep – 24 Okt disebut “Oktober”')).toBeVisible();
 
@@ -193,7 +190,7 @@ describe('PeriodSection', () => {
       );
     await expect
       .element(apply.getByText(/^Oktober jadi/))
-      .toHaveTextContent('Oktober jadi 25 Sep – 24 Okt. Transaksi 25–30 Sep ikut pindah, mis. Tokopedia Rp449.000.');
+      .toHaveTextContent('Oktober jadi 25 Sep – 24 Okt. Transaksi 25–30 Sep ikut pindah, mis. Sepatu lari Rp449.000.');
     await expect.element(apply.getByRole('radio', { name: /Mulai periode berikutnya/ })).toBeChecked();
     await expect.element(screen.getByRole('status').last()).toHaveTextContent('Ada perubahan belum disimpan');
 
@@ -221,7 +218,7 @@ describe('PeriodSection', () => {
         .elements()
         .map((item) => item.textContent),
     ).toEqual([
-      'Transaksi 25–30 Sep pindah ke Oktober, mis. Tokopedia — Sepatu lari Rp449.000 (27 Sep)',
+      'Transaksi 25–30 Sep pindah ke Oktober, mis. Sepatu lari Rp449.000 (27 Sep)',
       'Anggaran & saving rate Oktober dihitung ulang',
       'Laporan September yang sudah final tidak berubah',
       'Setoran rutin & tagihan tetap di tanggalnya',
@@ -282,26 +279,13 @@ describe('PeriodSection', () => {
   });
 
   it('explains a missing payday', async () => {
-    const { screen } = await renderApp(
-      <PeriodSection overview={OVERVIEW} payday={{ day: null, merchant: null, count: 0 }} />,
-    );
+    const { screen } = await renderApp(<PeriodSection overview={OVERVIEW} payday={{ day: null, count: 0 }} />);
     await expect.element(screen.getByText('Belum ada pemasukan Gaji, jadi belum ada saran tanggal.')).toBeVisible();
     expect(screen.getByText(/Dihitung dari transaksi Gaji terakhir/).elements()).toHaveLength(0);
     await screen.getByRole('button', { name: /Bulan keuangan dimulai/ }).click();
     const follow = screen.getByRole('button', { name: 'Ikuti gajian' });
     await expect.element(follow).toBeDisabled();
     await expect.element(follow).toHaveAccessibleDescription('Butuh pemasukan Gaji yang sudah tercatat.');
-  });
-
-  it('words an unnamed salary', async () => {
-    previews();
-    const { screen } = await renderApp(
-      <PeriodSection overview={OVERVIEW} payday={{ day: 1 as PeriodStartDay, merchant: null, count: 1 }} />,
-    );
-    await expect.element(screen.getByText('Gaji masuk tiap tgl 1 (1 bulan terakhir)')).toBeVisible();
-    await screen.getByRole('button', { name: /Bulan keuangan dimulai/ }).click();
-    await screen.getByRole('button', { name: 'Tanggal 25' }).click();
-    await expect.element(screen.getByText('Gaji biasanya masuk tgl 1, bukan tgl 25')).toBeVisible();
   });
 
   it('shows the preview loading, drops a stale answer, and reports a failed preview', async () => {
@@ -339,7 +323,6 @@ describe('PeriodSection', () => {
           {
             id: 'tx',
             localDate: '2026-10-02' as LocalDate,
-            merchant: null,
             description: 'Parkir',
             amountMinor: 5_000n,
           },

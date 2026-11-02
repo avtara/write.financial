@@ -108,7 +108,6 @@ const rent = (): RecurrenceInput => ({
     amountMinor: 3_500_000n,
     categoryId: fx.category('system:rent'),
     description: '  Sewa kos ',
-    merchant: ' ',
     tags: ['kos'],
   },
   freq: 'monthly',
@@ -137,7 +136,7 @@ describe('recurrences', () => {
     await expect(test.as('wf_app', () => createSchedules(test.db).listRecurrences(fx.userId))).resolves.toEqual([]);
     const view = await app((s) => s.createRecurrence(fx.userId, rent()));
     expect(view).toMatchObject({
-      template: { description: 'Sewa kos', merchant: null, tags: ['kos'], amountMinor: 3_500_000n },
+      template: { description: 'Sewa kos', tags: ['kos'], amountMinor: 3_500_000n },
       currency: 'IDR',
       freq: 'monthly',
       interval: 1,
@@ -1030,7 +1029,7 @@ describe('subscriptions', () => {
 
 describe('detected subscriptions', () => {
   async function candidate(
-    merchant: string,
+    title: string,
     lastSeenOn: string,
     day: number,
     options: { status?: string; account?: boolean } = {},
@@ -1041,7 +1040,7 @@ describe('detected subscriptions', () => {
        VALUES ($1, lower($2), $2, $3, 26900, 'IDR', 3, $4, $5, $6, $7::detected_recurring_status) RETURNING id`,
       [
         fx.userId,
-        merchant,
+        title,
         day,
         lastSeenOn,
         options.account === false ? null : fx.bca,
@@ -1111,7 +1110,7 @@ describe('listScheduled', () => {
     const kos = await app((s) =>
       s.createRecurrence(fx.userId, {
         ...base,
-        template: { ...base.template, description: null, merchant: 'Ibu Kos' } as RecurrenceTemplate,
+        template: { ...base.template, description: 'Ibu Kos' },
       }),
     );
     const income = await app((s) =>

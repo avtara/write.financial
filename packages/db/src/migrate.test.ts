@@ -429,3 +429,128 @@ describe('0011_plan_months', () => {
     }
   }, 60_000);
 });
+
+describe('0037_drop_transaction_merchant', () => {
+  it('folds the merchant into the title where the description is blank, the same, or an email subject', async () => {
+    const { base, folder } = await migratedBefore('0037');
+    try {
+      const userId = await insertUser(base, 'title@example.test');
+      const transaction = async (merchant: string | null, description: string | null, source = 'manual') =>
+        (
+          await base.query<{ id: string }>(
+            `INSERT INTO transactions (user_id, type, occurred_at, local_date, description, merchant, source, client_id,
+               confirmed_by_user_at)
+             VALUES ($1, 'expense', '2026-10-20T03:00:00Z', '2026-10-20', $2, $3, $4::transaction_source, uuidv7(), now())
+             RETURNING id`,
+            [userId, description, merchant, source],
+          )
+        )[0]?.id as string;
+      const ids = {
+        same: await transaction('Gofood', ' gofood ', 'gmail'),
+        kept: await transaction('Gocar', 'Solaria', 'gmail'),
+        cardSubject: await transaction('Vacumm Cleaner', 'Credit Card Transaction Notification', 'gmail'),
+        transferSubject: await transaction('Dr.Chris Pet Shop', 'Transfer Berhasil', 'gmail'),
+        evidenceSubject: await transaction('Kopi Kenangan', 'Your order receipt #4411', 'gmail'),
+        untitled: await transaction('Shopee', null),
+        blank: await transaction('Tokopedia', '   '),
+        userTitle: await transaction('Shopee', 'Rak buku 5 susun'),
+        manualSubject: await transaction('Erafone', 'Transfer Berhasil'),
+        noMerchant: await transaction(null, 'Makan siang'),
+      };
+      const [item] = await base.query<{ id: string }>(
+        `INSERT INTO review_items (user_id, reason, source, dedupe_key, payload_enc, status, resolved_at,
+           resulting_transaction_id)
+         VALUES ($1, 'ai_suggestion', 'gmail', 'gmail.m1', '\\x00', 'confirmed', now(), $2) RETURNING id`,
+        [userId, ids.evidenceSubject],
+      );
+      await base.query(
+        `INSERT INTO email_ingest_logs (user_id, message_id, from_addr, subject, quote_enc, filter_result, outcome,
+           review_item_id, received_at)
+         VALUES ($1, 'm1', 'noreply@example.test', 'Your order receipt #4411', '\\x00', 'passed', 'confirmed', $2, now())`,
+        [userId, item?.id],
+      );
+      await base.query(
+        `INSERT INTO recurrences (user_id, template, freq, start_on, month_day)
+         VALUES ($1, $2::jsonb, 'monthly', '2026-10-01', 1), ($1, $3::jsonb, 'monthly', '2026-10-02', 2)`,
+        [
+          userId,
+          JSON.stringify({ type: 'expense', merchant: 'Netflix', description: null, amountMinor: '186000' }),
+          JSON.stringify({ type: 'expense', merchant: 'PLN', description: 'Token listrik', amountMinor: '350000' }),
+        ],
+      );
+      await base.query(
+        `INSERT INTO reports (user_id, kind, status, label, range_start, range_end, tx_count, income_minor,
+           expense_minor, saved_minor, sections)
+         VALUES ($1, 'custom', 'provisional', 'Okt', '2026-10-01', '2026-10-31', 1, 0, 0, 0, $2::jsonb)`,
+        [
+          userId,
+          JSON.stringify({
+            merchants: [{ merchant: 'Shopee', totalMinor: '250000', count: 1, shareBps: 10_000 }],
+            largest: [{ transactionId: ids.userTitle, description: 'Rak buku 5 susun', merchant: 'Shopee' }],
+            tags: [],
+          }),
+        ],
+      );
+
+      await migrateRest(base);
+
+      const titles = new Map(
+        (await base.query<{ id: string; description: string | null }>(`SELECT id, description FROM transactions`)).map(
+          (row) => [row.id, row.description],
+        ),
+      );
+      expect(Object.fromEntries(Object.entries(ids).map(([key, id]) => [key, titles.get(id)]))).toEqual({
+        same: 'Gofood',
+        kept: 'Solaria',
+        cardSubject: 'Vacumm Cleaner',
+        transferSubject: 'Dr.Chris Pet Shop',
+        evidenceSubject: 'Kopi Kenangan',
+        untitled: 'Shopee',
+        blank: 'Tokopedia',
+        userTitle: 'Rak buku 5 susun',
+        manualSubject: 'Transfer Berhasil',
+        noMerchant: 'Makan siang',
+      });
+      expect(
+        await base.query(
+          `SELECT count(*)::int AS n FROM information_schema.columns
+           WHERE table_name = 'transactions' AND column_name = 'merchant'`,
+        ),
+      ).toEqual([{ n: 0 }]);
+      expect(
+        await base.query(
+          `SELECT template->>'description' AS description, template ? 'merchant' AS merchant FROM recurrences
+           ORDER BY start_on`,
+        ),
+      ).toEqual([
+        { description: 'Netflix', merchant: false },
+        { description: 'Token listrik', merchant: false },
+      ]);
+      expect(await base.query(`SELECT sections FROM reports`)).toEqual([
+        {
+          sections: {
+            titles: [{ title: 'Shopee', totalMinor: '250000', count: 1, shareBps: 10_000 }],
+            largest: [{ transactionId: ids.userTitle, description: 'Rak buku 5 susun' }],
+            tags: [],
+          },
+        },
+      ]);
+      expect(
+        await base.query(
+          `SELECT relname AS name, relforcerowsecurity AS forced FROM pg_class
+           WHERE relname IN ('email_ingest_logs', 'recurrences', 'reports', 'review_items', 'transactions')
+           ORDER BY relname`,
+        ),
+      ).toEqual([
+        { name: 'email_ingest_logs', forced: true },
+        { name: 'recurrences', forced: true },
+        { name: 'reports', forced: true },
+        { name: 'review_items', forced: true },
+        { name: 'transactions', forced: true },
+      ]);
+    } finally {
+      await base.close();
+      await rm(folder, { recursive: true, force: true });
+    }
+  }, 60_000);
+});

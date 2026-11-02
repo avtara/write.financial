@@ -6,12 +6,11 @@ import { actionRowOf, rowLabel } from './action-row.ts';
 
 describe('actionRowOf', () => {
   it('takes an expense’s outgoing posting', () => {
-    const detail = transactionDetail('tx-1', { merchant: 'Shopee', description: 'Kabel' });
+    const detail = transactionDetail('tx-1', { description: 'Kabel' });
     expect(actionRowOf(detail)).toEqual({
       id: 'tx-1',
       type: 'expense',
       occurredAt: detail.occurredAt,
-      merchant: 'Shopee',
       description: 'Kabel',
       categoryId: categoryId('system:food'),
       accountId: BCA.id,
@@ -71,10 +70,9 @@ describe('actionRowOf', () => {
 });
 
 describe('rowLabel', () => {
-  it('names a transaction by merchant, else description, else category, else “Transfer”', () => {
+  it('names a transaction by its title (description), else category, else “Transfer”', () => {
     const kopi = userCategory({ id: 'c-kopi', name: 'Kopi' });
     const ledger = { ...LEDGER, categories: [...LEDGER.categories, kopi] };
-    expect(rowLabel(transactionRow('a', { merchant: 'Shopee', description: 'Kabel' }), ledger)).toBe('Shopee');
     expect(rowLabel(transactionRow('b', { description: 'Kabel' }), ledger)).toBe('Kabel');
     expect(rowLabel(transactionRow('c', { categoryId: kopi.id }), ledger)).toBe('Kopi');
     expect(rowLabel(transactionRow('d', { type: 'transfer', categoryId: null }), ledger)).toBe('Transfer');

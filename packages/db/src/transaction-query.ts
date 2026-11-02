@@ -65,7 +65,7 @@ export interface TransactionFilter {
   /** Any posting in one of these currencies. */
   readonly currencies?: readonly string[];
   /**
-   * FR-L2 `/`: every word must appear (case-insensitive) in the merchant, the description, or the note; `#tag`
+   * FR-L2 `/`: every word must appear (case-insensitive) in the title (description) or the note; `#tag`
    * tokens require every one of those tags.
    */
   readonly search?: string;
@@ -85,7 +85,6 @@ export interface TransactionRow {
   readonly type: TransactionType;
   readonly occurredAt: Date;
   readonly localDate: LocalDate;
-  readonly merchant: string | null;
   readonly description: string | null;
   readonly categoryId: string | null;
   /** The account of the principal posting; for transfers the source account. */
@@ -337,7 +336,6 @@ async function whereIn(tx: Transaction, userId: string, filter: TransactionFilte
       const pattern = `%${word.replace(/[\\%_]/g, '\\$&')}%`;
       conditions.push(
         or(
-          ilike(transactions.merchant, pattern),
           ilike(transactions.description, pattern),
           inArray(
             transactions.id,
@@ -466,7 +464,6 @@ export function createTransactionQuery(
             type: transactions.type,
             occurredAt: transactions.occurredAt,
             localDate: transactions.localDate,
-            merchant: transactions.merchant,
             description: transactions.description,
             categoryId: transactions.categoryId,
             accountId: principal.accountId,

@@ -110,7 +110,6 @@ export interface BackfillTransaction {
   readonly occurredAt: Date;
   readonly localDate: LocalDate;
   readonly description: string | null;
-  readonly merchant: string | null;
   readonly source: string;
   readonly categoryId: string | null;
   readonly version: string;
@@ -268,12 +267,6 @@ export async function timezoneIn(tx: Transaction, userId: string): Promise<strin
 export const inClosedPeriod = (date: LocalDate, closed: readonly { start: LocalDate; end: LocalDate }[]): boolean =>
   closed.some((period) => date >= period.start && date <= period.end);
 
-/** The rule-subject description: both fields, so a merchant and a contextual description can each match. */
-export function subjectDescription(description: string | null, merchant: string | null): string | null {
-  const text = [description, merchant].filter((part): part is string => part !== null && part.trim() !== '').join(' ');
-  return text === '' ? null : text;
-}
-
 /** The effective rules in persisted order, with the version the confirmation must match. */
 export async function ruleScopeIn(
   tx: Transaction,
@@ -331,7 +324,7 @@ export function proposalOf(
   context: BackfillContext,
 ): RuleBackfillProposal | null {
   const subject = {
-    description: subjectDescription(transaction.description, transaction.merchant),
+    description: transaction.description,
     date: transaction.localDate,
     // An imported statement row has no time: its stored 09:00 is synthetic and must not prove "before 10:00".
     minuteOfDay: transaction.source === 'import' ? null : minuteOfDayIn(transaction.occurredAt, context.timezone),
@@ -366,7 +359,7 @@ export function proposalOf(
   const proposal: Omit<RuleBackfillProposal, 'version'> = {
     transactionId: transaction.id,
     localDate: transaction.localDate,
-    description: subjectDescription(transaction.description, transaction.merchant),
+    description: transaction.description,
     currentCategoryId: transaction.categoryId,
     proposedCategoryId,
     currentTags,
@@ -396,7 +389,6 @@ function proposalTokenOf(
         occurredAt: transaction.occurredAt.toISOString(),
         source: transaction.source,
         description: transaction.description,
-        merchant: transaction.merchant,
         timezone: context.timezone,
         accountIds: [...(context.accounts.get(transaction.id) ?? [])].sort(),
         subscription: context.subscriptions.has(transaction.id),
@@ -445,7 +437,6 @@ export async function previewBackfillIn(
       occurredAt: transactions.occurredAt,
       localDate: transactions.localDate,
       description: transactions.description,
-      merchant: transactions.merchant,
       source: transactions.source,
       categoryId: transactions.categoryId,
       version: sql<string>`${transactions.updatedAt}::text`,

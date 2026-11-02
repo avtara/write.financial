@@ -265,7 +265,7 @@ export const convertCardTransaction = createServerFn({ method: 'POST' })
         {
           amountMinor: -principal.amountMinor,
           localDate: expense.localDate,
-          name: expense.description ?? expense.merchant ?? card.name,
+          name: expense.description ?? card.name,
         },
         { tenor: data.tenor, monthlyRateBps: data.monthlyRateBps, adminFeeMinor: data.adminFeeMinor },
         today,
@@ -293,7 +293,7 @@ export const recordCardInstallment = createServerFn({ method: 'POST' })
         {
           amountMinor: transaction.amountMinor,
           localDate: localDateOf(transaction.occurredAt, timezone),
-          name: transaction.description ?? transaction.merchant ?? card.name,
+          name: transaction.description ?? card.name,
         },
         terms,
         today,

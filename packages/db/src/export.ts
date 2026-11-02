@@ -153,7 +153,6 @@ export interface LedgerRow {
   readonly occurredAt: Date;
   readonly type: string;
   readonly description: string | null;
-  readonly merchant: string | null;
   /** Principal posting amount, signed, as decimal text (bigint columns come back as text). */
   readonly amountMinor: string;
   readonly currency: string;
@@ -318,7 +317,6 @@ export function createExport(db: Database): DataExporter {
             occurredAt: transactions.occurredAt,
             type: sql<string>`${transactions.type}::text`,
             description: transactions.description,
-            merchant: transactions.merchant,
             amountMinor: sql<string>`coalesce(${principal.amountMinor}, 0)::text`,
             currency: sql<string>`coalesce(${principal.currency}, ${accounts.currency})`,
             account: accounts.displayName,
@@ -350,7 +348,6 @@ const CSV_HEADER = [
   'occurred_at',
   'type',
   'description',
-  'merchant',
   'amount_minor',
   'currency',
   'account',
@@ -365,7 +362,6 @@ const CSV_COLUMNS = [
   'occurredAt',
   'type',
   'description',
-  'merchant',
   'amountMinor',
   'currency',
   'account',

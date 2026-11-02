@@ -83,9 +83,9 @@ export const FINAL_VIEW: ReportView = {
       { categoryId: 'c10', name: 'Gaji', group: 'active', totalMinor: 20_000_000n, shareBps: 7752 },
       { categoryId: 'c11', name: 'Freelance', group: 'passive', totalMinor: 5_800_000n, shareBps: 2248 },
     ],
-    merchants: [
-      { merchant: 'GoPay', totalMinor: 3_200_000n, count: 34, shareBps: 1749 },
-      { merchant: 'Indomaret', totalMinor: 1_100_000n, count: 12, shareBps: 601 },
+    titles: [
+      { title: 'GoPay', totalMinor: 3_200_000n, count: 34, shareBps: 1749 },
+      { title: 'Indomaret', totalMinor: 1_100_000n, count: 12, shareBps: 601 },
     ],
     tags: [{ tagId: 't1', name: 'akhir-pekan', totalMinor: 1_200_000n, count: 9 }],
     accounts: [
@@ -120,7 +120,6 @@ export const FINAL_VIEW: ReportView = {
         transactionId: 'tx1',
         date: d('2026-09-01'),
         description: 'Sewa Kos',
-        merchant: null,
         amountMinor: 4_500_000n,
         shareBps: 2459,
       },
@@ -128,7 +127,6 @@ export const FINAL_VIEW: ReportView = {
         transactionId: 'tx2',
         date: d('2026-09-14'),
         description: 'Laptop baru',
-        merchant: 'Tokopedia',
         amountMinor: 2_400_000n,
         shareBps: 1311,
       },
@@ -136,7 +134,6 @@ export const FINAL_VIEW: ReportView = {
         transactionId: 'tx3',
         date: d('2026-09-14'),
         description: 'Tiket kereta',
-        merchant: 'KAI',
         amountMinor: 450_000n,
         shareBps: 246,
       },
@@ -196,7 +193,7 @@ export const PROVISIONAL_VIEW: ReportView = {
   sections: {
     categories: [],
     incomeSources: [],
-    merchants: [],
+    titles: [],
     tags: [],
     accounts: [],
     goals: [],

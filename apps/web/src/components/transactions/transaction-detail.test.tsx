@@ -110,7 +110,6 @@ describe('TransactionDetailPanel', () => {
   it('shows an expense with its category, budget, tags, note, actions, and history', async () => {
     server.getBudgetStatus.mockResolvedValue(budget(5_600));
     const detail = transactionDetail('tx-1', {
-      merchant: 'Shopee',
       description: 'Kabel data',
       note: 'Untuk kantor',
       categoryId: KOPI.id,
@@ -137,8 +136,7 @@ describe('TransactionDetailPanel', () => {
     const { screen, onClose } = await renderPanel(detail);
     expect(server.getTransactionDetail).toHaveBeenCalledWith({ data: { id: 'tx-1' } });
     await expect.element(screen.getByRole('heading', { name: 'Detail transaksi' })).toBeVisible();
-    await expect.element(screen.getByRole('heading', { name: 'Shopee' })).toBeVisible();
-    await expect.element(screen.getByText('Kabel data')).toBeVisible();
+    await expect.element(screen.getByRole('heading', { name: 'Kabel data' })).toBeVisible();
     await expect.element(screen.getByText('−Rp389.000')).toBeVisible();
     await expect.element(screen.getByText('Tercatat')).toBeVisible();
     await expect.element(screen.getByText('via Catat Cepat')).toBeVisible();
@@ -151,7 +149,9 @@ describe('TransactionDetailPanel', () => {
     await expect
       .element(screen.getByRole('region', { name: 'attachments' }))
       .toHaveAttribute('data-read-only', 'false');
-    await expect.element(screen.getByRole('region', { name: 'attachments' })).toHaveAttribute('data-label', 'Shopee');
+    await expect
+      .element(screen.getByRole('region', { name: 'attachments' }))
+      .toHaveAttribute('data-label', 'Kabel data');
 
     const meter = screen.getByRole('meter', { name: 'Anggaran kategori ini' });
     await expect.element(meter).toHaveAttribute('aria-valuenow', '56');

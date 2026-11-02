@@ -250,7 +250,7 @@ describe('advance', () => {
     expect(await advance(wib('2026-10-17', '00:05'))).toEqual(NOTHING);
   });
 
-  it('names recurrences by description, merchant, category, or account, and leaves other users alone', async () => {
+  it('names recurrences by description, category, or account, and leaves other users alone', async () => {
     const bills = fx.category('system:bills');
     const [category] = await test.query<{ name: string }>('SELECT name FROM categories WHERE id = $1', [bills]);
     const listrik = await schedule({
@@ -259,13 +259,6 @@ describe('advance', () => {
       amountMinor: 350_000n,
       categoryId: bills,
       description: 'Listrik',
-    });
-    const pln = await schedule({
-      type: 'expense',
-      accountId: fx.bca,
-      amountMinor: 100_000n,
-      categoryId: bills,
-      merchant: 'PLN',
     });
     const categoryOnly = await schedule({
       type: 'expense',
@@ -284,11 +277,10 @@ describe('advance', () => {
     const other = await insertUser(test, 'other@example.test');
     const before = await ledgerSnapshot();
 
-    expect(await advance(wib('2026-10-18', '00:05'))).toEqual({ ...NOTHING, due: 5, notifications: 5 });
+    expect(await advance(wib('2026-10-18', '00:05'))).toEqual({ ...NOTHING, due: 4, notifications: 4 });
     const expected = [];
     for (const [view, name] of [
       [listrik, 'Listrik'],
-      [pln, 'PLN'],
       [categoryOnly, category?.name],
       [salary, 'Jago'],
       [saving, 'BCA'],
@@ -301,7 +293,7 @@ describe('advance', () => {
         [fx.userId],
       ),
     ).toEqual(expected.sort((a, b) => (a.ref < b.ref ? -1 : 1)));
-    expect(await reviewItems()).toHaveLength(5);
+    expect(await reviewItems()).toHaveLength(4);
     expect(await advance(wib('2026-10-18', '00:05'), other)).toEqual(NOTHING);
     expect(await ledgerSnapshot()).toEqual(before);
   });

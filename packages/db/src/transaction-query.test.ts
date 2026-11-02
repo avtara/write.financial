@@ -86,8 +86,7 @@ async function seedAlice(dek: Dek) {
         accountId: account.bca ?? '',
         amountMinor: 50_000n,
         categoryId: food,
-        merchant: 'Warteg Bahari',
-        description: 'Makan siang',
+        description: 'Makan siang di Warteg Bahari',
         note: 'traktir Budi',
         tags: ['makan'],
       }),
@@ -97,7 +96,7 @@ async function seedAlice(dek: Dek) {
         accountId: account.gopay ?? '',
         amountMinor: 25_000n,
         categoryId: category['system:transport'] ?? '',
-        merchant: 'Gojek',
+        description: 'Gojek',
         tags: ['kantor', 'makan'],
       }),
       t3: entry({
@@ -139,7 +138,7 @@ async function seedAlice(dek: Dek) {
         accountId: account.gotrade ?? '',
         amountMinor: 1_000n,
         categoryId: food,
-        merchant: 'Starbucks',
+        description: 'Starbucks',
       }),
       t7: entry({
         type: 'expense',
@@ -147,7 +146,6 @@ async function seedAlice(dek: Dek) {
         accountId: account.bca ?? '',
         amountMinor: 75_000n,
         categoryId: null,
-        merchant: 'Tokopedia',
         description: 'Rak buku 50%_off',
         tags: ['liburan-bali'],
       }),
@@ -157,7 +155,7 @@ async function seedAlice(dek: Dek) {
         accountId: account.bca ?? '',
         amountMinor: 30_000n,
         categoryId: food,
-        merchant: 'Warteg Bahari',
+        description: 'Warteg Bahari',
       }),
       t9: entry({
         type: 'expense',
@@ -165,7 +163,7 @@ async function seedAlice(dek: Dek) {
         accountId: account.bca ?? '',
         amountMinor: 40_000n,
         categoryId: food,
-        merchant: 'Indomaret',
+        description: 'Indomaret',
         note: 'Belanja bulanan, mampir WARTEG',
         tags: ['dapur'],
       }),
@@ -204,7 +202,7 @@ async function seedBob() {
         accountId: bobAccount,
         amountMinor: 99_000n,
         categoryId: await builtInCategoryIn(t, bob, 'system:food'),
-        merchant: 'Warteg Bahari',
+        description: 'Warteg Bahari',
         tags: ['makan'],
       },
       null,
@@ -249,7 +247,6 @@ async function seedDesign() {
               accountId: accountId.get(seed.accountKey) ?? '',
               amountMinor: seed.amountMinor,
               categoryId: await builtInCategoryIn(t, avtara, seed.categoryKey),
-              merchant: seed.merchant,
               description: seed.description,
             };
       await recordTransactionIn(t, avtara, draft, null, NOW);
@@ -307,8 +304,7 @@ describe('list', () => {
       type: 'expense',
       occurredAt: at(1, '10:00'),
       localDate: '2026-10-01',
-      merchant: 'Warteg Bahari',
-      description: 'Makan siang',
+      description: 'Makan siang di Warteg Bahari',
       categoryId: category['system:food'],
       accountId: account.bca,
       toAccountId: null,
@@ -414,7 +410,7 @@ describe('list', () => {
     expect(await names({ tags: ['kantor', 'nope'], tagMode: 'all' })).toEqual([]);
   });
 
-  it('searches merchant and description without decrypting when there are only #tags', async () => {
+  it('searches the title without decrypting when there are only #tags', async () => {
     const before = dekCalls;
     expect(await names({ search: '#kantor' })).toEqual(['t3', 't2']);
     expect(await names({ search: '  #  ' })).toEqual(ALL);
@@ -427,7 +423,7 @@ describe('list', () => {
     expect(dekCalls).toBe(before + 3);
   });
 
-  it('searches encrypted notes, word by word together with merchant and description', async () => {
+  it('searches encrypted notes, word by word together with the title', async () => {
     expect(await names({ search: 'warteg' })).toEqual(['t9', 't1']);
     expect(await names({ search: 'budi' })).toEqual(['t1']);
     expect(await names({ search: 'traktir warteg' })).toEqual(['t1']);
@@ -694,7 +690,7 @@ describe('isolation', () => {
   it("never shows another user's rows", async () => {
     const bobPage = await asApp(() => query.list(bob, {}));
     expect(bobPage.total).toBe(1);
-    expect(bobPage.rows[0]).toMatchObject({ merchant: 'Warteg Bahari', amountMinor: -99_000n, tags: ['makan'] });
+    expect(bobPage.rows[0]).toMatchObject({ description: 'Warteg Bahari', amountMinor: -99_000n, tags: ['makan'] });
     expect(await names({ accountIds: [bobAccount] })).toEqual([]);
     expect(await names({ search: 'warteg' })).toEqual(['t9', 't1']);
     expect(await asApp(() => query.summary(bob, {}))).toMatchObject({ outMinor: 99_000n, outCount: 1 });
@@ -708,7 +704,7 @@ describe('isolation', () => {
         withUser(test.db, alice, (t) =>
           t
             .update(transactions)
-            .set({ merchant: 'x' })
+            .set({ description: 'x' })
             .where(eq(transactions.id, tx.t1 ?? '')),
         ),
       ),

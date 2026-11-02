@@ -14,7 +14,7 @@ export type DraftItem = ReviewItemView & {
 };
 export type CategoryItem = ReviewItemView & { readonly payload: { readonly kind: 'category' } };
 export type CloseItem = ReviewItemView & { readonly payload: { readonly kind: 'rollover' | 'leftover' } };
-/** The server labels a Gmail item with its merchant, else the email subject, so it always has one. */
+/** The server labels a Gmail item with its extracted title, else the email subject, so it always has one. */
 export type GmailReviewItem = ReviewItemView & {
   readonly label: string;
   readonly payload: Extract<ReviewPayload, { kind: 'gmail' }>;

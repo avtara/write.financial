@@ -75,7 +75,7 @@ describe('receipt proposals and confirmation', () => {
     const result = await app(() =>
       reviews().confirm(alice.userId, view.reviewItemId as string, {
         amountMinor: 97500n,
-        merchant: 'Apotek K-24 dikoreksi',
+        description: 'Apotek K-24 dikoreksi',
         receiptItems: [{ name: 'Plester luka', quantity: '1', amountMinor: 12500n, uncertain: false }],
       }),
     );
@@ -100,8 +100,8 @@ describe('receipt proposals and confirmation', () => {
     expect(await test.query('SELECT source FROM transactions WHERE id = $1', [result.transactionId])).toEqual([
       { source: 'receipt' },
     ]);
-    expect(await test.query('SELECT merchant FROM transactions WHERE id=$1', [result.transactionId])).toEqual([
-      { merchant: 'Apotek K-24 dikoreksi' },
+    expect(await test.query('SELECT description FROM transactions WHERE id=$1', [result.transactionId])).toEqual([
+      { description: 'Apotek K-24 dikoreksi' },
     ]);
     expect(
       await app(() => createTransactions(test.db, options).remove(alice.userId, [result.transactionId as string])),
@@ -109,6 +109,16 @@ describe('receipt proposals and confirmation', () => {
     expect(
       await app(() => createTransactions(test.db, options).restore(alice.userId, [result.transactionId as string])),
     ).toEqual({ restored: [result.transactionId] });
+  });
+  it('proposes the store name as the single title and records it when confirmed unedited', async () => {
+    const { id } = await stage(evidence({ merchant: 'Toko Sinar Jaya', amountMinor: '42000', time: '10:00' }));
+    const view = await app(() => receipts().get(alice.userId, id));
+    expect(view.draft).toMatchObject({ description: 'Toko Sinar Jaya', amountMinor: 42000n });
+    expect(view.draft).not.toHaveProperty('merchant');
+    const result = await app(() => reviews().confirm(alice.userId, view.reviewItemId as string));
+    expect(await test.query('SELECT description FROM transactions WHERE id=$1', [result.transactionId])).toEqual([
+      { description: 'Toko Sinar Jaya' },
+    ]);
   });
   it('denies cross-tenant status, cancel, OCR claim, manual draft, and review confirmation', async () => {
     const { id } = await stage(evidence());
@@ -140,7 +150,7 @@ describe('receipt proposals and confirmation', () => {
         accountId: alice.bca,
         amountMinor: 110000n,
         categoryId: alice.category('system:food'),
-        merchant: 'Indomaret',
+        description: 'Indomaret',
         occurredAt: new Date('2026-10-15T00:55:00Z'),
         clientId: randomUUID(),
       }),
@@ -167,12 +177,12 @@ describe('receipt proposals and confirmation', () => {
     expect(await count()).toBe((before ?? 0) + 1);
   });
   it('finds and explicitly attaches same-currency duplicates across accounts without leaking another tenant or currency', async () => {
-    const merchant = 'Cross-account receipt';
+    const title = 'Cross-account receipt';
     const existing = await alice.entry('expense', '2026-10-15', 110000n, alice.category('system:food'), {
-      merchant,
+      description: title,
       accountId: alice.jago,
     });
-    await bob.entry('expense', '2026-10-15', 110000n, bob.category('system:food'), { merchant });
+    await bob.entry('expense', '2026-10-15', 110000n, bob.category('system:food'), { description: title });
     const [usdAccount] = await test.query<{ id: string }>(
       `INSERT INTO accounts (user_id,type,provider_name,display_name,currency,opening_balance_minor,opening_date,color)
        VALUES ($1,'bank','USD fixture','USD duplicate exclusion','USD',100000000,'2026-01-01','blue') RETURNING id`,
@@ -188,10 +198,12 @@ describe('receipt proposals and confirmation', () => {
       }),
     );
     await alice.entry('expense', '2026-10-15', 110000n, alice.category('system:food'), {
-      merchant,
+      description: title,
       accountId: usdAccount.id,
     });
-    const { id } = await stage(evidence({ merchant, amountMinor: '110000', time: '12:00', accountId: alice.bca }));
+    const { id } = await stage(
+      evidence({ merchant: title, amountMinor: '110000', time: '12:00', accountId: alice.bca }),
+    );
     const view = await app(() => receipts().get(alice.userId, id));
     expect(view.draft).toMatchObject({ accountId: alice.bca });
     expect(view.duplicates.map((entry) => entry.id)).toEqual([existing]);
@@ -440,7 +452,7 @@ describe('receipt proposals and confirmation', () => {
         accountId: alice.bca,
         amountMinor: 96500n,
         categoryId: alice.category('system:health'),
-        merchant: 'Apotek K-24',
+        description: 'Apotek K-24',
         occurredAt: new Date('2026-10-15T08:20:00Z'),
         clientId: randomUUID(),
       }),
