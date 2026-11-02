@@ -20,7 +20,9 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { categoryName } from '../../lib/ledger-labels.ts';
 import { ledgerErrorMessage } from '../../lib/ledger-errors.ts';
 import { confirmReview, confirmReviewBulk, ignoreReview, markReviewUnpaid } from '../../server/fn/review.ts';
-import { Button, Select } from '../form.tsx';
+import { Button, Field } from '../form.tsx';
+import { AccountPicker, AccountTrigger } from '../ledger/account-picker.tsx';
+import { CategorySelect } from '../ledger/category-picker.tsx';
 import { announceSaved } from '../ledger/announce-saved.tsx';
 import { Modal } from '../modal.tsx';
 import { PageHeader } from '../page-header.tsx';
@@ -38,7 +40,10 @@ export interface ReviewPageProps {
   readonly focusItem?: string | undefined;
 }
 
-/** One of the design's panels: icon, "title · count", subtitle, an optional info banner, cards, and a footer. */
+/**
+ * One of the design's panels: icon, "title · count", subtitle, an optional info banner, cards, and a footer. A `wide`
+ * panel spans both page columns and sets its cards side by side, so a long queue never leaves a column empty.
+ */
 function Panel({
   icon: Icon,
   title,
@@ -46,6 +51,7 @@ function Panel({
   subtitle,
   banner,
   footer,
+  wide = false,
   children,
 }: {
   icon: LucideIcon;
@@ -54,11 +60,15 @@ function Panel({
   subtitle: string;
   banner?: string;
   footer?: ReactNode;
+  wide?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
   return (
-    <section aria-labelledby={`${id} ${id}-sub`} className="flex flex-col rounded-[12px] border border-border bg-card">
+    <section
+      aria-labelledby={`${id} ${id}-sub`}
+      className={`flex flex-col rounded-[12px] border border-border bg-card ${wide ? 'xl:col-span-2' : ''}`}
+    >
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
         <span
           aria-hidden="true"
@@ -81,7 +91,7 @@ function Panel({
           {banner}
         </p>
       )}
-      <div className="flex flex-col gap-3 p-4">{children}</div>
+      <div className={wide ? 'grid items-start gap-3 p-4 lg:grid-cols-2' : 'flex flex-col gap-3 p-4'}>{children}</div>
       {footer === undefined ? null : (
         <footer className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3 text-[12.5px] text-muted-fg">
           {footer}
@@ -274,6 +284,18 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
     apply !== null &&
     apply.item.payload.kind === 'leftover' &&
     (apply.item.payload.fromAccountId === null || apply.item.payload.toAccountId === null);
+  // Panels fill two columns. Gmail proposals are full forms, so two or more take both columns side by side; any other
+  // panel with two or more cards left alone in its row does the same instead of leaving the right column empty.
+  const panelOrder = (['gmail', 'ai', 'categories', 'bills', 'recurring', 'closing'] as const).filter(
+    (key) => groups[key].length > 0,
+  );
+  const widePanels = new Set<(typeof panelOrder)[number]>();
+  let halfRowOpen = false;
+  for (const [index, key] of panelOrder.entries()) {
+    const several = groups[key].length >= 2;
+    if (several && (key === 'gmail' || (!halfRowOpen && index === panelOrder.length - 1))) widePanels.add(key);
+    else halfRowOpen = !halfRowOpen;
+  }
 
   return (
     <>
@@ -286,6 +308,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
         {groups.gmail.length === 0 ? null : (
           <Panel
             icon={Sparkles}
+            wide={widePanels.has('gmail')}
             title={m.review_source_gmail()}
             count={groups.gmail.length}
             subtitle={m.review_ai_subtitle()}
@@ -330,6 +353,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
         {groups.ai.length === 0 ? null : (
           <Panel
             icon={Sparkles}
+            wide={widePanels.has('ai')}
             title={m.review_title()}
             count={groups.ai.length}
             subtitle={m.review_ai_subtitle()}
@@ -367,6 +391,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
         {groups.categories.length === 0 ? null : (
           <Panel
             icon={Tag}
+            wide={widePanels.has('categories')}
             title={m.review_category_heading()}
             count={groups.categories.length}
             subtitle={
@@ -385,7 +410,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
               </>
             }
           >
-            <div className="flex flex-col gap-2 rounded-[10px] border border-border p-3">
+            <div className="flex flex-col gap-2 rounded-[10px] border border-border p-3 lg:col-span-2">
               <span className="text-[12.5px] font-medium text-muted-fg">
                 {m.review_category_bulk({ count: groups.categories.length })}
               </span>
@@ -429,6 +454,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
         {groups.bills.length === 0 ? null : (
           <Panel
             icon={CalendarClock}
+            wide={widePanels.has('bills')}
             title={m.review_title()}
             count={groups.bills.length}
             subtitle={m.review_bills_subtitle()}
@@ -473,6 +499,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
         {groups.recurring.length === 0 ? null : (
           <Panel
             icon={Repeat}
+            wide={widePanels.has('recurring')}
             title={m.review_title()}
             count={groups.recurring.length}
             subtitle={m.review_recurring_subtitle()}
@@ -506,6 +533,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
         {groups.closing.length === 0 ? null : (
           <Panel
             icon={Undo2}
+            wide={widePanels.has('closing')}
             title={m.review_close_heading()}
             count={groups.closing.length}
             subtitle={
@@ -622,6 +650,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
                   label={m.review_apply_from()}
                   value={apply.fromAccountId}
                   lookup={lookup}
+                  locale={locale}
                   onChange={(fromAccountId) => {
                     setApply({ ...apply, fromAccountId });
                   }}
@@ -630,6 +659,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
                   label={m.review_apply_to()}
                   value={apply.toAccountId}
                   lookup={lookup}
+                  locale={locale}
                   onChange={(toAccountId) => {
                     setApply({ ...apply, toAccountId });
                   }}
@@ -673,26 +703,18 @@ function BulkCategory({
   onValueChange: (id: string) => void;
   label: string;
 }) {
-  const options = lookup.categories.filter((category) => category.kind === 'expense' && category.archivedAt === null);
   return (
-    <Select
-      size="sm"
+    <CategorySelect
+      categories={lookup.categories}
+      kind="expense"
+      value={value}
+      onValueChange={onValueChange}
+      label={label}
+      searchPlaceholder={m.category_picker_search()}
+      placeholder={m.review_category_pick()}
       aria-label={label}
-      value={value ?? ''}
-      onChange={(event) => {
-        onValueChange(event.currentTarget.value);
-      }}
-      className="flex-1"
-    >
-      <option value="" disabled>
-        {m.review_category_pick()}
-      </option>
-      {options.map((category) => (
-        <option key={category.id} value={category.id}>
-          {categoryName(category)}
-        </option>
-      ))}
-    </Select>
+      className="h-8 flex-1 rounded-[7px] px-2.5 text-[12.5px]"
+    />
   );
 }
 
@@ -700,36 +722,34 @@ function AccountChoice({
   label,
   value,
   lookup,
+  locale,
   onChange,
 }: {
   label: string;
   value: string;
   lookup: ReviewLookup;
+  locale: Locale;
   onChange: (id: string) => void;
 }) {
-  const id = useId();
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[12.5px] font-medium text-muted-fg">
-        {label}
-      </label>
-      <Select
-        id={id}
-        size="sm"
-        value={value}
-        onChange={(event) => {
-          onChange(event.currentTarget.value);
-        }}
-      >
-        {lookup.accounts
-          .filter((account) => account.archivedAt === null)
-          .map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.displayName}
-            </option>
-          ))}
-      </Select>
-    </div>
+    <Field label={label}>
+      {({ id }) => (
+        <AccountPicker
+          accounts={lookup.accounts}
+          value={value === '' ? null : value}
+          onValueChange={onChange}
+          label={label}
+          searchPlaceholder={m.record_account_search()}
+          locale={locale}
+        >
+          <AccountTrigger
+            id={id}
+            account={lookup.accounts.find((account) => account.id === value)}
+            placeholder={m.record_account_placeholder()}
+          />
+        </AccountPicker>
+      )}
+    </Field>
   );
 }
 
