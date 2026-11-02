@@ -30,7 +30,6 @@ const input = (extra: Partial<AiSettingsInput> = {}): AiSettingsInput => ({
   allowCreateDrafts: false,
   requireConfirmation: true,
   monthlyLimitUsd: '1',
-  pricing,
   ...extra,
 });
 const reserve = (revision: string, extra: Partial<AiReservationInput> = {}): AiReservationInput => ({
@@ -58,7 +57,7 @@ const settlement = (extra: Partial<AiSettlementInput> = {}): AiSettlementInput =
   pricing,
   ...extra,
 });
-const save = (extra: Partial<AiSettingsInput> = {}) => asApp(() => repo().save(alice, input(extra)));
+const save = (extra: Partial<AiSettingsInput> = {}) => asApp(() => repo().save(alice, input(extra), pricing));
 
 beforeAll(async () => {
   test = await startMigrated();
@@ -77,7 +76,7 @@ beforeEach(async () => {
 describe('BYOK confidentiality and ownership', () => {
   it('deleting an account erases its keys, settings, pending logs, and usage without erasing another user', async () => {
     const { revision: aliceRevision } = await save();
-    const { revision: bobRevision } = await asApp(() => repo().save(bob, input()));
+    const { revision: bobRevision } = await asApp(() => repo().save(bob, input(), pricing));
     if (aliceRevision === null || bobRevision === null) throw new Error('AI fixture has no revision');
     await asApp(() => repo().reserve(alice, reserve(aliceRevision)));
     await asApp(() => repo().reserve(bob, reserve(bobRevision)));
@@ -98,11 +97,13 @@ describe('BYOK confidentiality and ownership', () => {
     expect(saved.connections.find((item) => item.provider === 'openrouter')).toMatchObject({
       last4: key.slice(-4),
       status: 'untested',
+      pricing,
+      pricingSource: 'catalog',
     });
     expect(JSON.stringify(saved)).not.toContain(key);
     const [row] = await test.query<{ enc: Uint8Array }>('SELECT api_key_enc AS enc FROM ai_connections');
     expect(Buffer.from(row?.enc ?? []).toString()).not.toContain(key);
-    expect((await asApp(() => repo().credential(alice, 'openrouter'))).apiKey).toBe(key);
+    expect(await asApp(() => repo().credential(alice, 'openrouter'))).toMatchObject({ apiKey: key, pricing });
     await expect(asApp(() => repo().credential(bob, 'openrouter'))).rejects.toMatchObject({
       code: 'AI_NOT_CONFIGURED',
     });
@@ -134,7 +135,9 @@ describe('BYOK confidentiality and ownership', () => {
       expectedRevision: saved.revision,
     });
     delete changed.apiKey;
-    await expect(asApp(() => repo().save(alice, changed))).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
+    await expect(asApp(() => repo().save(alice, changed, pricing))).rejects.toMatchObject({
+      code: 'AI_INVALID_CONFIG',
+    });
     await expect(save()).rejects.toMatchObject({ code: 'AI_CONFIG_CHANGED' });
   });
 
@@ -166,14 +169,14 @@ describe('BYOK confidentiality and ownership', () => {
     await asApp(() => repo().settle(alice, request.id, settlement()));
     const keep = input({ expectedRevision: saved.revision, allowReadFinancial: true });
     delete keep.apiKey;
-    const preserved = await asApp(() => repo().save(alice, keep));
+    const preserved = await asApp(() => repo().save(alice, keep, pricing));
     expect(preserved.connections.find((row) => row.provider === 'openrouter')).toMatchObject({
       status: 'connected',
       last4: key.slice(-4),
       httpStatus: 200,
     });
     const changed = await asApp(() =>
-      repo().save(alice, { ...keep, expectedRevision: preserved.revision, modelId: 'fixture/other' }),
+      repo().save(alice, { ...keep, expectedRevision: preserved.revision, modelId: 'fixture/other' }, pricing),
     );
     expect(changed.connections.find((row) => row.provider === 'openrouter')).toMatchObject({
       status: 'untested',
@@ -183,7 +186,7 @@ describe('BYOK confidentiality and ownership', () => {
     const current = await asApp(() => repo().settings(alice));
     const unkeyed = input({ expectedRevision: current.revision, modelId: 'fixture/third' });
     delete unkeyed.apiKey;
-    const disconnected = await asApp(() => repo().save(alice, unkeyed));
+    const disconnected = await asApp(() => repo().save(alice, unkeyed, pricing));
     expect(disconnected.connections.find((row) => row.provider === 'openrouter')).toMatchObject({
       status: 'not_connected',
       last4: null,
@@ -206,7 +209,7 @@ describe('BYOK confidentiality and ownership', () => {
 
   it('retains only the recent metadata window with the production clock, never secrets or old activity', async () => {
     const repository = createAiRepository(test.db, { getDek: fixtureGetDek, allowedBaseUrls: [] });
-    const saved = await asApp(() => repository.save(alice, input()));
+    const saved = await asApp(() => repository.save(alice, input(), pricing));
     const recent = reserve(saved.revision as string, { costUsd: '0' });
     const old = reserve(saved.revision as string, { costUsd: '0' });
     await asApp(() => repository.reserve(alice, recent));
@@ -220,7 +223,7 @@ describe('BYOK confidentiality and ownership', () => {
   it('lets a user configure a model before supplying a key without reserving spend or logging a fictitious key', async () => {
     const unkeyed = input({ provider: 'custom', baseUrl: 'http://127.0.0.1:11434/v1' });
     delete unkeyed.apiKey;
-    const saved = await asApp(() => repo().save(alice, unkeyed));
+    const saved = await asApp(() => repo().save(alice, unkeyed, pricing));
     expect(saved.connections.find((row) => row.provider === 'custom')).toMatchObject({
       status: 'not_connected',
       last4: null,
@@ -229,11 +232,15 @@ describe('BYOK confidentiality and ownership', () => {
       asApp(() => repo().reserve(alice, reserve(saved.revision as string, { provider: 'custom' }))),
     ).rejects.toMatchObject({ code: 'AI_NOT_CONFIGURED' });
     const moved = await asApp(() =>
-      repo().save(alice, {
-        ...unkeyed,
-        expectedRevision: saved.revision,
-        baseUrl: 'http://127.0.0.1:11435/v1',
-      }),
+      repo().save(
+        alice,
+        {
+          ...unkeyed,
+          expectedRevision: saved.revision,
+          baseUrl: 'http://127.0.0.1:11435/v1',
+        },
+        pricing,
+      ),
     );
     expect(moved.connections.find((row) => row.provider === 'custom')).toMatchObject({
       baseUrl: 'http://127.0.0.1:11435/v1',

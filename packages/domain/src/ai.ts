@@ -72,8 +72,9 @@ export interface AiConnectionView {
   testedAt: Date | null;
   errorCode: string | null;
   httpStatus: number | null;
+  /** The model's provider-catalog prices, stored when the settings are saved; null means paid requests are refused. */
   pricing: AiPricing | null;
-  pricingSource: 'catalog' | 'manual' | null;
+  pricingSource: 'catalog' | null;
 }
 
 export interface AiUsageSummary {
@@ -101,6 +102,7 @@ export interface AiSettingsView {
   allowedCustomBaseUrls: readonly string[];
 }
 
+/** Carries no prices: the server stores the chosen model's provider-catalog prices and refuses a model without them. */
 export interface AiSettingsInput {
   expectedRevision: string | null;
   provider: AiProvider;
@@ -112,8 +114,6 @@ export interface AiSettingsInput {
   allowCreateDrafts: boolean;
   requireConfirmation: true;
   monthlyLimitUsd: string;
-  /** null asks the server to use provider catalog pricing; missing prices never mean free. */
-  pricing: AiPricing | null;
 }
 
 export interface AiModel {

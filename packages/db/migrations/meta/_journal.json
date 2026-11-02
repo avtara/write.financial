@@ -246,6 +246,13 @@
       "when": 1793380078032,
       "tag": "0034_savings_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793596761791,
+      "tag": "0035_ai_catalog_pricing",
+      "breakpoints": true
     }
   ]
 }

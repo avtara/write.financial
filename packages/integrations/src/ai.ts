@@ -178,7 +178,8 @@ function maximum(values: readonly bigint[]): bigint {
   return values.reduce((max, value) => (value > max ? value : max), 0n);
 }
 function rates(pricing: unknown, provider: AiProvider): AiPricing | null {
-  if (provider === 'custom') return null; // The OpenAI models contract does not define prices.
+  // The OpenAI models contract defines no prices: a custom endpoint is priced only when it publishes OpenRouter-style
+  // `pricing` (handled below); without it, none of its models can be used for paid requests.
   if (provider === 'zenmux') {
     const rate = (key: string, unit: string): bigint | null => {
       const entries = field(pricing, key);

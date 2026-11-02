@@ -408,6 +408,11 @@ describe('SettingsDialog', () => {
 
   it('closes to the underlying page after following the AI security prerequisite', async () => {
     ai.getAiSettings.mockResolvedValue({ ok: true, value: AI_SETTINGS });
+    // The AI section loads its provider's model catalog by itself.
+    ai.listAiModels.mockResolvedValue({
+      ok: true,
+      value: { provider: 'openrouter', models: [], loadedAt: new Date(), catalogPublic: true },
+    });
     server.getSecurity.mockResolvedValue({ ok: true, value: { ...OVERVIEW, twoFactorEnabled: false } });
     const router = await renderSettings('/?settings=ai');
     await page.getByRole('button', { name: 'Buka Keamanan' }).click();

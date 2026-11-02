@@ -162,18 +162,21 @@ beforeAll(async () => {
   await once(provider, 'listening');
   const endpoint = `http://127.0.0.1:${String((provider.address() as AddressInfo).port)}/v1`;
   const ai = createAiRepository(app, { getDek, allowedBaseUrls: [endpoint], now: () => now });
-  const settings = await ai.save(userId, {
-    expectedRevision: null,
-    provider: 'custom',
-    baseUrl: endpoint,
-    apiKey: `fixture-${randomUUID()}`,
-    modelId: 'fixture/vision',
-    allowReadFinancial: true,
-    allowCreateDrafts: true,
-    requireConfirmation: true,
-    monthlyLimitUsd: '5',
-    pricing: { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
-  });
+  const settings = await ai.save(
+    userId,
+    {
+      expectedRevision: null,
+      provider: 'custom',
+      baseUrl: endpoint,
+      apiKey: `fixture-${randomUUID()}`,
+      modelId: 'fixture/vision',
+      allowReadFinancial: true,
+      allowCreateDrafts: true,
+      requireConfirmation: true,
+      monthlyLimitUsd: '5',
+    },
+    { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
+  );
   revision = settings.revision ?? '';
   workerDb = openWorkerDb(url('worker'), keyring, { s3, aiAllowedBaseUrls: [endpoint] });
   redis = new Redis(valkey.getConnectionUrl(), { maxRetriesPerRequest: null });

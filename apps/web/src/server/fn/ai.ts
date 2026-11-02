@@ -13,16 +13,18 @@ import {
   type AiLogFilters,
   type AiLogsPage,
   type AiModelCatalog,
+  type AiPricing,
+  type AiProvider,
+  type AiSettingsInput,
   type AiSettingsView,
   type AiConnectionView,
 } from '@wf/domain/ai';
 import * as z from 'zod';
 import { attempt, requireSession, type Result } from '../access.ts';
-import { services } from '../runtime.ts';
+import { services, type Services } from '../runtime.ts';
 
 const provider = z.enum(AI_PROVIDERS);
 const usd = z.string().regex(/^\d{1,20}(?:\.\d{1,18})?$/);
-const pricing = z.object({ inputUsdPerMillion: usd, outputUsdPerMillion: usd, requestUsd: usd, imageUsd: usd });
 const filters = z.object({ feature: z.enum(AI_FEATURES).optional(), status: z.enum(AI_LOG_STATUSES).optional() });
 
 function filterInput(input: z.infer<typeof filters>): AiLogFilters {
@@ -30,6 +32,24 @@ function filterInput(input: z.infer<typeof filters>): AiLogFilters {
     ...(input.feature === undefined ? {} : { feature: input.feature }),
     ...(input.status === undefined ? {} : { status: input.status }),
   };
+}
+
+/**
+ * The model's prices from the provider catalog, the only price source: a model the catalog does not list or price is
+ * refused rather than treated as free. Public catalogs are read without the key.
+ */
+async function catalogPricing(
+  s: Pick<Services, 'aiClient'>,
+  target: { provider: AiProvider; baseUrl: string | undefined; apiKey: string | undefined; modelId: string },
+): Promise<AiPricing> {
+  const catalog = await s.aiClient.models(
+    target.provider,
+    target.baseUrl,
+    target.provider === 'custom' ? target.apiKey : undefined,
+  );
+  const pricing = catalog.models.find((model) => model.id === target.modelId)?.pricing ?? null;
+  if (pricing === null) throw new AiError('AI_PRICING_REQUIRED');
+  return pricing;
 }
 
 export const getAiSettings = createServerFn({ method: 'GET' }).handler(
@@ -54,7 +74,6 @@ export const saveAiSettings = createServerFn({ method: 'POST' })
       allowCreateDrafts: z.boolean(),
       requireConfirmation: z.literal(true),
       monthlyLimitUsd: usd,
-      pricing: pricing.nullable(),
     }),
   )
   .handler(async ({ context, data }): Promise<Result<AiSettingsView>> => {
@@ -62,11 +81,25 @@ export const saveAiSettings = createServerFn({ method: 'POST' })
     return attempt(async () => {
       const { user } = await requireSession(context.session, { twoFactor: true, fresh: true }, s.now());
       const { baseUrl, apiKey, ...settings } = data;
-      return s.ai.save(user.id, {
+      const input: AiSettingsInput = {
         ...settings,
         ...(baseUrl === undefined ? {} : { baseUrl }),
         ...(apiKey === undefined ? {} : { apiKey }),
+      };
+      // A custom catalog is read with the key being saved, else the saved key at its own endpoint only.
+      let catalogKey = apiKey;
+      if (data.provider === 'custom' && catalogKey === undefined) {
+        const saved = await s.ai.credential(user.id, 'custom');
+        if (baseUrl?.replace(/\/+$/, '') !== saved.baseUrl) throw new AiError('AI_INVALID_CONFIG');
+        catalogKey = saved.apiKey;
+      }
+      const pricing = await catalogPricing(s, {
+        provider: data.provider,
+        baseUrl,
+        apiKey: catalogKey,
+        modelId: data.modelId,
       });
+      return s.ai.save(user.id, input, pricing);
     });
   });
 
@@ -81,7 +114,13 @@ export const removeAiKey = createServerFn({ method: 'POST' })
   });
 
 export const listAiModels = createServerFn({ method: 'POST' })
-  .validator(z.object({ provider, baseUrl: z.string().max(2048).optional() }))
+  .validator(
+    z.object({
+      provider,
+      baseUrl: z.string().max(2048).optional(),
+      apiKey: z.string().trim().min(4).max(512).optional(),
+    }),
+  )
   .handler(async ({ context, data }): Promise<Result<AiModelCatalog>> => {
     const s = await services();
     return attempt(async () => {
@@ -91,6 +130,8 @@ export const listAiModels = createServerFn({ method: 'POST' })
         s.now(),
       );
       if (data.provider !== 'custom') return s.aiClient.models(data.provider);
+      // A key typed for this save is sent only to the allowlisted endpoint it is being saved with.
+      if (data.apiKey !== undefined) return s.aiClient.models('custom', data.baseUrl, data.apiKey);
       const credential = await s.ai.credential(user.id, 'custom');
       // The saved custom key cannot be sent to an unsaved/different endpoint supplied by a browser.
       if (data.baseUrl !== undefined && data.baseUrl.replace(/\/+$/, '') !== credential.baseUrl)
@@ -106,19 +147,7 @@ export const testAiConnection = createServerFn({ method: 'POST' })
     return attempt(async () => {
       const { user } = await requireSession(context.session, { twoFactor: true, fresh: true }, s.now());
       const credential = await s.ai.credential(user.id, data.provider, data.expectedRevision);
-      const catalog =
-        credential.pricingSource === 'manual'
-          ? null
-          : await s.aiClient.models(
-              data.provider,
-              credential.baseUrl,
-              data.provider === 'custom' ? credential.apiKey : undefined,
-            );
-      const quote =
-        credential.pricingSource === 'manual'
-          ? credential.pricing
-          : (catalog?.models.find((model) => model.id === credential.modelId)?.pricing ?? null);
-      if (quote === null) throw new AiError('AI_PRICING_REQUIRED');
+      const quote = await catalogPricing(s, credential);
       const messages = [
         { role: 'user' as const, content: 'Reply with OK. This is a connection test; do not call tools.' },
       ] as const;

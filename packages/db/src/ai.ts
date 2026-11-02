@@ -39,8 +39,8 @@ export interface AiCredential {
   baseUrl: string;
   modelId: string;
   apiKey: string;
+  /** The provider-catalog prices stored with the model; null refuses paid requests. */
   pricing: AiPricing | null;
-  pricingSource: 'catalog' | 'manual' | null;
 }
 
 export interface AiReservationInput {
@@ -72,7 +72,11 @@ export interface AiSettlementInput {
 
 export interface AiRepository {
   settings: (userId: string) => Promise<AiSettingsView>;
-  save: (userId: string, input: AiSettingsInput) => Promise<AiSettingsView>;
+  /**
+   * `pricing` is the chosen model's entry in the provider catalog, looked up by the caller for this endpoint and key
+   * (never client input); a model the catalog does not price is refused before this is called.
+   */
+  save: (userId: string, input: AiSettingsInput, pricing: AiPricing) => Promise<AiSettingsView>;
   removeKey: (userId: string, provider: AiProvider, expectedRevision: string) => Promise<AiSettingsView>;
   credential: (userId: string, provider: AiProvider, expectedRevision?: string) => Promise<AiCredential>;
   reserve: (userId: string, input: AiReservationInput) => Promise<void>;
@@ -216,12 +220,12 @@ export function createAiRepository(
   return {
     settings: (userId) => withUser(db, userId, (tx) => viewIn(tx, userId)),
 
-    save: async (userId, input) => {
+    save: async (userId, input, quote) => {
       if (!AI_PROVIDERS.includes(input.provider) || !/^[\w./:@+-]{1,200}$/.test(input.modelId))
         throw new AiError('AI_INVALID_CONFIG');
       const baseUrl = resolveAiBaseUrl(input.provider, input.baseUrl, options.allowedBaseUrls);
       const monthlyLimitUsd = formatDecimal(parseAiUsd(input.monthlyLimitUsd));
-      const pricing = input.pricing === null ? null : normalizeAiPricing(input.pricing);
+      const pricing = normalizeAiPricing(quote);
       const key = input.apiKey?.trim();
       if (key !== undefined && (key.length < 4 || key.length > 512 || /\s/.test(key) || key === input.modelId))
         throw new AiError('AI_INVALID_CONFIG');
@@ -273,7 +277,7 @@ export function createAiRepository(
           baseUrl,
           modelId: input.modelId,
           pricing,
-          pricingSource: pricing === null ? ('catalog' as const) : ('manual' as const),
+          pricingSource: 'catalog' as const,
           ...state,
           ...(ciphertext === undefined ? {} : { apiKeyEnc: ciphertext, last4: key?.slice(-4), addedAt: now() }),
         };
@@ -354,7 +358,6 @@ export function createAiRepository(
         modelId: snapshot.connection.modelId as string,
         apiKey,
         pricing: snapshot.connection.pricing,
-        pricingSource: snapshot.connection.pricingSource,
       };
     },
 

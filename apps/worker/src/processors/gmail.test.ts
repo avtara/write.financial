@@ -65,18 +65,21 @@ const saveAi = async (
 ) => {
   const current = await test.as('wf_app', () => ai.settings(userId));
   return test.as('wf_app', () =>
-    ai.save(userId, {
-      expectedRevision: current.revision,
-      provider: 'openrouter',
-      apiKey: `fixture-${randomUUID()}`,
-      modelId: 'fixture/extract',
-      allowReadFinancial: true,
-      allowCreateDrafts: true,
-      requireConfirmation: true,
-      monthlyLimitUsd: '5',
+    ai.save(
+      userId,
+      {
+        expectedRevision: current.revision,
+        provider: 'openrouter',
+        apiKey: `fixture-${randomUUID()}`,
+        modelId: 'fixture/extract',
+        allowReadFinancial: true,
+        allowCreateDrafts: true,
+        requireConfirmation: true,
+        monthlyLimitUsd: '5',
+        ...overrides,
+      },
       pricing,
-      ...overrides,
-    }),
+    ),
   );
 };
 beforeAll(async () => {

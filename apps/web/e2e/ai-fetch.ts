@@ -4,7 +4,7 @@
  * production server (`node --import ./e2e/ai-fetch.ts`, after `e2e/market-fetch.ts`, see `playwright.config.ts`), it
  * answers every request to an AI provider's host (`AI_BASE_URLS` in `@wf/domain/ai`) itself, so E2E runs never reach a
  * real model and need no real key. It speaks the OpenAI-compatible wire shape `@wf/integrations/ai` expects:
- * - `/models`: a one-model catalog with prices (the "Muat daftar model" button),
+ * - `/models`: a one-model catalog with prices (the Settings model picker, and the prices every save stores),
  * - `/chat/completions`: a deterministic two-step tool loop. A question mentioning GoPay proposes one `draf_transaksi`
  *   draft whose account ("GoPay"), category ("Makan & Dapur") and day come from the request's own system prompt, so the
  *   ids are always the asking user's real ones, and the amount from the question (default 45.000); a question about

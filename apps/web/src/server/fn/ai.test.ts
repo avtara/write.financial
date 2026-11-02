@@ -34,6 +34,10 @@ let test: TestDatabase;
 let userId: string;
 let mode: 'ok' | 'unauthorized' | 'forbidden' | 'unavailable' | 'missing_cost';
 let requests: number;
+let completions: number;
+let catalogPriced: boolean;
+/** The `Authorization` header of the latest provider request. */
+let authorization: string | null;
 let duringRequest: (() => Promise<void>) | null;
 const dek = generateDek();
 const key = `fixture-ai-${randomUUID()}`;
@@ -47,7 +51,6 @@ const input = (extra: Partial<AiSettingsInput> = {}): AiSettingsInput => ({
   allowCreateDrafts: false,
   requireConfirmation: true,
   monthlyLimitUsd: '1',
-  pricing,
   ...extra,
 });
 function context(twoFactorEnabled = true, ageMinutes = 1) {
@@ -74,14 +77,24 @@ beforeEach(async () => {
   await test.query('UPDATE users SET two_factor_enabled = true');
   mode = 'ok';
   requests = 0;
+  completions = 0;
+  catalogPriced = true;
   duringRequest = null;
-  const fetcher = vi.fn<typeof fetch>(async (url) => {
+  authorization = null;
+  const rates = { prompt: '0.000001', completion: '0.000002' };
+  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
     requests++;
+    authorization = new Headers(init?.headers).get('Authorization');
     const address = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
     if (address.endsWith('/models'))
       return Response.json({
-        data: [{ id: 'fixture/model', pricing: { prompt: '0.000001', completion: '0.000002' } }],
+        data: [
+          { id: 'fixture/model', ...(catalogPriced ? { pricing: rates } : {}) },
+          { id: '@private/model', pricing: rates },
+          { id: 'fixture/unpriced' },
+        ],
       });
+    completions++;
     if (duringRequest !== null) await duringRequest();
     if (mode === 'unauthorized') return new Response(`Revoked ${key}`, { status: 401 });
     if (mode === 'forbidden') return new Response('private forbidden', { status: 403 });
@@ -139,9 +152,68 @@ describe('AI credential action authorization', () => {
   });
 });
 
+describe('catalog prices on save', () => {
+  it("stores the chosen model's catalog prices and never takes prices from the client", async () => {
+    const parsed = validatorOf(saveAiSettings).safeParse({
+      ...input(),
+      pricing: { ...pricing, inputUsdPerMillion: '0' },
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).not.toHaveProperty('pricing');
+    const saved = await save();
+    expect(saved.connections.find((item) => item.provider === 'openrouter')).toMatchObject({
+      pricing,
+      pricingSource: 'catalog',
+      status: 'untested',
+    });
+    expect(requests).toBe(1); // The public catalog only; saving makes no completion.
+    expect(completions).toBe(0);
+  });
+
+  it.each(['not-listed', 'fixture/unpriced'])(
+    'refuses to save %s, a model the catalog does not price, and stores nothing',
+    async (modelId) => {
+      expect(await invoke(saveAiSettings, input({ modelId }))).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
+      expect(await test.query('SELECT user_id FROM ai_settings')).toEqual([]);
+      expect(await test.query('SELECT user_id FROM ai_connections')).toEqual([]);
+      expect(completions).toBe(0);
+    },
+  );
+
+  it('reads a custom catalog with the key being saved, else with the saved key at its own endpoint only', async () => {
+    const saved = await save({ provider: 'custom', baseUrl: 'https://custom.test/v1' });
+    expect(authorization).toBe(`Bearer ${key}`);
+    expect(saved.connections.find((item) => item.provider === 'custom')).toMatchObject({
+      pricing,
+      pricingSource: 'catalog',
+    });
+    const retained = input({
+      expectedRevision: saved.revision,
+      provider: 'custom',
+      baseUrl: 'https://custom.test/v1/',
+      allowReadFinancial: true,
+    });
+    delete retained.apiKey;
+    authorization = null;
+    const kept = await invoke<AiSettingsView>(saveAiSettings, retained);
+    expect(kept).toMatchObject({ ok: true, value: { allowReadFinancial: true } });
+    expect(authorization).toBe(`Bearer ${key}`);
+    if (!kept.ok) throw new Error(kept.code);
+    const before = requests;
+    expect(
+      await invoke(saveAiSettings, {
+        ...retained,
+        expectedRevision: kept.value.revision,
+        baseUrl: 'https://other.test/v1',
+      }),
+    ).toEqual({ ok: false, code: 'AI_INVALID_CONFIG' });
+    expect(requests).toBe(before);
+  });
+});
+
 describe('connection tests and activity', () => {
   it('does not treat a public catalog as authentication; a 401 preserves the saved key and records failure metadata', async () => {
-    const saved = await save({ pricing: null });
+    const saved = await save();
     await invoke(listAiModels, { provider: 'openrouter' });
     const initial = await invoke<AiSettingsView>(getAiSettings);
     expect(initial.ok && initial.value.connections.find((item) => item.provider === 'openrouter')?.status).toBe(
@@ -174,7 +246,7 @@ describe('connection tests and activity', () => {
         requestId: randomUUID(),
       }),
     ).toEqual({ ok: false, code: 'AI_COST_LIMIT' });
-    expect(requests).toBe(0);
+    expect(completions).toBe(0);
     expect(await invoke(listAiLogs, { status: 'blocked' })).toMatchObject({ ok: true, value: { total: 1, failed: 1 } });
   });
 
@@ -190,7 +262,7 @@ describe('connection tests and activity', () => {
     expect(
       await invoke(testAiConnection, { provider: 'openrouter', expectedRevision: saved.revision, requestId }),
     ).toEqual({ ok: false, code: 'AI_REQUEST_EXISTS' });
-    expect(requests).toBe(1);
+    expect(completions).toBe(1);
     const exported = await invoke<{ csv: string }>(exportAiLogs, {});
     expect(exported.ok && exported.value.csv).toContain(",'@private/model,");
     expect(exported.ok && exported.value.csv).not.toContain(key);
@@ -200,7 +272,11 @@ describe('connection tests and activity', () => {
   it('does not claim a late old-key test succeeded after configuration changed in another tab', async () => {
     const saved = await save();
     duringRequest = async () => {
-      await fake.current?.ai.save(userId, input({ expectedRevision: saved.revision, apiKey: 'fixture-new-key-9876' }));
+      await fake.current?.ai.save(
+        userId,
+        input({ expectedRevision: saved.revision, apiKey: 'fixture-new-key-9876' }),
+        pricing,
+      );
     };
     expect(
       await invoke(testAiConnection, {
@@ -217,8 +293,9 @@ describe('connection tests and activity', () => {
     });
   });
 
-  it('blocks missing catalog prices rather than treating missing prices as a free model', async () => {
-    const saved = await save({ pricing: null, modelId: 'not-listed' });
+  it('blocks a model whose catalog prices disappeared rather than treating it as a free model', async () => {
+    const saved = await save();
+    catalogPriced = false;
     expect(
       await invoke(testAiConnection, {
         provider: 'openrouter',
@@ -226,7 +303,7 @@ describe('connection tests and activity', () => {
         requestId: randomUUID(),
       }),
     ).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
-    expect(requests).toBe(1); // Public catalog only; no completion.
+    expect(completions).toBe(0); // Public catalog only; no completion.
   });
 
   it('retains a key when saving non-secret settings, then removes it with revision protection', async () => {
@@ -259,7 +336,8 @@ describe('connection tests and activity', () => {
   });
 
   it('binds custom catalog authentication to the saved endpoint, current 2FA and fresh session', async () => {
-    const saved = await save({ provider: 'custom', baseUrl: 'https://custom.test/v1' });
+    await save({ provider: 'custom', baseUrl: 'https://custom.test/v1' });
+    const afterSave = requests;
     expect(await call(listAiModels, { context: context(false), data: { provider: 'custom' } })).toEqual({
       ok: false,
       code: 'TWO_FACTOR_REQUIRED',
@@ -272,24 +350,23 @@ describe('connection tests and activity', () => {
       ok: false,
       code: 'AI_CONFIG_CHANGED',
     });
-    expect(requests).toBe(0);
+    expect(requests).toBe(afterSave);
     expect(await invoke(listAiModels, { provider: 'custom', baseUrl: 'https://custom.test/v1/' })).toMatchObject({
       ok: true,
       value: { catalogPublic: false },
     });
-    const catalogPriced = await save({
-      expectedRevision: saved.revision,
-      provider: 'custom',
-      baseUrl: 'https://custom.test/v1',
-      pricing: null,
-    });
+    // A key typed for a first save reads the catalog of the allowlisted endpoint it is being saved with.
     expect(
-      await invoke(testAiConnection, {
+      await invoke(listAiModels, {
         provider: 'custom',
-        expectedRevision: catalogPriced.revision,
-        requestId: randomUUID(),
+        baseUrl: 'https://custom.test/v1',
+        apiKey: 'fixture-typed-key',
       }),
-    ).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
+    ).toMatchObject({ ok: true, value: { catalogPublic: false } });
+    expect(authorization).toBe('Bearer fixture-typed-key');
+    expect(
+      await invoke(listAiModels, { provider: 'custom', baseUrl: 'https://other.test/v1', apiKey: 'fixture-typed-key' }),
+    ).toEqual({ ok: false, code: 'AI_EGRESS_DENIED' });
   });
 
   it.each(['forbidden', 'unavailable'] as const)(

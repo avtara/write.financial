@@ -542,17 +542,20 @@ beforeAll(async () => {
   const ai = createAiRepository(dbs.app, { getDek: () => Promise.resolve(dek), allowedBaseUrls: [], ...at15 });
   const aiPricing = { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' };
   for (const userId of [alice, bob]) {
-    const config = await ai.save(userId, {
-      expectedRevision: null,
-      provider: 'openrouter',
-      apiKey: `fixture-ai-${userId}`,
-      modelId: 'fixture/model',
-      allowReadFinancial: false,
-      allowCreateDrafts: false,
-      requireConfirmation: true,
-      monthlyLimitUsd: '5',
-      pricing: aiPricing,
-    });
+    const config = await ai.save(
+      userId,
+      {
+        expectedRevision: null,
+        provider: 'openrouter',
+        apiKey: `fixture-ai-${userId}`,
+        modelId: 'fixture/model',
+        allowReadFinancial: false,
+        allowCreateDrafts: false,
+        requireConfirmation: true,
+        monthlyLimitUsd: '5',
+      },
+      aiPricing,
+    );
     const requestId = randomUUID();
     await ai.reserve(userId, {
       id: requestId,
