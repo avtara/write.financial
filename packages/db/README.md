@@ -195,7 +195,7 @@ Deleting a user cascades to all four AI tables; deleting only a provider key pre
 Ledger rows reference their parents with composite `(user_id, id)` foreign keys, so a row can never point at another
 user's account, category, transaction, or tag (foreign-key checks bypass RLS). A trigger limits a transaction to five
 tags; another keeps the payments of a receivable within its principal (FR-U7), also against raw SQL. `pg_trgm` backs
-the merchant/description/goal-name search indexes.
+the title (description) and goal-name search indexes.
 
 ## Tests
 

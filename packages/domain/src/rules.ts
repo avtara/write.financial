@@ -41,7 +41,7 @@ export type RuleDirection = (typeof RULE_DIRECTIONS)[number];
  * ("contains any of", "one of").
  */
 export type RuleCondition =
-  /** The description/merchant contains any of `values` (case-insensitive). */
+  /** The title (`description`) contains any of `values` (case-insensitive). */
   | { readonly field: 'description'; readonly op: 'containsAny'; readonly values: readonly string[] }
   /** The user-local weekday is one of `values`. */
   | { readonly field: 'weekday'; readonly op: 'oneOf'; readonly values: readonly Weekday[] }
@@ -465,7 +465,7 @@ export function applyRuleSuggestion(
   return { categoryId, tags, conflicts };
 }
 
-/** A deterministic pattern for rule suggestions: the merchant when there is one, otherwise the description. */
+/** A deterministic pattern for rule suggestions, taken from the title (`description`). */
 export interface CorrectionPattern {
   /** Grouping key: lowercased words (`kopi kenangan`). */
   readonly pattern: string;
@@ -477,12 +477,12 @@ const TRAILING_AMOUNT = /[\s\-–—#*]*\b\d[\d.,]*\b\s*$/u;
 const TRAILING_REFERENCE = /\s+(?:ref|trx|transaksi|invoice|inv)[\s#:.-]*[a-z0-9-]+$/iu;
 
 /**
- * The pattern a manual category correction is counted under. The merchant wins; without one, the description with
- * trailing amounts and references removed collapses to a stable, case-insensitive phrase. `null` when there is
- * nothing usable (a description of only digits or punctuation), so such a correction never suggests a rule.
+ * The pattern a manual category correction is counted under: the title with trailing amounts and references removed
+ * collapses to a stable, case-insensitive phrase. `null` when there is nothing usable (a title of only digits or
+ * punctuation), so such a correction never suggests a rule.
  */
-export function correctionPattern(description: string | null, merchant: string | null): CorrectionPattern | null {
-  const source = clean(merchant) || clean(description);
+export function correctionPattern(description: string | null): CorrectionPattern | null {
+  const source = clean(description);
   if (source === '') return null;
   const stripped = clean(source.replace(TRAILING_REFERENCE, '').replace(TRAILING_AMOUNT, ''));
   const label = (stripped === '' ? source : stripped).slice(0, CORRECTION_LABEL_MAX).trim();

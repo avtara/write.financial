@@ -102,7 +102,7 @@ export function WeekView({ week, today, safeDailyMinor, categories, baseCurrency
             <>
               {week.largestIncome === null
                 ? null
-                : `${week.largestIncome.merchant ?? week.largestIncome.description ?? m.calendar_untitled()} · ${formatDate(week.largestIncome.localDate, locale, 'day')}`}
+                : `${week.largestIncome.description ?? m.calendar_untitled()} · ${formatDate(week.largestIncome.localDate, locale, 'day')}`}
             </>
           }
         />
@@ -202,7 +202,7 @@ export function WeekView({ week, today, safeDailyMinor, categories, baseCurrency
                           {formatTime(row.occurredAt, timeZone, locale)}
                         </span>
                         <span className="truncate text-[12.5px] text-fg">
-                          {row.merchant ?? row.description ?? m.calendar_untitled()}
+                          {row.description ?? m.calendar_untitled()}
                         </span>
                         {row.type === 'transfer' ? (
                           <Money

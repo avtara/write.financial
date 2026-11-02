@@ -200,9 +200,7 @@ export function DayPanel({
                   <CategoryIcon icon={category.icon} color={category.color} />
                 )}
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[13px] text-fg">
-                    {row.merchant ?? row.description ?? m.calendar_untitled()}
-                  </span>
+                  <span className="truncate text-[13px] text-fg">{row.description ?? m.calendar_untitled()}</span>
                   {/* Wraps rather than truncates, so the time and tags stay visible in the 340px panel. */}
                   <span className="text-[11.5px] text-subtle">
                     {[

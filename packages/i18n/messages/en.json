@@ -3227,24 +3227,13 @@
       "declarations": ["input count", "local countPlural = count: plural"],
       "selectors": ["countPlural"],
       "match": {
-        "countPlural=one": "Salary from {payer} arrives on day {day} (last month)",
-        "countPlural=*": "Salary from {payer} arrives on day {day} (last {count} months)"
-      }
-    }
-  ],
-  "period_settings_payday_match_unnamed": [
-    {
-      "declarations": ["input count", "local countPlural = count: plural"],
-      "selectors": ["countPlural"],
-      "match": {
         "countPlural=one": "Salary arrives on day {day} (last month)",
         "countPlural=*": "Salary arrives on day {day} (last {count} months)"
       }
     }
   ],
   "period_settings_payday_misaligned": "Not aligned with payday",
-  "period_settings_payday_mismatch": "Salary from {payer} usually arrives on day {payday}, not day {day}",
-  "period_settings_payday_mismatch_unnamed": "Salary usually arrives on day {payday}, not day {day}",
+  "period_settings_payday_mismatch": "Salary usually arrives on day {payday}, not day {day}",
   "period_settings_payday_none": "No salary income yet, so there's no suggested day.",
   "period_settings_payday_source": "Worked out from your latest salary transactions; recurring income schedules aren't used yet.",
   "period_settings_picker_title": "Start on day",
@@ -3421,12 +3410,11 @@
   "receipt_choose": "Choose or drop one receipt",
   "receipt_format": "JPG, PNG or PDF · up to 2 MiB · one receipt",
   "receipt_invalid": "Upload one JPG, PNG or PDF up to 2 MiB. HEIC and WebP are not supported.",
-  "receipt_reading": "Reading amount, date and merchant…",
+  "receipt_reading": "Reading amount, date and title…",
   "receipt_badge": "from receipt",
   "receipt_failed": "The receipt could not be read. Upload a clear, complete receipt again or enter the details manually. A failed read may still incur provider costs.",
   "receipt_manual": "Enter manually",
   "receipt_uncertain": "Check these uncertain fields: {fields}",
-  "receipt_merchant": "Merchant",
   "receipt_item_uncertain": "Uncertain price — check before saving",
   "receipt_items": "Receipt items",
   "receipt_duplicate": "This receipt may already be recorded",
@@ -3745,7 +3733,6 @@
   "reports_largest_share": "{count} transactions = {pct} of spending",
   "reports_largest_title": "Largest transactions",
   "reports_loading": "Compiling the report…",
-  "reports_merchants_title": "Merchants",
   "reports_networth_asof": "as of {date}",
   "reports_networth_cash": "Cash & accounts",
   "reports_networth_debt": "Debt",
@@ -3767,6 +3754,7 @@
   "reports_subs_title": "Subscriptions",
   "reports_subs_unconverted": "{count} subscriptions without a rate at the period end.",
   "reports_tags_title": "Tags",
+  "reports_titles_title": "Top titles",
   "reports_title": "Reports",
   "reports_tx_count": "{count} transactions",
   "reset_confirm": "Repeat new password",
@@ -3783,7 +3771,6 @@
   "review_ai_account": "Account",
   "review_ai_confidence": "{percent}% sure: check before recording.",
   "review_ai_footer": "Not recorded: balances & budgets don't change until you choose.",
-  "review_ai_merchant": "Merchant",
   "review_ai_subtitle": "AI results · confidence is only shown, you decide",
   "review_ai_tags": "Tags",
   "review_ai_unknown": "unknown",
@@ -5188,7 +5175,7 @@
   "transactions_search_clear": "Clear search",
   "transactions_search_hits": "{count} results",
   "transactions_search_label": "Search transactions",
-  "transactions_search_placeholder": "Search title, merchant, note, or #tag",
+  "transactions_search_placeholder": "Search title, note, or #tag",
   "transactions_search_scope": "Searched in",
   "transactions_search_scope_description": "Title",
   "transactions_search_scope_note": "Note",

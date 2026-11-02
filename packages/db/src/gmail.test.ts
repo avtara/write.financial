@@ -275,7 +275,7 @@ describe('durable email processing and retention', () => {
     expect([...first, ...rest].some((row) => row.messageId === 'foreign')).toBe(false);
   });
 
-  it('offers owned rule corrections and drops overflowing tags even when the provider cannot identify a merchant', async () => {
+  it('offers owned rule corrections from the extracted store name only and drops overflowing tags', async () => {
     const [category] = await test.query<{ id: string }>(
       `INSERT INTO categories(user_id,name,kind,"group",icon,color)
       VALUES($1,'Utilities','expense','needs','house','blue') RETURNING id`,
@@ -291,16 +291,32 @@ describe('durable email processing and retention', () => {
         ...Array.from({ length: 6 }, (_, index) => ({ type: 'addTag', tag: `tag-${index}` })),
       ]),
     ]);
-    const row = await worker(() => gmail().recordEmail(alice, email()));
-    await worker(() => gmail().claimExtraction(alice, row.id as string));
-    await worker(() => gmail().storeExtraction(alice, row.id as string, { ...extraction, merchant: null }));
-    await worker(() => gmail().complete(alice, row.id as string));
+    const named = await worker(() => gmail().recordEmail(alice, email()));
+    await worker(() => gmail().claimExtraction(alice, named.id as string));
+    await worker(() => gmail().storeExtraction(alice, named.id as string, extraction));
+    await worker(() => gmail().complete(alice, named.id as string));
+    // Without a store name the rule has no title to match: the subject ("PLN payment") is only evidence.
+    const unnamed = await worker(() => gmail().recordEmail(alice, email('mail-two')));
+    await worker(() => gmail().claimExtraction(alice, unnamed.id as string));
+    await worker(() => gmail().storeExtraction(alice, unnamed.id as string, { ...extraction, merchant: null }));
+    await worker(() => gmail().complete(alice, unnamed.id as string));
     const reviews = await app(() => createReview(test.db, { getDek, now: () => clock }).list(alice));
-    expect(reviews.items[0]?.payload).toMatchObject({
-      kind: 'gmail',
-      tags: [],
-      extraction: { merchant: null, categoryId: category?.id },
-    });
+    expect(reviews.items.map((item) => item.payload)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'gmail',
+          messageId: 'mail-one',
+          tags: [],
+          extraction: expect.objectContaining({ merchant: 'PLN', categoryId: category?.id }) as unknown,
+        }),
+        expect.objectContaining({
+          kind: 'gmail',
+          messageId: 'mail-two',
+          tags: [],
+          extraction: expect.objectContaining({ merchant: null, categoryId: null }) as unknown,
+        }),
+      ]),
+    );
     expect(await test.query('SELECT id FROM transactions')).toEqual([]);
   });
 });

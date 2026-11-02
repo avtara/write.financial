@@ -158,7 +158,7 @@ describe('recordSplitBill (IGHyP)', () => {
       categoryId: null,
       description: 'CGV Grand Indonesia',
     };
-    const transaction = { ...draft, merchant: undefined };
+    const transaction = { ...draft, note: undefined };
     const shares = [
       { clientId: SHARE, counterparty: 'Nadia', amountMinor: 242_500n, dueDate: '2026-10-18', remind: true },
     ];

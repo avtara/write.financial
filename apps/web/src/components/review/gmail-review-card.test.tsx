@@ -88,7 +88,7 @@ describe('Gmail correction and explicit review', () => {
       amountMinor: 350000n,
       accountId: account.id,
       categoryId: category.id,
-      merchant: 'PLN',
+      description: 'PLN',
       occurredAt: new Date('2026-10-18T02:00:00Z'),
     });
     expect(onIgnore).not.toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe('Gmail correction and explicit review', () => {
     await expect.element(sure.first()).toHaveClass('text-subtle');
     expect(sure.elements()).toHaveLength(4);
   });
-  it('keeps missing amount/date/account/category/merchant unknown and disables confirmation until corrected', async () => {
+  it('keeps missing amount/date/account/category/title unknown and disables confirmation until corrected', async () => {
     const onConfirm = vi.fn<Parameters<typeof GmailReviewCard>[0]['onConfirm']>();
     const missing: GmailReviewItem = {
       ...item,
@@ -174,7 +174,7 @@ describe('Gmail correction and explicit review', () => {
       amountMinor: 350000n,
       accountId: account.id,
       categoryId: category.id,
-      merchant: 'PLN',
+      description: 'PLN',
       occurredAt: new Date('2026-10-18T02:30:00Z'),
     });
   });

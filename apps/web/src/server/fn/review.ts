@@ -26,7 +26,6 @@ const edits = z
     categoryId: id.nullable().optional(),
     occurredAt: z.date().optional(),
     description: text,
-    merchant: text,
     note: z.string().max(2000).nullable().optional(),
     tags: z.array(z.string().min(1).max(64)).max(5).optional(),
     goalId: id.nullable().optional(),

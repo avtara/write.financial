@@ -237,7 +237,7 @@ export interface ReceivablesRepository {
   /**
    * FR-L5 "Simpan pembagian": records the user's part of a bill as an expense and every other person's part as a
    * `split_bill` receivable from the same account and date (lent = a `receivable_out`, not an expense), all in one
-   * transaction. The receivables take the expense's description (or merchant). Idempotent per the draft's and the
+   * transaction. The receivables take the expense's title. Idempotent per the draft's and the
    * shares' client ids: a replay returns the first result.
    * @throws {LedgerError} `INVALID_RECEIVABLE`, `INVALID_TRANSACTION`, `INVALID_CATEGORY`, `NOT_FOUND`,
    * `ACCOUNT_ARCHIVED`, `PERIOD_CLOSED`, `FX_RATE_MISSING`
@@ -574,7 +574,7 @@ export function createReceivables(
             fromAccountId: draft.accountId,
             source: 'split_bill',
             sourceTransactionId: transactionId,
-            description: clean(draft.description) ?? clean(draft.merchant),
+            description: clean(draft.description),
             lentAt: draft.occurredAt,
           });
           made.push(receivable);

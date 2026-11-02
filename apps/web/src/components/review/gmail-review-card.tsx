@@ -50,10 +50,10 @@ export function GmailReviewCard({
   timeZone: string;
   today: LocalDate;
   pending: boolean;
-  /** Every value is known and corrected by the user; the title (merchant) is never blank. */
+  /** Every value is known and corrected by the user; the title (`description`) is never blank. */
   onConfirm: (
     edits: Required<Pick<ReviewEdits, 'amountMinor' | 'occurredAt' | 'accountId' | 'categoryId'>> & {
-      readonly merchant: string;
+      readonly description: string;
     },
   ) => void;
   onIgnore: () => void;
@@ -64,7 +64,8 @@ export function GmailReviewCard({
   const [amount, setAmount] = useState(extraction.amountMinor);
   const [accountId, setAccountId] = useState(extraction.accountId);
   const [categoryId, setCategoryId] = useState(extraction.categoryId);
-  const [merchant, setMerchant] = useState(extraction.merchant ?? '');
+  // The extracted name is the proposed title; the user may correct it.
+  const [titleInput, setTitleInput] = useState(extraction.merchant ?? '');
   const [when, setWhen] = useState<{ readonly date: LocalDate; readonly time: string } | null>(() =>
     extraction.occurredAt === null
       ? null
@@ -84,7 +85,7 @@ export function GmailReviewCard({
   } catch {
     occurredAt = null;
   }
-  const title = merchant.trim();
+  const title = titleInput.trim();
   const missing = {
     amount: amount === null || amount <= 0n,
     title: title === '',
@@ -94,7 +95,7 @@ export function GmailReviewCard({
   };
   const edits =
     !Object.values(missing).some(Boolean) && amount !== null && account !== undefined && categoryId !== null
-      ? { amountMinor: amount, accountId: account.id, categoryId, merchant: title, occurredAt: occurredAt as Date }
+      ? { amountMinor: amount, accountId: account.id, categoryId, description: title, occurredAt: occurredAt as Date }
       : null;
 
   return (
@@ -131,14 +132,14 @@ export function GmailReviewCard({
           {({ id }) => (
             <TextInput
               id={id}
-              value={hidden ? hiddenLabel : merchant}
+              value={hidden ? hiddenLabel : titleInput}
               disabled={hidden}
               required
               maxLength={200}
               placeholder={m.record_description_placeholder()}
               aria-invalid={missing.title}
               onChange={(event) => {
-                setMerchant(event.target.value);
+                setTitleInput(event.target.value);
               }}
             />
           )}

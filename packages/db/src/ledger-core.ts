@@ -213,8 +213,8 @@ interface DraftCommon {
   /** Idempotency key of the form submission (NFR): a retry with the same id returns the first result. */
   readonly clientId: string;
   readonly occurredAt: Date;
+  /** The title ("Judul"); a transaction has no other name. */
   readonly description?: string | null;
-  readonly merchant?: string | null;
   /** Plain text; stored encrypted (`note_enc`). */
   readonly note?: string | null;
   /** Tag input (slugs or `#Names`), at most five. */
@@ -259,7 +259,6 @@ export interface TransactionPlan {
     readonly occurredAt: Date;
     readonly localDate: LocalDate;
     readonly description: string | null;
-    readonly merchant: string | null;
     readonly noteEnc: Uint8Array | null;
     readonly categoryId: string | null;
     readonly source: TransactionSource;
@@ -342,7 +341,6 @@ export async function planTransactionIn(
     occurredAt: draft.occurredAt,
     localDate,
     description: draft.description?.trim() || null,
-    merchant: draft.merchant?.trim() || null,
     noteEnc,
     source: draft.source ?? 'manual',
   };

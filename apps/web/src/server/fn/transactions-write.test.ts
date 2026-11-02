@@ -118,7 +118,7 @@ describe('recordTransaction', () => {
     const validator = validatorOf(recordTransaction);
     const valid = (input: unknown) => validator.safeParse(input).success;
     expect(valid(expense)).toBe(true);
-    expect(valid({ ...expense, type: 'income', categoryId: ID, source: 'quick', merchant: 'Warung' })).toBe(true);
+    expect(valid({ ...expense, type: 'income', categoryId: ID, source: 'quick', description: 'Warung' })).toBe(true);
     expect(valid(transfer)).toBe(true);
     expect(valid({ ...transfer, manualRate: null, fee: null, tags: ['a', 'b', 'c', 'd', 'e'] })).toBe(true);
 

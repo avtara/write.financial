@@ -64,7 +64,7 @@ beforeEach(async () => {
 const kulkas = () =>
   alice.entry('expense', '2026-11-02', 3_000_000n, alice.category('system:shopping'), {
     accountId: card,
-    merchant: 'Tokopedia',
+    description: 'Tokopedia',
   });
 
 const cardPlan = (sourceTransactionId: string | null, schedule?: InstallmentInput[]): DebtInput => ({
@@ -126,7 +126,7 @@ describe('card installments (FR-U2–U4, Section 18 scenario)', () => {
     const a = await kulkas();
     await alice.entry('expense', '2026-11-06', 1_000_000n, alice.category('system:food'), {
       accountId: card,
-      merchant: 'Superindo',
+      description: 'Superindo',
     });
     const plan = await asApp(() => debts().create(alice.userId, cardPlan(a)));
     expect(plan).toMatchObject({
@@ -358,7 +358,7 @@ describe('recording a card purchase or payment with its plan (hNvip, qrRRV)', ()
     accountId: card,
     amountMinor: 3_000_000n,
     categoryId: alice.category('system:shopping'),
-    merchant: 'Tokopedia',
+    description: 'Tokopedia',
     ...overrides,
   });
   const payment = (amountMinor: bigint, overrides: Record<string, unknown> = {}) => ({
@@ -583,7 +583,6 @@ describe('non-card installments (FR-U5, FR-U6)', () => {
     expect(detail).toMatchObject({
       type: 'expense',
       description: 'Cicilan MacBook Air M4 (1/12)',
-      merchant: 'Kredivo',
       categoryId: alice.category('system:shopping'),
     });
     expect(

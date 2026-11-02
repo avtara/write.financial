@@ -55,7 +55,7 @@ export function CardStrip({ bill, state, account, heldNames, locale }: CardSecti
         label={m.debts_card_current_bill()}
         note={
           bill.transactions.length === 1 && only !== undefined
-            ? `${only.description ?? only.merchant ?? ''} ${formatDate(only.localDate, locale, 'day')}`
+            ? `${only.description ?? ''} ${formatDate(only.localDate, locale, 'day')}`
             : m.debts_card_transactions({ count: bill.transactions.length, month: monthName })
         }
       >
@@ -246,7 +246,7 @@ export function CardBillCard({ bill, state, account, locale, onPay, onConvert }:
                 key={row.id}
                 className="flex items-center gap-3 border-b border-border py-3 text-[13px] last:border-b-0"
               >
-                <span className="min-w-0 flex-1 truncate text-fg">{row.description ?? row.merchant ?? name}</span>
+                <span className="min-w-0 flex-1 truncate text-fg">{row.description ?? name}</span>
                 <span className="font-mono text-[12px] text-subtle">{formatDate(row.localDate, locale, 'day')}</span>
                 <Money
                   minor={-row.amountMinor}

@@ -106,12 +106,12 @@ export function reportBlocks(view: ReportView, options: ReportExportOptions): re
         ],
       });
     }
-    if (view.sections.merchants.length > 0) {
+    if (view.sections.titles.length > 0) {
       blocks.push({
-        name: 'Merchant',
+        name: 'Judul teratas',
         rows: [
-          ['Merchant', 'Jumlah', 'Transaksi'],
-          ...view.sections.merchants.map((line) => [line.merchant, line.totalMinor.toString(), line.count] as Row),
+          ['Judul', 'Jumlah', 'Transaksi'],
+          ...view.sections.titles.map((line) => [line.title, line.totalMinor.toString(), line.count] as Row),
         ],
       });
     }
@@ -130,16 +130,9 @@ export function reportBlocks(view: ReportView, options: ReportExportOptions): re
       blocks.push({
         name: 'Transaksi Terbesar',
         rows: [
-          ['Tanggal', 'Keterangan', 'Merchant', 'Jumlah', 'Bagian'],
+          ['Tanggal', 'Keterangan', 'Jumlah', 'Bagian'],
           ...view.sections.largest.map(
-            (line) =>
-              [
-                line.date,
-                line.description,
-                line.merchant ?? '',
-                line.amountMinor.toString(),
-                line.shareBps / 10_000,
-              ] as Row,
+            (line) => [line.date, line.description, line.amountMinor.toString(), line.shareBps / 10_000] as Row,
           ),
         ],
       });

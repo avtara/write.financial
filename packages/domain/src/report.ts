@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Reports (FR-LP1–LP5). A monthly report is a snapshot of one closed period: the KPIs with their comparison, the
- * savings rate and its change in points, the spending lines (categories against their budget, merchants, tags,
+ * savings rate and its change in points, the spending lines (categories against their budget, top titles, tags,
  * accounts), goals, the largest transactions, subscriptions, and net worth at the period end. Quarters, years, and
  * custom ranges are aggregated from the final monthly reports plus the current period, and are marked provisional.
  * Everything here is arithmetic on rows the database already totalled; amounts are `bigint` minor units, shares and

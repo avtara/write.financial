@@ -146,7 +146,8 @@ export interface SavingSuggestion<T> {
 }
 
 export interface DetectionTransaction {
-  readonly merchant: string;
+  /** The transaction's title (`description`). */
+  readonly title: string;
   readonly localDate: LocalDate;
   /** Outflow amount (positive). */
   readonly amountMinor: bigint;
@@ -155,9 +156,10 @@ export interface DetectionTransaction {
   readonly categoryId: string | null;
 }
 
+/** A subscription candidate; `merchantKey`/`merchant` are its normalized and written name (the charges' title). */
 export interface DetectedSubscription {
   readonly merchantKey: string;
-  /** Merchant name as written on the latest charge. */
+  /** The title as written on the latest charge. */
   readonly merchant: string;
   /** Day of month of the latest charge. */
   readonly dayOfMonth: number;
@@ -417,7 +419,7 @@ export function costHistory(subscriptions: readonly HistorySubscription[], today
   return history;
 }
 
-/** Normalized merchant for matching: lowercase, accents and punctuation removed, single spaces. */
+/** Normalized title or subscription name for matching: lowercase, accents and punctuation removed, single spaces. */
 export function merchantKey(merchant: string): string {
   return merchant
     .normalize('NFKD')
@@ -427,7 +429,7 @@ export function merchantKey(merchant: string): string {
     .trim();
 }
 
-/** The charges of one merchant that repeat the latest charge: one per month, similar day and amount. */
+/** The charges of one title that repeat the latest charge: one per month, similar day and amount. */
 function matchingMonths(charges: readonly DetectionTransaction[], latest: DetectionTransaction): number {
   const months = new Set<string>();
   for (const charge of charges) {
@@ -442,7 +444,7 @@ function matchingMonths(charges: readonly DetectionTransaction[], latest: Detect
 
 /**
  * Recurring charges that look like untracked subscriptions (FR-SUB4): only once the data spans
- * `DETECTION_MIN_MONTHS` months; merchants not in `known` with ≥ 3 charges in distinct months on a similar day
+ * `DETECTION_MIN_MONTHS` months; titles not in `known` with ≥ 3 charges in distinct months on a similar day
  * (± 3) and amount (± 20 %) as the latest charge. Sorted by latest charge, newest first.
  */
 export function detectSubscriptions(
@@ -454,22 +456,22 @@ export function detectSubscriptions(
     .toSorted((a, b) => b.localDate.localeCompare(a.localDate));
   const earliest = sorted.at(-1);
   if (earliest === undefined || earliest.localDate > addMonths(options.today, -DETECTION_MIN_MONTHS)) return [];
-  const byMerchant = new Map<string, [DetectionTransaction, ...DetectionTransaction[]]>();
+  const byTitle = new Map<string, [DetectionTransaction, ...DetectionTransaction[]]>();
   for (const transaction of sorted) {
-    const key = merchantKey(transaction.merchant);
+    const key = merchantKey(transaction.title);
     if (key === '' || options.known.has(key)) continue;
-    const group = byMerchant.get(key);
-    if (group === undefined) byMerchant.set(key, [transaction]);
+    const group = byTitle.get(key);
+    if (group === undefined) byTitle.set(key, [transaction]);
     else group.push(transaction);
   }
   const detected: DetectedSubscription[] = [];
-  for (const [key, charges] of byMerchant) {
+  for (const [key, charges] of byTitle) {
     const latest = charges[0];
     const occurrences = matchingMonths(charges, latest);
     if (occurrences < DETECTION_MIN_CHARGES) continue;
     detected.push({
       merchantKey: key,
-      merchant: latest.merchant,
+      merchant: latest.title,
       dayOfMonth: dayOfMonth(latest.localDate),
       amountMinor: latest.amountMinor,
       currency: latest.currency,

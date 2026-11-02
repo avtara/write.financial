@@ -30,10 +30,7 @@ export function LargestSection({ view, locale }: LargestSectionProps) {
       <ul className="flex flex-col">
         {largest.map((line, index) => (
           <li key={index} className="flex items-baseline gap-3 border-border py-2 text-[12.5px] not-first:border-t">
-            <span className="min-w-0 flex-1 truncate text-fg">
-              {line.description}
-              {line.merchant === null ? null : <span className="text-subtle"> · {line.merchant}</span>}
-            </span>
+            <span className="min-w-0 flex-1 truncate text-fg">{line.description}</span>
             <span className="shrink-0 font-mono text-[11.5px] text-subtle tabular-nums">
               {formatDate(line.date, locale, 'day')}
             </span>

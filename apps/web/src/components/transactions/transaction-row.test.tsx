@@ -21,7 +21,7 @@ async function renderRow(props: Partial<TransactionRowViewProps> = {}) {
   const handlers = { onCheck: vi.fn(), onOpen: vi.fn(), onKeyDown: vi.fn(), onFocus: vi.fn(), onLongPress: vi.fn() };
   const result = await renderApp(
     <TransactionRowView
-      row={transactionRow('t-1', { merchant: 'Gojek', description: 'ke kantor', tags: ['kantor', 'rumah'] })}
+      row={transactionRow('t-1', { description: 'Gojek ke kantor', tags: ['kantor', 'rumah'] })}
       columns={DEFAULT_COLUMNS}
       density="comfortable"
       mode="day"
@@ -111,11 +111,11 @@ describe('amounts', () => {
 });
 
 describe('TransactionRowView', () => {
-  it('shows time, glyph, merchant — description, tags, category, account, and amount', async () => {
+  it('shows time, glyph, title, tags, category, account, and amount', async () => {
     const { group } = await renderRow();
     await expect.element(group).toHaveAttribute('tabindex', '0');
     await expect.element(group.getByText('12.41')).toBeVisible();
-    await expect.element(group.getByText('Gojek — ke kantor')).toBeVisible();
+    await expect.element(group.getByText('Gojek ke kantor')).toBeVisible();
     await expect.element(group.getByText('#kantor')).toBeVisible();
     await expect.element(group.getByText('Makan & Dapur')).toBeVisible();
     await expect.element(group.getByText(BCA.displayName)).toBeVisible();
@@ -174,7 +174,7 @@ describe('TransactionRowView', () => {
   });
 
   it('puts attachment, running balance, and source in their own columns', async () => {
-    const row = transactionRow('t-1', { merchant: 'Shopee', source: 'quick', hasAttachment: true });
+    const row = transactionRow('t-1', { description: 'Shopee', source: 'quick', hasAttachment: true });
     const columns: TransactionColumn[] = ['description', 'amount', 'attachment', 'balance', 'source'];
     const { group } = await renderRow({
       row,
@@ -185,7 +185,7 @@ describe('TransactionRowView', () => {
     await expect.element(group.getByText('Rp42.810.000')).toBeVisible();
     await expect.element(group.getByRole('img', { name: 'Ada lampiran' })).toBeVisible();
     await expect.element(group.getByText('Catat Cepat')).toBeVisible();
-    const plain = await renderRow({ row: transactionRow('t-2', { merchant: 'Gojek' }), columns });
+    const plain = await renderRow({ row: transactionRow('t-2', { description: 'Gojek' }), columns });
     await expect
       .element(plain.group.getByText('—'))
       .toHaveAttribute('title', 'Saldo berjalan tampil saat satu rekening difilter');
@@ -194,7 +194,7 @@ describe('TransactionRowView', () => {
 
   it('opens on click, checks on shift-click and on the checkbox, and leaves the menu alone', async () => {
     const { group, onOpen, onCheck, onFocus, onKeyDown } = await renderRow();
-    await userEvent.click(group.getByText('Gojek — ke kantor'));
+    await userEvent.click(group.getByText('Gojek ke kantor'));
     expect(onOpen).toHaveBeenCalledOnce();
     await userEvent.keyboard('{Shift>}');
     await userEvent.click(group.getByText('Makan & Dapur'));

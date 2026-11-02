@@ -234,7 +234,7 @@ describe('ReviewPage', () => {
       ...CATEGORY_ITEM,
       id: 'rv-cable',
       label: 'Shopee',
-      subject: { ...CATEGORY_ITEM.subject, merchant: 'Shopee' },
+      subject: { ...CATEGORY_ITEM.subject, description: 'Shopee' },
       payload: { ...CATEGORY_ITEM.payload, previousCategoryName: 'Hobi' },
     } as ReviewItemView;
     const gone = { ...CATEGORY_ITEM, id: 'rv-gone', label: 'Lama', subject: null };
@@ -243,7 +243,7 @@ describe('ReviewPage', () => {
     await expect.element(categories).toMatchTextContent('kategorinya dihapus');
     await expect.element(categories).toMatchTextContent('0 dari 3 sudah diberi kategori');
     await expect.element(categories.getByRole('button', { name: 'Simpan' })).toBeDisabled();
-    const mouse = screen.getByRole('article', { name: 'Tokopedia' });
+    const mouse = screen.getByRole('article', { name: 'Mouse wireless' });
     await userEvent.click(mouse.getByRole('button', { name: 'Makan & Dapur', exact: true }));
     await expect.element(categories).toMatchTextContent('1 dari 3 sudah diberi kategori');
     await userEvent.click(categories.getByRole('button', { name: 'Simpan' }));
@@ -431,7 +431,7 @@ describe('ReviewPage Gmail items', () => {
           amountMinor: 350_000n,
           accountId: BCA.id,
           categoryId: categoryId('system:bills'),
-          merchant: 'PLN',
+          description: 'PLN',
           occurredAt: new Date('2026-10-14T02:00:00Z'),
         },
       },

@@ -26,7 +26,7 @@ export interface LedgerFixture {
     date: string,
     amountMinor: bigint,
     categoryId: string | null,
-    extra?: { readonly merchant?: string; readonly accountId?: string },
+    extra?: { readonly description?: string; readonly accountId?: string },
   ): Promise<string>;
   /** A BCA → Jago transfer on `date`, optionally with a fee in `feeCategoryId`; returns its id. */
   transfer(
@@ -73,7 +73,7 @@ export async function ledgerFixture(test: TestDatabase, email: string): Promise<
             accountId: extra.accountId ?? bca,
             amountMinor,
             categoryId,
-            merchant: extra.merchant ?? null,
+            description: extra.description ?? null,
           }),
         )
       ).id,

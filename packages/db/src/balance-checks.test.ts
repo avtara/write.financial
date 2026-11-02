@@ -73,7 +73,6 @@ async function recurrence(type: 'expense' | 'income', accountId: string): Promis
     accountId,
     amountMinor: '1',
     categoryId: null,
-    merchant: null,
     description: type === 'income' ? 'Gaji' : 'Kos',
     tags: [],
   };

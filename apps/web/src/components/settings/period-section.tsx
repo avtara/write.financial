@@ -111,9 +111,7 @@ export function recalculation(preview: StartDayPreview, current: Period, today: 
         ? null
         : {
             ...largest,
-            label:
-              [largest.merchant, largest.description].filter((part) => part !== null).join(' — ') ||
-              m.period_settings_unnamed(),
+            label: largest.description || m.period_settings_unnamed(),
           },
   };
 }
@@ -264,18 +262,11 @@ export function PeriodSection({ overview, payday }: PeriodSectionProps) {
   let suggestion: ReactNode = m.period_settings_payday_none();
   let suggestionBadge: ReactNode = null;
   if (payday.day !== null) {
-    const { merchant, count } = payday;
     if (payday.day === day) {
-      suggestion =
-        merchant === null
-          ? m.period_settings_payday_match_unnamed({ day, count })
-          : m.period_settings_payday_match({ payer: merchant, day, count });
+      suggestion = m.period_settings_payday_match({ day, count: payday.count });
       suggestionBadge = <Badge>{m.period_settings_payday_aligned()}</Badge>;
     } else {
-      suggestion =
-        merchant === null
-          ? m.period_settings_payday_mismatch_unnamed({ payday: payday.day, day })
-          : m.period_settings_payday_mismatch({ payer: merchant, payday: payday.day, day });
+      suggestion = m.period_settings_payday_mismatch({ payday: payday.day, day });
       suggestionBadge = (
         <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-amber-tint-2 px-2 text-[11px] font-medium text-amber-fg">
           {m.period_settings_payday_misaligned()}
@@ -468,7 +459,7 @@ export function PeriodSection({ overview, payday }: PeriodSectionProps) {
                     name: ready.recalc.name,
                     range: ready.recalc.range,
                     moved: ready.recalc.moved,
-                    example: largest.merchant ?? largest.label,
+                    example: largest.description ?? largest.label,
                     amount: largestAmount,
                   }}
                 />

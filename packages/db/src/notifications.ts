@@ -90,7 +90,7 @@ export interface NextReminder {
   readonly occurrenceId: string;
   readonly sourceType: 'recurrence' | 'subscription';
   readonly sourceId: string;
-  /** Subscription name, or the recurrence's merchant or description. */
+  /** Subscription name, or the recurrence's title (description). */
   readonly name: string;
   readonly dueDate: LocalDate;
   readonly remindAt: Date;
@@ -295,7 +295,7 @@ export function createNotifications(
             occurrenceId: scheduledOccurrences.id,
             sourceType: scheduledOccurrences.sourceType,
             sourceId: scheduledOccurrences.sourceId,
-            name: sql<string>`coalesce(${subscriptions.name}, ${recurrences.template}->>'merchant', ${recurrences.template}->>'description', '')`,
+            name: sql<string>`coalesce(${subscriptions.name}, ${recurrences.template}->>'description', '')`,
             dueDate: scheduledOccurrences.dueDate,
             remindAt: scheduledOccurrences.remindAt,
             expectedMinor: scheduledOccurrences.expectedMinor,

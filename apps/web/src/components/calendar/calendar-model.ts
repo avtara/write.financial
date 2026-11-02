@@ -220,7 +220,7 @@ export function paydays(month: YearMonth, pattern: CalendarInputs): Map<LocalDat
     const date = day > last ? last : day;
     projected.set(date, [
       ...(projected.get(date) ?? []),
-      { label: row.merchant ?? row.description ?? '', amountMinor: abs(row.amountBaseMinor) },
+      { label: row.description ?? '', amountMinor: abs(row.amountBaseMinor) },
     ]);
   }
   return projected;

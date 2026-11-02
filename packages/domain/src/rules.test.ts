@@ -363,32 +363,28 @@ describe('categoryFitsDirection', () => {
 });
 
 describe('correctionPattern', () => {
-  it('prefers the merchant and strips trailing amounts and references', () => {
-    expect(correctionPattern('Kopi Kenangan 25.000', null)).toEqual({
+  it('takes the title and strips trailing amounts and references', () => {
+    expect(correctionPattern('Kopi Kenangan 25.000')).toEqual({
       pattern: 'kopi kenangan',
       label: 'Kopi Kenangan',
     });
-    expect(correctionPattern('ignored', 'Kopi Kenangan')).toEqual({
-      pattern: 'kopi kenangan',
-      label: 'Kopi Kenangan',
-    });
-    expect(correctionPattern('GOJEK  ref: ABC123', null)).toEqual({ pattern: 'gojek', label: 'GOJEK' });
-    expect(correctionPattern('  transfer   ke   bibit ', null)).toEqual({
+    expect(correctionPattern('GOJEK  ref: ABC123')).toEqual({ pattern: 'gojek', label: 'GOJEK' });
+    expect(correctionPattern('  transfer   ke   bibit ')).toEqual({
       pattern: 'transfer ke bibit',
       label: 'transfer ke bibit',
     });
   });
 
   it('refuses descriptions without letters or a usable phrase', () => {
-    expect(correctionPattern(null, null)).toBeNull();
-    expect(correctionPattern('   ', null)).toBeNull();
-    expect(correctionPattern('25.000', null)).toBeNull();
-    expect(correctionPattern('ab', null)).toBeNull();
-    expect(correctionPattern('---', null)).toBeNull();
+    expect(correctionPattern(null)).toBeNull();
+    expect(correctionPattern('   ')).toBeNull();
+    expect(correctionPattern('25.000')).toBeNull();
+    expect(correctionPattern('ab')).toBeNull();
+    expect(correctionPattern('---')).toBeNull();
   });
 
   it('caps the label and keeps a stable suggestion key', () => {
-    const long = correctionPattern('Kopi '.repeat(20), null);
+    const long = correctionPattern('Kopi '.repeat(20));
     expect(long?.label.length).toBeLessThanOrEqual(60);
     expect(ruleSuggestionKey('kopi kenangan', FOOD, TRANSPORT)).toBe('kopi kenangan|' + FOOD + '|' + TRANSPORT);
   });

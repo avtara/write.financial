@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * One row of the Transactions table (design `t7l0Cj`): checkbox, time (date + time in the Flat view), category glyph,
- * merchant — description with `#tag` chips, the source badge of automated entries and the attachment clip, then the
+ * title (the description) with `#tag` chips, the source badge of automated entries and the attachment clip, then the
  * category, account, amount, and the optional attachment / running balance / source columns in the user's order
  * ("Atur kolom"). Search words are highlighted (`p22to9`). Keyboard handling lives in the table (roving focus).
  */
@@ -305,7 +305,7 @@ export function TransactionRowView({
   const inlineSource = !columns.includes('source') && row.source !== 'manual';
   const inlineAttachment = !columns.includes('attachment') && row.hasAttachment;
   const tags = showTags ? row.tags : [];
-  const title = [row.merchant, row.description].filter((part) => part !== null).join(' — ') || category.label;
+  const title = row.description || category.label;
   const cell = (column: TransactionColumn): ReactNode => {
     switch (column) {
       case 'time':

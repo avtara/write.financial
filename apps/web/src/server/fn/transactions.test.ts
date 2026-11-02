@@ -310,22 +310,20 @@ describe('getTransactionDetail', () => {
 });
 
 describe('updateTransaction', () => {
-  it('replaces the transaction with the input, keeping its source and, unless given, its merchant', async () => {
-    fake.transactions.get.mockResolvedValue(detail({ merchant: 'Warteg' }));
-    fake.transactions.update.mockResolvedValue(detail({ merchant: 'x' }));
-    const input = { ...EXPENSE, merchant: 'x', source: 'manual', note: undefined };
+  it('replaces the transaction with the input, keeping its source', async () => {
+    fake.transactions.get.mockResolvedValue(detail({ description: 'Warteg' }));
+    fake.transactions.update.mockResolvedValue(detail({ description: 'x' }));
+    const input = { ...EXPENSE, description: 'x', source: 'manual', note: undefined };
     expect(await call(updateTransaction, { context: signedIn(), data: { id: ID, input } })).toMatchObject({ ok: true });
-    expect(fake.transactions.update).toHaveBeenCalledWith(USER_ID, ID, { ...EXPENSE, merchant: 'x', source: 'import' });
-    await call(updateTransaction, { context: signedIn(), data: { id: ID, input: EXPENSE } });
-    expect(fake.transactions.update).toHaveBeenLastCalledWith(USER_ID, ID, {
+    expect(fake.transactions.update).toHaveBeenCalledWith(USER_ID, ID, {
       ...EXPENSE,
-      merchant: 'Warteg',
+      description: 'x',
       source: 'import',
     });
-    await call(updateTransaction, { context: signedIn(), data: { id: ID, input: { ...EXPENSE, merchant: null } } });
+    await call(updateTransaction, { context: signedIn(), data: { id: ID, input: { ...EXPENSE, description: null } } });
     expect(fake.transactions.update).toHaveBeenLastCalledWith(USER_ID, ID, {
       ...EXPENSE,
-      merchant: null,
+      description: null,
       source: 'import',
     });
   });

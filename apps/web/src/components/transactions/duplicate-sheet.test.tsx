@@ -28,14 +28,14 @@ async function renderSheet(detail = transactionDetail('tx-1')) {
 }
 
 describe('DuplicateSheet', () => {
-  it('fills the form from the original, dated now, and saves a copy keeping the merchant', async () => {
+  it('fills the form from the original, dated now, and saves a copy keeping the title', async () => {
     server.duplicateTransaction.mockResolvedValue({ ok: true, value: { id: 'tx-copy' } });
     const { sheet, onSaved } = await renderSheet(
-      transactionDetail('tx-1', { merchant: 'Shopee', description: 'Kabel data', attachments: [RECEIPT] }),
+      transactionDetail('tx-1', { description: 'Kabel data', attachments: [RECEIPT] }),
     );
     await expect
       .element(sheet)
-      .toHaveAccessibleDescription('Disalin dari Shopee · 15 Okt. Ubah yang perlu, lalu simpan.');
+      .toHaveAccessibleDescription('Disalin dari Kabel data · 15 Okt. Ubah yang perlu, lalu simpan.');
     await expect.element(sheet.getByText('Struk & gambar tidak ikut disalin')).toBeVisible();
     await expect.element(sheet.getByRole('textbox', { name: 'Jumlah' })).toHaveValue('10.000');
     await userEvent.click(sheet.getByRole('button', { name: 'Simpan' }));
@@ -48,7 +48,6 @@ describe('DuplicateSheet', () => {
           accountId: BCA.id,
           categoryId: categoryId('system:food'),
           description: 'Kabel data',
-          merchant: 'Shopee',
         }) as unknown,
       },
     });
@@ -61,7 +60,7 @@ describe('DuplicateSheet', () => {
     await expect.element(sheet.getByText('Struk & gambar tidak ikut disalin')).not.toBeInTheDocument();
     await userEvent.click(sheet.getByRole('button', { name: 'Simpan' }));
     expect(server.duplicateTransaction).toHaveBeenCalledWith({
-      data: { id: 'tx-1', input: expect.not.objectContaining({ merchant: expect.anything() as unknown }) as unknown },
+      data: { id: 'tx-1', input: expect.objectContaining({ type: 'expense' }) as unknown },
     });
     await expect.element(sheet.getByText(ledgerErrorMessage('PERIOD_CLOSED', 'id'))).toBeVisible();
     expect(onSaved).not.toHaveBeenCalled();

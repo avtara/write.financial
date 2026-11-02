@@ -218,7 +218,7 @@ describe('AiCard', () => {
     await expect.element(card).toMatchTextContent('Gmail');
     await expect.element(card).toMatchTextContent('15 Okt 15.40');
     await expect.element(card).toMatchTextContent('Yakin 62%: periksa dulu sebelum dicatat.');
-    await expect.element(card).toMatchTextContent('MerchantTokopedia');
+    await expect.element(card).toMatchTextContent('JudulTokopedia');
     await expect.element(card).toMatchTextContent('RekeningBCA Tahapan');
     await userEvent.click(card.getByRole('button', { name: 'Catat' }));
     await userEvent.click(card.getByRole('button', { name: 'Abaikan' }));
@@ -226,7 +226,7 @@ describe('AiCard', () => {
     expect(onIgnore).toHaveBeenCalledOnce();
   });
 
-  it('an import row without a name, confidence, merchant, or known account; an income; a transfer', async () => {
+  it('an import row without a name, confidence, title, or known account; an income; a transfer', async () => {
     const draft = (patch: object) =>
       reviewItem('rv-row', {
         reason: 'import_row',
@@ -280,11 +280,11 @@ describe('AiCard', () => {
     const transfer = articles.nth(2);
     await expect.element(row).toMatchTextContent('Tanpa nama');
     await expect.element(row).toMatchTextContent('Struk');
-    await expect.element(row).toMatchTextContent('Merchantbelum diketahuiRekeningbelum diketahui');
+    await expect.element(row).toMatchTextContent('Judulbelum diketahuiRekeningbelum diketahui');
     await expect.element(row).not.toMatchTextContent('Yakin');
     await expect.element(income).toMatchTextContent('Rp1.000');
     await expect.element(transfer).toMatchTextContent('Asisten');
-    await expect.element(transfer).toMatchTextContent('Merchantbelum diketahui');
+    await expect.element(transfer).toMatchTextContent('JudulSisihkan dana tidak rutin');
   });
 
   it('shows the category and the tags an AI result would record', async () => {
@@ -300,7 +300,7 @@ describe('AiCard', () => {
           accountId: ACCOUNTS[0]?.id,
           amountMinor: 25_000n,
           categoryId: categoryId('system:food'),
-          merchant: 'Warteg',
+          description: 'Warteg',
           tags: ['kantor', 'makan'],
         } as never,
       },
@@ -336,24 +336,25 @@ describe('CategoryRow', () => {
         onIgnore={vi.fn()}
       />,
     );
-    const card = screen.getByRole('article', { name: 'Tokopedia' });
-    await expect.element(card).toMatchTextContent('Mouse wireless');
+    const card = screen.getByRole('article', { name: 'Mouse wireless' });
     await expect.element(card).toMatchTextContent('−Rp189.000');
     await expect.element(card).toMatchTextContent('12 Okt 20.41');
     await expect.element(card).toMatchTextContent('Sudah tercatat · BCA Tahapan');
-    await expect.element(card.getByRole('button', { name: 'Kategori untuk Tokopedia' })).toMatchTextContent('Makan');
+    await expect
+      .element(card.getByRole('button', { name: 'Kategori untuk Mouse wireless' }))
+      .toMatchTextContent('Makan');
     const food = card.getByRole('button', { name: 'Makan & Dapur', exact: true });
     await expect.element(food).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(card.getByRole('button', { name: 'Transportasi', exact: true }));
     expect(onValueChange).toHaveBeenCalledWith(categoryId('system:transport'));
   });
 
-  it('an income without a merchant takes income suggestions; a deleted transaction can only be ignored', async () => {
+  it('an untitled income takes income suggestions; a deleted transaction can only be ignored', async () => {
     const onIgnore = vi.fn();
     const income = {
       ...CATEGORY_ITEM,
       id: 'rv-income',
-      subject: { ...CATEGORY_ITEM.subject, type: 'income', merchant: null, accountId: 'acc-missing' },
+      subject: { ...CATEGORY_ITEM.subject, type: 'income', description: null, accountId: 'acc-missing' },
     } as CategoryItem;
     const gone = { ...CATEGORY_ITEM, id: 'rv-gone', subject: null } as CategoryItem;
     const nameless = { ...gone, id: 'rv-nameless', label: null } as CategoryItem;

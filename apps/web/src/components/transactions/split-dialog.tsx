@@ -156,7 +156,7 @@ export function SplitDialog({ detail, ledger, onClose, onSplit }: SplitDialogPro
       }}
       title={m.transactions_split_title()}
       description={[
-        [detail.merchant, detail.description].filter((text) => text !== null && text !== '').join(' — '),
+        detail.description ?? undefined,
         formatDate(detail.localDate, locale, 'weekday'),
         account?.displayName,
       ]

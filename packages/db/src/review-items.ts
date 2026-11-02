@@ -103,18 +103,24 @@ type Encoded<T> = T extends bigint
       ? { [K in keyof T]: Encoded<T[K]> }
       : T;
 
-function decodeDraft(draft: Encoded<ReviewDraft>): ReviewDraft {
+/**
+ * A stored draft. Proposals written before transactions had a single title may still carry a `merchant`: it becomes
+ * the title when the draft has none, and is never passed on.
+ */
+function decodeDraft({ merchant, ...draft }: Encoded<ReviewDraft> & { merchant?: string | null }): ReviewDraft {
   const occurredAt = new Date(draft.occurredAt);
+  const description = draft.description?.trim() || !merchant?.trim() ? (draft.description ?? null) : merchant;
   if (draft.type === 'transfer') {
     return {
       ...draft,
       occurredAt,
+      description,
       sentMinor: BigInt(draft.sentMinor),
       receivedMinor: BigInt(draft.receivedMinor),
       fee: draft.fee ? { minor: BigInt(draft.fee.minor), categoryId: draft.fee.categoryId } : null,
     };
   }
-  return { ...draft, occurredAt, amountMinor: BigInt(draft.amountMinor) };
+  return { ...draft, occurredAt, description, amountMinor: BigInt(draft.amountMinor) };
 }
 
 /** Decrypts `review_items.payload_enc` (bigints and dates restored). */
@@ -205,7 +211,6 @@ export async function occurrenceReviewItemIn(
     const [subscription] = await tx
       .select({
         name: subscriptions.name,
-        plan: subscriptions.plan,
         accountId: subscriptions.payFromAccountId,
         categoryId: subscriptions.categoryId,
       })
@@ -218,8 +223,8 @@ export async function occurrenceReviewItemIn(
       accountId: subscription.accountId,
       amountMinor: occurrence.expectedMinor,
       categoryId: subscription.categoryId,
-      merchant: subscription.name,
-      description: subscription.plan,
+      // The bill's title is the subscription's name (what recurring detection and the lists match on).
+      description: subscription.name,
     };
   } else if (occurrence.sourceType === 'recurrence') {
     const [recurrence] = await tx

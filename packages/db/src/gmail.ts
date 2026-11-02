@@ -573,8 +573,9 @@ export function createGmail(
           }).formatToParts(extraction.occurredAt);
           const part = (name: Intl.DateTimeFormatPartTypes) =>
             (parts.find((entry) => entry.type === name) as Intl.DateTimeFormatPart).value;
+          // Rules match the title only; the proposed title is the extracted merchant (the subject stays evidence).
           const rules = evaluateRules(await tx.select().from(autoRules).orderBy(asc(autoRules.position)), {
-            description: `${extraction.merchant ?? ''} ${row.subject}`,
+            description: extraction.merchant,
             date: parseLocalDate(`${part('year')}-${part('month')}-${part('day')}`),
             minuteOfDay: Number(part('hour')) * 60 + Number(part('minute')),
             accountIds: account === undefined ? [] : [account.id],

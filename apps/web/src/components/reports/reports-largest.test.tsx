@@ -12,7 +12,7 @@ describe('LargestSection', () => {
     await expect.element(section).toMatchTextContent('1 Sep');
     await expect.element(section).toMatchTextContent('4.500.000');
     await expect.element(section).toMatchTextContent('24,59%');
-    await expect.element(section).toMatchTextContent('Laptop baru · Tokopedia');
+    await expect.element(section).toMatchTextContent('Laptop baru');
     await expect.element(section).toMatchTextContent('14 Sep');
   });
 

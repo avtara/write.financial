@@ -35,7 +35,7 @@ function segment(
     sections: {
       categories: [],
       incomeSources: [],
-      merchants: [],
+      titles: [],
       tags: [],
       accounts: [],
       goals: [],
@@ -70,9 +70,9 @@ describe('monthly snapshot aggregation', () => {
           overMinor: 0n,
         },
       ],
-      merchants: [
-        { merchant: 'Shared', totalMinor: 10n, count: 1, shareBps: 1_000 },
-        { merchant: 'August', totalMinor: 90n, count: 2, shareBps: 9_000 },
+      titles: [
+        { title: 'Shared', totalMinor: 10n, count: 1, shareBps: 1_000 },
+        { title: 'August', totalMinor: 90n, count: 2, shareBps: 9_000 },
       ],
       tags: [{ tagId: 'food', name: 'food', totalMinor: 100n, count: 3 }],
       accounts: [{ accountId: 'bank', name: 'Bank', type: 'bank', inMinor: 200n, outMinor: 100n }],
@@ -108,9 +108,9 @@ describe('monthly snapshot aggregation', () => {
           overMinor: 100n,
         },
       ],
-      merchants: [
-        { merchant: 'Shared', totalMinor: 250n, count: 4, shareBps: 6_250 },
-        { merchant: 'September', totalMinor: 150n, count: 1, shareBps: 3_750 },
+      titles: [
+        { title: 'Shared', totalMinor: 250n, count: 4, shareBps: 6_250 },
+        { title: 'September', totalMinor: 150n, count: 1, shareBps: 3_750 },
       ],
       tags: [{ tagId: 'food', name: 'food', totalMinor: 400n, count: 4 }],
       accounts: [{ accountId: 'bank', name: 'Bank', type: 'bank', inMinor: 600n, outMinor: 400n }],
@@ -153,9 +153,7 @@ describe('monthly snapshot aggregation', () => {
       { totalMinor: 600n, shareBps: 7_500 },
       { totalMinor: 200n, shareBps: 2_500 },
     ]);
-    expect(
-      result.sections.merchants.map(({ totalMinor, count, shareBps }) => ({ totalMinor, count, shareBps })),
-    ).toEqual([
+    expect(result.sections.titles.map(({ totalMinor, count, shareBps }) => ({ totalMinor, count, shareBps }))).toEqual([
       { totalMinor: 260n, count: 5, shareBps: 5_200 },
       { totalMinor: 150n, count: 1, shareBps: 3_000 },
       { totalMinor: 90n, count: 2, shareBps: 1_800 },
@@ -176,7 +174,6 @@ describe('monthly snapshot aggregation', () => {
         transactionId: `${start + index}`,
         date,
         description: 'Expense',
-        merchant: null,
         amountMinor: BigInt(start + index),
         shareBps: 0,
       }));

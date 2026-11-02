@@ -7,9 +7,9 @@ import type {
   ReportAccountLine,
   ReportCategoryLine,
   ReportIncomeLine,
-  ReportMerchantLine,
   ReportSections,
   ReportTagLine,
+  ReportTitleLine,
   ReportView,
 } from './reports.ts';
 
@@ -23,7 +23,7 @@ export function aggregateReports(segments: readonly ReportSegment[], range: Date
   const initialGoals = new Map((segments[0] as ReportSegment).sections.goals.map((goal) => [goal.goalId, goal]));
   const categories = new Map<string | null, ReportCategoryLine>();
   const income = new Map<string | null, ReportIncomeLine>();
-  const merchants = new Map<string, ReportMerchantLine>();
+  const titles = new Map<string, ReportTitleLine>();
   const tags = new Map<string, ReportTagLine>();
   const accounts = new Map<string, ReportAccountLine>();
   const days: ReportSections['days'][number][] = [];
@@ -59,10 +59,10 @@ export function aggregateReports(segments: readonly ReportSegment[], range: Date
         overMinor: limitMinor !== null && spentMinor > limitMinor ? spentMinor - limitMinor : 0n,
       });
     }
-    for (const row of sections.merchants) {
-      const previous = merchants.get(row.merchant);
+    for (const row of sections.titles) {
+      const previous = titles.get(row.title);
       const totalMinor = (previous?.totalMinor ?? 0n) + row.totalMinor;
-      merchants.set(row.merchant, {
+      titles.set(row.title, {
         ...row,
         totalMinor,
         count: (previous?.count ?? 0) + row.count,
@@ -111,8 +111,8 @@ export function aggregateReports(segments: readonly ReportSegment[], range: Date
           ? 1
           : (a.categoryId ?? '').localeCompare(b.categoryId ?? ''),
     ),
-    merchants: [...merchants.values()].sort((a, b) =>
-      a.totalMinor > b.totalMinor ? -1 : a.totalMinor < b.totalMinor ? 1 : a.merchant.localeCompare(b.merchant),
+    titles: [...titles.values()].sort((a, b) =>
+      a.totalMinor > b.totalMinor ? -1 : a.totalMinor < b.totalMinor ? 1 : a.title.localeCompare(b.title),
     ),
     tags: [...tags.values()].sort((a, b) =>
       a.totalMinor > b.totalMinor ? -1 : a.totalMinor < b.totalMinor ? 1 : a.tagId.localeCompare(b.tagId),

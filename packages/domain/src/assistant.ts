@@ -122,7 +122,7 @@ export interface AssistantDraftBalanceImpact {
   readonly thresholdMinor: bigint;
 }
 
-/** An existing transaction a draft would double-record (merchant + time ±2 h + amount ±1%). */
+/** An existing transaction a draft would double-record (title + time ±2 h + amount ±1%). */
 export interface AssistantDuplicate {
   readonly transactionId: string;
   readonly description: string;
@@ -349,8 +349,8 @@ export interface AssistantContext {
 }
 
 /**
- * The system prompt. It carries names and identifiers only — never balances, amounts, merchants, or notes — and tells
- * the model that a draft is a proposal: the app stores it, not the model.
+ * The system prompt. It carries names and identifiers only — never balances, amounts, transaction titles, or notes —
+ * and tells the model that a draft is a proposal: the app stores it, not the model.
  */
 export function assistantSystemPrompt(context: AssistantContext): string {
   const accounts = context.accounts

@@ -266,7 +266,7 @@ export interface DebtsRepository {
     input: CardPaymentRecord,
   ) => Promise<{ transactionId: string; debts: DebtView[] }>;
   /**
-   * Pays a non-card installment row with an expense (`Cicilan {name} ({seq}/{tenor})`, merchant = provider, the
+   * Pays a non-card installment row with an expense (titled `Cicilan {name} ({seq}/{tenor})`, the
    * debt category) and marks it paid; its occurrence is confirmed (and its review item resolved), and the debt
    * becomes `paid_off` once every row is paid.
    * @throws {LedgerError} `NOT_FOUND`, `INVALID_DEBT` (card installment, row already paid), and every code of
@@ -537,8 +537,6 @@ export interface InstallmentExpense {
   /** The row total. */
   readonly amountMinor: bigint;
   readonly categoryId: string | null;
-  /** The provider. */
-  readonly merchant: string | null;
   /** `Cicilan {name} ({seq}/{tenor})`. */
   readonly description: string;
 }
@@ -560,7 +558,6 @@ export async function installmentExpenseIn(
       interestMinor: debtInstallments.interestMinor,
       feeMinor: debtInstallments.feeMinor,
       name: debts.name,
-      provider: debts.provider,
       tenorMonths: debts.tenorMonths,
       accountId: debts.payFromAccountId,
       categoryId: debts.categoryId,
@@ -573,7 +570,6 @@ export async function installmentExpenseIn(
     accountId: row.accountId as string,
     amountMinor: totalOf(row),
     categoryId: row.categoryId,
-    merchant: row.provider,
     description: `Cicilan ${row.name} (${String(row.seq)}/${String(row.tenorMonths)})`,
   };
 }

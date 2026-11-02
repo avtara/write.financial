@@ -38,7 +38,6 @@ const existing = (patch: Partial<TransactionRow> = {}): TransactionRow => ({
   type: 'expense',
   occurredAt: new Date('2026-10-05T05:00:00Z'),
   localDate: '2026-10-05' as LocalDate,
-  merchant: null,
   description: 'Mixue Kemang',
   categoryId: 'cat-food',
   accountId: BCA.id,

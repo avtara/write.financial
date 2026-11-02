@@ -163,9 +163,7 @@ export function ConvertForm({ cards, accounts, today, locale, initialCardId, onS
                     }}
                     className="accent-blue"
                   />
-                  <span className="min-w-0 flex-1 truncate text-fg">
-                    {row.description ?? row.merchant ?? card.name}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate text-fg">{row.description ?? card.name}</span>
                   <span className="font-mono text-[12px] text-subtle">{formatDate(row.localDate, locale, 'day')}</span>
                   {<Money minor={-row.amountMinor} currency={card.currency} context="amount" locale={locale} />}
                 </label>

@@ -35,7 +35,7 @@ const RECEIVABLES_HREF = '/debts?tab=receivables';
 
 /** What a notification about an occurrence names. */
 export interface OccurrenceSubject {
-  /** Subscription name; for a recurrence its description, merchant, or category (built-in key as stored). */
+  /** Subscription name; for a recurrence its title (description) or category (built-in key as stored). */
   readonly name: string;
   /** The account it is paid from (or into, for income). */
   readonly accountId: string;
@@ -100,7 +100,7 @@ export async function occurrenceSubjectsIn(
     for (const { id, template } of templates) {
       const category =
         template.type === 'transfer' || template.categoryId === null ? null : categoryNames.get(template.categoryId);
-      const named = template.description ?? (template.type === 'transfer' ? null : template.merchant) ?? category;
+      const named = template.description ?? category;
       subjects.set(`recurrence.${id}`, {
         name: named ?? '',
         accountId: templateAmount(template).accountId,

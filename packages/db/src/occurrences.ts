@@ -54,7 +54,6 @@ export type RecurrenceTemplate =
       readonly amountMinor: bigint;
       readonly categoryId: string | null;
       readonly description?: string | null;
-      readonly merchant?: string | null;
       readonly tags?: readonly string[];
     }
   | {
@@ -80,7 +79,6 @@ export function encodeTemplate(template: RecurrenceTemplate): JsonObject {
       accountId: template.accountId,
       amountMinor: template.amountMinor.toString(),
       categoryId: template.categoryId,
-      merchant: template.merchant ?? null,
       ...common,
     };
   }
@@ -100,7 +98,6 @@ interface StoredTemplate {
   readonly accountId: string;
   readonly amountMinor: string;
   readonly categoryId: string | null;
-  readonly merchant: string | null;
   readonly fromAccountId: string;
   readonly toAccountId: string;
   readonly sentMinor: string;
@@ -120,7 +117,6 @@ export function decodeTemplate(json: JsonObject): RecurrenceTemplate {
       accountId: stored.accountId,
       amountMinor: BigInt(stored.amountMinor),
       categoryId: stored.categoryId,
-      merchant: stored.merchant,
       ...common,
     };
   }

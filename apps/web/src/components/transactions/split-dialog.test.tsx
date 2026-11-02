@@ -18,10 +18,9 @@ const HOBI = userCategory({ id: 'c-hobi', name: 'Hobi' });
 const GAJI = userCategory({ id: 'c-gaji', name: 'Gaji', kind: 'income', group: 'active' });
 const ledger = { ...LEDGER, categories: [KOPI, HOBI, GAJI] };
 
-/** Rp465.000 at Tokopedia, 15 Oct 2026, in Kopi. */
+/** Rp465.000 "Belanja Tokopedia", 15 Oct 2026, in Kopi. */
 const DETAIL = transactionDetail('tx-1', {
-  merchant: 'Tokopedia',
-  description: 'Belanja',
+  description: 'Belanja Tokopedia',
   categoryId: KOPI.id,
   postings: [posting(BCA.id, -465_000n)],
 });
@@ -94,7 +93,7 @@ describe('SplitDialog', () => {
     });
     server.splitTransaction.mockResolvedValue({ ok: true, value: {} });
     const { dialog, onSplit } = await renderDialog();
-    await expect.element(dialog).toHaveAccessibleDescription(/^Tokopedia — Belanja · .+ · BCA Tahapan$/);
+    await expect.element(dialog).toHaveAccessibleDescription(/^Belanja Tokopedia · .+ · BCA Tahapan$/);
     await expect.element(dialog.getByText('−Rp465.000')).toBeVisible();
     const state = dialog.getByRole('status');
     await expect.element(state).toMatchTextContent('Sisa Rp0 · pas');
@@ -211,7 +210,6 @@ describe('SplitDialog', () => {
   it('splits an income without a budget preview, with attachments going along', async () => {
     const detail = transactionDetail('tx-2', {
       type: 'income',
-      merchant: null,
       description: null,
       categoryId: GAJI.id,
       postings: [posting('acc-gone', 1_000_000n)],

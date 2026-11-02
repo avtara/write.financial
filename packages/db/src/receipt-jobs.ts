@@ -149,8 +149,9 @@ export function createReceiptJobs(
         if (account === undefined)
           throw new LedgerError('INVALID_ACCOUNT', 'Choose an account with the receipt currency');
         const ruleRows = await tx.select().from(autoRules).orderBy(asc(autoRules.position));
+        // The store name is the transaction's title, and rules match the title only.
         const rules = evaluateRules(ruleRows, {
-          description: `${extraction.merchant} ${extraction.description}`,
+          description: extraction.merchant,
           date: extraction.date,
           minuteOfDay: Number(extraction.time.slice(0, 2)) * 60 + Number(extraction.time.slice(3)),
           accountIds: [account.id],
@@ -178,8 +179,8 @@ export function createReceiptJobs(
               accountId: account.id,
               amountMinor: extraction.amountMinor,
               categoryId: category?.archivedAt === null && category.deletedAt === null ? category.id : null,
-              description: extraction.description,
-              merchant: extraction.merchant,
+              // One title per transaction: the store name ("Judul"), never a separate merchant.
+              description: extraction.merchant,
               note: null,
               tags: rules.tagOverflow ? [] : [...rules.tags],
               source: 'receipt',

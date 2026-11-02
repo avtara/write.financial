@@ -30,7 +30,7 @@ beforeEach(async () => {
   bob = await insertUser(test, 'bob@example.test');
 });
 
-const payload = { type: 'expense', amount: '45000', merchant: 'Kopi Kenangan', note: 'rapat tim', tags: ['kerja'] };
+const payload = { type: 'expense', amount: '45000', description: 'Kopi Kenangan', note: 'rapat tim', tags: ['kerja'] };
 
 describe('drafts', () => {
   it('lists nothing before the first draft', async () => {

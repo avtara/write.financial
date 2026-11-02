@@ -108,7 +108,6 @@ export interface TransactionDetail {
   readonly occurredAt: Date;
   readonly localDate: LocalDate;
   readonly description: string | null;
-  readonly merchant: string | null;
   /** Decrypted. */
   readonly note: string | null;
   readonly categoryId: string | null;
@@ -177,7 +176,7 @@ export interface TransactionsRepository {
    */
   duplicate: (userId: string, id: string, options: { clientId: string }) => Promise<RecordResult>;
   /**
-   * FR-L5: replaces an expense or income with parts on the same account, date, merchant, note, tags and source
+   * FR-L5: replaces an expense or income with parts on the same account, date, note, tags and source
    * (each with its own category and amount, adding up to the total); the parts share the parent's attachments and
    * the parent is soft-deleted. Idempotent per `clientId` (part client ids are derived from it). Undo: `unsplit`.
    * @throws {LedgerError} `NOT_FOUND`, `INVALID_TRANSACTION`, `SPLIT_MISMATCH`, category codes
@@ -228,7 +227,6 @@ const HEADER = {
   occurredAt: transactions.occurredAt,
   localDate: transactions.localDate,
   description: transactions.description,
-  merchant: transactions.merchant,
   noteEnc: transactions.noteEnc,
   categoryId: transactions.categoryId,
   source: transactions.source,
@@ -401,7 +399,6 @@ async function entryDraftIn(tx: Transaction, header: Header, type: EntryType): P
     amountMinor: type === 'expense' ? -principal.amountMinor : principal.amountMinor,
     categoryId: header.categoryId,
     description: header.description,
-    merchant: header.merchant,
     tags: await tagSlugsIn(tx, header.id),
     source: header.source,
   };
@@ -457,7 +454,6 @@ async function transferDraftIn(tx: Transaction, header: Header): Promise<Transac
     manualRate,
     fee: fee === undefined || fee.categoryId === null ? null : { minor: -fee.amountMinor, categoryId: fee.categoryId },
     description: header.description,
-    merchant: header.merchant,
     tags: await tagSlugsIn(tx, header.id),
     source: header.source,
   };
@@ -537,7 +533,6 @@ export function createTransactions(
           type: [before.type, header.type],
           occurredAt: [before.occurredAt.getTime(), header.occurredAt.getTime()],
           description: [before.description, header.description],
-          merchant: [before.merchant, header.merchant],
           note: [
             before.noteEnc === null ? null : decryptText(dek, before.noteEnc, { userId, purpose: NOTE_PURPOSE }),
             draft.note?.trim() || null,
@@ -557,7 +552,6 @@ export function createTransactions(
           await recordCategoryCorrectionIn(tx, userId, {
             transactionId: id,
             description: header.description,
-            merchant: header.merchant,
             fromCategoryId: before.categoryId,
             toCategoryId: header.categoryId,
           });

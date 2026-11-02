@@ -293,7 +293,7 @@ function Detail({
                     <CategoryIcon icon={line.icon} color={line.color} size="sm" />
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-[13px] font-medium text-fg">
-                        {row.merchant ?? row.description ?? categoryName(line)}
+                        {row.description ?? categoryName(line)}
                       </span>
                       <span className="text-[11.5px] text-subtle">
                         {formatDate(row.localDate, locale, 'day')} · {accountName.get(row.accountId) ?? '—'}

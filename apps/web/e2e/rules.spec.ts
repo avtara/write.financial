@@ -11,7 +11,7 @@ import { expect, pressUntil, projectUser, runRulesBackfillJob, screenshot, setUp
 import { e2eEnv } from './env.ts';
 
 const user = projectUser('rules');
-/** Unique to this spec's own user: seeded persona merchants cannot match the rule or the backfill. */
+/** Unique to this spec's own user: seeded persona titles cannot match the rule or the backfill. */
 const FIXTURE = 'Kopi Kenangan Uji';
 test.describe.configure({ mode: 'serial' });
 test.use({ storageState: user.state, viewport: { width: 1440, height: 1024 } });

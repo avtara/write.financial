@@ -87,7 +87,7 @@ const QUERY_SHAPE = {
   attachment: z.boolean().optional(),
   source: listParam(z.enum(TRANSACTION_SOURCES)).optional(),
   currency: listParam(z.string().regex(/^[A-Z]{3}$/)).optional(),
-  /** Search: words over merchant, description, and note; `#slug` tokens filter by tag. */
+  /** Search: words over the title (description) and note; `#slug` tokens filter by tag. */
   q: z.string().trim().max(100).optional(),
   sort: z.enum(TRANSACTION_SORTS).optional(),
 };

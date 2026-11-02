@@ -507,7 +507,7 @@ function DayBreakdown({
                   )}
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[13px] text-fg">
-                      {[row.merchant, row.description].filter((part) => part !== null && part !== '').join(' — ') ||
+                      {row.description ||
                         (category === undefined ? m.overview_flow_uncategorized() : categoryName(category))}
                     </span>
                     {/* Category and time under the title, so a row fits the side column too. */}

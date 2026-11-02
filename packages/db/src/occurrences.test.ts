@@ -116,7 +116,6 @@ describe('templates', () => {
       amountMinor: 25_000_000n,
       categoryId: null,
       description: 'Gaji',
-      merchant: 'PT Maju',
       tags: ['gaji'],
     };
     expect(encodeTemplate(entry)).toEqual({
@@ -124,7 +123,6 @@ describe('templates', () => {
       accountId: 'a',
       amountMinor: '25000000',
       categoryId: null,
-      merchant: 'PT Maju',
       description: 'Gaji',
       tags: ['gaji'],
     });
@@ -136,7 +134,6 @@ describe('templates', () => {
       accountId: 'a',
       amountMinor: 1n,
       categoryId: 'c',
-      merchant: null,
       description: null,
       tags: [],
     });

@@ -218,7 +218,6 @@ export function AccountDetailPanel({
                 const incoming = row.accountId !== account.id;
                 const counterpart = accounts.find((other) => other.id === (incoming ? row.accountId : row.toAccountId));
                 const title =
-                  row.merchant ??
                   row.description ??
                   (category === undefined ? null : categoryName(category)) ??
                   (row.type === 'transfer'

@@ -56,7 +56,6 @@ export interface StartDayChange {
 export interface MovedTransaction {
   readonly id: string;
   readonly localDate: LocalDate;
-  readonly merchant: string | null;
   readonly description: string | null;
   /** |principal| in the base currency. */
   readonly amountMinor: bigint;
@@ -97,8 +96,6 @@ export interface PeriodsOverview {
 export interface Payday {
   /** Their most frequent day of the month, capped at 28; `null` without salary. */
   readonly day: PeriodStartDay | null;
-  /** The payer of the latest one ("PT Kinarya"), when recorded. */
-  readonly merchant: string | null;
   /** Salary incomes looked at (the latest six). */
   readonly count: number;
 }
@@ -245,15 +242,16 @@ async function budgetTotalsIn(tx: Transaction, label: YearMonth, days: number) {
   };
 }
 
-/** The latest salary incomes (built-in category "Gaji"), newest first. */
-async function salariesIn(tx: Transaction): Promise<{ localDate: LocalDate; merchant: string | null }[]> {
-  return tx
-    .select({ localDate: transactions.localDate, merchant: transactions.merchant })
+/** The dates of the latest salary incomes (built-in category "Gaji"), newest first. */
+async function salaryDatesIn(tx: Transaction): Promise<LocalDate[]> {
+  const rows = await tx
+    .select({ localDate: transactions.localDate })
     .from(transactions)
     .innerJoin(categories, eq(categories.id, transactions.categoryId))
     .where(and(eq(categories.name, 'system:salary'), isNull(transactions.deletedAt)))
     .orderBy(desc(transactions.localDate))
     .limit(6);
+  return rows.map((row) => row.localDate);
 }
 
 interface Plan {
@@ -294,7 +292,6 @@ async function planIn(tx: Transaction, userId: string, change: StartDayChange, n
       .select({
         id: transactions.id,
         localDate: transactions.localDate,
-        merchant: transactions.merchant,
         description: transactions.description,
         amountMinor: amount.mapWith(BigInt),
         count: sql<number>`(count(*) over ())::int`,
@@ -307,13 +304,7 @@ async function planIn(tx: Transaction, userId: string, change: StartDayChange, n
       .limit(3);
     moved = {
       count: rows[0]?.count ?? 0,
-      largest: rows.map(({ id, localDate, merchant, description, amountMinor }) => ({
-        id,
-        localDate,
-        merchant,
-        description,
-        amountMinor,
-      })),
+      largest: rows.map(({ id, localDate, description, amountMinor }) => ({ id, localDate, description, amountMinor })),
     };
   }
 
@@ -324,7 +315,7 @@ async function planIn(tx: Transaction, userId: string, change: StartDayChange, n
       baseCurrency: settings.baseCurrency,
       fromDay: settings.startDay,
       toDay,
-      paydayDay: detectPayday((await salariesIn(tx)).map((row) => row.localDate)),
+      paydayDay: detectPayday(await salaryDatesIn(tx)),
       current,
       periods: shown,
       transition:
@@ -438,12 +429,8 @@ export function createPeriods(db: Database, options: { readonly now?: () => Date
 
     payday: (userId) =>
       withUser(db, userId, async (tx) => {
-        const salaries = await salariesIn(tx);
-        return {
-          day: detectPayday(salaries.map((row) => row.localDate)),
-          merchant: salaries[0]?.merchant ?? null,
-          count: salaries.length,
-        };
+        const salaries = await salaryDatesIn(tx);
+        return { day: detectPayday(salaries), count: salaries.length };
       }),
 
     lock: (userId, periodId) =>

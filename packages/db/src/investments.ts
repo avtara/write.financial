@@ -574,7 +574,6 @@ async function insertCashLegIn(
         occurredAt: header.occurredAt,
         localDate: header.localDate,
         description: header.description,
-        merchant: null,
         noteEnc: null,
         categoryId: header.categoryId ?? null,
         source: 'manual',

@@ -18,7 +18,6 @@ function row(patch: Partial<TransactionRow> & Pick<TransactionRow, 'id'>): Trans
     type: 'expense',
     occurredAt: new Date('2026-10-14T05:00:00Z'),
     localDate: '2026-10-14' as LocalDate,
-    merchant: null,
     description: null,
     categoryId: 'food',
     accountId: BCA.id,
@@ -55,7 +54,7 @@ const DETAIL: BudgetCategoryDetail = {
     month('2026-10', 3_200_000n, true),
   ],
   transactions: [
-    row({ id: 't1', merchant: 'Warung Bu Sri', amountBaseMinor: 45_000n }),
+    row({ id: 't1', description: 'Warung Bu Sri', amountBaseMinor: 45_000n }),
     row({ id: 't2', description: 'Belanja pasar' }),
     row({ id: 't3', accountId: 'gone' }),
   ],

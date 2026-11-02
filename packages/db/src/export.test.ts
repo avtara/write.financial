@@ -143,7 +143,6 @@ describe('ledgerRows and the CSV', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
           occurredAt: new Date('2026-10-05T05:00:00Z'),
           type: 'expense',
           description: 'Kopi, roti',
-          merchant: null,
           amountMinor: '-25000',
           currency: 'IDR',
           account: 'Bank "Jago"',
@@ -154,8 +153,8 @@ describe('ledgerRows and the CSV', { timeout: PGLITE_HOOK_TIMEOUT }, () => {
       ]),
     ).toBe(
       [
-        'id,occurred_at,type,description,merchant,amount_minor,currency,account,category,tags,deleted_at',
-        '0199f5d2-0000-7000-8000-000000000001,2026-10-05T05:00:00.000Z,expense,"Kopi, roti",,-25000,IDR,"Bank ""Jago""",,,',
+        'id,occurred_at,type,description,amount_minor,currency,account,category,tags,deleted_at',
+        '0199f5d2-0000-7000-8000-000000000001,2026-10-05T05:00:00.000Z,expense,"Kopi, roti",-25000,IDR,"Bank ""Jago""",,,',
       ].join('\r\n'),
     );
   });

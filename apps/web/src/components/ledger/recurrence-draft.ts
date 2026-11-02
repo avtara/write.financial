@@ -76,7 +76,6 @@ function templateOf(input: RecordTransactionInput): RecurrenceRequest['template'
       accountId: input.accountId,
       amountMinor: input.amountMinor,
       categoryId: input.categoryId,
-      merchant: input.merchant ?? null,
     };
   }
   return {

@@ -524,12 +524,12 @@ describe('merchantKey', () => {
 
 describe('detectSubscriptions', () => {
   const tx = (
-    merchant: string,
+    title: string,
     localDate: string,
     amountMinor: bigint,
     extra: Partial<DetectionTransaction> = {},
   ): DetectionTransaction => ({
-    merchant,
+    title,
     localDate: d(localDate),
     amountMinor,
     currency: 'IDR',
@@ -552,7 +552,7 @@ describe('detectSubscriptions', () => {
   ];
   const known = new Set(['netflix']);
 
-  it('golden: Vidio ±12 and Google One 5, newest first', () => {
+  it('golden: by title, Vidio ±12 and Google One 5, newest first', () => {
     expect(detectSubscriptions(golden, { today: TODAY, known })).toEqual([
       {
         merchantKey: 'vidio',

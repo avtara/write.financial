@@ -38,7 +38,6 @@ function row(overrides: Partial<TransactionRow> & Pick<TransactionRow, 'id'>): T
     type: 'transfer',
     occurredAt: new Date('2026-10-07T05:00:00Z'),
     localDate: d('2026-10-07'),
-    merchant: null,
     description: null,
     categoryId: null,
     accountId: BCA.id,

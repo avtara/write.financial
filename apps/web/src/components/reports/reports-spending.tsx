@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * "Pengeluaran" (PDF page 3, design `STgHg`): the categories against their budget line (spent/limit, the bar, and
- * "lewat Rp600.000"), the merchants ranking, the tag chips, and the accounts with their in/out. Everything comes
+ * "lewat Rp600.000"), the top titles ranking, the tag chips, and the accounts with their in/out. Everything comes
  * from the snapshot, so no live budget or category lookup is needed here.
  */
 import type { ReportView } from '@wf/db/reports';
@@ -19,7 +19,7 @@ export interface SpendingSectionProps {
 }
 
 export function SpendingSection({ view, locale }: SpendingSectionProps) {
-  const { categories, merchants, tags, accounts } = view.sections;
+  const { categories, titles, tags, accounts } = view.sections;
   return (
     <section
       aria-labelledby="reports-spending"
@@ -78,16 +78,16 @@ export function SpendingSection({ view, locale }: SpendingSectionProps) {
           ))}
         </ul>
       )}
-      {merchants.length === 0 ? null : (
+      {titles.length === 0 ? null : (
         <div className="flex flex-col gap-2 border-t border-border pt-3">
-          <h3 className="text-[13px] font-semibold text-fg">{m.reports_merchants_title()}</h3>
+          <h3 className="text-[13px] font-semibold text-fg">{m.reports_titles_title()}</h3>
           <ul className="flex flex-col">
-            {merchants.map((line, index) => (
+            {titles.map((line, index) => (
               <li
                 key={index}
                 className="flex items-baseline justify-between gap-3 border-border py-2 text-[12.5px] not-first:border-t"
               >
-                <span className="min-w-0 truncate text-fg">{line.merchant}</span>
+                <span className="min-w-0 truncate text-fg">{line.title}</span>
                 <span className="flex shrink-0 items-baseline gap-3 text-subtle">
                   {m.reports_tx_count({ count: line.count })}
                   <Percent value={line.shareBps / 10_000} locale={locale} />

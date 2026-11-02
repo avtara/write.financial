@@ -68,7 +68,7 @@ const ready = (): ReceiptView => ({
     accountId: BCA.id,
     amountMinor: 96500n,
     categoryId: categoryId('system:health'),
-    description: 'Obat',
+    description: 'Apotek K-24',
     source: 'receipt',
   },
 });
@@ -123,7 +123,7 @@ describe('receipt draft interactions', () => {
     expect(server.confirmReview).not.toHaveBeenCalled();
     await page.getByRole('textbox', { name: 'Plester luka', exact: true }).fill('12500');
     await page.getByRole('textbox', { name: 'Catatan', exact: true }).fill('Obat dikoreksi');
-    await page.getByRole('textbox', { name: 'Merchant', exact: true }).fill('Apotek K-24 dikoreksi');
+    await page.getByRole('textbox', { name: 'Judul', exact: true }).fill('Apotek K-24 dikoreksi');
     await page.getByRole('button', { name: 'Simpan', exact: true }).click();
     await expect.element(page.getByText('Struk terlampir')).toBeVisible();
     const request = server.confirmReview.mock.calls[0]?.[0] as {
@@ -131,20 +131,32 @@ describe('receipt draft interactions', () => {
         itemId: string;
         edits: {
           description: string;
-          merchant: string;
+          note: string;
           receiptItems: { amountMinor: bigint | null; uncertain: boolean }[];
         };
       };
     };
     expect(request.data.itemId).toBe('review-a');
-    expect(request.data.edits.description).toBe('Obat dikoreksi');
-    expect(request.data.edits.merchant).toBe('Apotek K-24 dikoreksi');
+    expect(request.data.edits.description).toBe('Apotek K-24 dikoreksi');
+    expect(request.data.edits.note).toBe('Obat dikoreksi');
     expect(request.data.edits.receiptItems[2]).toMatchObject({ amountMinor: 12500n, uncertain: false });
     expect(saved.announceSaved).toHaveBeenCalledTimes(1);
     await page.getByRole('button', { name: 'Buka di Transaksi' }).click();
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/transactions');
     expect(router.state.location.search).toEqual({ tx: 'saved-a' });
+  });
+  it('prefills "Judul" with the store name and saves it as the description, with no separate merchant field', async () => {
+    await open();
+    await userEvent.upload(input(), file());
+    const title = page.getByRole('textbox', { name: 'Judul', exact: true });
+    await expect.element(title).toHaveValue('Apotek K-24');
+    expect(page.getByRole('textbox', { name: 'Merchant', exact: true }).query()).toBeNull();
+    await page.getByRole('button', { name: 'Simpan', exact: true }).click();
+    await expect.element(page.getByText('Struk terlampir')).toBeVisible();
+    const request = server.confirmReview.mock.calls[0]?.[0] as { data: { edits: Record<string, unknown> } };
+    expect(request.data.edits.description).toBe('Apotek K-24');
+    expect(request.data.edits).not.toHaveProperty('merchant');
   });
   it('refreshes the next receipt impact from current balances after a save without resetting current edits', async () => {
     await open();
@@ -183,8 +195,7 @@ describe('receipt draft interactions', () => {
     const view = ready();
     view.duplicates.push({
       id: 'existing-a',
-      merchant: 'Indomaret',
-      description: null,
+      description: 'Indomaret',
       occurredAt: new Date('2026-10-15T00:55:00Z'),
       amountMinor: 110000n,
       accountId: BCA.id,
@@ -192,7 +203,6 @@ describe('receipt draft interactions', () => {
     });
     view.duplicates.push({
       id: 'existing-b',
-      merchant: null,
       description: 'Transfer ke Budi',
       occurredAt: new Date('2026-10-15T02:00:00Z'),
       amountMinor: 110000n,
@@ -341,7 +351,7 @@ describe('receipt draft interactions', () => {
     drop(readButton().element().parentElement, [file(), file()]);
     await expect.element(page.getByText(/HEIC dan WebP tidak didukung/)).toBeVisible();
     drop(input().parentElement, [file('application/pdf')]);
-    await expect.element(page.getByText('Membaca nominal, tanggal dan merchant…')).toBeVisible();
+    await expect.element(page.getByText('Membaca nominal, tanggal dan judul…')).toBeVisible();
     drop(input().parentElement, [file()]);
     expect(server.uploadReceipt).toHaveBeenCalledTimes(1);
     const request = server.uploadReceipt.mock.calls[0]?.[0] as { data: FormData };
@@ -358,7 +368,7 @@ describe('receipt draft interactions', () => {
       await vi.advanceTimersByTimeAsync(1500);
       await expect.poll(() => server.getReceipt.mock.calls.length).toBe(2);
       await flushReact();
-      await expect.element(page.getByText('Membaca nominal, tanggal dan merchant…')).toBeVisible();
+      await expect.element(page.getByText('Membaca nominal, tanggal dan judul…')).toBeVisible();
       await vi.advanceTimersByTimeAsync(1500);
       await flushReact();
       await expect.element(page.getByText('dari struk', { exact: true })).toBeVisible();
@@ -377,7 +387,7 @@ describe('receipt draft interactions', () => {
     await userEvent.upload(input(), file());
     await cancelButton().click();
     await expect.element(page.getByText(/^Struk tidak bisa dibaca/)).toBeVisible();
-    await expect.element(page.getByText('Membaca nominal, tanggal dan merchant…')).toBeVisible();
+    await expect.element(page.getByText('Membaca nominal, tanggal dan judul…')).toBeVisible();
     const cancelled = Promise.withResolvers<unknown>();
     server.cancelReceipt.mockReturnValueOnce(cancelled.promise);
     await cancelButton().click();
@@ -392,7 +402,7 @@ describe('receipt draft interactions', () => {
     server.uploadReceipt.mockResolvedValueOnce({ ok: true, value: { ...reading(), id: 'receipt-b' } });
     server.getReceipt.mockReturnValueOnce(late.promise);
     await userEvent.upload(input(), file());
-    await expect.element(page.getByText('Membaca nominal, tanggal dan merchant…')).toBeVisible();
+    await expect.element(page.getByText('Membaca nominal, tanggal dan judul…')).toBeVisible();
     await cancelButton().click();
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
     late.resolve({ ok: true, value: { ...ready(), id: 'receipt-b' } });
@@ -497,15 +507,18 @@ describe('receipt draft interactions', () => {
     await expect.element(page.getByText('dari struk', { exact: true })).toBeVisible();
     expect(page.getByText(/^Periksa isian/).query()).toBeNull();
     expect(page.getByRole('region', { name: 'Item struk' }).query()).toBeNull();
-    await page.getByRole('textbox', { name: 'Merchant', exact: true }).fill('Apotek Baru');
+    // Without a draft title, "Judul" starts from the store name the receipt was read for.
+    const title = page.getByRole('textbox', { name: 'Judul', exact: true });
+    await expect.element(title).toHaveValue('Apotek K-24');
+    await title.fill('Apotek Baru');
     await page.getByRole('button', { name: 'Simpan', exact: true }).click();
     await expect.element(page.getByText('Periode ini sudah ditutup dan hanya bisa dibaca.')).toBeVisible();
-    await expect.element(page.getByRole('textbox', { name: 'Merchant', exact: true })).toHaveValue('Apotek Baru');
+    await expect.element(title).toHaveValue('Apotek Baru');
     expect(saved.announceSaved).not.toHaveBeenCalled();
     await page.getByRole('button', { name: 'Simpan', exact: true }).click();
     await expect.element(page.getByText('Struk terlampir')).toBeVisible();
     const notification = saved.announceSaved.mock.calls[0]?.[0] as { label: string; onChange: () => void };
-    expect(notification.label).toBe('apotek.png');
+    expect(notification.label).toBe('Apotek Baru');
     notification.onChange();
     await expect.element(page.getByText('Struk terlampir')).not.toBeInTheDocument();
     await expect.element(page.getByText('apotek.png')).not.toBeInTheDocument();

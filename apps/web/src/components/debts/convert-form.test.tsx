@@ -13,8 +13,7 @@ const OCT_16 = '2026-10-16' as LocalDate;
 const BIG = transactionRow('tx-tv', {
   accountId: 'acc-visa',
   localDate: '2026-10-14' as LocalDate,
-  description: null,
-  merchant: 'Erafone',
+  description: 'Erafone',
   amountMinor: -3_000_000n,
 });
 const CARD = { ...visa(), transactions: [...OCTOBER_BILL, BIG] };
@@ -103,8 +102,8 @@ describe('ConvertForm (OEZIG)', () => {
     expect(onCancel).toHaveBeenCalledTimes(2);
   });
 
-  it('names a transaction without description or merchant after the card', async () => {
-    const card = { ...visa(), transactions: [{ ...BIG, merchant: null }] };
+  it('names a transaction without a title after the card', async () => {
+    const card = { ...visa(), transactions: [{ ...BIG, description: null }] };
     const { screen } = await renderApp(
       <ConvertForm cards={[card]} accounts={[]} today={OCT_16} locale="id" onSaved={vi.fn()} onCancel={vi.fn()} />,
     );

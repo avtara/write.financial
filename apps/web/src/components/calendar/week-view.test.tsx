@@ -108,7 +108,6 @@ describe('WeekView', () => {
       transactionRow(id, {
         type: 'income',
         localDate: d('2026-10-20'),
-        merchant: null,
         description,
         amountMinor: 10_000n,
         amountBaseMinor: 10_000n,

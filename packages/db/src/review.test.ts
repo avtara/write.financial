@@ -123,11 +123,11 @@ describe('confirm a due bill', () => {
     expect(result.overrideIds).toEqual([]);
     expect(await balance(ledger.bca)).toBe(before - 186_000n);
     expect(
-      await row('SELECT client_id, source, merchant, category_id, local_date::text AS d FROM transactions', []),
+      await row('SELECT client_id, source, description, category_id, local_date::text AS d FROM transactions', []),
     ).toEqual({
       client_id: itemId,
       source: 'recurring',
-      merchant: 'Netflix',
+      description: 'Netflix',
       category_id: ledger.category('system:subscriptions'),
       d: '2026-10-18',
     });
@@ -181,7 +181,7 @@ describe('confirm a due bill', () => {
           accountId: ledger.bca,
           amountMinor: 50_000n,
           categoryId: null,
-          merchant: 'Kopi',
+          description: 'Kopi',
         },
       },
       { aiConfidence: 80 },
@@ -192,23 +192,21 @@ describe('confirm a due bill', () => {
         accountId: ledger.jago,
         categoryId: ledger.category('system:food'),
         occurredAt: new Date('2026-10-19T05:00:00Z'),
-        description: 'Rapat',
-        merchant: 'Kopi Kenangan',
+        description: 'Kopi Kenangan',
         note: 'tim',
         tags: ['kerja'],
       }),
     );
     expect(
       await row(
-        `SELECT t.source, t.merchant, t.description, t.category_id, t.local_date::text AS d, t.note_enc IS NOT NULL AS has_note,
+        `SELECT t.source, t.description, t.category_id, t.local_date::text AS d, t.note_enc IS NOT NULL AS has_note,
                 (SELECT count(*)::int FROM transaction_tags tt WHERE tt.transaction_id = t.id) AS tags
          FROM transactions t WHERE t.id = $1`,
         [result.transactionId],
       ),
     ).toEqual({
       source: 'manual',
-      merchant: 'Kopi Kenangan',
-      description: 'Rapat',
+      description: 'Kopi Kenangan',
       category_id: ledger.category('system:food'),
       d: '2026-10-19',
       has_note: true,
@@ -297,7 +295,7 @@ describe('list and counts', () => {
           accountId: ledger.bca,
           amountMinor: 1n,
           categoryId: null,
-          merchant: 'Grab',
+          description: 'Grab',
         },
       },
       { aiConfidence: 95 },
@@ -309,7 +307,7 @@ describe('list and counts', () => {
       },
       { reason: 'import_row', source: 'gmail' },
     );
-    const coffee = await ledger.entry('expense', '2026-10-15', 20_000n, null, { merchant: 'Kopi' });
+    const coffee = await ledger.entry('expense', '2026-10-15', 20_000n, null, { description: 'Kopi' });
     const category = await insertItem({
       reason: 'category_deleted',
       source: 'system',
@@ -405,7 +403,7 @@ describe('list and counts', () => {
       status: 'pending',
       dueDate: '2026-10-18',
       occurrence: { sourceType: 'subscription', sourceId: netflix, status: 'due_review', dueDate: '2026-10-18' },
-      payload: { kind: 'transaction', draft: { amountMinor: 186_000n, merchant: 'Netflix' } },
+      payload: { kind: 'transaction', draft: { amountMinor: 186_000n, description: 'Netflix' } },
       resolvedAt: null,
       resultingTransactionId: null,
     });
@@ -414,8 +412,7 @@ describe('list and counts', () => {
     expect(items.find((item) => item.id === category)?.subject).toEqual({
       type: 'expense',
       occurredAt: expect.any(Date) as Date,
-      merchant: 'Kopi',
-      description: null,
+      description: 'Kopi',
       accountId: ledger.bca,
       amountMinor: -20_000n,
       currency: 'IDR',
@@ -886,7 +883,7 @@ describe('Gmail evidence corrections and source-specific confirmation', () => {
     const extraction = {
       amountMinor: 350000n,
       occurredAt: NOW,
-      merchant: 'Original merchant',
+      merchant: 'Original store',
       currency: 'USD',
       accountId: ledger.bca,
       categoryId: ledger.category('system:food'),
@@ -914,17 +911,16 @@ describe('Gmail evidence corrections and source-specific confirmation', () => {
       review.confirm(userId, item, {
         accountId: ledger.bca,
         categoryId: ledger.category('system:health'),
-        merchant: 'Corrected merchant',
+        description: 'Corrected title',
       }),
     );
     const detail = await asApp(() =>
       createTransactions(test.db, { getDek: fixtureGetDek }).get(userId, confirmed.transactionId as string),
     );
     expect(detail).toMatchObject({
-      merchant: null,
-      description: 'Corrected merchant',
+      description: 'Corrected title',
       categoryId: ledger.category('system:health'),
-      gmailEvidence: { extraction: { merchant: 'Original merchant', currency: 'USD' } },
+      gmailEvidence: { extraction: { merchant: 'Original store', currency: 'USD' } },
     });
     await test.query('DELETE FROM review_items WHERE id=$1', [item]);
     expect(

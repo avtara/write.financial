@@ -266,7 +266,7 @@ describe('Gmail on real Postgres/Valkey and the wf_worker SQL role', () => {
       amountMinor: 350000n,
       categoryId,
       occurredAt: now,
-      merchant: 'Manually entered unrelated merchant',
+      description: 'Manually entered unrelated title',
       source: 'manual',
     });
     expect(await ingest('push3')).toMatchObject({ proposed: 0, duplicates: 1 });

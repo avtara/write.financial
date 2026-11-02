@@ -15,7 +15,6 @@ const expense: RecordTransactionInput = {
   amountMinor: 150_000n,
   categoryId: OTHER,
   description: 'Futsal mingguan',
-  merchant: 'Lapangan Senayan',
   note: 'private',
   tags: ['futsal'],
 };
@@ -65,7 +64,6 @@ describe('recurrenceRequest', () => {
         amountMinor: 150_000n,
         categoryId: OTHER,
         description: 'Futsal mingguan',
-        merchant: 'Lapangan Senayan',
         tags: ['futsal'],
       },
       freq: 'weekly',
@@ -119,7 +117,7 @@ describe('recurrenceRequest', () => {
       categoryId: null,
     };
     expect(recurrenceRequest(bare, null, d('2026-10-20'))).toMatchObject({
-      template: { description: null, merchant: null, tags: [] },
+      template: { description: null, tags: [] },
       freq: 'monthly',
       startOn: '2026-10-20',
       monthDay: 20,

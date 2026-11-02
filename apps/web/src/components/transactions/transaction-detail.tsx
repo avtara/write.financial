@@ -281,8 +281,7 @@ function View({
   const category = ledger.categories.find((candidate) => candidate.id === detail.categoryId);
   const account = (accountId: string | null) => ledger.accounts.find((candidate) => candidate.id === accountId);
   const deleted = detail.deletedAt !== null;
-  const title = detail.merchant ?? detail.description ?? rowLabel(row, ledger);
-  const subtitle = detail.merchant === null ? null : detail.description;
+  const title = rowLabel(row, ledger);
   // Its fee and tax are their own transactions, so they come with the detail as `fees`.
   const fees = detail.fees.map((line) => ({
     line,
@@ -296,7 +295,6 @@ function View({
         {category === undefined ? null : <CategoryIcon icon={category.icon} color={category.color} />}
         <div className="flex min-w-0 flex-col">
           <h3 className="truncate text-[15px] font-semibold text-fg">{title}</h3>
-          {subtitle === null ? null : <p className="truncate text-[12.5px] text-muted-fg">{subtitle}</p>}
         </div>
       </div>
       {detail.type === 'transfer' ? (
@@ -475,7 +473,7 @@ function View({
             {' · '}
             {m.record_date()} · {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.date })}
             {' · '}
-            {m.review_ai_merchant()} ·{' '}
+            {m.record_description()} ·{' '}
             {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.merchant })}
             {' · '}
             {m.record_account()} · {m.gmail_confidence({ percent: detail.gmailEvidence.extraction.confidence.account })}

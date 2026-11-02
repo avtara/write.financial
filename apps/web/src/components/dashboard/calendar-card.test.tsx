@@ -57,8 +57,7 @@ describe('CalendarCard', () => {
       value: {
         rows: [
           transactionRow('t1', {
-            merchant: 'Erafone',
-            description: 'Headphone',
+            description: 'Erafone Headphone',
             categoryId: FOOD_ID,
             tags: ['gadget'],
             amountBaseMinor: -2_150_000n,
@@ -66,13 +65,12 @@ describe('CalendarCard', () => {
           }),
           transactionRow('t2', {
             type: 'transfer',
-            merchant: null,
             description: null,
             categoryId: null,
             amountBaseMinor: -500_000n,
           }),
-          transactionRow('t3', { merchant: null, description: '', categoryId: null, type: 'expense' }),
-          transactionRow('t4', { merchant: null, description: null, categoryId: FOOD_ID, type: 'expense' }),
+          transactionRow('t3', { description: '', categoryId: null, type: 'expense' }),
+          transactionRow('t4', { description: null, categoryId: FOOD_ID, type: 'expense' }),
         ],
         total: 3,
         balances: null,
@@ -83,7 +81,7 @@ describe('CalendarCard', () => {
     await expect.element(region).toMatchTextContent('Total harian · rata-rata Rp1.100.000/hari');
     await expect.element(region.getByRole('heading', { name: 'Kamis, 1 Oktober' })).toBeVisible();
     await expect.element(region.getByText('terboros bulan ini')).toBeVisible();
-    await expect.element(region.getByRole('link', { name: /Erafone — Headphone/ })).toMatchTextContent('#gadget');
+    await expect.element(region.getByRole('link', { name: /Erafone Headphone/ })).toMatchTextContent('#gadget');
     await expect.element(region.getByRole('link', { name: /Erafone/ })).toMatchTextContent('14.12');
     await expect.element(region.getByRole('link', { name: /Transfer/ })).toBeVisible();
     // Every row with its currency, as the design shows them: spending signed, transfers plain.

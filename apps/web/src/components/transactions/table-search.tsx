@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The table's search field (FR-L2 `/`, design `p22to9`): "Cari merchant, catatan, atau #tag". `/` focuses it from
+ * The table's search field (FR-L2 `/`, design `p22to9`): "Cari judul, catatan, atau #tag". `/` focuses it from
  * anywhere on the page; typing updates `?q=` after a short pause; Escape clears it (and leaves it when already
  * empty). While a search is applied it shows "4 hasil" and a clear button.
  */

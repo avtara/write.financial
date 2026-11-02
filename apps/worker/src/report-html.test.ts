@@ -34,7 +34,7 @@ describe('buildReportHtml', () => {
     expect(masked).not.toContain('1234567890');
     const visible = buildReportHtml(view, DEFAULT_REPORT_EXPORT_OPTIONS, 'id', IDR);
     expect(visible).toContain('BCA 1234567890');
-    // Merchant names are escaped, never raw HTML.
+    // Titles are escaped, never raw HTML.
     expect(visible).toContain('&quot;Kopi&quot;, Nugget &amp; &lt;Ayam&gt;');
   });
 

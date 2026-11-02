@@ -36,10 +36,9 @@ const FOOD = categoryId('system:food');
 const TRANSPORT = categoryId('system:transport');
 const SALARY = categoryId('system:salary');
 
-const WARTEG = transactionRow('warteg', { merchant: 'Warteg Bahari', tags: ['kantor'], amountMinor: -28_000n });
+const WARTEG = transactionRow('warteg', { description: 'Warteg Bahari', tags: ['kantor'], amountMinor: -28_000n });
 const GOJEK = transactionRow('gojek', {
-  merchant: 'Gojek',
-  description: 'ke kantor',
+  description: 'Gojek ke kantor',
   categoryId: TRANSPORT,
   occurredAt: new Date('2026-10-15T01:12:00Z'),
   amountMinor: -42_000n,
@@ -47,7 +46,7 @@ const GOJEK = transactionRow('gojek', {
 });
 const STUDIO = transactionRow('studio', {
   type: 'income',
-  merchant: 'Studio Arunika',
+  description: 'Studio Arunika',
   categoryId: SALARY,
   localDate: '2026-10-14' as LocalDate,
   occurredAt: new Date('2026-10-14T14:03:00Z'),
@@ -56,7 +55,7 @@ const STUDIO = transactionRow('studio', {
 });
 const BIBIT = transactionRow('bibit', {
   type: 'transfer',
-  merchant: 'Ke Bibit RDPU',
+  description: 'Ke Bibit RDPU',
   categoryId: null,
   localDate: '2026-10-14' as LocalDate,
   occurredAt: new Date('2026-10-14T12:30:00Z'),
@@ -269,7 +268,7 @@ describe('TransactionsTable', () => {
   });
 
   it('loads the next page at the end of the list, with running balances and a retry', async () => {
-    const third = transactionRow('third', { merchant: 'Indomaret', occurredAt: new Date('2026-10-15T00:55:00Z') });
+    const third = transactionRow('third', { description: 'Indomaret', occurredAt: new Date('2026-10-15T00:55:00Z') });
     const first = view([WARTEG, GOJEK], {
       page: { rows: [WARTEG, GOJEK], total: 4, balances: { warteg: 42_000_000n, gojek: 42_028_000n } },
       prefs: {
@@ -402,7 +401,7 @@ describe('TransactionsTable', () => {
   });
 
   it('opens a row on click, and groups uncategorized rows by category', async () => {
-    const parkir = transactionRow('parkir', { merchant: 'Parkir', categoryId: null });
+    const parkir = transactionRow('parkir', { description: 'Parkir', categoryId: null });
     const { table, row, onOpen } = await renderTable(view([parkir]), { view: 'category' });
     await expect.element(table.getByRole('list').getByText('Belum dikategorikan').first()).toBeVisible();
     await userEvent.click(row('Parkir').getByText('Parkir'));

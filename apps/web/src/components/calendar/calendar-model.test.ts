@@ -120,7 +120,6 @@ describe('paydays', () => {
     const late = transactionRow('late', {
       type: 'income',
       localDate: d('2026-10-31'),
-      merchant: null,
       description: 'Bonus',
       categoryId: categoryId('system:salary'),
       amountMinor: 1_000n,

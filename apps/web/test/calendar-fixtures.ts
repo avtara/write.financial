@@ -19,8 +19,7 @@ export const OCTOBER_ROWS = [
     type: 'income',
     localDate: d('2026-10-01'),
     occurredAt: at('2026-10-01', '08:00'),
-    merchant: 'PT Kinarya',
-    description: 'Gaji Oktober',
+    description: 'PT Kinarya',
     categoryId: categoryId('system:salary'),
     amountMinor: 18_500_000n,
     amountBaseMinor: 18_500_000n,
@@ -28,7 +27,7 @@ export const OCTOBER_ROWS = [
   transactionRow('rent', {
     localDate: d('2026-10-01'),
     occurredAt: at('2026-10-01', '09:15'),
-    merchant: 'Sewa Kos',
+    description: 'Sewa Kos',
     categoryId: categoryId('system:rent'),
     amountMinor: -4_500_000n,
     amountBaseMinor: -4_500_000n,
@@ -57,8 +56,7 @@ export const OCTOBER_ROWS = [
   transactionRow('phone', {
     localDate: d('2026-10-11'),
     occurredAt: at('2026-10-11', '13:00'),
-    merchant: 'Erafone',
-    description: 'Headphone',
+    description: 'Erafone',
     categoryId: categoryId('system:shopping'),
     amountMinor: -2_150_000n,
     amountBaseMinor: -2_150_000n,
@@ -66,7 +64,6 @@ export const OCTOBER_ROWS = [
   transactionRow('lunch', {
     localDate: d('2026-10-11'),
     occurredAt: at('2026-10-11', '12:30'),
-    merchant: null,
     description: null,
     categoryId: null,
     amountMinor: -50_000n,
@@ -76,7 +73,7 @@ export const OCTOBER_ROWS = [
     type: 'income',
     localDate: d('2026-10-14'),
     occurredAt: at('2026-10-14', '21:03'),
-    merchant: 'Studio Arunika',
+    description: 'Studio Arunika',
     categoryId: categoryId('system:freelance'),
     amountMinor: 6_200_000n,
     amountBaseMinor: 6_200_000n,
@@ -84,7 +81,7 @@ export const OCTOBER_ROWS = [
   transactionRow('coffee', {
     localDate: d('2026-10-14'),
     occurredAt: at('2026-10-14', '10:20'),
-    merchant: 'Starbucks',
+    description: 'Starbucks',
     categoryId: categoryId('system:food'),
     amountMinor: -48_000n,
     amountBaseMinor: -48_000n,
@@ -92,7 +89,7 @@ export const OCTOBER_ROWS = [
   transactionRow('market', {
     localDate: d('2026-10-15'),
     occurredAt: at('2026-10-15', '07:55'),
-    merchant: 'Indomaret',
+    description: 'Indomaret',
     categoryId: categoryId('system:food'),
     amountMinor: -110_000n,
     amountBaseMinor: -110_000n,
@@ -100,7 +97,7 @@ export const OCTOBER_ROWS = [
   transactionRow('ride', {
     localDate: d('2026-10-15'),
     occurredAt: at('2026-10-15', '08:12'),
-    merchant: 'Gojek',
+    description: 'Gojek',
     categoryId: categoryId('system:transport'),
     amountMinor: -42_000n,
     amountBaseMinor: -42_000n,

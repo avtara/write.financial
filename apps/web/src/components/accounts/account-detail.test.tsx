@@ -26,7 +26,6 @@ const row = (overrides: Partial<TransactionRow>): TransactionRow =>
     type: 'expense',
     occurredAt: new Date('2026-10-15T05:41:00Z'),
     localDate: '2026-10-15',
-    merchant: null,
     description: null,
     categoryId: null,
     accountId: BCA.id,
@@ -85,7 +84,7 @@ describe('AccountDetailPanel', () => {
     server.getAccountDetail.mockResolvedValue(
       detail({
         recent: [
-          row({ merchant: 'Warteg Bahari', categoryId: FOOD.id }),
+          row({ description: 'Warteg Bahari', categoryId: FOOD.id }),
           row({ description: 'Bayar listrik', amountMinor: -350_000n }),
           row({ categoryId: FOOD.id }),
           row({ type: 'transfer', toAccountId: JAGO.id, amountMinor: -500_000n }),
@@ -225,12 +224,12 @@ describe('AccountDetailPanel', () => {
     const stale = Promise.withResolvers<unknown>();
     server.getAccountDetail.mockReturnValueOnce(stale.promise);
     server.getAccountDetail.mockResolvedValueOnce(
-      detail({ recent: [row({ merchant: 'Jago saja', accountId: JAGO.id })] }),
+      detail({ recent: [row({ description: 'Jago saja', accountId: JAGO.id })] }),
     );
     await userEvent.click(screen.getByRole('button', { name: 'saldo berubah' }));
     await userEvent.click(screen.getByRole('button', { name: 'ganti' }));
     await expect.element(screen.getByText('Jago saja')).toBeVisible();
-    stale.resolve(detail({ recent: [row({ merchant: 'Basi' })] }));
+    stale.resolve(detail({ recent: [row({ description: 'Basi' })] }));
     await expect.element(screen.getByText('Basi')).not.toBeInTheDocument();
   });
 });

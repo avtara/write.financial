@@ -60,10 +60,7 @@ export function DuplicateSheet({ detail, ledger, timeZone, onClose, onSaved }: D
           onCancel={onClose}
           onSubmit={async (input) => {
             const result = await duplicateTransaction({
-              data: {
-                id: detail.id,
-                input: detail.merchant === null ? input : { ...input, merchant: detail.merchant },
-              },
+              data: { id: detail.id, input },
             });
             if (!result.ok) return ledgerErrorMessage(result.code, locale);
             await onSaved(result.value.id);

@@ -23,7 +23,7 @@ const fake = vi.hoisted(() => ({
     list: vi.fn(() => Promise.resolve({ startDay: 1 })),
     get: vi.fn(() => Promise.resolve(OCTOBER)),
     covering: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
-    payday: vi.fn(() => Promise.resolve({ day: 1, merchant: 'PT Kinarya', count: 6 })),
+    payday: vi.fn(() => Promise.resolve({ day: 1, count: 6 })),
   },
   budgets: {
     status: vi.fn(() => Promise.resolve({ readOnly: false })),
@@ -184,7 +184,7 @@ describe('period, budget, and dashboard reads', () => {
   it('reads the period settings with the suggested payday', async () => {
     expect(await call(getPeriodSettings, { context: signedIn(), data: undefined })).toEqual({
       ok: true,
-      value: { overview: { startDay: 1 }, payday: { day: 1, merchant: 'PT Kinarya', count: 6 } },
+      value: { overview: { startDay: 1 }, payday: { day: 1, count: 6 } },
     });
     expect(fake.periods.list).toHaveBeenCalledWith(USER_ID);
     expect(fake.periods.payday).toHaveBeenCalledWith(USER_ID);

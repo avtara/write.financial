@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * FR-SUB4 subscription detection (`detect-recurring` job, daily from 03.00 in the user's time zone): runs
- * `detectSubscriptions` over the last {@link DETECTION_WINDOW_DAYS} days of expenses with a merchant, skipping
- * merchants that already are subscriptions or whose candidate was added or dismissed. New merchants become
- * `detected_recurring` rows (status `new`) with one `subscriptions_detected` notification each (ref
- * `det.{merchantKey}`); candidates still `new` are refreshed with the latest charge. Suggestions only: "Tambahkan"
- * in the app creates the subscription.
+ * `detectSubscriptions` over the last {@link DETECTION_WINDOW_DAYS} days of expenses with a title (`description`),
+ * grouped by the normalized title, skipping titles that already are subscriptions or whose candidate was added or
+ * dismissed. New titles become `detected_recurring` rows (status `new`, `merchant` = the title as written) with one
+ * `subscriptions_detected` notification each (ref `det.{merchantKey}`); candidates still `new` are refreshed with the
+ * latest charge. Suggestions only: "Tambahkan" in the app creates the subscription.
  */
 import { addDays } from '@wf/domain/period';
 import { detectSubscriptions, merchantKey, type DetectionTransaction } from '@wf/domain/subscriptions';
@@ -37,7 +37,7 @@ export function createDetectRecurring(db: Database): DetectRecurring {
         const charges: DetectionTransaction[] = (
           await tx
             .select({
-              merchant: transactions.merchant,
+              title: transactions.description,
               localDate: transactions.localDate,
               amountMinor: sql<bigint>`(-${postings.amountMinor})::bigint`.mapWith(BigInt),
               currency: postings.currency,
@@ -50,11 +50,11 @@ export function createDetectRecurring(db: Database): DetectRecurring {
               and(
                 eq(transactions.type, 'expense'),
                 isNull(transactions.deletedAt),
-                isNotNull(transactions.merchant),
+                isNotNull(transactions.description),
                 gte(transactions.localDate, addDays(today, -DETECTION_WINDOW_DAYS)),
               ),
             )
-        ).map((row) => ({ ...row, merchant: row.merchant as string }));
+        ).map((row) => ({ ...row, title: row.title as string }));
 
         const subscribed = await tx.select({ name: subscriptions.name }).from(subscriptions);
         const candidates = await tx

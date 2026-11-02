@@ -38,7 +38,6 @@ function netflixDraft(): Extract<ReviewDraft, { type: 'expense' | 'income' }> {
     accountId: BCA.id,
     amountMinor: 186_000n,
     categoryId: categoryId('system:subscriptions'),
-    merchant: 'Netflix',
     description: 'Premium 4K',
   };
 }
@@ -65,7 +64,7 @@ export const ICLOUD_ITEM = reviewItem('rv-icloud', {
   occurrence: occurrence('subscription', '2026-10-09'),
   payload: {
     kind: 'transaction',
-    draft: { ...netflixDraft(), merchant: 'iCloud+', description: '200 GB', amountMinor: 45_000n },
+    draft: { ...netflixDraft(), description: '200 GB', amountMinor: 45_000n },
   },
 });
 
@@ -109,7 +108,7 @@ export const GMAIL_ITEM = reviewItem('rv-gmail', {
       accountId: BCA.id,
       amountMinor: 189_000n,
       categoryId: null,
-      merchant: 'Tokopedia',
+      description: 'Tokopedia',
     },
   },
 });
@@ -118,7 +117,7 @@ export const GMAIL_ITEM = reviewItem('rv-gmail', {
 export const CATEGORY_ITEM = reviewItem('rv-mouse', {
   reason: 'category_deleted',
   source: 'system',
-  label: 'Tokopedia',
+  label: 'Mouse wireless',
   subjectTransactionId: 'tx-mouse',
   payload: {
     kind: 'category',
@@ -129,7 +128,6 @@ export const CATEGORY_ITEM = reviewItem('rv-mouse', {
   subject: {
     type: 'expense',
     occurredAt: at('2026-10-12T13:41:00Z'),
-    merchant: 'Tokopedia',
     description: 'Mouse wireless',
     accountId: BCA.id,
     amountMinor: -189_000n,

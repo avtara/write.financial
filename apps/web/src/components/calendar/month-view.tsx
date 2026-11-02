@@ -251,9 +251,7 @@ export function MonthGrid({
             )}
             <span className="text-subtle">
               {m.calendar_tip_count({ count: day.count })}
-              {day.largest === null
-                ? ''
-                : ` · ${m.calendar_tip_largest({ name: day.largest.merchant ?? day.largest.description ?? '—' })}`}
+              {day.largest === null ? '' : ` · ${m.calendar_tip_largest({ name: day.largest.description ?? '—' })}`}
             </span>
           </>
         )}

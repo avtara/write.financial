@@ -32,7 +32,6 @@ const fake = vi.hoisted(() => ({
           occurredAt: new Date('2026-10-05T05:00:00Z'),
           type: 'expense',
           description: 'Kopi, susu',
-          merchant: null,
           amountMinor: '-18000',
           currency: 'IDR',
           account: 'Bank',

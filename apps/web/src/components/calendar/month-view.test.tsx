@@ -184,13 +184,11 @@ describe('MonthGrid', () => {
     const rows = [
       transactionRow('pulsa', {
         localDate: d('2026-10-02'),
-        merchant: null,
         description: 'Pulsa',
         amountBaseMinor: -10_000n,
       }),
       transactionRow('blank', {
         localDate: d('2026-10-03'),
-        merchant: null,
         description: null,
         amountBaseMinor: -5_000n,
       }),
