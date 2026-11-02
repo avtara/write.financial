@@ -298,6 +298,7 @@ export function ReviewPage({ items, lookup, timeZone, today, focusItem }: Review
                 lookup={lookup}
                 locale={locale}
                 timeZone={timeZone}
+                today={today}
                 pending={busy.has(item.id)}
                 onConfirm={(edits) => {
                   void run(
