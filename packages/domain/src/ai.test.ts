@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
-import { AiError, calculateAiCost, canReserveAiCost, normalizeAiPricing, parseAiUsd, resolveAiBaseUrl } from './ai.ts';
+import {
+  AI_REASONING_EXHAUSTED,
+  AI_UNSUPPORTED_ERRORS,
+  AiError,
+  aiFailureCode,
+  aiModelSupport,
+  calculateAiCost,
+  canReserveAiCost,
+  normalizeAiPricing,
+  parseAiUsd,
+  resolveAiBaseUrl,
+} from './ai.ts';
 
 const pricing = { inputUsdPerMillion: '0.15', outputUsdPerMillion: '0.60', requestUsd: '0.0001', imageUsd: '0.02' };
 
@@ -75,5 +86,27 @@ describe('operator-authorized custom endpoints', () => {
       expect(() => resolveAiBaseUrl('custom', value, ['https://api.example/v1'])).toThrow(AiError);
     }
     expect(() => resolveAiBaseUrl('custom', undefined, ['https://api.example/v1'])).toThrow(AiError);
+  });
+});
+
+describe('models the app supports', () => {
+  it('needs catalog prices, reasoning it can switch off, and tools unless the catalog does not say', () => {
+    expect(aiModelSupport({ pricing, reasoning: 'none', tools: true })).toBeNull();
+    expect(aiModelSupport({ pricing, reasoning: 'optional', tools: null })).toBeNull();
+    expect(aiModelSupport({ pricing: null, reasoning: 'mandatory', tools: false })).toBe('no_pricing');
+    expect(aiModelSupport({ pricing, reasoning: 'mandatory', tools: true })).toBe('reasoning_required');
+    expect(aiModelSupport({ pricing, reasoning: 'none', tools: false })).toBe('no_tools');
+    expect(AI_UNSUPPORTED_ERRORS).toEqual({
+      no_pricing: 'AI_PRICING_REQUIRED',
+      reasoning_required: 'AI_MODEL_REASONING_REQUIRED',
+      no_tools: 'AI_MODEL_TOOLS_REQUIRED',
+    });
+  });
+
+  it('names a completion that reasoned through its answer budget apart from other failures', () => {
+    expect(aiFailureCode('error', AI_REASONING_EXHAUSTED)).toBe('AI_REASONING_ONLY');
+    expect(aiFailureCode('error', 'http_500')).toBe('AI_ASSISTANT_FAILED');
+    expect(aiFailureCode('error', null)).toBe('AI_ASSISTANT_FAILED');
+    expect(aiFailureCode('timeout', 'timeout')).toBe('AI_TIMEOUT');
   });
 });

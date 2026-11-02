@@ -10,7 +10,7 @@ import { createServerFn } from '@tanstack/react-start';
 import type { AccountView } from '@wf/db/accounts';
 import type { BudgetStatus } from '@wf/db/budgets';
 import type { AiDataCounts } from '@wf/domain/ai';
-import { AiError, calculateAiCost } from '@wf/domain/ai';
+import { AiError, aiFailureCode, calculateAiCost } from '@wf/domain/ai';
 import {
   ASSISTANT_HISTORY_MAX,
   ASSISTANT_MAX_STEPS,
@@ -440,6 +440,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
               pricing: quote,
               tools: toolDefinitions,
               timeoutMs: remaining,
+              disableReasoning: credential.reasoning === 'optional',
             });
             httpStatus = result.httpStatus ?? httpStatus;
             stepCosts.push(result.costUsd);
@@ -487,9 +488,7 @@ export const askAssistant = createServerFn({ method: 'POST' })
         // The tool loop knows the real counts only now; the reserved estimate may have guessed them.
         dataSent: counts,
       });
-      if (outcome.status !== 'ok') {
-        throw new AiError(outcome.status === 'timeout' ? 'AI_TIMEOUT' : 'AI_ASSISTANT_FAILED');
-      }
+      if (outcome.status !== 'ok') throw new AiError(aiFailureCode(outcome.status, outcome.errorCode));
       return {
         text,
         cards,

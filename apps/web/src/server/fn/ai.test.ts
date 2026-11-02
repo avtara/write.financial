@@ -32,13 +32,15 @@ vi.mock('../runtime.ts', () => ({
 
 let test: TestDatabase;
 let userId: string;
-let mode: 'ok' | 'unauthorized' | 'forbidden' | 'unavailable' | 'missing_cost';
+let mode: 'ok' | 'unauthorized' | 'forbidden' | 'unavailable' | 'missing_cost' | 'reasoning_exhausted';
 let requests: number;
 let completions: number;
 let catalogPriced: boolean;
 /** The `Authorization` header of the latest provider request. */
 let authorization: string | null;
 let duringRequest: (() => Promise<void>) | null;
+/** The JSON body of the latest completion request. */
+let completionBody: Record<string, unknown> | null;
 const dek = generateDek();
 const key = `fixture-ai-${randomUUID()}`;
 const pricing = { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' };
@@ -81,6 +83,7 @@ beforeEach(async () => {
   catalogPriced = true;
   duringRequest = null;
   authorization = null;
+  completionBody = null;
   const rates = { prompt: '0.000001', completion: '0.000002' };
   const fetcher = vi.fn<typeof fetch>(async (url, init) => {
     requests++;
@@ -92,13 +95,28 @@ beforeEach(async () => {
           { id: 'fixture/model', ...(catalogPriced ? { pricing: rates } : {}) },
           { id: '@private/model', pricing: rates },
           { id: 'fixture/unpriced' },
+          { id: 'fixture/reasoner', pricing: rates, reasoning: { mandatory: false }, supported_parameters: ['tools'] },
+          { id: 'fixture/thinker', pricing: rates, reasoning: { mandatory: true }, supported_parameters: ['tools'] },
+          { id: 'fixture/no-tools', pricing: rates, supported_parameters: ['max_tokens'] },
+          { id: 'fixture/image', pricing: rates, architecture: { output_modalities: ['image'] } },
         ],
       });
     completions++;
+    completionBody = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
     if (duringRequest !== null) await duringRequest();
     if (mode === 'unauthorized') return new Response(`Revoked ${key}`, { status: 401 });
     if (mode === 'forbidden') return new Response('private forbidden', { status: 403 });
     if (mode === 'unavailable') return new Response('private provider error', { status: 503 });
+    if (mode === 'reasoning_exhausted')
+      return Response.json({
+        choices: [{ finish_reason: 'length', message: { content: null } }],
+        usage: {
+          prompt_tokens: 12,
+          completion_tokens: 32,
+          completion_tokens_details: { reasoning_tokens: 30 },
+          cost: '0.0003',
+        },
+      });
     return Response.json({
       choices: [{ message: { content: 'OK' } }],
       usage: { prompt_tokens: 12, completion_tokens: 1, ...(mode === 'missing_cost' ? {} : { cost: '0.0002' }) },
@@ -179,6 +197,35 @@ describe('catalog prices on save', () => {
       expect(completions).toBe(0);
     },
   );
+
+  it.each([
+    ['fixture/thinker', 'AI_MODEL_REASONING_REQUIRED'],
+    ['fixture/no-tools', 'AI_MODEL_TOOLS_REQUIRED'],
+    ['fixture/image', 'AI_PRICING_REQUIRED'],
+  ])('refuses to save %s, a model the app cannot use, and stores nothing', async (modelId, code) => {
+    expect(await invoke(saveAiSettings, input({ modelId }))).toEqual({ ok: false, code });
+    expect(await test.query('SELECT user_id FROM ai_settings')).toEqual([]);
+    expect(await test.query('SELECT user_id FROM ai_connections')).toEqual([]);
+    expect(completions).toBe(0);
+  });
+
+  it('stores the reasoning mode and switches optional reasoning off only for a model that has it', async () => {
+    const plain = await save();
+    await invoke(testAiConnection, {
+      provider: 'openrouter',
+      expectedRevision: plain.revision,
+      requestId: randomUUID(),
+    });
+    expect(completionBody).not.toHaveProperty('reasoning');
+    const reasoner = await save({ expectedRevision: plain.revision, modelId: 'fixture/reasoner' });
+    expect(await test.query('SELECT reasoning FROM ai_connections')).toEqual([{ reasoning: 'optional' }]);
+    await invoke(testAiConnection, {
+      provider: 'openrouter',
+      expectedRevision: reasoner.revision,
+      requestId: randomUUID(),
+    });
+    expect(completionBody).toMatchObject({ reasoning: { enabled: false } });
+  });
 
   it('reads a custom catalog with the key being saved, else with the saved key at its own endpoint only', async () => {
     const saved = await save({ provider: 'custom', baseUrl: 'https://custom.test/v1' });
@@ -276,6 +323,7 @@ describe('connection tests and activity', () => {
         userId,
         input({ expectedRevision: saved.revision, apiKey: 'fixture-new-key-9876' }),
         pricing,
+        'none',
       );
     };
     expect(
@@ -304,6 +352,23 @@ describe('connection tests and activity', () => {
       }),
     ).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
     expect(completions).toBe(0); // Public catalog only; no completion.
+  });
+
+  it('fails a test whose model reasoned through the whole answer budget, still settling its cost', async () => {
+    const saved = await save();
+    mode = 'reasoning_exhausted';
+    expect(
+      await invoke(testAiConnection, {
+        provider: 'openrouter',
+        expectedRevision: saved.revision,
+        requestId: randomUUID(),
+      }),
+    ).toEqual({ ok: false, code: 'AI_REASONING_ONLY' });
+    expect(await invoke(listAiLogs, { status: 'error' })).toMatchObject({
+      ok: true,
+      value: { total: 1, items: [{ errorCode: 'reasoning_exhausted', costUsd: '0.0003', costSource: 'reported' }] },
+    });
+    expect(await invoke(getAiSettings)).toMatchObject({ ok: true, value: { usage: { spentUsd: '0.0003' } } });
   });
 
   it('retains a key when saving non-secret settings, then removes it with revision protection', async () => {

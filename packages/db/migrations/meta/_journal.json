@@ -253,6 +253,13 @@
       "when": 1793596761791,
       "tag": "0035_ai_catalog_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793600032492,
+      "tag": "0036_ai_connection_reasoning",
+      "breakpoints": true
     }
   ]
 }

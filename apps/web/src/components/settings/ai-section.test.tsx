@@ -81,6 +81,8 @@ const CATALOG: AiModelCatalog = {
       contextLength: 200_000,
       maxOutputTokens: 8_192,
       pricing: PRICING,
+      reasoning: 'none',
+      tools: true,
     },
     {
       id: 'meta/llama-free',
@@ -88,6 +90,8 @@ const CATALOG: AiModelCatalog = {
       contextLength: null,
       maxOutputTokens: null,
       pricing: null,
+      reasoning: 'none',
+      tools: true,
     },
     {
       id: 'openai/o-mini',
@@ -95,6 +99,8 @@ const CATALOG: AiModelCatalog = {
       contextLength: 128_000,
       maxOutputTokens: null,
       pricing: { inputUsdPerMillion: '0.15', outputUsdPerMillion: '0.6', requestUsd: '0', imageUsd: '0' },
+      reasoning: 'optional',
+      tools: true,
     },
   ],
 };
@@ -429,6 +435,46 @@ describe('AiSection', () => {
     await expect
       .element(page.getByRole('alert').filter({ hasText: 'Model ini tidak punya harga di katalog penyedia' }))
       .toBeVisible();
+    expect(server.saveAiSettings).not.toHaveBeenCalled();
+  });
+
+  it('lists models the app cannot use as disabled with the reason and refuses a saved one', async () => {
+    const unsupported = (id: string, name: string, extra: Partial<AiModelCatalog['models'][number]>) => ({
+      id,
+      name,
+      contextLength: null,
+      maxOutputTokens: null,
+      pricing: PRICING,
+      reasoning: 'none' as const,
+      tools: true,
+      ...extra,
+    });
+    server.listAiModels.mockResolvedValue({
+      ok: true,
+      value: {
+        ...CATALOG,
+        models: [
+          ...CATALOG.models,
+          unsupported('google/thinker', 'Always Thinker', { reasoning: 'mandatory' }),
+          unsupported('acme/no-tools', 'No Tools', { tools: false }),
+        ],
+      },
+    });
+    await render(baseView({ connections: [connection({ modelId: 'google/thinker' })] }));
+    await expect.element(modelTrigger()).toBeEnabled();
+    await expect.element(page.getByText(/^Model ini selalu bernalar sebelum menjawab/)).toBeVisible();
+    await modelTrigger().click();
+    const thinker = page.getByRole('option', { name: /Always Thinker/ });
+    await expect.element(thinker).toHaveAttribute('aria-disabled', 'true');
+    await expect.element(thinker).toHaveTextContent('Always ThinkerSelalu bernalar');
+    const noTools = page.getByRole('option', { name: /No Tools/ });
+    await expect.element(noTools).toHaveAttribute('aria-disabled', 'true');
+    await expect.element(noTools).toHaveTextContent('No ToolsTanpa pemanggilan tool');
+    await expect.element(page.getByRole('option', { name: /Mini Reasoner/ })).not.toHaveAttribute('aria-disabled');
+    await userEvent.keyboard('{Escape}');
+    await limitInput().fill('6');
+    await saveButton().click();
+    await expect.element(page.getByRole('alert').filter({ hasText: 'Model ini selalu bernalar' })).toBeVisible();
     expect(server.saveAiSettings).not.toHaveBeenCalled();
   });
 
@@ -939,7 +985,15 @@ describe('AiSection boundaries', () => {
         value: {
           ...CATALOG,
           models: [
-            { id: 'priced/no-context', name: 'Priced', contextLength: null, maxOutputTokens: null, pricing: PRICING },
+            {
+              id: 'priced/no-context',
+              name: 'Priced',
+              contextLength: null,
+              maxOutputTokens: null,
+              pricing: PRICING,
+              reasoning: 'none',
+              tools: null,
+            },
           ],
         },
       })

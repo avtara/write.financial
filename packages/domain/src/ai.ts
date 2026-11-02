@@ -22,6 +22,9 @@ export const AI_ERROR_CODES = [
   'AI_REQUEST_EXISTS',
   'AI_TIMEOUT',
   'AI_ASSISTANT_FAILED',
+  'AI_MODEL_REASONING_REQUIRED',
+  'AI_MODEL_TOOLS_REQUIRED',
+  'AI_REASONING_ONLY',
 ] as const;
 export type AiErrorCode = (typeof AI_ERROR_CODES)[number];
 
@@ -116,12 +119,53 @@ export interface AiSettingsInput {
   monthlyLimitUsd: string;
 }
 
+/**
+ * How a model reasons, from the provider catalog: `none` never reasons, `optional` reasons unless the request switches
+ * it off (`reasoning: { enabled: false }`), `mandatory` always reasons and would spend the answer budget on it.
+ */
+export type AiReasoning = 'none' | 'optional' | 'mandatory';
+/** What a saved connection stores: a model with mandatory reasoning is never saved. */
+export type AiConnectionReasoning = Exclude<AiReasoning, 'mandatory'>;
+
 export interface AiModel {
   id: string;
   name: string;
   contextLength: number | null;
   maxOutputTokens: number | null;
   pricing: AiPricing | null;
+  reasoning: AiReasoning;
+  /** Whether the model can call tools (the Assistant needs them); `null` when the catalog does not say. */
+  tools: boolean | null;
+}
+
+/** Why a catalog model cannot be chosen. */
+export type AiModelUnsupported = 'no_pricing' | 'reasoning_required' | 'no_tools';
+
+/** The refusal a save of an unsupported model answers with. */
+export const AI_UNSUPPORTED_ERRORS: Readonly<Record<AiModelUnsupported, AiErrorCode>> = {
+  no_pricing: 'AI_PRICING_REQUIRED',
+  reasoning_required: 'AI_MODEL_REASONING_REQUIRED',
+  no_tools: 'AI_MODEL_TOOLS_REQUIRED',
+};
+
+/**
+ * `null` when the app can use the model: priced in the catalog (never treated as free), reasoning the app can switch
+ * off, and tool calling unless the catalog does not say.
+ */
+export function aiModelSupport(model: Pick<AiModel, 'pricing' | 'reasoning' | 'tools'>): AiModelUnsupported | null {
+  if (model.pricing === null) return 'no_pricing';
+  if (model.reasoning === 'mandatory') return 'reasoning_required';
+  if (model.tools === false) return 'no_tools';
+  return null;
+}
+
+/** The adapter's `errorCode` for an answer cut off at `max_tokens` while it was (mostly) still reasoning. */
+export const AI_REASONING_EXHAUSTED = 'reasoning_exhausted';
+
+/** The refusal for a completion that did not finish. */
+export function aiFailureCode(status: 'error' | 'timeout', errorCode: string | null): AiErrorCode {
+  if (status === 'timeout') return 'AI_TIMEOUT';
+  return errorCode === AI_REASONING_EXHAUSTED ? 'AI_REASONING_ONLY' : 'AI_ASSISTANT_FAILED';
 }
 
 export interface AiModelCatalog {

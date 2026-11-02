@@ -2722,6 +2722,10 @@ export const aiConnections = pgTable(
     /** The chosen model's provider-catalog prices, stored on save; there are no manual prices. */
     pricing: jsonb('pricing').$type<AiPricing>(),
     pricingSource: varchar('pricing_source', { length: 8, enum: ['catalog'] }),
+    /** The model's catalog reasoning mode, stored on save: `optional` is switched off in every request. */
+    reasoning: varchar('reasoning', { length: 8, enum: ['none', 'optional'] })
+      .notNull()
+      .default('none'),
     status: varchar('status', { length: 16 }).$type<AiConnectionStatus>().notNull().default('not_connected'),
     addedAt: timestamptz('added_at'),
     testedAt: timestamptz('tested_at'),
@@ -2737,6 +2741,7 @@ export const aiConnections = pgTable(
       sql`${table.status} in ('not_connected','untested','connected','invalid_key','error')`,
     ),
     check('ai_connections_pricing_check', sql`${table.pricingSource} in ('catalog')`),
+    check('ai_connections_reasoning_check', sql`${table.reasoning} in ('none','optional')`),
   ],
 );
 

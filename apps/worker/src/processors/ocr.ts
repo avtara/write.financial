@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { AiError, calculateAiCost } from '@wf/domain/ai';
+import { AiError, aiFailureCode, calculateAiCost } from '@wf/domain/ai';
 import {
   receiptPrompt,
   RECEIPT_EXTRACTION_SCHEMA,
@@ -55,6 +55,7 @@ export function createOcrProcessor({ db, receipt }: ProcessorDeps): Processor {
         maxTokens: RECEIPT_MAX_TOKENS,
         messages: [{ role: 'user', content: prompt, images }],
         responseSchema: { name: 'receipt_extraction', schema: RECEIPT_EXTRACTION_SCHEMA },
+        disableReasoning: credential.reasoning === 'optional',
       });
       evidence = result.content;
       // Settlement precedes parsing: even an unreadable answer can cost money.
@@ -71,7 +72,7 @@ export function createOcrProcessor({ db, receipt }: ProcessorDeps): Processor {
         connectionStatus: result.status === 'ok' ? 'connected' : 'error',
         pricing,
       });
-      if (result.status !== 'ok') throw new AiError(result.status === 'timeout' ? 'AI_TIMEOUT' : 'AI_ASSISTANT_FAILED');
+      if (result.status !== 'ok') throw new AiError(aiFailureCode(result.status, result.errorCode));
       if (result.toolCalls.length !== 0 || result.finishReason === 'length') throw new UnreadableReceiptError();
       await db.receipts.complete(userId, receiptId, result.content ?? '');
       return { receiptId, status: 'ready' };

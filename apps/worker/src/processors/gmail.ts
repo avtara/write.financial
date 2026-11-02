@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { AiError, calculateAiCost } from '@wf/domain/ai';
+import { AiError, aiFailureCode, calculateAiCost } from '@wf/domain/ai';
 import { filterEmail, GMAIL_EXTRACTION_SCHEMA, parseGmailAnswer } from '@wf/domain/gmail';
 import { GmailRevokedError, GmailUnavailableError } from '@wf/integrations/gmail';
 import { JOBS } from '@wf/jobs/queues';
@@ -102,6 +102,7 @@ export function createGmailProcessor({ db, gmail, now }: ProcessorDeps): (job: P
               messages: [{ role: 'user', content: prompt }],
               toolChoice: 'none',
               responseSchema: { name: 'gmail_extraction', schema: GMAIL_EXTRACTION_SCHEMA },
+              disableReasoning: live.reasoning === 'optional',
             });
             await db.ai.settle(userId, id, {
               status: result.status,
@@ -116,8 +117,7 @@ export function createGmailProcessor({ db, gmail, now }: ProcessorDeps): (job: P
               connectionStatus: result.status === 'ok' ? 'connected' : 'error',
               pricing: credential.pricing,
             });
-            if (result.status !== 'ok')
-              throw new AiError(result.status === 'timeout' ? 'AI_TIMEOUT' : 'AI_ASSISTANT_FAILED');
+            if (result.status !== 'ok') throw new AiError(aiFailureCode(result.status, result.errorCode));
             if (result.toolCalls.length > 0 || result.finishReason === 'length')
               throw new Error('Invalid Gmail extraction');
             const extraction = parseGmailAnswer(result.content ?? '', claim.timeZone);

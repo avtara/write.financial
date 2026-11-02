@@ -18,6 +18,7 @@ import type {
   AiLogView,
   AiLogsPage,
   AiModel,
+  AiModelUnsupported,
   AiModelCatalog,
   AiPricing,
   AiProvider,
@@ -25,7 +26,14 @@ import type {
   AiSettingsView,
   AiUsageSummary,
 } from '@wf/domain/ai';
-import { AI_FEATURES, AI_LOG_STATUSES, AI_PROVIDERS, parseAiUsd } from '@wf/domain/ai';
+import {
+  AI_FEATURES,
+  AI_LOG_STATUSES,
+  AI_PROVIDERS,
+  AI_UNSUPPORTED_ERRORS,
+  aiModelSupport,
+  parseAiUsd,
+} from '@wf/domain/ai';
 import { formatUsd } from '../../lib/ai-usd.ts';
 import { formatDate, formatPercent } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
@@ -208,16 +216,26 @@ function pricingText(pricing: AiPricing, locale: Locale, hidden: boolean): strin
   });
 }
 
-/** A catalog model in the picker, found by name or id; one without catalog prices cannot be chosen (never free). */
+const UNSUPPORTED_LABEL: Readonly<Record<AiModelUnsupported, () => string>> = {
+  no_pricing: m.ai_model_no_pricing,
+  reasoning_required: m.ai_model_reasoning_required,
+  no_tools: m.ai_model_no_tools,
+};
+
+/**
+ * A catalog model in the picker, found by name or id; one the app cannot use (no catalog prices — never free —,
+ * reasoning it cannot switch off, or no tool calling) is listed but cannot be chosen.
+ */
 function modelOption(model: AiModel, locale: Locale, hidden: boolean): ComboboxOption {
+  const unsupported = aiModelSupport(model);
   return {
     value: model.id,
     label: model.name,
     keywords: [model.id],
-    disabled: model.pricing === null,
+    disabled: unsupported !== null,
     aside:
-      model.pricing === null ? (
-        <span className="font-sans">{m.ai_model_no_pricing()}</span>
+      unsupported !== null || model.pricing === null ? (
+        <span className="font-sans">{UNSUPPORTED_LABEL[unsupported ?? 'no_pricing']()}</span>
       ) : (
         <span className="flex flex-col items-end">
           {m.ai_model_rates({
@@ -308,6 +326,8 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   const catalogError = answer?.error ?? null;
   const catalogLoading = catalogRequest !== null && answer === null;
   const selectedModel = catalog?.models.find((entry) => entry.id === draft.modelId) ?? null;
+  /** Why the chosen model cannot be used; one the catalog does not list counts as unpriced. */
+  const selectedUnsupported = selectedModel === null ? 'no_pricing' : aiModelSupport(selectedModel);
   const busy = saving || testing || removing;
   const canSave = dirty && !busy && settings.twoFactorEnabled;
 
@@ -359,8 +379,8 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
     const errors: typeof fieldErrors = {};
     const modelId = draft.modelId.trim();
     if (modelId === '') errors.model = m.ai_model_required();
-    else if (catalog !== null && (selectedModel?.pricing ?? null) === null)
-      errors.model = m.ai_error_pricing_required();
+    else if (catalog !== null && selectedUnsupported !== null)
+      errors.model = aiErrorMessage(AI_UNSUPPORTED_ERRORS[selectedUnsupported], locale);
     if (draft.provider === 'custom' && draft.baseUrl === '') {
       errors.baseUrl = m.ai_custom_base_url_required();
     } else if (
@@ -744,7 +764,7 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                   {m.ai_models_loaded({ count: formatCount(catalog.models.length, locale) })}
                 </p>
               )}
-              {selectedModel?.pricing != null ? (
+              {selectedModel?.pricing != null && selectedUnsupported === null ? (
                 <>
                   <p className="text-[12px] text-subtle">{pricingText(selectedModel.pricing, locale, hidden)}</p>
                   {selectedModel.contextLength === null ? null : (
@@ -755,8 +775,10 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                 </>
               ) : catalog !== null ? (
                 draft.modelId === '' || fieldErrors.model !== undefined ? null : (
-                  // A saved model the catalog no longer lists or prices cannot be used for paid requests.
-                  <p className="text-[12px] text-amber-fg">{m.ai_error_pricing_required()}</p>
+                  // A saved model the catalog no longer lists, prices, or supports cannot be used for paid requests.
+                  <p className="text-[12px] text-amber-fg">
+                    {aiErrorMessage(AI_UNSUPPORTED_ERRORS[selectedUnsupported ?? 'no_pricing'], locale)}
+                  </p>
                 )
               ) : connection?.pricing != null && draft.modelId === connection.modelId ? (
                 <p className="text-[12px] text-muted-fg">{pricingText(connection.pricing, locale, hidden)}</p>

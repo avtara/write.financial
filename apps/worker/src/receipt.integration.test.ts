@@ -176,6 +176,7 @@ beforeAll(async () => {
       monthlyLimitUsd: '5',
     },
     { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
+    'none',
   );
   revision = settings.revision ?? '';
   workerDb = openWorkerDb(url('worker'), keyring, { s3, aiAllowedBaseUrls: [endpoint] });
