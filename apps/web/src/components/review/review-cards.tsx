@@ -31,11 +31,11 @@ export interface ReviewLookup {
 const accountOf = (lookup: ReviewLookup, id: string | null) => lookup.accounts.find((account) => account.id === id);
 const currencyOf = (lookup: ReviewLookup, id: string | null) => accountOf(lookup, id)?.currency ?? lookup.baseCurrency;
 
-const CARD = 'flex flex-col gap-3 rounded-[12px] border border-border bg-surface-2 p-4';
-const NOTE = 'flex items-start gap-2 rounded-[8px] bg-amber-tint-1 px-3 py-2 text-[12.5px] text-text-secondary';
+export const CARD = 'flex flex-col gap-3 rounded-[12px] border border-border bg-surface-2 p-4';
+export const NOTE = 'flex items-start gap-2 rounded-[8px] bg-amber-tint-1 px-3 py-2 text-[12.5px] text-text-secondary';
 
 /** The card's heading row: a leading tile, title and subtitle, and the amount with its date. */
-function CardHead({
+export function CardHead({
   tile,
   title,
   subtitle,
@@ -75,7 +75,7 @@ function InitialTile({ name }: { name: string }) {
   );
 }
 
-function IconTile({ children }: { children: ReactNode }) {
+export function IconTile({ children }: { children: ReactNode }) {
   return (
     <span
       aria-hidden="true"
