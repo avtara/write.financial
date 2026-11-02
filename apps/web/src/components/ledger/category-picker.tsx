@@ -16,6 +16,16 @@ import { CATEGORY_ICONS, CategoryIcon } from '../category-icon.tsx';
 /** Tiles before "Lainnya" (a 3 × 2 grid). */
 const TILE_COUNT = 5;
 
+/**
+ * The kinds a picker offers: an expense may also take a "Biaya keuangan" category (bank or platform fee, tax & stamp,
+ * the server allows any non-income category on an expense); income and fee pickers stay to their own kind.
+ */
+const PICKER_KINDS: Readonly<Record<CategoryKind, readonly CategoryKind[]>> = {
+  expense: ['expense', 'fee'],
+  income: ['income'],
+  fee: ['fee'],
+};
+
 /** The live categories of `kind`, most used first (ties keep the user's order). */
 export function frequentCategories(categories: readonly CategoryView[], kind: CategoryKind): CategoryView[] {
   return categories
@@ -36,21 +46,22 @@ interface PickerCommon {
 }
 
 function groupsOf({ categories, kind, budgetNote }: PickerCommon): ComboboxGroup[] {
-  const live = categories.filter((category) => category.kind === kind && category.archivedAt === null);
-  return GROUPS_BY_KIND[kind]
-    .map((group) => ({
-      heading: categoryGroupLabel(group),
-      options: live
-        .filter((category) => category.group === group)
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((category) => ({
-          value: category.id,
-          label: categoryName(category),
-          icon: CATEGORY_ICONS[category.icon]?.glyph ?? Shapes,
-          aside: budgetNote?.(category),
-        })),
-    }))
-    .filter((group) => group.options.length > 0);
+  return PICKER_KINDS[kind].flatMap((offered) =>
+    GROUPS_BY_KIND[offered]
+      .map((group) => ({
+        heading: categoryGroupLabel(group),
+        options: categories
+          .filter((category) => category.kind === offered && category.group === group && category.archivedAt === null)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((category) => ({
+            value: category.id,
+            label: categoryName(category),
+            icon: CATEGORY_ICONS[category.icon]?.glyph ?? Shapes,
+            aside: budgetNote?.(category),
+          })),
+      }))
+      .filter((group) => group.options.length > 0),
+  );
 }
 
 function CategorySearch({ children, ...common }: PickerCommon & { readonly children: ReactElement }) {
@@ -77,17 +88,22 @@ export interface CategoryPickerProps extends PickerCommon {
 }
 
 /**
- * The sheet's tiles (design `airjf`): the five most used categories and "Lainnya", which opens the search over all
- * of them and shows a category chosen there ("masuk Lainnya", `BJfbo`). "Lihat semua" opens the same search.
+ * The sheet's tiles (design `airjf`): the five most used categories of the kind itself and "Lainnya", which opens the
+ * search over every category the kind may take (an expense's "Biaya keuangan" too) and shows a category chosen there
+ * ("masuk Lainnya", `BJfbo`). "Lihat semua" opens the same search.
  */
 export function CategoryPicker({ heading, invalid = false, describedBy, ...common }: CategoryPickerProps) {
   const more = useRef<HTMLButtonElement>(null);
-  const frequent = frequentCategories(common.categories, common.kind);
-  const tiles = frequent.slice(0, TILE_COUNT);
+  const tiles = frequentCategories(common.categories, common.kind).slice(0, TILE_COUNT);
   const chosenElsewhere =
     common.value === null || tiles.some((category) => category.id === common.value)
       ? undefined
-      : frequent.find((category) => category.id === common.value);
+      : common.categories.find(
+          (category) =>
+            category.id === common.value &&
+            category.archivedAt === null &&
+            PICKER_KINDS[common.kind].includes(category.kind),
+        );
   const tile = `flex h-[62px] min-w-0 flex-col items-start justify-between rounded-[9px] border bg-input px-3 py-2.5 text-left text-[13px] text-text-secondary hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-violet aria-pressed:bg-violet-tint-1 aria-pressed:font-medium aria-pressed:text-fg ${invalid ? 'border-red' : 'border-border'}`;
   return (
     <div role="group" aria-label={heading} aria-describedby={describedBy} className="flex flex-col gap-2">
