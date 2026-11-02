@@ -921,7 +921,8 @@ describe('Gmail evidence corrections and source-specific confirmation', () => {
       createTransactions(test.db, { getDek: fixtureGetDek }).get(userId, confirmed.transactionId as string),
     );
     expect(detail).toMatchObject({
-      merchant: 'Corrected merchant',
+      merchant: null,
+      description: 'Corrected merchant',
       categoryId: ledger.category('system:health'),
       gmailEvidence: { extraction: { merchant: 'Original merchant', currency: 'USD' } },
     });

@@ -405,6 +405,8 @@ async function confirmIn(
         (edits.accountId === undefined && extraction.currency !== null && account.currency !== extraction.currency)
       )
         throw new LedgerError('INVALID_ACCOUNT', 'Choose an account with the email currency');
+      // Like a manually recorded transaction (whose form has only "Judul"), the merchant is the title: it goes to the
+      // description and no separate merchant is stored. The email subject stays evidence, never the title.
       transactionId = (
         await recordTransactionIn(
           tx,
@@ -415,8 +417,8 @@ async function confirmIn(
             amountMinor,
             occurredAt,
             categoryId,
-            merchant,
-            description: edits.description ?? payload.subject,
+            merchant: null,
+            description: edits.description ?? merchant.trim(),
             note: edits.note ?? null,
             tags: edits.tags ?? payload.tags,
             source: 'gmail',
