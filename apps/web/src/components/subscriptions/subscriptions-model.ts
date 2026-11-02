@@ -27,26 +27,27 @@ export function upcomingBills(overview: Pick<SubscriptionsOverview, 'monthSchedu
   return overview.monthSchedule.filter((bill) => bill.status === 'will_charge' && bill.dueDate >= overview.today);
 }
 
-/** Bills at most this many days after the previous one share its stack on the "Jadwal tagihan" axis. */
+/** Bills at most this many days apart would have touching labels, so they never share a lane of the axis. */
 export const CLUSTER_DAYS = 3;
 
 /**
- * The "Jadwal tagihan" axis stacks, oldest first: a bill at most `CLUSTER_DAYS` after the previous one joins its
- * stack. Each stack sits at its first day, so stacks start at least `CLUSTER_DAYS + 1` days apart and their labels
- * cannot run into each other (3 · 5 Okt → one stack, 9 Okt → the next).
+ * The "Jadwal tagihan" axis lanes, oldest first: every bill stays on its own day and takes the lowest lane (0 = on the
+ * axis) that no bill at most `CLUSTER_DAYS` earlier uses, so bills in one lane start at least `CLUSTER_DAYS + 1` days
+ * apart and their labels cannot run into each other (3 · 5 Okt → lanes 0 · 1, 9 Okt → lane 0 again).
  */
-export function billClusters<T extends { readonly dueDate: LocalDate }>(bills: readonly T[]): T[][] {
-  const clusters: T[][] = [];
+export function billLanes<T extends { readonly dueDate: LocalDate }>(
+  bills: readonly T[],
+): { readonly bill: T; readonly lane: number }[] {
+  const placed: { readonly bill: T; readonly lane: number }[] = [];
   for (const bill of bills.toSorted((a, b) => a.dueDate.localeCompare(b.dueDate))) {
-    const last = clusters.at(-1);
-    const previous = last?.at(-1);
-    if (last !== undefined && previous !== undefined && daysFrom(previous.dueDate, bill.dueDate) <= CLUSTER_DAYS) {
-      last.push(bill);
-    } else {
-      clusters.push([bill]);
-    }
+    const taken = new Set(
+      placed.filter((near) => daysFrom(near.bill.dueDate, bill.dueDate) <= CLUSTER_DAYS).map(({ lane }) => lane),
+    );
+    let lane = 0;
+    while (taken.has(lane)) lane++;
+    placed.push({ bill, lane });
   }
-  return clusters;
+  return placed;
 }
 
 /** "6 aktif · 4 tagihan tersisa bulan ini · berikutnya Netflix, 3 hari lagi". */

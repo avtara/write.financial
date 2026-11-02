@@ -68,14 +68,20 @@ describe('BillSchedule', () => {
     expect(onOpen).toHaveBeenCalledWith(S_ICLOUD);
   });
 
-  it('stacks bills a few days apart, each label right above its own icon, and no labels touching', async () => {
+  it('keeps each bill on its own day, each label right above its own icon, and no labels touching', async () => {
     const { screen } = await renderSchedule();
     const days = screen.getByRole('list', { name: 'Jadwal tagihan Oktober' });
-    const stacks = days.getByRole('listitem');
-    // 3 · 5 Okt, 9 Okt, 18 · 20 · 22 Okt, 28 Okt.
-    expect(stacks.elements()).toHaveLength(4);
-    await expect.element(stacks.nth(0)).toMatchTextContent(/^3 OktRp199\.000.*5 OktRp660\.900.*$/);
-    await expect.element(stacks.nth(2)).toMatchTextContent(/^18 OktRp186\.000.*20 OktRp86\.900.*22 OktRp59\.000.*$/);
+    expect(days.getByRole('listitem').elements()).toHaveLength(7);
+    const centre = (day: string) => {
+      const icon = days
+        .getByRole('button', { name: new RegExp(`, ${day}, `) })
+        .element()
+        .getBoundingClientRect();
+      return icon.left + icon.width / 2;
+    };
+    // 20 Okt rises a lane above 18 and 22 Okt but stays on its own day: halfway between them, not on the 18th.
+    expect(Math.abs(centre('20 Okt') - (centre('18 Okt') + centre('22 Okt')) / 2)).toBeLessThan(1);
+    expect(centre('5 Okt') - centre('3 Okt')).toBeGreaterThan(0);
     const box = (element: Element) => element.getBoundingClientRect();
     const labels = ['3 Okt', '5 Okt', '9 Okt', '18 Okt', '20 Okt', '22 Okt', '28 Okt'].map((day) => {
       const label = days.getByText(day, { exact: true }).element().parentElement as HTMLElement;
