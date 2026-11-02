@@ -16,7 +16,7 @@ import {
 import {
   avatarColor,
   balanceCheck,
-  billClusters,
+  billLanes,
   CLUSTER_DAYS,
   daysFrom,
   dueTomorrow,
@@ -43,28 +43,33 @@ describe('subscriptions model', () => {
     expect(monthsBetween(d('2025-12-01'), TODAY)).toBe(10);
   });
 
-  it('stacks bills at most three days after the previous one, oldest first', () => {
+  it('keeps every bill on its day and lifts bills at most three days after another to a free lane', () => {
     const bill = (id: string, day: string) => ({ id, dueDate: d(`2026-10-${day}`) });
-    const ids = (clusters: readonly (readonly { readonly id: string }[])[]) =>
-      clusters.map((cluster) => cluster.map(({ id }) => id));
     expect(CLUSTER_DAYS).toBe(3);
-    expect(billClusters([])).toEqual([]);
-    // October's seed, out of order: 3 · 5 stack, 9 alone (4 days on), 18 · 20 · 22 chain, 28 alone; same-day bills
-    // keep their order.
+    expect(billLanes([])).toEqual([]);
+    // October's seed, out of order: 3 · 5 → 0 · 1; 9 back on the axis (4 days on); 18 · 20 · 22 → 0 · 1 · 0 (22 is
+    // 4 days after 18); a second bill on the 22nd takes lane 2; 28 on the axis. Same-day bills keep their order.
     expect(
-      ids(
-        billClusters([
-          bill('chatgpt', '28'),
-          bill('netflix', '18'),
-          bill('gym', '03'),
-          bill('icloud', '09'),
-          bill('spotify', '20'),
-          bill('host', '05'),
-          bill('youtube', '22'),
-          bill('also-22', '22'),
-        ]),
-      ),
-    ).toEqual([['gym', 'host'], ['icloud'], ['netflix', 'spotify', 'youtube', 'also-22'], ['chatgpt']]);
+      billLanes([
+        bill('chatgpt', '28'),
+        bill('netflix', '18'),
+        bill('gym', '03'),
+        bill('icloud', '09'),
+        bill('spotify', '20'),
+        bill('host', '05'),
+        bill('youtube', '22'),
+        bill('also-22', '22'),
+      ]).map(({ bill: { id }, lane }) => [id, lane]),
+    ).toEqual([
+      ['gym', 0],
+      ['host', 1],
+      ['icloud', 0],
+      ['netflix', 0],
+      ['spotify', 1],
+      ['youtube', 0],
+      ['also-22', 2],
+      ['chatgpt', 0],
+    ]);
   });
 
   it('gives each subscription a stable palette colour', () => {
