@@ -84,7 +84,7 @@ const question = (extra: Record<string, unknown> = {}) => ({
 const transactionCount = async () =>
   (await test.query<{ count: number }>('SELECT count(*)::int AS count FROM transactions WHERE user_id = $1', [USER]))[0]
     ?.count;
-const saveSettings = async (extra: Partial<AiSettingsInput> = {}) => {
+const saveSettings = async (extra: Partial<AiSettingsInput> = {}, reasoning: 'none' | 'optional' = 'none') => {
   settings = await test.as('wf_app', () =>
     ai.save(
       USER,
@@ -100,6 +100,7 @@ const saveSettings = async (extra: Partial<AiSettingsInput> = {}) => {
         ...extra,
       },
       pricing,
+      reasoning,
     ),
   );
   return settings;
@@ -643,6 +644,42 @@ describe('assistant refusals', () => {
     await test.query('UPDATE ai_connections SET pricing = NULL WHERE user_id = $1', [USER]);
     expect(await invoke(question())).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
     expect(requests).toHaveLength(0);
+  });
+
+  it('switches optional reasoning off in every step, and only for a model that has it', async () => {
+    script.push(() => Response.json(answer('Tanpa nalar.')));
+    const plain = await invoke(question());
+    if (!plain.ok) throw new Error(plain.code);
+    expect(requests[0]).not.toHaveProperty('reasoning');
+    await saveSettings({ expectedRevision: settings?.revision ?? null }, 'optional');
+    requests = [];
+    script.push(
+      () => Response.json(toolCall('ringkasan_anggaran', {})),
+      () => Response.json(answer('Tanpa nalar.')),
+    );
+    const result = await invoke(question());
+    if (!result.ok) throw new Error(result.code);
+    expect(requests).toHaveLength(2);
+    for (const request of requests) expect(request).toMatchObject({ reasoning: { enabled: false } });
+  });
+
+  it('names a model that reasoned through its whole answer budget and still settles the charge', async () => {
+    script.push(() =>
+      Response.json({
+        choices: [{ message: { content: null }, finish_reason: 'length' }],
+        usage: {
+          prompt_tokens: 120,
+          completion_tokens: 800,
+          completion_tokens_details: { reasoning_tokens: 790 },
+          cost: '0.0004',
+        },
+      }),
+    );
+    expect(await invoke(question())).toEqual({ ok: false, code: 'AI_REASONING_ONLY' });
+    const logs = await test.as('wf_app', () => ai.logs(USER, { status: 'error' }));
+    expect(logs.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ errorCode: 'reasoning_exhausted', costUsd: '0.0004' })]),
+    );
   });
 
   it('contains a repository failure during tools while still settling the known charge', async () => {

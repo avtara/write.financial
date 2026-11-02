@@ -97,6 +97,7 @@ beforeEach(async () => {
         monthlyLimitUsd: '5',
       },
       pricing,
+      'optional',
     ),
   );
   revision = saved.revision ?? '';
@@ -145,6 +146,8 @@ describe('real queued receipt processor', () => {
       type: 'json_schema',
       json_schema: { name: 'receipt_extraction', strict: true, schema: RECEIPT_EXTRACTION_SCHEMA },
     });
+    // The saved model's optional reasoning is switched off so it cannot spend the answer budget.
+    expect(body).toMatchObject({ reasoning: { enabled: false } });
     expect(await test.query('SELECT count(*) FROM transactions')).toEqual(before);
     expect(
       await test.query('SELECT count(*)::int AS n FROM review_items WHERE dedupe_key=$1', [`receipt.${id}`]),
@@ -264,6 +267,25 @@ describe('real queued receipt processor', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(await test.query('SELECT cost_usd > 0 AS charged FROM ai_logs WHERE id=$1', [id])).toEqual([
       { charged: true },
+    ]);
+  });
+
+  it('names a model that reasoned through its whole answer budget and keeps its charge', async () => {
+    fetcher.mockResolvedValueOnce(
+      Response.json({
+        choices: [{ message: { content: '{"merchant":' }, finish_reason: 'length' }],
+        usage: {
+          cost: '0.009',
+          prompt_tokens: 10,
+          completion_tokens: 600,
+          completion_tokens_details: { reasoning_tokens: 580 },
+        },
+      }),
+    );
+    const id = await stage();
+    expect(await run(id)).toMatchObject({ status: 'failed', code: 'AI_REASONING_ONLY' });
+    expect(await test.query('SELECT error_code, cost_usd > 0 AS charged FROM ai_logs WHERE id=$1', [id])).toEqual([
+      { error_code: 'reasoning_exhausted', charged: true },
     ]);
   });
 

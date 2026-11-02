@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import {
+  AI_REASONING_EXHAUSTED,
   AiError,
   normalizeAiPricing,
   parseAiUsd,
@@ -8,6 +9,7 @@ import {
   type AiModelCatalog,
   type AiPricing,
   type AiProvider,
+  type AiReasoning,
 } from '@wf/domain/ai';
 import { formatDecimal } from '@wf/domain/decimal';
 import * as z from 'zod';
@@ -53,6 +55,11 @@ export interface AiCompletionInput {
   responseSchema?: { readonly name: string; readonly schema: Record<string, unknown> };
   /** Shorter deadline for one call inside a bounded multi-step loop; never above the adapter's own limit. */
   timeoutMs?: number;
+  /**
+   * Switch the model's optional reasoning off (`reasoning: { enabled: false }`) so it cannot spend the answer budget.
+   * Sent only to OpenRouter and ZenMux; OpenRouter's `require_parameters` would refuse it for a model without it.
+   */
+  disableReasoning?: boolean;
 }
 export interface AiCompletionResult {
   status: 'ok' | 'error' | 'timeout';
@@ -97,6 +104,31 @@ function integer(value: unknown): number | null {
   return typeof parsed === 'number' && Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 2_147_483_647
     ? parsed
     : null;
+}
+
+/** Text in, text out only; a catalog without modality information (custom endpoints) counts as text. */
+function textOnly(entry: Record<string, unknown>): boolean {
+  const architecture = field(entry, 'architecture');
+  const input = field(entry, 'input_modalities') ?? field(architecture, 'input_modalities');
+  const output = field(entry, 'output_modalities') ?? field(architecture, 'output_modalities');
+  if (Array.isArray(output) && (output.length !== 1 || output[0] !== 'text')) return false;
+  return !Array.isArray(input) || input.includes('text');
+}
+
+/** OpenRouter publishes a `reasoning` object (with `mandatory`) only for reasoning models; ZenMux a capability flag. */
+function reasoningOf(entry: Record<string, unknown>, provider: AiProvider): AiReasoning {
+  if (provider === 'zenmux') return field(field(entry, 'capabilities'), 'reasoning') === true ? 'optional' : 'none';
+  if (provider === 'custom') return 'none';
+  const reasoning = field(entry, 'reasoning');
+  if (!isObject(reasoning)) return 'none';
+  return reasoning.mandatory === true ? 'mandatory' : 'optional';
+}
+
+/** Only OpenRouter lists `supported_parameters`; elsewhere tool support is unknown. */
+function toolsOf(entry: Record<string, unknown>, provider: AiProvider): boolean | null {
+  if (provider !== 'openrouter') return null;
+  const parameters = field(entry, 'supported_parameters');
+  return Array.isArray(parameters) ? parameters.includes('tools') : null;
 }
 
 /** Bounded, well-named calls only; an unknown or malformed entry is dropped rather than executed. */
@@ -316,7 +348,7 @@ export function createAiClient(options: {
         const models: AiModel[] = [];
         for (const entry of entries) {
           const id = text(field(entry, 'id'));
-          if (id === null || !/^[\w./:@+-]{1,200}$/.test(id)) continue;
+          if (id === null || !/^[\w./:@+-]{1,200}$/.test(id) || !textOnly(entry)) continue;
           models.push({
             id,
             name: (text(field(entry, 'name')) ?? text(field(entry, 'display_name')) ?? id).slice(0, 200),
@@ -325,6 +357,8 @@ export function createAiClient(options: {
               integer(field(entry, 'max_tokens')) ??
               integer(field(field(entry, 'top_provider'), 'max_completion_tokens')),
             pricing: rates(field(entry, provider === 'zenmux' ? 'pricings' : 'pricing'), provider),
+            reasoning: reasoningOf(entry, provider),
+            tools: toolsOf(entry, provider),
           });
         }
         return { provider, models, loadedAt: now(), catalogPublic: provider !== 'custom' };
@@ -401,6 +435,7 @@ export function createAiClient(options: {
                 })),
                 tool_choice: input.toolChoice ?? 'auto',
               }),
+          ...(input.disableReasoning === true && input.provider !== 'custom' ? { reasoning: { enabled: false } } : {}),
           ...(input.provider === 'openrouter'
             ? {
                 provider: {
@@ -461,6 +496,19 @@ export function createAiClient(options: {
           outputTokens: integer(field(usage, 'completion_tokens')),
           costUsd: amountFrom(usage),
         };
+        const finishReason = text(field(choice, 'finish_reason'));
+        const reasoningTokens = integer(field(field(usage, 'completion_tokens_details'), 'reasoning_tokens'));
+        if (
+          finishReason === 'length' &&
+          reasoningTokens !== null &&
+          metering.outputTokens !== null &&
+          metering.outputTokens > 0 &&
+          reasoningTokens * 2 >= metering.outputTokens
+        ) {
+          // The model reasoned through (most of) the budget, so whatever answer is left is cut off. Still metered.
+          errorCode = AI_REASONING_EXHAUSTED;
+          return { ...empty(), ...metering, finishReason };
+        }
         if (!isObject(message)) {
           errorCode = 'invalid_response';
           return { ...empty(), ...metering };
@@ -471,7 +519,7 @@ export function createAiClient(options: {
           ...metering,
           content: text(field(message, 'content')),
           toolCalls: parseToolCalls(field(message, 'tool_calls')),
-          finishReason: text(field(choice, 'finish_reason')),
+          finishReason,
         };
       } catch {
         status = signal.aborted ? 'timeout' : 'error';

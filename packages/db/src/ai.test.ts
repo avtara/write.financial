@@ -57,7 +57,8 @@ const settlement = (extra: Partial<AiSettlementInput> = {}): AiSettlementInput =
   pricing,
   ...extra,
 });
-const save = (extra: Partial<AiSettingsInput> = {}) => asApp(() => repo().save(alice, input(extra), pricing));
+const save = (extra: Partial<AiSettingsInput> = {}) =>
+  asApp(() => repo().save(alice, input(extra), pricing, 'optional'));
 
 beforeAll(async () => {
   test = await startMigrated();
@@ -76,7 +77,7 @@ beforeEach(async () => {
 describe('BYOK confidentiality and ownership', () => {
   it('deleting an account erases its keys, settings, pending logs, and usage without erasing another user', async () => {
     const { revision: aliceRevision } = await save();
-    const { revision: bobRevision } = await asApp(() => repo().save(bob, input(), pricing));
+    const { revision: bobRevision } = await asApp(() => repo().save(bob, input(), pricing, 'none'));
     if (aliceRevision === null || bobRevision === null) throw new Error('AI fixture has no revision');
     await asApp(() => repo().reserve(alice, reserve(aliceRevision)));
     await asApp(() => repo().reserve(bob, reserve(bobRevision)));
@@ -103,7 +104,11 @@ describe('BYOK confidentiality and ownership', () => {
     expect(JSON.stringify(saved)).not.toContain(key);
     const [row] = await test.query<{ enc: Uint8Array }>('SELECT api_key_enc AS enc FROM ai_connections');
     expect(Buffer.from(row?.enc ?? []).toString()).not.toContain(key);
-    expect(await asApp(() => repo().credential(alice, 'openrouter'))).toMatchObject({ apiKey: key, pricing });
+    expect(await asApp(() => repo().credential(alice, 'openrouter'))).toMatchObject({
+      apiKey: key,
+      pricing,
+      reasoning: 'optional',
+    });
     await expect(asApp(() => repo().credential(bob, 'openrouter'))).rejects.toMatchObject({
       code: 'AI_NOT_CONFIGURED',
     });
@@ -135,7 +140,7 @@ describe('BYOK confidentiality and ownership', () => {
       expectedRevision: saved.revision,
     });
     delete changed.apiKey;
-    await expect(asApp(() => repo().save(alice, changed, pricing))).rejects.toMatchObject({
+    await expect(asApp(() => repo().save(alice, changed, pricing, 'none'))).rejects.toMatchObject({
       code: 'AI_INVALID_CONFIG',
     });
     await expect(save()).rejects.toMatchObject({ code: 'AI_CONFIG_CHANGED' });
@@ -162,6 +167,19 @@ describe('BYOK confidentiality and ownership', () => {
     expect(await test.query('SELECT user_id FROM ai_connections WHERE user_id=$1', [alice])).toEqual([]);
   });
 
+  it('stores the catalog reasoning mode with the model and refreshes it from a connection test', async () => {
+    const saved = await save();
+    expect(await asApp(() => repo().credential(alice, 'openrouter'))).toMatchObject({ reasoning: 'optional' });
+    const request = reserve(saved.revision as string);
+    await asApp(() => repo().reserve(alice, request));
+    await asApp(() => repo().settle(alice, request.id, settlement({ reasoning: 'none' })));
+    expect(await asApp(() => repo().credential(alice, 'openrouter'))).toMatchObject({ reasoning: 'none' });
+    // A model with mandatory reasoning is never stored.
+    await expect(test.query("UPDATE ai_connections SET reasoning = 'mandatory'")).rejects.toThrow(
+      /ai_connections_reasoning_check/,
+    );
+  });
+
   it('preserves a tested key for permission-only saves and resets testing when the model changes', async () => {
     const saved = await save();
     const request = reserve(saved.revision as string);
@@ -169,14 +187,14 @@ describe('BYOK confidentiality and ownership', () => {
     await asApp(() => repo().settle(alice, request.id, settlement()));
     const keep = input({ expectedRevision: saved.revision, allowReadFinancial: true });
     delete keep.apiKey;
-    const preserved = await asApp(() => repo().save(alice, keep, pricing));
+    const preserved = await asApp(() => repo().save(alice, keep, pricing, 'none'));
     expect(preserved.connections.find((row) => row.provider === 'openrouter')).toMatchObject({
       status: 'connected',
       last4: key.slice(-4),
       httpStatus: 200,
     });
     const changed = await asApp(() =>
-      repo().save(alice, { ...keep, expectedRevision: preserved.revision, modelId: 'fixture/other' }, pricing),
+      repo().save(alice, { ...keep, expectedRevision: preserved.revision, modelId: 'fixture/other' }, pricing, 'none'),
     );
     expect(changed.connections.find((row) => row.provider === 'openrouter')).toMatchObject({
       status: 'untested',
@@ -186,7 +204,7 @@ describe('BYOK confidentiality and ownership', () => {
     const current = await asApp(() => repo().settings(alice));
     const unkeyed = input({ expectedRevision: current.revision, modelId: 'fixture/third' });
     delete unkeyed.apiKey;
-    const disconnected = await asApp(() => repo().save(alice, unkeyed, pricing));
+    const disconnected = await asApp(() => repo().save(alice, unkeyed, pricing, 'none'));
     expect(disconnected.connections.find((row) => row.provider === 'openrouter')).toMatchObject({
       status: 'not_connected',
       last4: null,
@@ -209,7 +227,7 @@ describe('BYOK confidentiality and ownership', () => {
 
   it('retains only the recent metadata window with the production clock, never secrets or old activity', async () => {
     const repository = createAiRepository(test.db, { getDek: fixtureGetDek, allowedBaseUrls: [] });
-    const saved = await asApp(() => repository.save(alice, input(), pricing));
+    const saved = await asApp(() => repository.save(alice, input(), pricing, 'none'));
     const recent = reserve(saved.revision as string, { costUsd: '0' });
     const old = reserve(saved.revision as string, { costUsd: '0' });
     await asApp(() => repository.reserve(alice, recent));
@@ -223,7 +241,7 @@ describe('BYOK confidentiality and ownership', () => {
   it('lets a user configure a model before supplying a key without reserving spend or logging a fictitious key', async () => {
     const unkeyed = input({ provider: 'custom', baseUrl: 'http://127.0.0.1:11434/v1' });
     delete unkeyed.apiKey;
-    const saved = await asApp(() => repo().save(alice, unkeyed, pricing));
+    const saved = await asApp(() => repo().save(alice, unkeyed, pricing, 'none'));
     expect(saved.connections.find((row) => row.provider === 'custom')).toMatchObject({
       status: 'not_connected',
       last4: null,
@@ -240,6 +258,7 @@ describe('BYOK confidentiality and ownership', () => {
           baseUrl: 'http://127.0.0.1:11435/v1',
         },
         pricing,
+        'none',
       ),
     );
     expect(moved.connections.find((row) => row.provider === 'custom')).toMatchObject({

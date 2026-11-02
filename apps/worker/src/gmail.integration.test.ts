@@ -144,6 +144,7 @@ beforeAll(async () => {
       monthlyLimitUsd: '5',
     },
     { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
+    'none',
   );
   gmail = createGmail(app, { getDek, now: () => now });
   await gmail.saveConnection(userId, {

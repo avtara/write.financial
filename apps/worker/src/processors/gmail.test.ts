@@ -62,6 +62,7 @@ const run = (
   );
 const saveAi = async (
   overrides: { allowReadFinancial?: boolean; allowCreateDrafts?: boolean; monthlyLimitUsd?: string } = {},
+  reasoning: 'none' | 'optional' = 'none',
 ) => {
   const current = await test.as('wf_app', () => ai.settings(userId));
   return test.as('wf_app', () =>
@@ -79,6 +80,7 @@ const saveAi = async (
         ...overrides,
       },
       pricing,
+      reasoning,
     ),
   );
 };
@@ -229,6 +231,7 @@ describe('real Gmail processor with role-scoped repositories', () => {
         json_schema: { name: 'gmail_extraction', strict: true, schema: GMAIL_EXTRACTION_SCHEMA },
       },
     });
+    expect(JSON.parse(sent)).not.toHaveProperty('reasoning');
   });
   it('lets an explicit owned-account correction replace an incorrect AI currency while preserving original evidence', async () => {
     output = JSON.stringify({ ...JSON.parse(output), currency: 'USD' });
@@ -458,6 +461,24 @@ describe('real Gmail processor with role-scoped repositories', () => {
     expect((await test.as('wf_app', () => gmail.listLogs(userId)))[0]?.errorCode).toBe('GMAIL_EXTRACTION_FAILED');
     await run();
     expect(aiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("switches a saved model's optional reasoning off and names one that reasoned through its answer budget", async () => {
+    await saveAi({}, 'optional');
+    aiFetch.mockResolvedValueOnce(
+      Response.json({
+        choices: [{ message: { content: '{"amountMinor":' }, finish_reason: 'length' }],
+        usage: { prompt_tokens: 100, completion_tokens: 512, completion_tokens_details: { reasoning_tokens: 500 } },
+      }),
+    );
+    expect(await run()).toMatchObject({ proposed: 1 });
+    const sent = aiFetch.mock.calls[0]?.[1]?.body;
+    if (typeof sent !== 'string') throw new Error('Expected AI JSON body');
+    expect(JSON.parse(sent)).toMatchObject({ reasoning: { enabled: false } });
+    expect((await test.as('wf_app', () => gmail.listLogs(userId)))[0]?.errorCode).toBe('AI_REASONING_ONLY');
+    expect(await test.query("SELECT error_code FROM ai_logs WHERE feature='gmail'")).toEqual([
+      { error_code: 'reasoning_exhausted' },
+    ]);
   });
 
   it('records timeout as a bounded failure and never automatically retries paid extraction', async () => {

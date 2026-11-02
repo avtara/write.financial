@@ -6,8 +6,12 @@ import {
   AI_FEATURES,
   AI_LOG_STATUSES,
   AI_PROVIDERS,
+  AI_REASONING_EXHAUSTED,
+  AI_UNSUPPORTED_ERRORS,
   AiError,
+  aiModelSupport,
   calculateAiCost,
+  type AiConnectionReasoning,
   type AiConnectionTestResult,
   type AiLogExport,
   type AiLogFilters,
@@ -35,21 +39,26 @@ function filterInput(input: z.infer<typeof filters>): AiLogFilters {
 }
 
 /**
- * The model's prices from the provider catalog, the only price source: a model the catalog does not list or price is
- * refused rather than treated as free. Public catalogs are read without the key.
+ * The model's entry in the provider catalog, the only price and reasoning source: a model the catalog does not list or
+ * price is refused rather than treated as free, and so is one the app cannot use (mandatory reasoning, no tools).
+ * Public catalogs are read without the key.
  */
-async function catalogPricing(
+async function catalogModel(
   s: Pick<Services, 'aiClient'>,
   target: { provider: AiProvider; baseUrl: string | undefined; apiKey: string | undefined; modelId: string },
-): Promise<AiPricing> {
+): Promise<{ pricing: AiPricing; reasoning: AiConnectionReasoning }> {
   const catalog = await s.aiClient.models(
     target.provider,
     target.baseUrl,
     target.provider === 'custom' ? target.apiKey : undefined,
   );
-  const pricing = catalog.models.find((model) => model.id === target.modelId)?.pricing ?? null;
-  if (pricing === null) throw new AiError('AI_PRICING_REQUIRED');
-  return pricing;
+  const model = catalog.models.find((entry) => entry.id === target.modelId);
+  if (model === undefined) throw new AiError('AI_PRICING_REQUIRED');
+  // The last two conditions only narrow the types: `aiModelSupport` already refuses both.
+  const unsupported = aiModelSupport(model);
+  if (unsupported !== null || model.pricing === null || model.reasoning === 'mandatory')
+    throw new AiError(AI_UNSUPPORTED_ERRORS[unsupported ?? 'no_pricing']);
+  return { pricing: model.pricing, reasoning: model.reasoning };
 }
 
 export const getAiSettings = createServerFn({ method: 'GET' }).handler(
@@ -93,13 +102,13 @@ export const saveAiSettings = createServerFn({ method: 'POST' })
         if (baseUrl?.replace(/\/+$/, '') !== saved.baseUrl) throw new AiError('AI_INVALID_CONFIG');
         catalogKey = saved.apiKey;
       }
-      const pricing = await catalogPricing(s, {
+      const model = await catalogModel(s, {
         provider: data.provider,
         baseUrl,
         apiKey: catalogKey,
         modelId: data.modelId,
       });
-      return s.ai.save(user.id, input, pricing);
+      return s.ai.save(user.id, input, model.pricing, model.reasoning);
     });
   });
 
@@ -147,7 +156,7 @@ export const testAiConnection = createServerFn({ method: 'POST' })
     return attempt(async () => {
       const { user } = await requireSession(context.session, { twoFactor: true, fresh: true }, s.now());
       const credential = await s.ai.credential(user.id, data.provider, data.expectedRevision);
-      const quote = await catalogPricing(s, credential);
+      const { pricing: quote, reasoning } = await catalogModel(s, credential);
       const messages = [
         { role: 'user' as const, content: 'Reply with OK. This is a connection test; do not call tools.' },
       ] as const;
@@ -165,7 +174,13 @@ export const testAiConnection = createServerFn({ method: 'POST' })
         dataSent: { images: 0, categories: 0, accounts: 0, transactions: 0 },
         needsDraftPermission: false,
       });
-      const result = await s.aiClient.complete({ ...credential, messages, maxTokens, pricing: quote });
+      const result = await s.aiClient.complete({
+        ...credential,
+        messages,
+        maxTokens,
+        pricing: quote,
+        disableReasoning: reasoning === 'optional',
+      });
       await s.ai.settle(user.id, data.requestId, {
         status: result.status,
         httpStatus: result.httpStatus,
@@ -177,6 +192,7 @@ export const testAiConnection = createServerFn({ method: 'POST' })
         errorCode: result.errorCode,
         toolCalls: [],
         pricing: quote,
+        reasoning,
         connectionStatus:
           result.status === 'ok'
             ? 'connected'
@@ -184,6 +200,8 @@ export const testAiConnection = createServerFn({ method: 'POST' })
               ? 'invalid_key'
               : 'error',
       });
+      // A model that reasons through the whole answer budget is caught here, before anything else is asked of it.
+      if (result.errorCode === AI_REASONING_EXHAUSTED) throw new AiError('AI_REASONING_ONLY');
       const settings = await s.ai.settings(user.id);
       if (settings.revision !== data.expectedRevision) throw new AiError('AI_CONFIG_CHANGED');
       // The repository always includes all providers, including a disconnected provider's empty connection.

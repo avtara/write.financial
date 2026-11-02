@@ -555,6 +555,7 @@ beforeAll(async () => {
         monthlyLimitUsd: '5',
       },
       aiPricing,
+      'none',
     );
     const requestId = randomUUID();
     await ai.reserve(userId, {

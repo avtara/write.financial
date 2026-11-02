@@ -203,6 +203,108 @@ describe('provider model catalogs', () => {
     fetcher.mockResolvedValueOnce(new Response('private key diagnostic', { status: 503 }));
     await expect(client.models('openrouter')).rejects.toMatchObject({ code: 'AI_PROVIDER_FAILED' });
   });
+
+  it('drops every model that is not text in, text out; a catalog without modalities counts as text', async () => {
+    const priced = { prompt: '0.000001', completion: '0.000002' };
+    const openrouter = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(
+        JSON.stringify({
+          data: [
+            {
+              id: 'chat',
+              pricing: priced,
+              architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] },
+            },
+            {
+              id: 'painter',
+              pricing: priced,
+              architecture: { input_modalities: ['text'], output_modalities: ['image'] },
+            },
+            {
+              id: 'mixed',
+              pricing: priced,
+              architecture: { input_modalities: ['text'], output_modalities: ['text', 'audio'] },
+            },
+            {
+              id: 'embed',
+              pricing: priced,
+              architecture: { input_modalities: ['text'], output_modalities: ['embeddings'] },
+            },
+            {
+              id: 'listener',
+              pricing: priced,
+              architecture: { input_modalities: ['audio'], output_modalities: ['text'] },
+            },
+            { id: 'unlabelled', pricing: priced },
+          ],
+        }),
+      ),
+    }).models('openrouter');
+    expect(openrouter.models.map((model) => model.id)).toEqual(['chat', 'unlabelled']);
+    const zenmux = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(
+        JSON.stringify({
+          data: [
+            { id: 'chat', input_modalities: ['text'], output_modalities: ['text'] },
+            { id: 'video', input_modalities: ['text'], output_modalities: ['video'] },
+            { id: 'rerank', input_modalities: ['text'], output_modalities: ['rerank'] },
+          ],
+        }),
+      ),
+    }).models('zenmux');
+    expect(zenmux.models.map((model) => model.id)).toEqual(['chat']);
+    const custom = await createAiClient({
+      allowedBaseUrls: ['https://custom.test/v1'],
+      fetch: reply('{"data":[{"id":"local"}]}'),
+    }).models('custom', 'https://custom.test/v1', 'fixture-key');
+    expect(custom.models.map((model) => model.id)).toEqual(['local']);
+  });
+
+  it('reads reasoning and tool support from each catalog', async () => {
+    const openrouter = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(
+        JSON.stringify({
+          data: [
+            { id: 'plain', supported_parameters: ['tools', 'max_tokens'] },
+            { id: 'optional', reasoning: { mandatory: false }, supported_parameters: ['tools', 'reasoning'] },
+            { id: 'mandatory', reasoning: { mandatory: true }, supported_parameters: ['reasoning'] },
+            { id: 'unknown' },
+          ],
+        }),
+      ),
+    }).models('openrouter');
+    expect(openrouter.models.map(({ id, reasoning, tools }) => ({ id, reasoning, tools }))).toEqual([
+      { id: 'plain', reasoning: 'none', tools: true },
+      { id: 'optional', reasoning: 'optional', tools: true },
+      { id: 'mandatory', reasoning: 'mandatory', tools: false },
+      { id: 'unknown', reasoning: 'none', tools: null },
+    ]);
+    const zenmux = await createAiClient({
+      allowedBaseUrls: [],
+      fetch: reply(
+        JSON.stringify({
+          data: [
+            { id: 'reasoner', capabilities: { reasoning: true } },
+            { id: 'plain', capabilities: { reasoning: false } },
+            { id: 'bare' },
+          ],
+        }),
+      ),
+    }).models('zenmux');
+    expect(zenmux.models.map(({ id, reasoning, tools }) => ({ id, reasoning, tools }))).toEqual([
+      { id: 'reasoner', reasoning: 'optional', tools: null },
+      { id: 'plain', reasoning: 'none', tools: null },
+      { id: 'bare', reasoning: 'none', tools: null },
+    ]);
+    const custom = await createAiClient({
+      allowedBaseUrls: ['https://custom.test/v1'],
+      fetch: reply('{"data":[{"id":"local","reasoning":{"mandatory":true},"supported_parameters":[]}]}'),
+    }).models('custom', 'https://custom.test/v1', 'fixture-key');
+    expect(custom.models[0]).toMatchObject({ reasoning: 'none', tools: null });
+  });
 });
 
 describe('bounded tool calling', () => {
@@ -571,5 +673,71 @@ describe('structured outputs', () => {
       client.complete(completion({ responseSchema: { ...responseSchema, name: 'bad name' } })),
     ).rejects.toMatchObject({ code: 'AI_INVALID_CONFIG' });
     expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
+describe('reasoning control', () => {
+  const sentBody = (fetcher: Mock<typeof fetch>) => {
+    const body = fetcher.mock.calls[0]?.[1]?.body;
+    return JSON.parse(typeof body === 'string' ? body : '{}') as Record<string, unknown>;
+  };
+  const ok = () => Response.json({ choices: [{ message: { content: 'OK' }, finish_reason: 'stop' }] });
+
+  it.each(['openrouter', 'zenmux'] as const)('switches reasoning off for %s only when asked', async (provider) => {
+    const off = vi.fn<typeof fetch>(() => Promise.resolve(ok()));
+    await createAiClient({ allowedBaseUrls: [], fetch: off }).complete(
+      completion({ provider, disableReasoning: true }),
+    );
+    expect(sentBody(off)).toMatchObject({ reasoning: { enabled: false } });
+    for (const disableReasoning of [undefined, false]) {
+      const plain = vi.fn<typeof fetch>(() => Promise.resolve(ok()));
+      await createAiClient({ allowedBaseUrls: [], fetch: plain }).complete(
+        completion({ provider, ...(disableReasoning === undefined ? {} : { disableReasoning }) }),
+      );
+      expect(sentBody(plain)).not.toHaveProperty('reasoning');
+    }
+  });
+
+  it('never sends the reasoning switch to a custom endpoint', async () => {
+    const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(ok()));
+    await createAiClient({ allowedBaseUrls: ['https://custom.test/v1'], fetch: fetcher }).complete(
+      completion({ provider: 'custom', baseUrl: 'https://custom.test/v1', disableReasoning: true }),
+    );
+    expect(sentBody(fetcher)).not.toHaveProperty('reasoning');
+  });
+
+  it('fails an answer cut off while mostly reasoning, keeping its metering', async () => {
+    const answer = (finish: string, reasoning: number, completionTokens = 300) =>
+      reply(
+        JSON.stringify({
+          choices: [{ message: { content: null }, finish_reason: finish }],
+          usage: {
+            prompt_tokens: 20,
+            completion_tokens: completionTokens,
+            completion_tokens_details: { reasoning_tokens: reasoning },
+            cost: '0.0003',
+          },
+        }),
+      );
+    const exhausted = await createAiClient({ allowedBaseUrls: [], fetch: answer('length', 150) }).complete(
+      completion(),
+    );
+    expect(exhausted).toMatchObject({
+      status: 'error',
+      httpStatus: 200,
+      errorCode: 'reasoning_exhausted',
+      inputTokens: 20,
+      outputTokens: 300,
+      costUsd: '0.0003',
+      content: null,
+      finishReason: 'length',
+    });
+    // Mostly answer text, a finished answer, or no tokens reported: an ordinary result for the caller to judge.
+    for (const fetcher of [answer('length', 149), answer('stop', 300), answer('length', 0, 0)]) {
+      expect(await createAiClient({ allowedBaseUrls: [], fetch: fetcher }).complete(completion())).toMatchObject({
+        status: 'ok',
+        errorCode: null,
+      });
+    }
   });
 });

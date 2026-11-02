@@ -70,6 +70,7 @@ beforeEach(async () => {
       monthlyLimitUsd: '1',
     },
     pricing,
+    'none',
   );
   revision = settings.revision as string;
 });
