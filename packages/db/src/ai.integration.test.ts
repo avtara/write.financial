@@ -57,17 +57,20 @@ beforeEach(async () => {
     VALUES ('AI concurrent fixture', 'ai-concurrent@example.test', true) RETURNING id`;
   if (user === undefined) throw new Error('No fixture user');
   userId = user.id;
-  const settings = await repo.save(userId, {
-    expectedRevision: null,
-    provider: 'openrouter',
-    apiKey: `fixture-${randomUUID()}`,
-    modelId: 'fixture/model',
-    allowReadFinancial: false,
-    allowCreateDrafts: false,
-    requireConfirmation: true,
-    monthlyLimitUsd: '1',
+  const settings = await repo.save(
+    userId,
+    {
+      expectedRevision: null,
+      provider: 'openrouter',
+      apiKey: `fixture-${randomUUID()}`,
+      modelId: 'fixture/model',
+      allowReadFinancial: false,
+      allowCreateDrafts: false,
+      requireConfirmation: true,
+      monthlyLimitUsd: '1',
+    },
     pricing,
-  });
+  );
   revision = settings.revision as string;
 });
 

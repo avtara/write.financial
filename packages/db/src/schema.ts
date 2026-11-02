@@ -2719,8 +2719,9 @@ export const aiConnections = pgTable(
     apiKeyEnc: bytea('api_key_enc'),
     last4: varchar('last4', { length: 4 }),
     modelId: varchar('model_id', { length: 200 }),
+    /** The chosen model's provider-catalog prices, stored on save; there are no manual prices. */
     pricing: jsonb('pricing').$type<AiPricing>(),
-    pricingSource: varchar('pricing_source', { length: 8, enum: ['catalog', 'manual'] }),
+    pricingSource: varchar('pricing_source', { length: 8, enum: ['catalog'] }),
     status: varchar('status', { length: 16 }).$type<AiConnectionStatus>().notNull().default('not_connected'),
     addedAt: timestamptz('added_at'),
     testedAt: timestamptz('tested_at'),
@@ -2735,7 +2736,7 @@ export const aiConnections = pgTable(
       'ai_connections_status_check',
       sql`${table.status} in ('not_connected','untested','connected','invalid_key','error')`,
     ),
-    check('ai_connections_pricing_check', sql`${table.pricingSource} in ('catalog','manual')`),
+    check('ai_connections_pricing_check', sql`${table.pricingSource} in ('catalog')`),
   ],
 );
 

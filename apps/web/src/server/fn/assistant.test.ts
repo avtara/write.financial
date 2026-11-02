@@ -86,18 +86,21 @@ const transactionCount = async () =>
     ?.count;
 const saveSettings = async (extra: Partial<AiSettingsInput> = {}) => {
   settings = await test.as('wf_app', () =>
-    ai.save(USER, {
-      expectedRevision: settings?.revision ?? null,
-      provider: 'openrouter',
-      apiKey: key,
-      modelId: 'fixture/model',
-      allowReadFinancial: true,
-      allowCreateDrafts: true,
-      requireConfirmation: true,
-      monthlyLimitUsd: '5',
+    ai.save(
+      USER,
+      {
+        expectedRevision: settings?.revision ?? null,
+        provider: 'openrouter',
+        apiKey: key,
+        modelId: 'fixture/model',
+        allowReadFinancial: true,
+        allowCreateDrafts: true,
+        requireConfirmation: true,
+        monthlyLimitUsd: '5',
+        ...extra,
+      },
       pricing,
-      ...extra,
-    }),
+    ),
   );
   return settings;
 };
@@ -636,7 +639,8 @@ describe('assistant refusals', () => {
   });
 
   it('requires a known quote before reading accounts or making paid requests', async () => {
-    await saveSettings({ pricing: null });
+    // A connection whose catalog prices were never stored (a pre-catalog manual one the migration cleared).
+    await test.query('UPDATE ai_connections SET pricing = NULL WHERE user_id = $1', [USER]);
     expect(await invoke(question())).toEqual({ ok: false, code: 'AI_PRICING_REQUIRED' });
     expect(requests).toHaveLength(0);
   });

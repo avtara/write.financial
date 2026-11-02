@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from 'node:crypto';
 import type { AiLogsPage, AiSettingsView } from '@wf/domain/ai';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import type { Result } from '../../../src/server/access.ts';
-import { aId, as, type Case, type Name, secrets, superuser, UNAUTHENTICATED } from '../harness.ts';
+import { aId, as, type Case, type Name, secrets, services, superuser, UNAUTHENTICATED } from '../harness.ts';
 
 const A_REVISION = randomUUID();
 let seeded: Promise<void> | undefined;
@@ -53,14 +53,29 @@ export const cases = {
         allowCreateDrafts: false,
         requireConfirmation: true,
         monthlyLimitUsd: '1',
-        pricing: null,
       };
     },
     anonymous: () => UNAUTHENTICATED,
     asB: async (input) => {
       await seedA();
       const before = await aRows();
+      // The suite never reaches a provider: the catalog the save takes B's prices from is a fixture.
+      const catalog = vi.spyOn(services.aiClient, 'models').mockResolvedValueOnce({
+        provider: 'openrouter',
+        models: [
+          {
+            id: 'b-only/model',
+            name: 'B only',
+            contextLength: null,
+            maxOutputTokens: null,
+            pricing: { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
+          },
+        ],
+        loadedAt: new Date(),
+        catalogPublic: true,
+      });
       const result = await as<Result<AiSettingsView>>('B', 'saveAiSettings', input);
+      catalog.mockRestore();
       expect(result.ok && result.value.connections.find((item) => item.provider === 'openrouter')).toMatchObject({
         modelId: 'b-only/model',
         status: 'untested',

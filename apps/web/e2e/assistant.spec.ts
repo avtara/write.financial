@@ -142,14 +142,11 @@ test('configures BYOK after enrolling 2FA and tests the connection against the f
   await expect(settings.getByRole('heading', { name: 'AI agent (BYOK)' })).toBeVisible();
   await settings.getByRole('button', { name: /OpenRouter/ }).click();
   await settings.getByLabel('API key').fill('sk-e2e-fake-0000');
-  await settings.getByLabel('Atau ketik ID model').fill('e2e/test-model');
+  // The catalog loads by itself; its prices are the only ones the connection uses.
+  await settings.getByRole('button', { name: 'Model', exact: true }).click();
+  await page.getByRole('option', { name: /E2E Test Model/ }).click();
   await settings.getByRole('switch', { name: 'Baca data keuangan' }).check();
   await settings.getByRole('switch', { name: 'Buat draf transaksi' }).check();
-  await settings.getByRole('radio', { name: 'Harga manual' }).check();
-  await settings.getByLabel('Input per 1 jt token (USD)').fill('1');
-  await settings.getByLabel('Output per 1 jt token (USD)').fill('2');
-  await settings.getByLabel('Per permintaan (USD)').fill('0');
-  await settings.getByLabel('Per gambar (USD)').fill('0');
   await settings.getByRole('button', { name: 'Simpan perubahan' }).click();
   await reauthIfAsked(page);
   await expect(page.getByText('Konfigurasi AI disimpan')).toBeVisible();

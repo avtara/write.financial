@@ -130,18 +130,21 @@ beforeAll(async () => {
   await once(provider, 'listening');
   const endpoint = `http://127.0.0.1:${String((provider.address() as AddressInfo).port)}/v1`;
   const ai = createAiRepository(app, { getDek, allowedBaseUrls: [endpoint], now: () => now });
-  await ai.save(userId, {
-    expectedRevision: null,
-    provider: 'custom',
-    baseUrl: endpoint,
-    apiKey: `fixture-${randomUUID()}`,
-    modelId: 'fixture/gmail',
-    allowReadFinancial: true,
-    allowCreateDrafts: true,
-    requireConfirmation: true,
-    monthlyLimitUsd: '5',
-    pricing: { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
-  });
+  await ai.save(
+    userId,
+    {
+      expectedRevision: null,
+      provider: 'custom',
+      baseUrl: endpoint,
+      apiKey: `fixture-${randomUUID()}`,
+      modelId: 'fixture/gmail',
+      allowReadFinancial: true,
+      allowCreateDrafts: true,
+      requireConfirmation: true,
+      monthlyLimitUsd: '5',
+    },
+    { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
+  );
   gmail = createGmail(app, { getDek, now: () => now });
   await gmail.saveConnection(userId, {
     email: 'fixture@gmail.com',

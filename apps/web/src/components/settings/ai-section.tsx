@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Settings › "AI agent (BYOK)" (FR-AI2, FR-A9, D14; design `MXnjE`, `l1nyC`, `GpdeI`, `OJaxo`): the provider and its
- * own API key (masked to the last four characters, never returned), the model from the public catalog or typed by
- * hand, the prices, the permissions (including the locked "always confirm"), the monthly USD cap with its usage, and
- * the deliberate connection test that may cost a tiny request. "Lihat log" shows the 30-day metadata log with
- * feature/status filters, pages, details, and CSV export — no prompts, responses, or full tool arguments.
+ * own API key (masked to the last four characters, never returned), the model picked from the provider's catalog
+ * (which loads by itself and is the only source of prices), the permissions (including the locked "always confirm"),
+ * the monthly USD cap with its usage, and the deliberate connection test that may cost a tiny request. "Lihat log"
+ * shows the 30-day metadata log with feature/status filters, pages, details, and CSV export — no prompts, responses,
+ * or full tool arguments.
  */
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import type {
@@ -16,6 +17,7 @@ import type {
   AiLogStatus,
   AiLogView,
   AiLogsPage,
+  AiModel,
   AiModelCatalog,
   AiPricing,
   AiProvider,
@@ -23,18 +25,19 @@ import type {
   AiSettingsView,
   AiUsageSummary,
 } from '@wf/domain/ai';
-import { AI_FEATURES, AI_LOG_STATUSES, AI_PROVIDERS, normalizeAiPricing, parseAiUsd } from '@wf/domain/ai';
+import { AI_FEATURES, AI_LOG_STATUSES, AI_PROVIDERS, parseAiUsd } from '@wf/domain/ai';
 import { formatUsd } from '../../lib/ai-usd.ts';
 import { formatDate, formatPercent } from '@wf/i18n/format';
 import type { Locale } from '@wf/i18n/locale';
 import { m } from '@wf/i18n/messages';
+import { Combobox, type ComboboxOption } from '@wf/ui/command';
 import { ConfirmDialog } from '@wf/ui/confirm-dialog';
 import { PageState } from '@wf/ui/page-state';
 import { usePrivacy } from '@wf/ui/privacy';
 import { Switch } from '@wf/ui/switch';
 import { toast } from '@wf/ui/toast';
-import { CircleAlert, Cloud, Lock } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { ChevronsUpDown, CircleAlert, Cloud, Lock } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
 import { needsReauthentication } from '../../lib/auth-errors.ts';
 import { aiErrorMessage } from '../../lib/ai-errors.ts';
 import type { Result } from '../../server/access.ts';
@@ -106,20 +109,6 @@ const COST_SOURCE_LABEL: Readonly<Record<AiCostSource, () => string>> = {
   unknown: m.ai_cost_source_unknown,
 };
 
-const EMPTY_PRICING: AiPricing = {
-  inputUsdPerMillion: '',
-  outputUsdPerMillion: '',
-  requestUsd: '',
-  imageUsd: '',
-};
-
-const PRICING_FIELDS: readonly (readonly [keyof AiPricing, () => string])[] = [
-  ['inputUsdPerMillion', m.ai_price_input],
-  ['outputUsdPerMillion', m.ai_price_output],
-  ['requestUsd', m.ai_price_request],
-  ['imageUsd', m.ai_price_image],
-];
-
 interface Draft {
   provider: AiProvider;
   baseUrl: string;
@@ -128,8 +117,6 @@ interface Draft {
   allowReadFinancial: boolean;
   allowCreateDrafts: boolean;
   monthlyLimitUsd: string;
-  pricingMode: 'catalog' | 'manual';
-  manual: AiPricing;
 }
 
 /** `0.0004` (subcent) must not become `$0.00`; whole dollars are grouped per locale. */
@@ -155,8 +142,6 @@ function timeOf(date: Date, locale: Locale, timeZone: string): string {
   const day = formatDate(date, locale, { year: false, timeZone });
   return day === formatDate(new Date(), locale, { year: false, timeZone }) ? clock : `${day} ${clock}`;
 }
-
-const MODEL_ID_PATTERN = /^[\w./:@+-]{1,200}$/;
 
 function isValidUsd(value: string): boolean {
   try {
@@ -191,8 +176,6 @@ function draftFromView(view: AiSettingsView): Draft {
     allowReadFinancial: view.allowReadFinancial,
     allowCreateDrafts: view.allowCreateDrafts,
     monthlyLimitUsd: view.monthlyLimitUsd,
-    pricingMode: connection?.pricingSource === 'manual' ? 'manual' : 'catalog',
-    manual: connection?.pricing ?? EMPTY_PRICING,
   };
 }
 
@@ -205,8 +188,6 @@ function comparable(draft: Draft): string {
     allowReadFinancial: draft.allowReadFinancial,
     allowCreateDrafts: draft.allowCreateDrafts,
     monthlyLimitUsd: draft.monthlyLimitUsd.trim(),
-    pricingMode: draft.pricingMode,
-    pricing: draft.pricingMode === 'manual' ? draft.manual : null,
   });
 }
 
@@ -217,9 +198,9 @@ function connectionText(connection: AiConnectionView): string {
   return `${CONNECTION_STATUS[connection.status]()}${http}${code}`;
 }
 
-function pricingText(pricing: AiPricing, locale: Locale, hidden: boolean, source: 'catalog' | 'manual'): string {
+function pricingText(pricing: AiPricing, locale: Locale, hidden: boolean): string {
   return m.ai_price_summary({
-    source: source === 'catalog' ? m.ai_pricing_catalog() : m.ai_pricing_manual(),
+    source: m.ai_pricing_catalog(),
     input: formatUsd(pricing.inputUsdPerMillion, locale, hidden),
     output: formatUsd(pricing.outputUsdPerMillion, locale, hidden),
     request: formatUsd(pricing.requestUsd, locale, hidden),
@@ -227,12 +208,39 @@ function pricingText(pricing: AiPricing, locale: Locale, hidden: boolean, source
   });
 }
 
+/** A catalog model in the picker, found by name or id; one without catalog prices cannot be chosen (never free). */
+function modelOption(model: AiModel, locale: Locale, hidden: boolean): ComboboxOption {
+  return {
+    value: model.id,
+    label: model.name,
+    keywords: [model.id],
+    disabled: model.pricing === null,
+    aside:
+      model.pricing === null ? (
+        <span className="font-sans">{m.ai_model_no_pricing()}</span>
+      ) : (
+        <span className="flex flex-col items-end">
+          {m.ai_model_rates({
+            input: formatUsd(model.pricing.inputUsdPerMillion, locale, hidden),
+            output: formatUsd(model.pricing.outputUsdPerMillion, locale, hidden),
+          })}
+          {model.contextLength === null ? null : (
+            <span className="font-sans text-[10.5px]">
+              {m.ai_model_context({
+                count: new Intl.NumberFormat(INTL_LOCALE[locale], { notation: 'compact' }).format(model.contextLength),
+              })}
+            </span>
+          )}
+        </span>
+      ),
+  };
+}
+
 interface AiFieldErrors {
   apiKey?: string;
   model?: string;
   baseUrl?: string;
   limit?: string;
-  pricing?: string;
 }
 
 export interface AiSectionProps {
@@ -257,10 +265,13 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AiFieldErrors>({});
-  const [catalog, setCatalog] = useState<AiModelCatalog | null>(null);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const catalogFor = useRef<string | null>(null);
+  /** The answer to one catalog request; an answer for an earlier provider, endpoint, or key is never shown. */
+  const [loaded, setLoaded] = useState<{
+    request: string;
+    catalog: AiModelCatalog | null;
+    error: string | null;
+  } | null>(null);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<AiConnectionView | null>(null);
@@ -280,17 +291,23 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   const baseline = draftFromView(view);
   const dirty = draft.apiKey.trim() !== '' || comparable(draft) !== comparable(baseline);
   const limitInvalid = fieldErrors.limit ?? null;
-  const pricingInvalid = fieldErrors.pricing ?? null;
   const apiKeyInvalid = fieldErrors.apiKey ?? newApiKeyError(draft.apiKey, draft.modelId);
-  const modelInvalid =
-    fieldErrors.model ??
-    (draft.modelId.trim() !== '' && !MODEL_ID_PATTERN.test(draft.modelId.trim()) ? m.ai_model_invalid() : null);
-  const customCatalogReady =
+  // A custom catalog needs its base URL and a key: the one typed here, else the one saved for that base URL.
+  const typedKey = draft.apiKey.trim();
+  const catalogKey =
+    draft.provider === 'custom' && typedKey !== '' && newApiKeyError(typedKey, '') === null ? typedKey : null;
+  const catalogReady =
     draft.provider !== 'custom' ||
-    (connection !== undefined &&
-      connection.last4 !== null &&
-      connection.modelId !== null &&
-      sameBaseUrl(connection.baseUrl, draft.baseUrl));
+    (draft.baseUrl !== '' &&
+      (catalogKey !== null || (connection?.last4 != null && sameBaseUrl(connection.baseUrl, draft.baseUrl))));
+  const catalogRequest = catalogReady
+    ? JSON.stringify([draft.provider, draft.provider === 'custom' ? draft.baseUrl : '', catalogKey, catalogAttempt])
+    : null;
+  const answer = loaded !== null && loaded.request === catalogRequest ? loaded : null;
+  const catalog = answer?.catalog ?? null;
+  const catalogError = answer?.error ?? null;
+  const catalogLoading = catalogRequest !== null && answer === null;
+  const selectedModel = catalog?.models.find((entry) => entry.id === draft.modelId) ?? null;
   const busy = saving || testing || removing;
   const canSave = dirty && !busy && settings.twoFactorEnabled;
 
@@ -315,13 +332,7 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
       baseUrl: provider === 'custom' ? (saved?.baseUrl ?? '') : '',
       apiKey: '',
       modelId: saved?.modelId ?? '',
-      pricingMode: saved?.pricingSource === 'manual' ? 'manual' : 'catalog',
-      manual: saved?.pricing ?? EMPTY_PRICING,
     }));
-    catalogFor.current = null;
-    setCatalog(null);
-    setCatalogLoading(false);
-    setCatalogError(null);
     setLastTest(null);
     setTestError(null);
     setSaveError(null);
@@ -348,7 +359,8 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
     const errors: typeof fieldErrors = {};
     const modelId = draft.modelId.trim();
     if (modelId === '') errors.model = m.ai_model_required();
-    else if (!MODEL_ID_PATTERN.test(modelId)) errors.model = m.ai_model_invalid();
+    else if (catalog !== null && (selectedModel?.pricing ?? null) === null)
+      errors.model = m.ai_error_pricing_required();
     if (draft.provider === 'custom' && draft.baseUrl === '') {
       errors.baseUrl = m.ai_custom_base_url_required();
     } else if (
@@ -362,9 +374,6 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
     const apiKeyError = newApiKeyError(draft.apiKey, draft.modelId);
     if (apiKeyError !== null) errors.apiKey = apiKeyError;
     if (!isValidUsd(draft.monthlyLimitUsd)) errors.limit = m.ai_monthly_limit_invalid();
-    if (draft.pricingMode === 'manual' && !PRICING_FIELDS.every(([field]) => isValidUsd(draft.manual[field]))) {
-      errors.pricing = m.ai_price_invalid();
-    }
     setFieldErrors(errors);
     setSaveError(null);
     if (Object.keys(errors).length > 0) return;
@@ -376,7 +385,6 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
       allowCreateDrafts: draft.allowCreateDrafts,
       requireConfirmation: true,
       monthlyLimitUsd: draft.monthlyLimitUsd.trim(),
-      pricing: draft.pricingMode === 'manual' ? normalizeAiPricing(draft.manual) : null,
     };
     if (draft.provider === 'custom') input.baseUrl = draft.baseUrl;
     if (draft.apiKey.trim() !== '') input.apiKey = draft.apiKey.trim();
@@ -463,43 +471,46 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
     setLastTest(tested);
   };
 
-  const loadModels = async () => {
-    const key = `${draft.provider}:${draft.provider === 'custom' ? draft.baseUrl : ''}`;
-    catalogFor.current = key;
-    setCatalogLoading(true);
-    setCatalogError(null);
+  useEffect(() => {
+    if (catalogRequest === null) return;
+    let cancelled = false;
     const data = {
       provider: draft.provider,
       ...(draft.provider === 'custom' ? { baseUrl: draft.baseUrl } : {}),
+      ...(catalogKey === null ? {} : { apiKey: catalogKey }),
     };
-    let result = await listAiModels({ data }).catch(() => null);
-    if (catalogFor.current !== key) return;
-    if (result !== null && !result.ok && needsReauthentication(result.code) && (await reauthenticate())) {
-      if (catalogFor.current !== key) return;
-      result = await listAiModels({ data }).catch(() => null);
-    }
-    if (catalogFor.current !== key) return;
-    setCatalogLoading(false);
-    if (result === null) {
-      setCatalogError('NETWORK');
-      return;
-    }
-    if (!result.ok) {
-      setCatalogError(result.code);
-      setTwoFactorNotice(result.code === 'TWO_FACTOR_REQUIRED');
-      return;
-    }
-    setTwoFactorNotice(false);
-    setCatalog(result.value);
+    // A typed key is sent once typing pauses, not on every keystroke.
+    const timer = setTimeout(
+      () => {
+        void listAiModels({ data })
+          .catch(() => null)
+          .then((result) => {
+            if (cancelled) return;
+            setLoaded({
+              request: catalogRequest,
+              catalog: result?.ok === true ? result.value : null,
+              error: result === null ? 'NETWORK' : result.ok ? null : result.code,
+            });
+            if (result !== null) setTwoFactorNotice(!result.ok && result.code === 'TWO_FACTOR_REQUIRED');
+          });
+      },
+      catalogKey === null ? 0 : 500,
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [catalogRequest, catalogKey, draft.provider, draft.baseUrl]);
+
+  /** Loading by itself never opens the sign-in dialog; a retry the user asks for may. */
+  const retryCatalog = async () => {
+    if (catalogError !== null && needsReauthentication(catalogError) && !(await reauthenticate())) return;
+    setCatalogAttempt((attempt) => attempt + 1);
   };
 
   const selectModel = (modelId: string) => {
-    const model = catalog?.models.find((entry) => entry.id === modelId);
-    setDraft((current) => ({
-      ...current,
-      modelId,
-      ...(model?.pricing === null && current.pricingMode === 'catalog' ? { pricingMode: 'manual' as const } : {}),
-    }));
+    setDraft((current) => ({ ...current, modelId }));
+    clearFieldError('model');
   };
 
   const testNotice =
@@ -509,7 +520,6 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
         ? m.ai_test_connected()
         : connectionText(lastTest);
   const month = formatMonth(view.usage.month, locale);
-  const selectedModel = catalog?.models.find((entry) => entry.id === draft.modelId) ?? null;
 
   if (mode === 'logs') {
     return (
@@ -531,8 +541,6 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
             size="sm"
             variant="secondary"
             onClick={() => {
-              catalogFor.current = null;
-              setCatalogLoading(false);
               setMode('logs');
             }}
           >
@@ -671,9 +679,6 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                           const baseUrl = event.currentTarget.value;
                           setDraft((current) => ({ ...current, baseUrl }));
                           clearFieldError('baseUrl');
-                          catalogFor.current = null;
-                          setCatalog(null);
-                          setCatalogLoading(false);
                         }}
                       >
                         <option value="">{m.ai_custom_base_url_placeholder()}</option>
@@ -687,61 +692,39 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                   }
                 </Field>
               ) : null}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="min-w-0 flex-1">
-                  <Field label={m.ai_model()}>
-                    {({ id, describedBy }) => (
-                      <Select
-                        id={id}
-                        size="sm"
-                        aria-describedby={describedBy}
-                        value={
-                          catalog?.models.some((entry) => entry.id === draft.modelId) === true ? draft.modelId : ''
-                        }
-                        onChange={(event) => {
-                          selectModel(event.currentTarget.value);
-                        }}
-                      >
-                        <option value="">{m.ai_model_placeholder()}</option>
-                        {(catalog?.models ?? []).map((model) => (
-                          <option key={model.id} value={model.id}>
-                            {model.name}
-                          </option>
-                        ))}
-                      </Select>
-                    )}
-                  </Field>
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  pending={catalogLoading}
-                  disabled={!customCatalogReady}
-                  onClick={() => void loadModels()}
-                >
-                  {catalogLoading ? m.ai_loading_models() : m.ai_load_models()}
-                </Button>
-              </div>
-              <Field label={m.ai_model_manual()} hint={m.ai_catalog_public()} error={modelInvalid}>
+              <Field label={m.ai_model()} hint={m.ai_catalog_public()} error={fieldErrors.model ?? null}>
                 {({ id, describedBy, invalid }) => (
-                  <TextInput
-                    id={id}
-                    size="sm"
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-describedby={describedBy}
-                    aria-invalid={invalid}
-                    value={draft.modelId}
-                    onChange={(event) => {
-                      const modelId = event.currentTarget.value;
-                      setDraft((current) => ({ ...current, modelId }));
-                      clearFieldError('model');
-                    }}
-                  />
+                  <Combobox
+                    value={selectedModel?.id ?? null}
+                    onValueChange={selectModel}
+                    groups={[{ options: (catalog?.models ?? []).map((model) => modelOption(model, locale, hidden)) }]}
+                    label={m.ai_model_placeholder()}
+                    searchPlaceholder={m.ai_model_search()}
+                    emptyLabel={m.ai_model_search_empty()}
+                  >
+                    <button
+                      id={id}
+                      type="button"
+                      aria-describedby={describedBy}
+                      aria-invalid={invalid}
+                      disabled={catalog === null || catalog.models.length === 0}
+                      className="flex h-[42px] w-full min-w-0 items-center gap-2.5 rounded-[9px] border border-border-input bg-input px-3 text-left text-[14px] text-fg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-red"
+                    >
+                      <span className={`min-w-0 flex-1 truncate ${draft.modelId === '' ? 'text-subtle' : ''}`}>
+                        {selectedModel?.name ??
+                          (draft.modelId !== ''
+                            ? draft.modelId
+                            : catalogLoading
+                              ? m.ai_loading_models()
+                              : m.ai_model_placeholder())}
+                      </span>
+                      <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+                    </button>
+                  </Combobox>
                 )}
               </Field>
-              {draft.provider === 'custom' && !customCatalogReady ? (
-                <p className="text-[12px] text-subtle">{m.ai_custom_models_need_save()}</p>
+              {draft.provider === 'custom' && !catalogReady ? (
+                <p className="text-[12px] text-subtle">{m.ai_custom_models_need_key()}</p>
               ) : null}
               {catalogError === null ? null : (
                 <div className="flex flex-wrap items-center gap-2">
@@ -749,12 +732,7 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                     {m.ai_models_failed()}{' '}
                     {catalogError === 'NETWORK' ? m.error_network() : aiErrorMessage(catalogError, locale)}
                   </FormError>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={!customCatalogReady}
-                    onClick={() => void loadModels()}
-                  >
+                  <Button size="sm" variant="secondary" onClick={() => void retryCatalog()}>
                     {m.ai_log_retry()}
                   </Button>
                 </div>
@@ -766,90 +744,24 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                   {m.ai_models_loaded({ count: formatCount(catalog.models.length, locale) })}
                 </p>
               )}
-              {selectedModel === null ? null : selectedModel.pricing === null ? (
-                <p className="text-[12px] text-amber-fg">{m.ai_model_no_pricing()}</p>
-              ) : (
+              {selectedModel?.pricing != null ? (
                 <>
-                  <p className="text-[12px] text-subtle">
-                    {pricingText(selectedModel.pricing, locale, hidden, 'catalog')}
-                  </p>
+                  <p className="text-[12px] text-subtle">{pricingText(selectedModel.pricing, locale, hidden)}</p>
                   {selectedModel.contextLength === null ? null : (
                     <p className="text-[12px] text-subtle">
                       {m.ai_model_context({ count: formatCount(selectedModel.contextLength, locale) })}
                     </p>
                   )}
                 </>
-              )}
+              ) : catalog !== null ? (
+                draft.modelId === '' || fieldErrors.model !== undefined ? null : (
+                  // A saved model the catalog no longer lists or prices cannot be used for paid requests.
+                  <p className="text-[12px] text-amber-fg">{m.ai_error_pricing_required()}</p>
+                )
+              ) : connection?.pricing != null && draft.modelId === connection.modelId ? (
+                <p className="text-[12px] text-muted-fg">{pricingText(connection.pricing, locale, hidden)}</p>
+              ) : null}
             </div>
-            <fieldset className="flex flex-col gap-2 px-3.5 py-3">
-              <legend className="text-[12.5px] font-medium text-muted-fg">{m.ai_pricing_mode()}</legend>
-              <div className="flex flex-wrap gap-4">
-                {(
-                  [
-                    ['catalog', m.ai_pricing_catalog],
-                    ['manual', m.ai_pricing_manual],
-                  ] as const
-                ).map(([value, label]) => (
-                  <label key={value} className="flex items-center gap-1.5 text-[12.5px] text-fg">
-                    <input
-                      type="radio"
-                      name="ai-pricing-mode"
-                      value={value}
-                      checked={draft.pricingMode === value}
-                      onChange={() => {
-                        setDraft((current) => ({ ...current, pricingMode: value }));
-                        clearFieldError('pricing');
-                      }}
-                    />
-                    {label()}
-                  </label>
-                ))}
-              </div>
-              <p className="text-[12px] text-subtle">
-                {draft.pricingMode === 'catalog' ? m.ai_pricing_catalog_note() : m.ai_pricing_note()}
-              </p>
-              {connection?.pricing != null && connection.pricingSource !== null ? (
-                <p className="text-[12px] text-muted-fg">
-                  {pricingText(connection.pricing, locale, hidden, connection.pricingSource)}
-                </p>
-              ) : null}
-              {draft.pricingMode === 'manual' ? (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {PRICING_FIELDS.map(([field, label]) => (
-                    <Field
-                      key={field}
-                      label={label()}
-                      error={
-                        draft.manual[field].trim() !== '' && !isValidUsd(draft.manual[field])
-                          ? m.ai_price_invalid()
-                          : null
-                      }
-                    >
-                      {({ id, describedBy, invalid }) => (
-                        <TextInput
-                          id={id}
-                          size="sm"
-                          inputMode="decimal"
-                          autoComplete="off"
-                          aria-describedby={describedBy}
-                          aria-invalid={invalid}
-                          value={draft.manual[field]}
-                          onChange={(event) => {
-                            const value = event.currentTarget.value;
-                            setDraft((current) => ({
-                              ...current,
-                              manual: { ...current.manual, [field]: value },
-                            }));
-                            clearFieldError('pricing');
-                          }}
-                        />
-                      )}
-                    </Field>
-                  ))}
-                </div>
-              ) : null}
-              {pricingInvalid === null ? null : <FormError>{pricingInvalid}</FormError>}
-            </fieldset>
           </SettingsGroup>
 
           <SettingsGroup label={m.ai_permissions()}>

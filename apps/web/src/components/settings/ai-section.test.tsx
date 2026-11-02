@@ -89,6 +89,13 @@ const CATALOG: AiModelCatalog = {
       maxOutputTokens: null,
       pricing: null,
     },
+    {
+      id: 'openai/o-mini',
+      name: 'Mini Reasoner',
+      contextLength: 128_000,
+      maxOutputTokens: null,
+      pricing: { inputUsdPerMillion: '0.15', outputUsdPerMillion: '0.6', requestUsd: '0', imageUsd: '0' },
+    },
   ],
 };
 
@@ -119,6 +126,7 @@ const saveButton = () => page.getByRole('button', { name: 'Simpan perubahan' });
 const testButton = () => page.getByRole('region', { name: 'Tes' }).getByRole('button');
 const logButton = () => page.getByRole('button', { name: 'Lihat log' });
 const costRegion = () => page.getByRole('region', { name: 'Batas biaya & pemakaian' });
+const modelTrigger = () => page.getByRole('button', { name: 'Model', exact: true });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -131,6 +139,8 @@ beforeEach(() => {
   reauth.reauthenticate.mockReset();
   reauth.reauthenticate.mockResolvedValue(true);
   server.listAiLogs.mockResolvedValue({ ok: true, value: { total: 0, failed: 0, items: [] } });
+  // The catalog of the chosen provider loads by itself on every render.
+  server.listAiModels.mockResolvedValue({ ok: true, value: CATALOG });
 });
 
 describe('AiSection', () => {
@@ -211,7 +221,6 @@ describe('AiSection', () => {
         allowCreateDrafts: true,
         requireConfirmation: true,
         monthlyLimitUsd: '7.50',
-        pricing: null,
         apiKey: 'sk-or-v1-new',
       },
     });
@@ -361,62 +370,76 @@ describe('AiSection', () => {
     expect(server.testAiConnection).toHaveBeenCalledTimes(2);
   });
 
-  it('loads the public catalog, switches to manual prices, and saves them', async () => {
+  it('loads the provider catalog by itself and picks a model from a searchable list with its prices', async () => {
     const gate = Promise.withResolvers<unknown>();
     server.listAiModels.mockReturnValueOnce(gate.promise);
-    server.saveAiSettings.mockResolvedValueOnce({
-      ok: true,
-      value: baseView({ connections: [connection({ pricing: null, pricingSource: 'manual' })] }),
-    });
+    server.saveAiSettings.mockResolvedValueOnce({ ok: true, value: baseView() });
     await render();
-    await page.getByRole('button', { name: 'Muat daftar model' }).click();
-    await expect.element(page.getByRole('button', { name: 'Memuat model…' })).toBeDisabled();
-    gate.resolve({ ok: true, value: CATALOG });
+    // Until the catalog answers, the saved model shows the prices stored with it.
+    await expect.element(modelTrigger()).toBeDisabled();
+    await expect.element(modelTrigger()).toHaveTextContent('anthropic/claude-sonnet-5.5');
+    await expect.element(page.getByText(/^Harga katalog: \$3,00 masuk · \$15,00 keluar/)).toBeVisible();
     expect(server.listAiModels).toHaveBeenCalledWith({ data: { provider: 'openrouter' } });
+    gate.resolve({ ok: true, value: CATALOG });
+    await expect.element(modelTrigger()).toBeEnabled();
+    await expect.element(modelTrigger()).toHaveTextContent('Claude Sonnet 5.5');
+    await expect.element(page.getByText('3 model · bukan tes inferensi')).toBeVisible();
 
-    await page.getByRole('combobox', { name: 'Model' }).selectOptions('meta/llama-free');
-    await expect.element(page.getByText(/Model ini tidak mencantumkan harga/)).toBeVisible();
-    await expect.element(page.getByRole('radio', { name: 'Harga manual' })).toBeChecked();
-    await page.getByLabelText('Input per 1 jt token (USD)').fill('1');
-    await page.getByLabelText('Output per 1 jt token (USD)').fill('2');
-    await page.getByLabelText('Per permintaan (USD)').fill('0.001');
-    await page.getByLabelText('Per gambar (USD)').fill('0');
+    await modelTrigger().click();
+    await expect
+      .element(page.getByRole('option', { name: /Claude Sonnet 5\.5/ }))
+      .toHaveTextContent('$3,00 masuk · $15,00 keluar / 1 jt');
+    // The id is searchable, not only the name.
+    await userEvent.keyboard('o-mini');
+    await expect.element(page.getByRole('option', { name: /Mini Reasoner/ })).toBeVisible();
+    expect(page.getByRole('option', { name: /Claude Sonnet/ }).query()).toBeNull();
+    await page.getByRole('option', { name: /Mini Reasoner/ }).click();
+    await expect.element(modelTrigger()).toHaveTextContent('Mini Reasoner');
+    await expect.element(page.getByText(/^Harga katalog: \$0,15 masuk · \$0,60 keluar/)).toBeVisible();
     await saveButton().click();
     await vi.waitFor(() => {
       expect(server.saveAiSettings).toHaveBeenCalledWith({
         data: {
           expectedRevision: 'rev-1',
           provider: 'openrouter',
-          modelId: 'meta/llama-free',
+          modelId: 'openai/o-mini',
           allowReadFinancial: true,
           allowCreateDrafts: false,
           requireConfirmation: true,
           monthlyLimitUsd: '5.00',
-          pricing: {
-            inputUsdPerMillion: '1',
-            outputUsdPerMillion: '2',
-            requestUsd: '0.001',
-            imageUsd: '0',
-          },
         },
       });
     });
+    expect(page.getByRole('textbox', { name: /ID model/ }).query()).toBeNull();
   });
 
-  it('rejects invalid manual prices before saving and keeps the catalog error recoverable', async () => {
-    server.listAiModels.mockRejectedValueOnce(new Error('offline'));
-    server.listAiModels.mockResolvedValueOnce({ ok: true, value: CATALOG });
-    await render();
-    await page.getByRole('button', { name: 'Muat daftar model' }).click();
-    await expect.element(page.getByText(/Daftar model tidak dapat dimuat/)).toBeVisible();
-    await page.getByRole('button', { name: 'Coba lagi' }).click();
-
-    await page.getByRole('radio', { name: 'Harga manual' }).click();
-    await page.getByLabelText('Input per 1 jt token (USD)').fill('-1');
-    await expect.element(page.getByText('Masukkan harga USD yang tidak negatif.')).toBeVisible();
+  it('lists a model without catalog prices as disabled and refuses a saved model the catalog does not price', async () => {
+    await render(baseView({ connections: [connection({ modelId: 'meta/llama-free', pricing: null })] }));
+    await expect.element(modelTrigger()).toBeEnabled();
+    await expect
+      .element(page.getByText('Model ini tidak punya harga di katalog penyedia. Pilih model lain.'))
+      .toBeVisible();
+    await modelTrigger().click();
+    const free = page.getByRole('option', { name: /Llama Free/ });
+    await expect.element(free).toHaveAttribute('aria-disabled', 'true');
+    await expect.element(free).toHaveTextContent('Llama FreeTanpa harga katalog');
+    await userEvent.keyboard('{Escape}');
+    await limitInput().fill('6');
     await saveButton().click();
-    await expect.element(page.getByText('Masukkan harga USD yang tidak negatif.').last()).toBeVisible();
+    await expect
+      .element(page.getByRole('alert').filter({ hasText: 'Model ini tidak punya harga di katalog penyedia' }))
+      .toBeVisible();
     expect(server.saveAiSettings).not.toHaveBeenCalled();
+  });
+
+  it('retries a catalog that could not be loaded', async () => {
+    server.listAiModels.mockRejectedValueOnce(new Error('offline'));
+    await render();
+    await expect.element(page.getByText('Daftar model tidak dapat dimuat. Koneksi terputus. Coba lagi.')).toBeVisible();
+    await page.getByRole('button', { name: 'Coba lagi' }).click();
+    await expect.element(page.getByText('3 model · bukan tes inferensi')).toBeVisible();
+    expect(server.listAiModels).toHaveBeenCalledTimes(2);
+    expect(reauth.reauthenticate).not.toHaveBeenCalled();
   });
 
   it('switches provider without falling back to another provider’s key', async () => {
@@ -428,26 +451,28 @@ describe('AiSection', () => {
     await page.getByRole('button', { name: /ZenMux/ }).click();
     await expect.element(page.getByRole('region', { name: 'Koneksi ZenMux' }).getByText('Belum ada key')).toBeVisible();
     await expect.element(keyInput()).toHaveValue('');
-    await page.getByLabelText('Atau ketik ID model').fill('z-1');
+    await expect.element(modelTrigger()).toHaveTextContent('Pilih model');
+    expect(server.listAiModels).toHaveBeenLastCalledWith({ data: { provider: 'zenmux' } });
+    await modelTrigger().click();
+    await page.getByRole('option', { name: /Claude Sonnet 5\.5/ }).click();
     await saveButton().click();
     await vi.waitFor(() => {
       expect(server.saveAiSettings).toHaveBeenCalledWith({
         data: {
           expectedRevision: 'rev-1',
           provider: 'zenmux',
-          modelId: 'z-1',
+          modelId: 'anthropic/claude-sonnet-5.5',
           allowReadFinancial: true,
           allowCreateDrafts: false,
           requireConfirmation: true,
           monthlyLimitUsd: '5.00',
-          pricing: null,
         },
       });
     });
   });
 
-  it('limits a custom base URL to the saved allowed endpoints', async () => {
-    server.listAiModels.mockResolvedValueOnce({ ok: true, value: { ...CATALOG, provider: 'custom' } });
+  it('loads a custom catalog only with a key for its base URL: the one saved there or a typed one', async () => {
+    server.listAiModels.mockResolvedValue({ ok: true, value: { ...CATALOG, provider: 'custom' } });
     const custom = connection({
       provider: 'custom',
       baseUrl: 'https://alt.example.test/v1',
@@ -461,26 +486,32 @@ describe('AiSection', () => {
       }),
     );
     await page.getByRole('button', { name: /Custom/ }).click();
-    const load = page.getByRole('button', { name: 'Muat daftar model' });
     const origin = page.getByRole('combobox', { name: 'Base URL' });
     await expect.element(origin).toHaveValue('https://alt.example.test/v1');
-    await expect.element(load).toBeEnabled();
-    await userEvent.selectOptions(origin, 'https://api.example.test/v1');
-    await expect.element(load).toBeDisabled();
-    await expect
-      .element(page.getByText('Simpan base URL dan key ini dulu sebelum memuat katalog kustom.'))
-      .toBeVisible();
-    await userEvent.selectOptions(origin, 'https://alt.example.test/v1');
-    await expect.element(load).toBeEnabled();
-    await load.click();
     await vi.waitFor(() => {
-      expect(server.listAiModels).toHaveBeenCalledWith({
+      expect(server.listAiModels).toHaveBeenLastCalledWith({
         data: { provider: 'custom', baseUrl: 'https://alt.example.test/v1' },
       });
     });
+    await userEvent.selectOptions(origin, 'https://api.example.test/v1');
+    await expect
+      .element(
+        page.getByText(
+          'Pilih base URL dan isi key (atau pakai key yang tersimpan untuknya) untuk memuat katalog kustom.',
+        ),
+      )
+      .toBeVisible();
+    await expect.element(modelTrigger()).toBeDisabled();
+    await keyInput().fill('sk-new-endpoint');
+    await vi.waitFor(() => {
+      expect(server.listAiModels).toHaveBeenLastCalledWith({
+        data: { provider: 'custom', baseUrl: 'https://api.example.test/v1', apiKey: 'sk-new-endpoint' },
+      });
+    });
+    await expect.element(modelTrigger()).toBeEnabled();
   });
 
-  it('refuses an invalid key, model, or endpoint change before calling the server', async () => {
+  it('refuses an invalid key or an endpoint change without a new key before calling the server', async () => {
     const custom = connection({
       provider: 'custom',
       baseUrl: 'https://api.example.test/v1',
@@ -500,11 +531,13 @@ describe('AiSection', () => {
     expect(server.saveAiSettings).not.toHaveBeenCalled();
 
     await keyInput().fill('abc');
-    await page.getByLabelText('Atau ketik ID model').fill('bad model');
     await saveButton().click();
     await expect.element(page.getByText(/Gunakan 4–512 karakter tanpa spasi/)).toBeVisible();
-    await expect.element(page.getByText(/Gunakan huruf, angka, dan/)).toBeVisible();
     expect(server.saveAiSettings).not.toHaveBeenCalled();
+    // An unusable key is never sent to read a catalog either.
+    expect(server.listAiModels).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({ apiKey: 'abc' }) as unknown,
+    });
   });
 
   it('disables Custom when the operator allows no base URL', async () => {
@@ -730,34 +763,43 @@ describe('AiSection', () => {
 });
 
 describe('AiSection boundaries', () => {
-  const manualModel = () => page.getByLabelText('Atau ketik ID model');
-  const loadButton = () => page.getByRole('button', { name: 'Muat daftar model' });
-
   it('refuses a save without a model, an endpoint, or a readable limit, and clears each error once fixed', async () => {
     server.saveAiSettings.mockResolvedValueOnce({ ok: true, value: baseView() });
-    await render(baseView({ allowedCustomBaseUrls: ['https://api.example.test/v1'] }));
-    await manualModel().fill('');
+    await render(
+      baseView({
+        connections: [connection({ modelId: null })],
+        allowedCustomBaseUrls: ['https://api.example.test/v1'],
+      }),
+    );
     await limitInput().fill('lima');
     await saveButton().click();
-    await expect.element(page.getByText('Pilih atau ketik ID model.')).toBeVisible();
+    await expect.element(page.getByText('Pilih model.')).toBeVisible();
     await expect.element(page.getByText('Masukkan nominal USD yang tidak negatif.')).toBeVisible();
     await limitInput().fill('6');
     await expect.element(page.getByText('Masukkan nominal USD yang tidak negatif.')).not.toBeInTheDocument();
-    await manualModel().fill('anthropic/claude-sonnet-5.5');
-    await expect.element(page.getByText('Pilih atau ketik ID model.')).not.toBeInTheDocument();
+    await modelTrigger().click();
+    await page.getByRole('option', { name: /Claude Sonnet 5\.5/ }).click();
+    await expect.element(page.getByText('Pilih model.')).not.toBeInTheDocument();
     expect(server.saveAiSettings).not.toHaveBeenCalled();
 
-    // Custom without a saved connection starts with no endpoint chosen.
+    // A first custom connection starts with no endpoint chosen; its catalog loads with the key typed for it.
     await page.getByRole('button', { name: /Custom/ }).click();
     const origin = page.getByRole('combobox', { name: 'Base URL' });
     await expect.element(origin).toHaveValue('');
     await keyInput().fill('sk-custom-key');
-    await manualModel().fill('custom-model');
+    await expect.element(modelTrigger()).toBeDisabled();
     await saveButton().click();
     await expect.element(page.getByText('Pilih base URL.')).toBeVisible();
+    await expect.element(page.getByText('Pilih model.')).toBeVisible();
     expect(server.saveAiSettings).not.toHaveBeenCalled();
     await userEvent.selectOptions(origin, 'https://api.example.test/v1');
     await expect.element(page.getByText('Pilih base URL.')).not.toBeInTheDocument();
+    await expect.element(modelTrigger()).toBeEnabled();
+    expect(server.listAiModels).toHaveBeenLastCalledWith({
+      data: { provider: 'custom', baseUrl: 'https://api.example.test/v1', apiKey: 'sk-custom-key' },
+    });
+    await modelTrigger().click();
+    await page.getByRole('option', { name: /Mini Reasoner/ }).click();
     await saveButton().click();
     await vi.waitFor(() => {
       expect(server.saveAiSettings).toHaveBeenCalledWith({
@@ -765,7 +807,7 @@ describe('AiSection boundaries', () => {
           provider: 'custom',
           baseUrl: 'https://api.example.test/v1',
           apiKey: 'sk-custom-key',
-          modelId: 'custom-model',
+          modelId: 'openai/o-mini',
           monthlyLimitUsd: '6',
         }) as unknown,
       });
@@ -783,21 +825,6 @@ describe('AiSection boundaries', () => {
     const origin = page.getByRole('combobox', { name: 'Base URL' });
     await expect.element(origin).toBeDisabled();
     await expect.element(origin).toHaveTextContent('Operator belum mengizinkan base URL kustom.');
-  });
-
-  it('restores another provider’s own manual prices when switching to it', async () => {
-    await render(
-      baseView({
-        connections: [
-          connection(),
-          connection({ provider: 'zenmux', baseUrl: 'https://zenmux.ai/api/v1', pricingSource: 'manual' }),
-        ],
-      }),
-    );
-    await page.getByRole('button', { name: /ZenMux/ }).click();
-    await expect.element(page.getByRole('radio', { name: 'Harga manual' })).toBeChecked();
-    await expect.element(page.getByText(/^Harga manual: /)).toBeVisible();
-    await expect.element(page.getByLabelText('Input per 1 jt token (USD)')).toHaveValue('3');
   });
 
   it('turns financial reading off only through an explicit save', async () => {
@@ -868,43 +895,39 @@ describe('AiSection boundaries', () => {
     expect(server.testAiConnection).toHaveBeenCalledTimes(6);
   });
 
-  it('drops a catalog answer for a provider the user already left, also around signing in again', async () => {
+  it('drops a catalog answer for a provider the user already left, and signs in again only for a retry', async () => {
     const stale = Promise.withResolvers<unknown>();
-    server.listAiModels.mockReturnValueOnce(stale.promise);
+    const zenmux = Promise.withResolvers<unknown>();
+    server.listAiModels.mockReturnValueOnce(stale.promise).mockReturnValueOnce(zenmux.promise);
     await render();
     // 1. The answer arrives after switching provider.
-    await loadButton().click();
     await page.getByRole('button', { name: /ZenMux/ }).click();
+    await vi.waitFor(() => {
+      expect(server.listAiModels).toHaveBeenCalledTimes(2);
+    });
     stale.resolve({ ok: true, value: CATALOG });
-    await expect.element(loadButton()).toBeEnabled();
+    await expect.element(modelTrigger()).toHaveTextContent('Memuat model…');
     expect(page.getByText(/model · bukan tes inferensi/).elements()).toHaveLength(0);
+    zenmux.resolve({ ok: true, value: { ...CATALOG, models: CATALOG.models.slice(0, 1) } });
+    await expect.element(page.getByText('1 model · bukan tes inferensi')).toBeVisible();
 
-    // 2. The user switches while signing in again.
-    const signedIn = Promise.withResolvers<boolean>();
+    // 2. Loading by itself never asks to sign in again; the retry the user asks for does, then reloads.
     server.listAiModels.mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' });
-    reauth.reauthenticate.mockReturnValueOnce(signedIn.promise);
-    await loadButton().click();
+    await page.getByRole('button', { name: /OpenRouter/ }).click();
+    await expect.element(page.getByText(/Daftar model tidak dapat dimuat/)).toBeVisible();
+    expect(reauth.reauthenticate).not.toHaveBeenCalled();
+    reauth.reauthenticate.mockResolvedValueOnce(false);
+    await page.getByRole('button', { name: 'Coba lagi' }).click();
     await vi.waitFor(() => {
       expect(reauth.reauthenticate).toHaveBeenCalledOnce();
     });
-    await page.getByRole('button', { name: /OpenRouter/ }).click();
-    signedIn.resolve(true);
-    await expect.element(loadButton()).toBeEnabled();
-    expect(server.listAiModels).toHaveBeenCalledTimes(2);
-
-    // 3. The user switches while the retried request runs.
-    const retried = Promise.withResolvers<unknown>();
-    server.listAiModels
-      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
-      .mockReturnValueOnce(retried.promise);
-    await loadButton().click();
-    await vi.waitFor(() => {
-      expect(server.listAiModels).toHaveBeenCalledTimes(4);
-    });
-    await page.getByRole('button', { name: /ZenMux/ }).click();
-    retried.resolve({ ok: true, value: CATALOG });
-    await expect.element(loadButton()).toBeEnabled();
-    expect(page.getByText(/model · bukan tes inferensi/).elements()).toHaveLength(0);
+    await expect.element(page.getByText(/Daftar model tidak dapat dimuat/)).toBeVisible();
+    expect(server.listAiModels).toHaveBeenCalledTimes(3);
+    await page.getByRole('button', { name: 'Coba lagi' }).click();
+    await expect.element(page.getByText('3 model · bukan tes inferensi')).toBeVisible();
+    expect(reauth.reauthenticate).toHaveBeenCalledTimes(2);
+    expect(server.listAiModels).toHaveBeenCalledTimes(4);
+    expect(server.listAiModels).toHaveBeenLastCalledWith({ data: { provider: 'openrouter' } });
   });
 
   it('explains a refused or empty catalog and describes a priced model it lists', async () => {
@@ -920,23 +943,22 @@ describe('AiSection boundaries', () => {
           ],
         },
       })
-      .mockResolvedValueOnce({ ok: false, code: 'REAUTHENTICATION_REQUIRED' })
       .mockRejectedValueOnce(new Error('offline'));
     await render();
-    await loadButton().click();
     await expect.element(page.getByText(/Daftar model tidak dapat dimuat\./)).toBeVisible();
     await expect.element(page.getByText(/Aktifkan verifikasi dua langkah di Keamanan/)).toBeVisible();
     await page.getByRole('button', { name: 'Coba lagi' }).click();
-    await expect.element(page.getByText('Katalog tidak berisi model. Ketik ID model secara manual.')).toBeVisible();
+    await expect.element(page.getByText('Katalog tidak berisi model.')).toBeVisible();
+    await expect.element(modelTrigger()).toBeDisabled();
     await expect.element(page.getByText(/Aktifkan verifikasi dua langkah di Keamanan/)).not.toBeInTheDocument();
-    await loadButton().click();
-    await page.getByRole('combobox', { name: 'Model' }).selectOptions('priced/no-context');
-    await expect.element(page.getByRole('radio', { name: 'Harga katalog' })).toBeChecked();
+    await page.getByRole('button', { name: /ZenMux/ }).click();
+    await modelTrigger().click();
+    await page.getByRole('option', { name: /Priced/ }).click();
     await expect.element(page.getByText(/^Harga katalog: /).first()).toBeVisible();
     expect(page.getByText(/token konteks/).elements()).toHaveLength(0);
-    await loadButton().click();
+    await page.getByRole('button', { name: /OpenRouter/ }).click();
     await expect.element(page.getByText('Daftar model tidak dapat dimuat. Koneksi terputus. Coba lagi.')).toBeVisible();
-    expect(server.listAiModels).toHaveBeenCalledTimes(5);
+    expect(server.listAiModels).toHaveBeenCalledTimes(4);
   });
 
   it('keeps the draft when signing in again is cancelled or the retried save cannot reach the server', async () => {

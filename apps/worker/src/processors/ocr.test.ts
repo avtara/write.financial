@@ -84,17 +84,20 @@ afterAll(async () => {
 beforeEach(async () => {
   const current = await test.as('wf_app', () => ai.settings(userId));
   const saved = await test.as('wf_app', () =>
-    ai.save(userId, {
-      expectedRevision: current.revision,
-      provider: 'openrouter',
-      apiKey: `fixture-${randomUUID()}`,
-      modelId: 'fixture/vision',
-      allowReadFinancial: true,
-      allowCreateDrafts: true,
-      requireConfirmation: true,
-      monthlyLimitUsd: '5',
+    ai.save(
+      userId,
+      {
+        expectedRevision: current.revision,
+        provider: 'openrouter',
+        apiKey: `fixture-${randomUUID()}`,
+        modelId: 'fixture/vision',
+        allowReadFinancial: true,
+        allowCreateDrafts: true,
+        requireConfirmation: true,
+        monthlyLimitUsd: '5',
+      },
       pricing,
-    }),
+    ),
   );
   revision = saved.revision ?? '';
   content = JSON.stringify({

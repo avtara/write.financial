@@ -99,11 +99,16 @@ describe('provider model catalogs', () => {
     ]);
   });
 
-  it('does not infer prices for a custom OpenAI catalog and refuses unapproved custom egress', async () => {
-    const fetcher = reply('{"data":[{"id":"local-model"}]}');
+  it('prices a custom catalog only from published prices and refuses unapproved custom egress', async () => {
+    const fetcher = reply(
+      '{"data":[{"id":"local-model"},{"id":"priced-model","pricing":{"prompt":"0.000001","completion":"0.000002"}}]}',
+    );
     const client = createAiClient({ allowedBaseUrls: ['http://127.0.0.1:11434/v1'], fetch: fetcher });
     const result = await client.models('custom', 'http://127.0.0.1:11434/v1', 'fixture-key');
-    expect(result.models[0]?.pricing).toBeNull();
+    expect(result.models.map((item) => item.pricing)).toEqual([
+      null,
+      { inputUsdPerMillion: '1', outputUsdPerMillion: '2', requestUsd: '0', imageUsd: '0' },
+    ]);
     expect(result.catalogPublic).toBe(false);
     await expect(client.models('custom', 'http://127.0.0.1:11434/admin', 'fixture-key')).rejects.toMatchObject({
       code: 'AI_EGRESS_DENIED',
