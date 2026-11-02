@@ -13,6 +13,8 @@ describe('local reference search', () => {
     expect(searchCatalog('IBKR', { kind: 'provider', accountType: 'investment' })[0]?.name).toBe('Interactive Brokers');
     expect(searchCatalog('sentral', { kind: 'provider' })).toEqual([]);
     expect(searchCatalog('rakyat', { kind: 'provider' })[0]?.id).toBe('provider:bri');
+    const krom = searchCatalog('krom bank', { kind: 'provider', accountType: 'bank' })[0];
+    expect(krom).toMatchObject({ id: 'provider:krom', name: 'Krom', logoPath: '/catalog-logos/krom.png' });
   });
 
   it('never opens the whole directory and bounds broad queries even when a larger limit is requested', () => {

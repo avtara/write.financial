@@ -267,6 +267,13 @@
       "when": 1793614264761,
       "tag": "0037_drop_transaction_merchant",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793616060411,
+      "tag": "0038_catalog_krom",
+      "breakpoints": true
     }
   ]
 }
