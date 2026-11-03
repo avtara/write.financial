@@ -26,8 +26,6 @@ import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import {
   accountsIn,
-  assertOpenDatesIn,
-  assertOpenTransactionsIn,
   builtInCategoryIn,
   checkCategoryIn,
   localDateOf,
@@ -200,7 +198,7 @@ export interface ReceivablesRepository {
   /**
    * Records a receivable and, unless `recordTransaction` is `false`, its `receivable_out` transaction. Idempotent per
    * `clientId`: a replay returns the first receivable.
-   * @throws {LedgerError} `INVALID_RECEIVABLE`, `NOT_FOUND`, `ACCOUNT_ARCHIVED`, `PERIOD_CLOSED`, `FX_RATE_MISSING`
+   * @throws {LedgerError} `INVALID_RECEIVABLE`, `NOT_FOUND`, `ACCOUNT_ARCHIVED`, `FX_RATE_MISSING`
    */
   record: (
     userId: string,
@@ -210,7 +208,7 @@ export interface ReceivablesRepository {
    * Records a repayment (and its `receivable_in` transaction): `open` → `partial` → `settled`. Idempotent per
    * `clientId`.
    * @throws {LedgerError} `INVALID_RECEIVABLE` (beyond the remaining amount, another currency, before the lent date,
-   * settled or written off), `NOT_FOUND`, `ACCOUNT_ARCHIVED`, `PERIOD_CLOSED`, `FX_RATE_MISSING`
+   * settled or written off), `NOT_FOUND`, `ACCOUNT_ARCHIVED`, `FX_RATE_MISSING`
    */
   receivePayment: (userId: string, id: string, input: ReceivablePaymentInput) => Promise<ReceivableView>;
   /**
@@ -218,20 +216,19 @@ export interface ReceivablesRepository {
    * created on first use); balances do not change.
    * Idempotent per `clientId`.
    * @throws {LedgerError} `INVALID_RECEIVABLE` (settled or written off, before the lent date), `NOT_FOUND`,
-   * `INVALID_CATEGORY`, `CATEGORY_KIND_MISMATCH`, `PERIOD_CLOSED`, `FX_RATE_MISSING`
+   * `INVALID_CATEGORY`, `CATEGORY_KIND_MISMATCH`, `FX_RATE_MISSING`
    */
   writeOff: (userId: string, id: string, input: ReceivableWriteOffInput) => Promise<ReceivableView>;
   /**
    * Changes the person, description, note, due date, or reminder; a new description or note is carried to its
    * transactions.
-   * @throws {LedgerError} `INVALID_RECEIVABLE`, `NOT_FOUND`, `PERIOD_CLOSED` (a changed description or note of
-   * transactions in a closed period)
+   * @throws {LedgerError} `INVALID_RECEIVABLE`, `NOT_FOUND`
    */
   update: (userId: string, id: string, patch: ReceivablePatch) => Promise<ReceivableView>;
   /**
    * Deletes the receivable, its payments, its transactions (hard), and its reminder. Returns the attachment object
    * keys of those transactions for the caller to delete from storage.
-   * @throws {LedgerError} `NOT_FOUND`, `PERIOD_CLOSED`
+   * @throws {LedgerError} `NOT_FOUND`
    */
   remove: (userId: string, id: string) => Promise<{ readonly objectKeys: string[] }>;
   /**
@@ -240,7 +237,7 @@ export interface ReceivablesRepository {
    * transaction. The receivables take the expense's title. Idempotent per the draft's and the
    * shares' client ids: a replay returns the first result.
    * @throws {LedgerError} `INVALID_RECEIVABLE`, `INVALID_TRANSACTION`, `INVALID_CATEGORY`, `NOT_FOUND`,
-   * `ACCOUNT_ARCHIVED`, `PERIOD_CLOSED`, `FX_RATE_MISSING`
+   * `ACCOUNT_ARCHIVED`, `FX_RATE_MISSING`
    */
   recordSplitBill: (
     userId: string,
@@ -451,7 +448,7 @@ export function createReceivables(
       if (source.type !== 'expense') throw invalid('The split bill part must be an expense');
     }
     const recordTransaction = input.recordTransaction ?? true;
-    if (recordTransaction) await assertOpenDatesIn(tx, [lentOn]);
+
     const description = clean(input.description);
     const note = clean(input.note);
     const at = now();
@@ -606,7 +603,6 @@ export function createReceivables(
         const at = now();
         let transactionId: string | null = null;
         if (input.recordTransaction ?? true) {
-          await assertOpenDatesIn(tx, [receivedOn]);
           const valuation = await valuationIn(tx, baseCurrency, [account.currency], receivedOn);
           transactionId = await insertEntryIn(
             tx,
@@ -668,7 +664,7 @@ export function createReceivables(
         const { baseCurrency, timezone } = await userContextIn(tx, userId);
         const localDate = localDateOf(input.occurredAt, timezone);
         if (localDate < row.lentOn) throw invalid('The write-off is before the lent date');
-        await assertOpenDatesIn(tx, [localDate]);
+
         const valuation = await valuationIn(tx, baseCurrency, [row.currency], localDate);
         const account = { id: row.fromAccountId, currency: row.currency };
         // The remaining amount valued like an expense of it, but moving no money.
@@ -719,7 +715,7 @@ export function createReceivables(
         const note = patch.note === undefined ? before : clean(patch.note);
         const seal = (purpose: string) => (note === null ? null : encrypt(dek, note, { userId, purpose }));
 
-        // A new description or note is carried to the transactions, so it follows their period's lock.
+        // Carry a changed description or note to the linked transactions.
         const fields = [
           ...(description === row.description ? [] : ['description']),
           ...(note === before ? [] : ['note']),
@@ -730,7 +726,7 @@ export function createReceivables(
             .from(transactions)
             .where(eq(transactions.receivableId, id));
           const ids = linked.map((line) => line.id);
-          await assertOpenTransactionsIn(tx, ids);
+
           await tx.update(transactions).set({ description, updatedAt: at }).where(eq(transactions.receivableId, id));
           // The note lives on the lending transaction only.
           await tx
@@ -763,7 +759,7 @@ export function createReceivables(
           .from(transactions)
           .where(eq(transactions.receivableId, id));
         const ids = linked.map((row) => row.id);
-        await assertOpenTransactionsIn(tx, ids);
+
         const files = await tx
           .select({ objectKey: attachments.objectKey, thumbnailKey: attachments.thumbnailKey })
           .from(attachments)

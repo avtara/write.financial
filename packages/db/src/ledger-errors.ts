@@ -37,10 +37,9 @@ export const LEDGER_ERROR_CODES = [
   'INVALID_RATE',
   /** Invalid goal input. */
   'INVALID_GOAL',
-  /** FR-P3: the transaction is dated inside a closed period (or would move into or out of one), or the budget edit
-   * targets a closed period. Closed periods are read-only. */
+  /** Legacy period-lock error, retained for older clients; current writes do not reject closed periods. */
   'PERIOD_CLOSED',
-  /** Invalid period input: a start day outside 1–28, the same start day again, or locking a period that has not
+  /** Invalid period input: a start day outside 1–28, the same start day again, or closing a period that has not
    * ended. */
   'INVALID_PERIOD',
   /** Invalid budget input: a negative limit, a category that is not an expense or fee category, an alert threshold

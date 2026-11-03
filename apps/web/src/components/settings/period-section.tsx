@@ -21,7 +21,6 @@ import {
   CircleAlert,
   Cloud,
   Info,
-  Lock,
   RefreshCw,
   Repeat,
   Wallet,
@@ -283,8 +282,6 @@ export function PeriodSection({ overview, payday }: PeriodSectionProps) {
           (period) => period.kind === 'normal' && Number(period.start.slice(8)) === day,
         );
 
-  const closed = overview.periods.find((period) => period.status === 'closed');
-
   const rows: { period: Period; note: string; highlight: boolean }[] =
     ready === null
       ? [current, ...overview.upcoming].map((period, index) => ({
@@ -531,12 +528,6 @@ export function PeriodSection({ overview, payday }: PeriodSectionProps) {
             <li className="flex gap-2">
               <RefreshCw aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
               {m.period_settings_confirm_budget({ name: ready.recalc.name })}
-            </li>
-            <li className="flex gap-2">
-              <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
-              {closed === undefined
-                ? m.period_settings_confirm_reports_none()
-                : m.period_settings_confirm_reports({ name: formatPeriodLabel(closed.label, locale, 'month') })}
             </li>
             <li className="flex gap-2">
               <Repeat aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />

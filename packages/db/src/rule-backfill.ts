@@ -26,7 +26,6 @@ import {
   debtInstallments,
   debts,
   investmentTrades,
-  periods,
   postings,
   scheduledOccurrences,
   tags,
@@ -39,7 +38,7 @@ import {
 export const BACKFILL_SCAN_LIMIT = 2000;
 
 /** Why a proposed change cannot be applied; a no-op is not blocked. */
-export type RuleBackfillBlock = 'closed_period' | 'category_unavailable' | 'tag_limit' | 'managed';
+export type RuleBackfillBlock = 'category_unavailable' | 'tag_limit' | 'managed';
 
 /** What the backfill dialog's tiles count: matching rows, changeable ones, actual no-ops, and blocked ones. */
 export interface RuleBackfillTotals {
@@ -118,7 +117,6 @@ export interface BackfillTransaction {
 export interface BackfillContext {
   readonly rules: readonly AutoRuleView[];
   readonly catalog: RuleCatalog;
-  readonly closed: readonly { start: LocalDate; end: LocalDate }[];
   readonly managed: ReadonlySet<string>;
   readonly accounts: ReadonlyMap<string, readonly string[]>;
   readonly subscriptions: ReadonlySet<string>;
@@ -203,14 +201,6 @@ export async function subscriptionIdsIn(tx: Transaction, ids: readonly string[])
   return new Set(rows.map((row) => row.transactionId as string));
 }
 
-/** Closed period intervals, as ISO dates (string comparison is calendar order for `YYYY-MM-DD`). */
-export async function closedPeriodsIn(tx: Transaction): Promise<{ start: LocalDate; end: LocalDate }[]> {
-  return tx
-    .select({ start: periods.startDate, end: periods.endDate })
-    .from(periods)
-    .where(eq(periods.status, 'closed'));
-}
-
 /**
  * The ids among `ids` that another repository manages and whose category or tags may not be edited: a receivable's
  * lending, repayments, and write-off (FR-U7), a debt installment's payment (FR-U2), a card payment's allocation
@@ -263,9 +253,6 @@ export async function timezoneIn(tx: Transaction, userId: string): Promise<strin
   return firstRow(await tx.select({ timezone: users.timezone }).from(users).where(eq(users.id, userId)), 'users')
     .timezone;
 }
-
-export const inClosedPeriod = (date: LocalDate, closed: readonly { start: LocalDate; end: LocalDate }[]): boolean =>
-  closed.some((period) => date >= period.start && date <= period.end);
 
 /** The effective rules in persisted order, with the version the confirmation must match. */
 export async function ruleScopeIn(
@@ -345,7 +332,6 @@ export function proposalOf(
   const proposedTags = tagsOverflow ? [...currentTags] : tagUnion;
   let blocked: RuleBackfillBlock | null = null;
   if (context.managed.has(transaction.id)) blocked = 'managed';
-  else if (inClosedPeriod(transaction.localDate, context.closed)) blocked = 'closed_period';
   else if (evaluation.categoryId !== null) {
     const category = context.catalog.byId.get(evaluation.categoryId);
     if (category === undefined || category.archived || !categoryFitsDirection(category.kind, transaction.type)) {
@@ -448,11 +434,10 @@ export async function previewBackfillIn(
   const truncated = rows.length > BACKFILL_SCAN_LIMIT;
   const kept = rows.slice(0, BACKFILL_SCAN_LIMIT);
   const ids = kept.map((row) => row.id);
-  const [catalog, tagMap, managed, closed, accounts, subscriptions, timezone] = await Promise.all([
+  const [catalog, tagMap, managed, accounts, subscriptions, timezone] = await Promise.all([
     catalogIn(tx),
     tagsIn(tx, ids),
     managedTransactionIdsIn(tx, ids),
-    closedPeriodsIn(tx),
     accountIdsIn(tx, ids),
     subscriptionIdsIn(tx, ids),
     timezoneIn(tx, userId),
@@ -460,7 +445,6 @@ export async function previewBackfillIn(
   const backfillContext: BackfillContext = {
     rules: scope.rules,
     catalog,
-    closed,
     managed,
     accounts,
     subscriptions,

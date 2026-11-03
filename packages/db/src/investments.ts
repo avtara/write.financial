@@ -60,8 +60,6 @@ import { logActivity } from './activity.ts';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import {
   accountsIn,
-  assertOpenDatesIn,
-  assertOpenTransactionsIn,
   builtInCategoryIn,
   localDateOf,
   recordTransactionIn,
@@ -352,10 +350,10 @@ export interface InvestmentsRepository {
   setTargets: (userId: string, targets: Partial<Record<AssetClass, number>>) => Promise<void>;
   /**
    * Records a trade and its cash leg. Idempotent per `clientId`.
-   * @throws {LedgerError} `INVALID_TRADE`, `NOT_FOUND`, `ACCOUNT_ARCHIVED`, `PERIOD_CLOSED`, `FX_RATE_MISSING`
+   * @throws {LedgerError} `INVALID_TRADE`, `NOT_FOUND`, `ACCOUNT_ARCHIVED`, `FX_RATE_MISSING`
    */
   recordTrade: (userId: string, input: TradeRecord) => Promise<TradeView>;
-  /** @throws {LedgerError} `INVALID_TRADE`, `NOT_FOUND`, `PERIOD_CLOSED`, `FX_RATE_MISSING` */
+  /** @throws {LedgerError} `INVALID_TRADE`, `NOT_FOUND`, `FX_RATE_MISSING` */
   adjustHoldings: (userId: string, input: AdjustInput) => Promise<TradeView>;
   /** A pending buy got its units ("NAB 16 Okt"). @throws {LedgerError} `NOT_FOUND`, `INVALID_TRADE` */
   settleTrade: (
@@ -366,7 +364,7 @@ export interface InvestmentsRepository {
   /**
    * Removes a trade and soft-deletes its cash transactions; later trades are replayed. Goal percentages a sale
    * changed are not restored.
-   * @throws {LedgerError} `NOT_FOUND`, `INVALID_TRADE` (a later sale would oversell), `PERIOD_CLOSED`
+   * @throws {LedgerError} `NOT_FOUND`, `INVALID_TRADE` (a later sale would oversell)
    */
   removeTrade: (userId: string, tradeId: string) => Promise<void>;
 }
@@ -1048,7 +1046,7 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
     const platform = await platformIn(tx, asset.accountId);
     const { baseCurrency, timezone } = await userContextIn(tx, userId);
     const localDate = localDateOf(occurredAt, timezone);
-    await assertOpenDatesIn(tx, [localDate]);
+
     const rate = await tradeRateIn(tx, fxRate, asset.quoteCurrency, baseCurrency, localDate);
     return { asset, platform, baseCurrency, localDate, rate };
   };
@@ -1480,8 +1478,7 @@ export function createInvestments(db: Database, options: { readonly now?: () => 
         const trade = await tradeViewIn(tx, tradeId);
         const asset = trade.assetId === null ? null : await lockedAssetIn(tx, trade.assetId);
         const linked = [trade.transactionId, trade.transferTransactionId].filter((id): id is string => id !== null);
-        await assertOpenDatesIn(tx, [trade.localDate]);
-        await assertOpenTransactionsIn(tx, linked);
+
         if (linked.length > 0) {
           await tx
             .update(transactions)
