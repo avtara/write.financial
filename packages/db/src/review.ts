@@ -487,10 +487,7 @@ async function confirmIn(
       break;
     }
     case 'rollover': {
-      const [next] = await tx
-        .select({ id: periods.id })
-        .from(periods)
-        .where(eq(periods.id, payload.nextPeriodId));
+      const [next] = await tx.select({ id: periods.id }).from(periods).where(eq(periods.id, payload.nextPeriodId));
       if (next === undefined) throw new LedgerError('NOT_FOUND', 'No such period');
       const override = firstRow(
         await tx
