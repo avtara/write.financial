@@ -23,7 +23,7 @@ import {
   type TransactionSource,
   type Valuation,
 } from '@wf/domain/transactions';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { firstRow, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import { referenceRateIn } from './fx-rates.ts';
