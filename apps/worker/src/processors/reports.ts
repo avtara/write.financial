@@ -16,10 +16,8 @@ export interface ReportsProcessorDeps {
 }
 
 /** Drain previously queued report jobs without generating snapshots or sending report emails. */
-export function createReportsProcessor(deps: ReportsProcessorDeps): (job: ProcessorJob) => Promise<ReportsResult> {
-  void deps;
-  return (job) => {
+export const createReportsProcessor: (deps: ReportsProcessorDeps) => (job: ProcessorJob) => Promise<ReportsResult> =
+  () => (job) => {
     JOBS.reports.parse(job.data);
     return Promise.resolve({ generated: 0, autoSent: 0 });
   };
-}
