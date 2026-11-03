@@ -17,7 +17,7 @@ import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import { markInstallmentPaidIn } from './debts.ts';
 import { creditGoalIn } from './goals.ts';
-import { assertOpenTransactionsIn, checkCategoryIn, recordTransactionIn } from './ledger-core.ts';
+import { checkCategoryIn, recordTransactionIn } from './ledger-core.ts';
 import { LedgerError } from './ledger-errors.ts';
 import { subscriptionDueDates } from './occurrences.ts';
 import {
@@ -152,7 +152,7 @@ export interface ReviewRepository {
   counts: (userId: string) => Promise<ReviewCounts>;
   /**
    * Applies the item's proposal (with `edits`) and resolves it.
-   * @throws {LedgerError} `NOT_FOUND`, `REVIEW_RESOLVED`, `PERIOD_CLOSED`, `INVALID_CATEGORY`, `INVALID_TRANSACTION`,
+   * @throws {LedgerError} `NOT_FOUND`, `REVIEW_RESOLVED`, `INVALID_CATEGORY`, `INVALID_TRANSACTION`,
    * and every code of recording a transaction.
    */
   confirm: (userId: string, itemId: string, edits?: ReviewEdits) => Promise<ConfirmResult>;
@@ -432,7 +432,7 @@ async function confirmIn(
       if (edits.receiptDuplicateId !== undefined) {
         if (payload.receiptId === undefined) throw new LedgerError('INVALID_TRANSACTION', 'Not a receipt proposal');
         await receiptDuplicateIn(tx, userId, dek, payload.receiptId, edits.receiptDuplicateId);
-        await assertOpenTransactionsIn(tx, [edits.receiptDuplicateId]);
+
         transactionId = edits.receiptDuplicateId;
       } else {
         transactionId = (
@@ -473,7 +473,7 @@ async function confirmIn(
       if (subject.type !== 'expense' && subject.type !== 'income') {
         throw new LedgerError('INVALID_TRANSACTION', 'Only expenses and incomes have a category');
       }
-      await assertOpenTransactionsIn(tx, [payload.transactionId]);
+
       await checkCategoryIn(tx, categoryId, subject.type);
       await tx
         .update(transactions)
@@ -488,11 +488,10 @@ async function confirmIn(
     }
     case 'rollover': {
       const [next] = await tx
-        .select({ status: periods.status })
+        .select({ id: periods.id })
         .from(periods)
         .where(eq(periods.id, payload.nextPeriodId));
       if (next === undefined) throw new LedgerError('NOT_FOUND', 'No such period');
-      if (next.status === 'closed') throw new LedgerError('PERIOD_CLOSED', 'The next period is closed');
       const override = firstRow(
         await tx
           .insert(budgetPeriodOverrides)

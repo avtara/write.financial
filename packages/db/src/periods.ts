@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Monthly periods (FR-P1–P3): materialized `periods` rows, the start-day change with its preview (FR-P2 (a) "Mulai
- * periode berikutnya" and (b) "Hitung ulang periode berjalan"), and the period lock the M3 period close calls
- * (`periods.lock`, the worker's only write here).
+ * periode berikutnya" and (b) "Hitung ulang periode berjalan"), and the closing marker the M3 period close calls
+ * (`periods.lock`, the worker's only write here). Closing records rollover processing; it does not prevent edits.
  *
  * Rows are contiguous from the first one created: each next row is `periodAfter` the last one with the current
  * start day, so option (a) only changes the start day and the next row becomes the transition period. Option (b)
  * reshapes the open period at once; when it moves the start earlier it may reach into the previous period, which is
- * trimmed when open and left as it is when closed (its numbers are final). Dates before the first row and after the
- * last one get computed periods (`id: null`).
+ * trimmed regardless of its closing status. Dates before the first row and after the last one get computed periods
+ * (`id: null`).
  */
 import {
   addDays,
@@ -115,7 +115,7 @@ export interface PeriodsRepository {
   payday: (userId: string) => Promise<Payday>;
   /**
    * FR-P3/P4 (period close, M3 worker): marks an ended period closed and materializes the periods up to today.
-   * Idempotent: `locked` is `false` when it was already closed.
+   * Closing does not restrict transaction or budget edits. Idempotent: `locked` is `false` when already closed.
    * @throws {LedgerError} `NOT_FOUND`, `INVALID_PERIOD` (the period has not ended)
    */
   lock: (userId: string, periodId: string) => Promise<{ readonly locked: boolean }>;
@@ -386,9 +386,7 @@ export function createPeriods(db: Database, options: { readonly now?: () => Date
             const [previous] = await tx
               .select(VIEW)
               .from(periods)
-              .where(
-                and(eq(periods.status, 'open'), gte(periods.endDate, first.start), lte(periods.startDate, first.start)),
-              )
+              .where(and(gte(periods.endDate, first.start), lte(periods.startDate, first.start)))
               .orderBy(desc(periods.startDate))
               .limit(1);
             // The current row starts after `first.start`, so it is never the previous one.

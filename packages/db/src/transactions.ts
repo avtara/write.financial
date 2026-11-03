@@ -26,8 +26,6 @@ import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity, type ActivityEntry } from './activity.ts';
 import { recordCategoryCorrectionIn } from './auto-rules.ts';
 import {
-  assertOpenDatesIn,
-  assertOpenTransactionsIn,
   assertUnmanagedTransactionsIn,
   checkCategoryIn,
   NOTE_PURPOSE,
@@ -511,7 +509,7 @@ export function createTransactions(
       const stored = await withUser(db, userId, async (tx) => {
         const before = await liveHeaderIn(tx, id);
         await assertUnmanagedTransactionsIn(tx, [id]);
-        await assertOpenDatesIn(tx, [before.localDate]);
+
         const beforeLines = await tx
           .select({
             accountId: postings.accountId,
@@ -563,7 +561,6 @@ export function createTransactions(
 
     remove: (userId, ids) =>
       withUser(db, userId, async (tx) => {
-        await assertOpenTransactionsIn(tx, ids);
         await assertUnmanagedTransactionsIn(tx, ids);
         const rows = await tx
           .update(transactions)
@@ -584,7 +581,6 @@ export function createTransactions(
 
     restore: (userId, ids) =>
       withUser(db, userId, async (tx) => {
-        await assertOpenTransactionsIn(tx, ids);
         const rows = await tx
           .update(transactions)
           .set({ deletedAt: null })
@@ -694,7 +690,6 @@ export function createTransactions(
 
     unsplit: (userId, parentId) =>
       withUser(db, userId, async (tx) => {
-        await assertOpenTransactionsIn(tx, [parentId]);
         await assertUnmanagedTransactionsIn(tx, [parentId]);
         const restored = await tx
           .update(transactions)
@@ -715,7 +710,6 @@ export function createTransactions(
 
     bulkSetCategory: (userId, ids, categoryId) =>
       withUser(db, userId, async (tx) => {
-        await assertOpenTransactionsIn(tx, ids);
         await assertUnmanagedTransactionsIn(tx, ids);
         const rows = await tx
           .select({ id: transactions.id, type: transactions.type, categoryId: transactions.categoryId })
@@ -770,7 +764,6 @@ export function createTransactions(
 
     bulkAddTag: (userId, ids, tag) =>
       withUser(db, userId, async (tx) => {
-        await assertOpenTransactionsIn(tx, ids);
         const [tagId] = (await resolveTagsIn(tx, userId, [tag])) as [string];
         const rows = await tx
           .select({

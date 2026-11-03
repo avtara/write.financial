@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * "Terapkan ke transaksi lama" (FR-AI1): rules-backfill builds the list of proposed category/tag changes, shows the
- * original and proposed values, marks no-ops and blocked rows (closed period, unavailable category, too many tags,
+ * original and proposed values, marks no-ops and blocked rows (unavailable category, too many tags,
  * managed rows), and changes nothing until the user selects rows and confirms. Every selected row carries the version
  * the preview showed, so a row changed meanwhile is skipped instead of overwritten, and a repeated confirmation
  * changes nothing. Amounts, postings, balances, and stored reports are untouched.
@@ -32,7 +32,6 @@ export interface RuleBackfillDialogProps {
 }
 
 const BLOCK_LABEL: Readonly<Record<NonNullable<RuleBackfillProposal['blocked']>, () => string>> = {
-  closed_period: m.rules_block_closed,
   category_unavailable: m.rules_block_category,
   tag_limit: m.rules_block_tag_limit,
   managed: m.rules_block_managed,

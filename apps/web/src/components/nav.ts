@@ -10,7 +10,6 @@ import {
   CalendarDays,
   ChartPie,
   CandlestickChart,
-  FileBarChart,
   HandCoins,
   Inbox,
   LayoutDashboard,
@@ -70,7 +69,6 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         badge: 'transactions',
       },
       { to: '/review', label: m.review_title, icon: Inbox, railIcon: Inbox, badge: 'review' },
-      { to: '/reports', label: m.reports_title, icon: FileBarChart, railIcon: FileBarChart },
     ],
   },
   {

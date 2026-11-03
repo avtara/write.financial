@@ -3,7 +3,7 @@
  * Auto rules (M7.1, FR-AI1): user-owned ordered rules with CRUD, correction-based suggestions, the editor's trial and
  * preview, and the "Terapkan ke transaksi lama" backfill. Rules and their evidence are the only rows this module
  * writes on their own; applying a backfill still only changes a transaction's category and tags, after the user
- * selected it (D14), through the same guards (open periods, managed rows, ownership) as the ledger's edit path.
+ * selected it (D14), through the same guards (managed rows and ownership) as the ledger's edit path.
  *
  * Nothing here records money in logs: proposals carry categories, tags, dates, and descriptions only.
  */
@@ -27,7 +27,6 @@ import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { logActivity } from './activity.ts';
 import {
-  assertOpenDatesIn,
   assertUnmanagedTransactionsIn,
   checkCategoryIn,
   localDateOf as localDateOfInstant,
@@ -39,7 +38,6 @@ import { LedgerError } from './ledger-errors.ts';
 import {
   accountIdsIn,
   catalogIn,
-  closedPeriodsIn,
   managedTransactionIdsIn,
   proposalOf,
   ruleScopeIn,
@@ -485,7 +483,6 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
           const context: BackfillContext = {
             rules: scope.rules,
             catalog: await catalogIn(tx),
-            closed: await closedPeriodsIn(tx),
             managed: await managedTransactionIdsIn(tx, [row.id]),
             accounts: await accountIdsIn(tx, [row.id]),
             subscriptions: await subscriptionIdsIn(tx, [row.id]),
@@ -506,7 +503,7 @@ export function createAutoRules(db: Database, options: { readonly now?: () => Da
             skipped.push({ transactionId: item.transactionId, reason: 'blocked' });
             continue;
           }
-          await assertOpenDatesIn(tx, [row.localDate]);
+
           await assertUnmanagedTransactionsIn(tx, [row.id]);
           const direction: RuleDirection = row.type;
           if (proposal.proposedCategoryId !== null && proposal.proposedCategoryId !== row.categoryId) {

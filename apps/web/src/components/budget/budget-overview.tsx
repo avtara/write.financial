@@ -85,7 +85,7 @@ export function PeriodSwitcher({
                     <span>{formatPeriodLabel(row.label, locale, 'monthYear')}</span>
                     <span className="text-[11.5px] text-subtle">
                       <PeriodRange period={row} /> ·{' '}
-                      {row.status === 'closed'
+                      {row.end < periods.today
                         ? m.budget_period_closed()
                         : row.id === periods.current.id
                           ? m.budget_period_running()
@@ -159,21 +159,22 @@ function Kpi({ label, value, note, tone }: { label: string; value: ReactNode; no
   );
 }
 
-/** The remaining hero (open period) or "Hasil September" (closed period, FR-P3). */
+/** The remaining hero, or the results of a period whose end date has passed. */
 export function BudgetHero({ status }: { status: BudgetStatus }) {
   const { locale } = useBudgetFormat();
-  const { totals, period, readOnly } = status;
+  const { totals, period } = status;
+  const ended = period.end < status.today;
   const month = formatPeriodLabel(period.label, locale, 'month');
   const over = status.lines.filter((line) => line.state === 'over');
   const overMinor = over.reduce((total, line) => total - line.remainingMinor, 0n);
-  const ahead = !readOnly && totals.pace === 'ahead';
+  const ahead = !ended && totals.pace === 'ahead';
   const tone = totals.remainingMinor < 0n ? 'over' : ahead ? 'warning' : 'ok';
   return (
     <section aria-labelledby="budget-hero-title" className={`${CARD} flex flex-col gap-5 px-6 py-5`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 id="budget-hero-title" className="text-[13px] text-muted-fg">
-            {readOnly ? m.budget_hero_result({ month }) : m.budget_hero_remaining({ month })}
+            {ended ? m.budget_hero_result({ month }) : m.budget_hero_remaining({ month })}
           </h2>
           <p className="flex flex-wrap items-baseline gap-x-2.5">
             <Amount valueMinor={totals.remainingMinor} className="text-[36px] leading-tight font-medium text-fg" />
@@ -194,9 +195,9 @@ export function BudgetHero({ status }: { status: BudgetStatus }) {
         </span>
       </div>
       <div className="flex flex-col gap-2">
-        <BudgetBar usedBps={totals.usedBps} tone={tone} idealBps={readOnly ? null : totals.idealBps} size="lg" />
+        <BudgetBar usedBps={totals.usedBps} tone={tone} idealBps={ended ? null : totals.idealBps} size="lg" />
         <p className="text-center text-[11.5px] text-muted-fg">
-          {readOnly ? (
+          {ended ? (
             <RichMessage message={m.budget_hero_done} slots={{ used: <Pct bps={totals.usedBps} /> }} />
           ) : (
             <RichMessage message={m.budget_hero_today} slots={{ ideal: <Pct bps={totals.idealBps} /> }} />
@@ -224,7 +225,7 @@ export function BudgetHero({ status }: { status: BudgetStatus }) {
           label={m.budget_kpi_spent()}
           value={<Amount valueMinor={totals.spentMinor} />}
           note={
-            readOnly && totals.unbudgetedSpentMinor > 0n ? (
+            ended && totals.unbudgetedSpentMinor > 0n ? (
               <RichMessage
                 message={m.budget_kpi_spent_unbudgeted}
                 slots={{
@@ -232,7 +233,7 @@ export function BudgetHero({ status }: { status: BudgetStatus }) {
                   amount: <Amount valueMinor={totals.unbudgetedSpentMinor} />,
                 }}
               />
-            ) : readOnly ? (
+            ) : ended ? (
               <Pct bps={totals.usedBps} />
             ) : (
               <RichMessage
@@ -242,7 +243,7 @@ export function BudgetHero({ status }: { status: BudgetStatus }) {
             )
           }
         />
-        {readOnly ? (
+        {ended ? (
           <Kpi
             label={m.budget_kpi_leftover()}
             value={<Amount valueMinor={status.close.leftoverMinor} />}
@@ -255,7 +256,7 @@ export function BudgetHero({ status }: { status: BudgetStatus }) {
             note={m.budget_kpi_safe_daily_note({ count: totals.daysLeft })}
           />
         )}
-        {readOnly ? null : (
+        {ended ? null : (
           <Kpi
             label={m.budget_kpi_projection()}
             value={<Amount valueMinor={totals.projectionMinor} />}

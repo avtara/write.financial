@@ -2,8 +2,8 @@
 /**
  * Write server functions of the budget page and Settings › Periode bulanan: budget versions and lines (FR-B1/B2),
  * per-category options (FR-B4), moving leftover with Undo (FR-B3), dismissed warnings (FR-B5), and the period start
- * day (FR-P2) with its preview next to it. The user always comes from the session; the repositories refuse every
- * write that would reach a closed period (FR-P3, `PERIOD_CLOSED`).
+ * day (FR-P2) with its preview next to it. The user always comes from the session; the repositories validate
+ * writes; past periods remain editable.
  */
 import { createServerFn } from '@tanstack/react-start';
 import type { BudgetVersionView } from '@wf/db/budgets';

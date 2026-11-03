@@ -6,8 +6,7 @@
  *
  * A line's limit in a period = the version's limit, prorated `× days ÷ 30` in a transition period (computed, never
  * stored), plus the period's overrides. Editing the budget of a period writes the version effective from that
- * period's label (copying the one in force first), so earlier periods keep their numbers; no edit may reach a closed
- * period (FR-P3).
+ * period's label (copying the one in force first). Past periods remain editable.
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -37,7 +36,7 @@ import {
   type CategoryKind,
 } from '@wf/domain/categories';
 import { addDays, periodAfter, prorateLimit, type LocalDate, type Period, type YearMonth } from '@wf/domain/period';
-import { and, asc, eq, gte, inArray, isNull, lt, min, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm';
 import { firstRow, withUser, type Database, type Transaction } from './db.ts';
 import { linesIn, versionInForceIn, type BudgetLineRow } from './budget-core.ts';
 import { userContextIn } from './ledger-core.ts';
@@ -115,7 +114,7 @@ export type AttentionReason = Extract<BudgetLineState, 'over' | 'warning'>;
 export interface BudgetStatus {
   readonly period: PeriodView;
   readonly today: LocalDate;
-  /** FR-P3: a closed period is read-only. */
+  /** Whether budget edits are disabled; period closing never disables them. */
   readonly readOnly: boolean;
   readonly baseCurrency: string;
   readonly version: {
@@ -184,7 +183,7 @@ export interface BudgetsRepository {
   /**
    * FR-B1 "Atur anggaran · berlaku mulai …": sets the lines of the version effective from `effectiveFrom`. Without
    * `lines` only the expected income changes (onboarding step 2, "Pemasukan bulanan rata-rata"); the lines stay.
-   * @throws {LedgerError} `INVALID_BUDGET`, `INVALID_CATEGORY`, `PERIOD_CLOSED` (it would change a closed period)
+   * @throws {LedgerError} `INVALID_BUDGET`, `INVALID_CATEGORY`
    */
   saveVersion: (
     userId: string,
@@ -196,16 +195,15 @@ export interface BudgetsRepository {
   ) => Promise<BudgetVersionView>;
   /**
    * FR-B2 inline limit edit, FR-B4 options, "Tambah kategori": changes one line from the period on.
-   * @throws {LedgerError} `NOT_FOUND`, `INVALID_BUDGET`, `INVALID_CATEGORY`, `PERIOD_CLOSED`
+   * @throws {LedgerError} `NOT_FOUND`, `INVALID_BUDGET`, `INVALID_CATEGORY`
    */
   setLine: (userId: string, periodId: string, patch: BudgetLinePatch) => Promise<BudgetVersionView>;
-  /** "Hapus dari anggaran" from the period on. @throws {LedgerError} `NOT_FOUND`, `PERIOD_CLOSED` */
+  /** "Hapus dari anggaran" from the period on. @throws {LedgerError} `NOT_FOUND` */
   removeLine: (userId: string, periodId: string, categoryId: string) => Promise<BudgetVersionView>;
   /** FR-B1 "Isi dari rata-rata 3 bulan" for the period's budget sheet. @throws {LedgerError} `NOT_FOUND` */
   fillFromAverage: (userId: string, periodId: string) => Promise<FillSuggestion[]>;
   /**
-   * FR-B3 "Pindahkan sisa": the total stays the same. @throws {LedgerError} `NOT_FOUND`, `INVALID_BUDGET`,
-   * `PERIOD_CLOSED`
+   * FR-B3 "Pindahkan sisa": the total stays the same. @throws {LedgerError} `NOT_FOUND`, `INVALID_BUDGET`
    */
   moveLeftover: (
     userId: string,
@@ -215,9 +213,9 @@ export interface BudgetsRepository {
       readonly sources: readonly { readonly categoryId: string; readonly amountMinor: bigint }[];
     },
   ) => Promise<{ readonly moveId: string; readonly deltas: LimitDelta[] }>;
-  /** "Urungkan" of a move. @throws {LedgerError} `NOT_FOUND`, `PERIOD_CLOSED` */
+  /** "Urungkan" of a move. @throws {LedgerError} `NOT_FOUND` */
   undoMove: (userId: string, moveId: string) => Promise<{ readonly removed: number }>;
-  /** FR-B5 "Abaikan" until the end of the period. @throws {LedgerError} `NOT_FOUND`, `PERIOD_CLOSED` */
+  /** FR-B5 "Abaikan" until the end of the period. @throws {LedgerError} `NOT_FOUND` */
   dismissAlert: (userId: string, periodId: string, categoryId: string) => Promise<void>;
   /** "Tampilkan": shows a dismissed warning again. @throws {LedgerError} `NOT_FOUND` */
   restoreAlert: (userId: string, periodId: string, categoryId: string) => Promise<void>;
@@ -270,34 +268,8 @@ function checkLine(line: { readonly limitMinor?: bigint; readonly alertPct?: num
   }
 }
 
-/**
- * FR-P3: refuses a version change effective from `label` that would reach a closed period (one labelled from `label`
- * up to the next version).
- */
-async function assertVersionEditableIn(tx: Transaction, label: YearMonth): Promise<void> {
-  const [next] = await tx
-    .select({ effectiveFrom: budgetVersions.effectiveFrom })
-    .from(budgetVersions)
-    .where(sql`${budgetVersions.effectiveFrom} > ${label}`)
-    .orderBy(asc(budgetVersions.effectiveFrom))
-    .limit(1);
-  const [closed] = await tx
-    .select({ id: periods.id })
-    .from(periods)
-    .where(
-      and(
-        eq(periods.status, 'closed'),
-        gte(periods.label, label),
-        next === undefined ? undefined : lt(periods.label, next.effectiveFrom),
-      ),
-    )
-    .limit(1);
-  if (closed !== undefined) throw new LedgerError('PERIOD_CLOSED', 'The change would reach a closed period');
-}
-
 /** The id of the version effective from `label`, created as a copy of the one in force when missing. */
 async function versionFromIn(tx: Transaction, userId: string, label: YearMonth): Promise<string> {
-  await assertVersionEditableIn(tx, label);
   const inForce = await versionInForceIn(tx, label);
   if (inForce?.effectiveFrom === label) return inForce.id;
   const [created] = await tx
@@ -336,13 +308,6 @@ async function versionViewIn(tx: Transaction, id: string): Promise<BudgetVersion
   );
   const lines = await linesIn(tx, id);
   return { ...version, totalMinor: lines.reduce((total, line) => total + line.limitMinor, 0n), lines };
-}
-
-/** An open period row. @throws {LedgerError} `NOT_FOUND`, `PERIOD_CLOSED` */
-async function openPeriodIn(tx: Transaction, periodId: string): Promise<PeriodView> {
-  const period = await periodIn(tx, periodId);
-  if (period.status === 'closed') throw new LedgerError('PERIOD_CLOSED', 'The period is closed');
-  return period;
 }
 
 /** A line's limit in `period`: prorated in a transition period. */
@@ -462,7 +427,7 @@ export async function budgetStatusIn(
   return {
     period,
     today,
-    readOnly: period.status === 'closed',
+    readOnly: false,
     baseCurrency,
     version:
       version === null
@@ -481,14 +446,14 @@ export async function budgetStatusIn(
 export function createBudgets(db: Database, options: { readonly now?: () => Date } = {}): BudgetsRepository {
   const now = options.now ?? (() => new Date());
 
-  /** Applies `edit` to the version effective from the open period's label and returns that version. */
+  /** Applies `edit` to the version effective from the selected period's label and returns that version. */
   const editVersion = (
     userId: string,
     periodId: string,
     edit: (tx: Transaction, versionId: string) => Promise<void>,
   ): Promise<BudgetVersionView> =>
     withUser(db, userId, async (tx) => {
-      const period = await openPeriodIn(tx, periodId);
+      const period = await periodIn(tx, periodId);
       const versionId = await versionFromIn(tx, userId, period.label);
       await edit(tx, versionId);
       return versionViewIn(tx, versionId);
@@ -705,7 +670,7 @@ export function createBudgets(db: Database, options: { readonly now?: () => Date
 
     moveLeftover: (userId, periodId, move) =>
       withUser(db, userId, async (tx) => {
-        const period = await openPeriodIn(tx, periodId);
+        const period = await periodIn(tx, periodId);
         const status = await budgetStatusIn(tx, userId, period, now());
         let deltas: LimitDelta[];
         try {
@@ -730,7 +695,7 @@ export function createBudgets(db: Database, options: { readonly now?: () => Date
           .where(eq(budgetPeriodOverrides.moveId, moveId))
           .limit(1);
         if (row === undefined) throw new LedgerError('NOT_FOUND', 'No such move');
-        await openPeriodIn(tx, row.periodId);
+        await periodIn(tx, row.periodId);
         const removed = await tx
           .delete(budgetPeriodOverrides)
           .where(eq(budgetPeriodOverrides.moveId, moveId))
@@ -740,7 +705,7 @@ export function createBudgets(db: Database, options: { readonly now?: () => Date
 
     dismissAlert: (userId, periodId, categoryId) =>
       withUser(db, userId, async (tx) => {
-        await openPeriodIn(tx, periodId);
+        await periodIn(tx, periodId);
         await budgetCategoriesIn(tx, [categoryId]);
         await tx.insert(budgetAlertDismissals).values({ userId, periodId, categoryId }).onConflictDoNothing();
       }),

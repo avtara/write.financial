@@ -3,7 +3,7 @@
  * Server functions of the Transactions page (FR-L1–L6): the page data for a period or range with its filters (summary
  * cards, daily spending, day/category/account groups, the first rows), more rows, a transaction's detail, editing,
  * duplicating, splitting, bulk changes, attachments, the table preferences, and the nav badge count. The user always
- * comes from the session; the repositories enforce ownership (RLS) and the ledger rules (closed periods, splits).
+ * comes from the session; the repositories enforce ownership (RLS) and the ledger rules (managed transactions, splits).
  */
 import { createServerFn } from '@tanstack/react-start';
 import { LedgerError } from '@wf/db/ledger-errors';
