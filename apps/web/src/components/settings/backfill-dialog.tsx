@@ -32,6 +32,7 @@ export interface RuleBackfillDialogProps {
 }
 
 const BLOCK_LABEL: Readonly<Record<NonNullable<RuleBackfillProposal['blocked']>, () => string>> = {
+  closed_period: m.rules_block_closed,
   category_unavailable: m.rules_block_category,
   tag_limit: m.rules_block_tag_limit,
   managed: m.rules_block_managed,

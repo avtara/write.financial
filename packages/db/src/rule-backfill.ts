@@ -37,8 +37,10 @@ import {
 /** Most transactions a backfill preview evaluates (newest first); older rows are reported as truncated. */
 export const BACKFILL_SCAN_LIMIT = 2000;
 
-/** Why a proposed change cannot be applied; a no-op is not blocked. */
-export type RuleBackfillBlock = 'category_unavailable' | 'tag_limit' | 'managed';
+/** Why a proposed change cannot be applied; a no-op is not blocked.
+ * `closed_period` remains readable in older preview payloads; new proposals never emit it.
+ */
+export type RuleBackfillBlock = 'closed_period' | 'category_unavailable' | 'tag_limit' | 'managed';
 
 /** What the backfill dialog's tiles count: matching rows, changeable ones, actual no-ops, and blocked ones. */
 export interface RuleBackfillTotals {
