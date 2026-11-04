@@ -8,6 +8,7 @@
  * Every state change runs in one `withUser` transaction with the item locked (`FOR UPDATE`).
  */
 import type { Dek } from '@wf/crypto/envelope';
+import type { FxRate } from '@wf/domain/fx';
 import { occurrenceShares, planRunsIn } from '@wf/domain/goals';
 import { addDays, type LocalDate, type YearMonth } from '@wf/domain/period';
 import type { TransactionType } from '@wf/domain/transactions';
@@ -54,6 +55,8 @@ export interface ReviewEdits {
   readonly amountMinor?: bigint;
   /** Transfer received amount (across currencies). */
   readonly receivedMinor?: bigint;
+  readonly manualRate?: FxRate | null;
+  readonly fee?: { readonly minor: bigint; readonly categoryId: string } | null;
   readonly accountId?: string;
   readonly fromAccountId?: string;
   readonly toAccountId?: string;
@@ -201,7 +204,12 @@ function applyEdits(draft: ReviewDraft, edits: ReviewEdits): ReviewDraft {
     return {
       ...draft,
       ...common,
-      ...definedOnly({ fromAccountId: edits.fromAccountId, toAccountId: edits.toAccountId }),
+      ...definedOnly({
+        fromAccountId: edits.fromAccountId,
+        toAccountId: edits.toAccountId,
+        manualRate: edits.manualRate,
+        fee: edits.fee,
+      }),
       sentMinor,
       receivedMinor: edits.receivedMinor ?? (draft.sentMinor === draft.receivedMinor ? sentMinor : draft.receivedMinor),
     };

@@ -20,6 +20,15 @@ const edits = z
   .object({
     amountMinor: z.bigint().positive().optional(),
     receivedMinor: z.bigint().positive().optional(),
+    manualRate: z
+      .object({
+        base: z.string().regex(/^[A-Z]{3}$/),
+        quote: z.string().regex(/^[A-Z]{3}$/),
+        rate: z.string().regex(/^\d{1,12}(\.\d{1,8})?$/),
+      })
+      .nullable()
+      .optional(),
+    fee: z.object({ minor: z.bigint().positive(), categoryId: id }).nullable().optional(),
     accountId: id.optional(),
     fromAccountId: id.optional(),
     toAccountId: id.optional(),

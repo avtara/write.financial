@@ -11,6 +11,8 @@ import {
   type GmailFilters,
 } from '@wf/domain/gmail';
 import type { AiProvider } from '@wf/domain/ai';
+import { maskBankAccountNumber, type AccountType } from '@wf/domain/ledger';
+import type { CategoryGroup } from '@wf/domain/categories';
 import { evaluateRules } from '@wf/domain/rules';
 import { parseLocalDate } from '@wf/domain/period';
 import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
@@ -37,6 +39,23 @@ export const GMAIL_QUOTE_PURPOSE = 'email_ingest_logs.quote';
 export const GMAIL_EXTRACTION_PURPOSE = 'email_ingest_logs.extraction';
 /** Characters of sealed email evidence (body text or snippet) kept per message. */
 const QUOTE_MAX = 4000;
+
+/** Mask known bank numbers in email/catalog text as well as the structured account field. */
+function accountNumberRedactor(numbers: readonly (string | null)[]): (value: string) => string {
+  const replacements = [...new Set(numbers)]
+    .flatMap((number) => {
+      const masked = maskBankAccountNumber(number);
+      if (number === null || masked === null) return [];
+      return [{ number, masked }];
+    })
+    .sort((left, right) => right.number.length - left.number.length)
+    .map(({ number, masked }) => ({
+      pattern: new RegExp(`(?<![0-9])${number.split('').join('[\\s-]*')}(?![0-9])`, 'g'),
+      masked,
+    }));
+  return (value) => replacements.reduce((text, { pattern, masked }) => text.replace(pattern, masked), value);
+}
+
 export interface GmailTokens {
   readonly accessToken: string;
   readonly refreshToken: string | null;
@@ -90,8 +109,16 @@ export interface GmailExtractionClaim {
   readonly revision: string;
   readonly timeZone: string;
   readonly evidence: { from: string; subject: string; excerpt: string; receivedAt: Date };
-  readonly accounts: readonly { id: string; name: string; currency: string }[];
-  readonly categories: readonly { id: string; name: string }[];
+  readonly accounts: readonly {
+    id: string;
+    name: string;
+    currency: string;
+    providerName?: string;
+    type?: AccountType;
+    /** Redacted before this claim leaves the database layer; only the final three digits remain. */
+    accountNumberMasked?: string | null;
+  }[];
+  readonly categories: readonly { id: string; name: string; group?: CategoryGroup }[];
 }
 export interface GmailRepository {
   saveConnection: (
@@ -441,14 +468,25 @@ export function createGmail(
           'user',
         );
         const ownedAccounts = await tx
-          .select({ id: accounts.id, name: accounts.displayName, currency: accounts.currency })
+          .select({
+            id: accounts.id,
+            name: accounts.displayName,
+            currency: accounts.currency,
+            providerName: accounts.providerName,
+            type: accounts.type,
+            accountNumber: accounts.accountNumber,
+          })
           .from(accounts)
           .where(eq(accounts.status, 'active'))
-          .orderBy(asc(accounts.createdAt));
+          .orderBy(asc(accounts.sortOrder), asc(accounts.createdAt), asc(accounts.id));
         const ownedCategories = await tx
-          .select({ id: categories.id, name: categories.name })
+          .select({ id: categories.id, name: categories.name, group: categories.group })
           .from(categories)
-          .where(and(eq(categories.kind, 'expense'), isNull(categories.deletedAt), isNull(categories.archivedAt)));
+          .where(and(eq(categories.kind, 'expense'), isNull(categories.deletedAt), isNull(categories.archivedAt)))
+          .orderBy(asc(categories.sortOrder), asc(categories.id));
+        const redact = accountNumberRedactor(
+          ownedAccounts.filter((account) => account.type === 'bank').map((account) => account.accountNumber),
+        );
         await tx
           .update(emailIngestLogs)
           .set({ processing: 'extracting', extractionStartedAt: now() })
@@ -458,13 +496,18 @@ export function createGmail(
           revision: settings.revision,
           timeZone: user.timeZone,
           evidence: {
-            from: row.fromAddr,
-            subject: row.subject,
+            from: redact(row.fromAddr),
+            subject: redact(row.subject),
             receivedAt: row.receivedAt,
-            excerpt: decryptText(dek, row.quoteEnc, aad(userId, GMAIL_QUOTE_PURPOSE, id)),
+            excerpt: redact(decryptText(dek, row.quoteEnc, aad(userId, GMAIL_QUOTE_PURPOSE, id))),
           },
-          accounts: ownedAccounts,
-          categories: ownedCategories,
+          accounts: ownedAccounts.map(({ accountNumber, ...account }) => ({
+            ...account,
+            name: redact(account.name),
+            providerName: redact(account.providerName),
+            accountNumberMasked: account.type === 'bank' ? maskBankAccountNumber(accountNumber) : null,
+          })),
+          categories: ownedCategories.map((category) => ({ ...category, name: redact(category.name) })),
         };
       });
     },
@@ -549,12 +592,18 @@ export function createGmail(
           .select()
           .from(categories)
           .where(and(eq(categories.kind, 'expense'), isNull(categories.deletedAt), isNull(categories.archivedAt)));
+        const categoryId = ownedCategories.some((category) => category.id === extraction.categoryId)
+          ? extraction.categoryId
+          : null;
         extraction = {
           ...extraction,
           accountId: account?.id ?? null,
-          categoryId: ownedCategories.some((category) => category.id === extraction.categoryId)
-            ? extraction.categoryId
-            : null,
+          categoryId,
+          confidence: {
+            ...extraction.confidence,
+            account: account === undefined ? 0 : extraction.confidence.account,
+            category: categoryId === null ? 0 : extraction.confidence.category,
+          },
         };
         let tags: readonly string[] = [];
         if (extraction.occurredAt !== null) {

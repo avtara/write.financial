@@ -9,7 +9,7 @@ import { m } from '@wf/i18n/messages';
 import { Money } from '@wf/ui/money';
 import { Ellipsis } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { cardSlots } from '../../lib/accounts.ts';
+import { accountNumberLabel, cardSlots } from '../../lib/accounts.ts';
 import { accountTypeLabel } from '../../lib/ledger-labels.ts';
 import { usePreferences } from '../preferences.tsx';
 import { AccountLogo } from './account-logo.tsx';
@@ -63,9 +63,7 @@ export function AccountCards({
             </span>
             <span className="flex flex-col">
               <span className="truncate text-[13px] font-medium text-fg">{account.displayName}</span>
-              <span className="truncate font-mono text-[11px] text-subtle">
-                {account.last4 === null ? (account.phoneMasked ?? ' ') : `•• ${account.last4}`}
-              </span>
+              <span className="truncate font-mono text-[11px] text-subtle">{accountNumberLabel(account) ?? ' '}</span>
             </span>
             <span className="flex flex-col gap-0.5">
               <Money

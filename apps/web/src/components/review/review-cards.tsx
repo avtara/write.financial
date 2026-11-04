@@ -7,6 +7,7 @@
  */
 import type { AccountView } from '@wf/db/accounts';
 import type { CategoryView } from '@wf/db/categories';
+import type { TagView } from '@wf/db/tags';
 import type { Locale } from '@wf/domain/money';
 import type { LocalDate } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
@@ -26,6 +27,7 @@ export interface ReviewLookup {
   readonly baseCurrency: string;
   readonly accounts: readonly AccountView[];
   readonly categories: readonly CategoryView[];
+  readonly tags?: readonly TagView[];
 }
 
 const accountOf = (lookup: ReviewLookup, id: string | null) => lookup.accounts.find((account) => account.id === id);

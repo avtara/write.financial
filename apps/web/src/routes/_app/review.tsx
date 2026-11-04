@@ -13,7 +13,7 @@ import { listReviewItems } from '../../server/fn/review.ts';
 
 /**
  * `/review`: the Review queue "Perlu ditinjau" (FR-L7) with every pending item (up to 200), the accounts and
- * categories its cards name, and `?item=<id>` for the card ⌘K opened.
+ * categories its table and detail sheet use, and `?item=<id>` for the proposal ⌘K opened.
  */
 export const Route = createFileRoute('/_app/review')({
   validateSearch: z.object({ item: z.uuid().optional().catch(undefined) }),

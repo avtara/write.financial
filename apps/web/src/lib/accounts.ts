@@ -5,7 +5,7 @@
  */
 import type { AccountView } from '@wf/db/accounts';
 import type { CategoryView } from '@wf/db/categories';
-import { ACCOUNT_TYPES, type AccountType } from '@wf/domain/ledger';
+import { ACCOUNT_TYPES, maskBankAccountNumber, type AccountType } from '@wf/domain/ledger';
 import { countDays, type LocalDate } from '@wf/domain/period';
 import { toLocalDate } from '@wf/ui/dates';
 import { accountTypeLabel } from './ledger-labels.ts';
@@ -130,6 +130,12 @@ export const DEFAULT_SHORTFALL_CATEGORY = 'system:monthly_admin';
 
 /** The subtitle under an account's name: type · currency · last digits or phone. */
 export function accountMeta(account: AccountView): string {
-  const number = account.last4 === null ? account.phoneMasked : `•• ${account.last4}`;
+  const number = accountNumberLabel(account);
   return [accountTypeLabel(account.type), account.currency, number].filter((part) => part !== null).join(' · ');
+}
+
+/** Bank numbers stay masked outside the account editor. */
+export function accountNumberLabel(account: AccountView): string | null {
+  if (account.type === 'bank' && account.accountNumber != null) return maskBankAccountNumber(account.accountNumber);
+  return account.last4 === null ? account.phoneMasked : `•• ${account.last4}`;
 }

@@ -9,7 +9,7 @@
  */
 import { getCatalogRecord, matchProvider } from '@wf/domain/catalog';
 import type { FxRate } from '@wf/domain/fx';
-import { availableBalance, canBeSavings, type AccountType } from '@wf/domain/ledger';
+import { availableBalance, BANK_ACCOUNT_NUMBER, canBeSavings, type AccountType } from '@wf/domain/ledger';
 import { parseLocalDate, type LocalDate, type YearMonth } from '@wf/domain/period';
 import { toBase } from '@wf/domain/transactions';
 import { and, asc, eq, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
@@ -28,6 +28,7 @@ const ACCOUNT_COLUMNS = {
   catalogId: accounts.catalogId,
   logoKey: accounts.logoKey,
   displayName: accounts.displayName,
+  accountNumber: accounts.accountNumber,
   last4: accounts.last4,
   phoneMasked: accounts.phoneMasked,
   currency: accounts.currency,
@@ -50,7 +51,10 @@ const ACCOUNT_COLUMNS = {
 };
 
 /** Every column but `user_id`. */
-export type AccountRow = Omit<typeof accounts.$inferSelect, 'userId'>;
+export type AccountRow = Omit<typeof accounts.$inferSelect, 'userId' | 'accountNumber'> & {
+  /** Optional for previously loaded account views; database reads always include it. */
+  readonly accountNumber?: string | null;
+};
 
 /** An account with its ledger balance (an investment account's balance is its cash). */
 export interface AccountBalanceView extends AccountRow {
@@ -87,6 +91,8 @@ export interface AccountInput {
   readonly catalogId?: string | null;
   /** 1–40 characters after trimming. */
   readonly displayName: string;
+  /** Full bank account number, preserving leading zeroes; never send this value to AI. */
+  readonly accountNumber?: string | null;
   /** ISO 4217 code. */
   readonly currency: string;
   readonly openingBalanceMinor: bigint;
@@ -203,6 +209,7 @@ const INPUT_KEYS = [
   'providerName',
   'catalogId',
   'displayName',
+  'accountNumber',
   'currency',
   'openingBalanceMinor',
   'openingDate',
@@ -249,6 +256,10 @@ function normalize(input: Partial<AccountInput>): Partial<AccountInput> {
     }
   }
   if (result.last4 != null && !LAST4.test(result.last4)) throw invalid('last4 must be four digits');
+  if (result.accountNumber != null) {
+    result.accountNumber = result.accountNumber.trim();
+    if (!BANK_ACCOUNT_NUMBER.test(result.accountNumber)) throw invalid('The account number must have 4–34 digits');
+  }
   for (const day of [result.ccStatementDay, result.ccDueDay]) {
     if (day != null && (!Number.isInteger(day) || day < 1 || day > 31)) throw invalid('Invalid credit-card day');
   }
@@ -279,6 +290,10 @@ function withSavingsRule(
   current: { readonly type: AccountType; readonly isSavings: boolean },
 ): Partial<AccountInput> {
   const type = values.type ?? current.type;
+  if (type !== 'bank') {
+    if (values.accountNumber != null) throw invalid('Only bank accounts can have an account number');
+    values = { ...values, accountNumber: null };
+  }
   if (values.isSavings === true) {
     if (!canBeSavings(type)) throw invalid('Only bank, e-wallet, and cash accounts can be savings accounts');
     return { ...values, includeInAvailable: false };

@@ -9,7 +9,7 @@
 import type { AccountView } from '@wf/db/accounts';
 import { getCatalogRecord } from '@wf/domain/catalog';
 import type { AccountType } from '@wf/domain/ledger';
-import { ACCOUNT_TYPES, canBeSavings } from '@wf/domain/ledger';
+import { ACCOUNT_TYPES, BANK_ACCOUNT_NUMBER, canBeSavings, maskBankAccountNumber } from '@wf/domain/ledger';
 import type { LocalDate } from '@wf/domain/period';
 import { m } from '@wf/i18n/messages';
 import { AmountInput } from '@wf/ui/amount-input';
@@ -52,6 +52,7 @@ export interface AccountDraft {
   readonly providerName: string;
   readonly catalogId: string | null;
   readonly displayName: string;
+  readonly accountNumber: string;
   readonly last4: string;
   /** A newly typed phone number; empty keeps the stored masked one. */
   readonly phone: string;
@@ -76,6 +77,7 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
       providerName: '',
       catalogId: null,
       displayName: '',
+      accountNumber: '',
       last4: '',
       phone: '',
       currency,
@@ -95,6 +97,7 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
     providerName: account.providerName,
     catalogId: account.catalogId,
     displayName: account.displayName,
+    accountNumber: account.accountNumber ?? '',
     last4: account.last4 ?? '',
     phone: '',
     currency: account.currency,
@@ -110,7 +113,9 @@ export function draftOf(account: AccountView | undefined, type: AccountType, tod
   } satisfies AccountDraft;
 }
 
-export type DraftErrors = Partial<Record<'providerName' | 'displayName' | 'last4' | 'phone' | 'opening', string>>;
+export type DraftErrors = Partial<
+  Record<'providerName' | 'displayName' | 'accountNumber' | 'last4' | 'phone' | 'opening', string>
+>;
 
 /** Client-side checks with the server's limits; `input` is set when there are no errors. */
 export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input: AccountFields | null } {
@@ -120,6 +125,8 @@ export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input
   if (displayName === '') errors.displayName = m.accounts_form_error_required();
   if (draft.type !== 'cash' && providerName === '') errors.providerName = m.accounts_form_error_required();
   const usesLast4 = draft.type === 'bank' || draft.type === 'credit_card';
+  if (draft.type === 'bank' && draft.accountNumber !== '' && !BANK_ACCOUNT_NUMBER.test(draft.accountNumber))
+    errors.accountNumber = m.accounts_form_error_account_number();
   if (usesLast4 && draft.last4 !== '' && !/^[0-9]{4}$/.test(draft.last4)) errors.last4 = m.accounts_form_error_last4();
   const phoneMasked = draft.type === 'ewallet' && draft.phone !== '' ? maskPhone(draft.phone) : null;
   if (draft.type === 'ewallet' && draft.phone !== '' && phoneMasked === null)
@@ -135,6 +142,7 @@ export function validateDraft(draft: AccountDraft): { errors: DraftErrors; input
       providerName,
       catalogId: draft.type === 'cash' ? null : draft.catalogId,
       displayName,
+      accountNumber: draft.type === 'bank' && draft.accountNumber !== '' ? draft.accountNumber : null,
       currency: draft.currency,
       openingBalanceMinor: card ? -draft.openingMinor : draft.openingMinor,
       openingDate: draft.openingDate,
@@ -398,7 +406,7 @@ export function AccountForm({
             />
           )}
         </Field>
-        {draft.type === 'bank' || card ? (
+        {card ? (
           <Field label={m.accounts_form_last4()} error={errors.last4 ?? null}>
             {({ id, describedBy, invalid }) => (
               <TextInput
@@ -437,6 +445,26 @@ export function AccountForm({
           </Field>
         ) : null}
       </div>
+
+      {draft.type === 'bank' ? (
+        <Field label={m.accounts_form_account_number()} error={errors.accountNumber ?? null}>
+          {({ id, describedBy, invalid }) => (
+            <TextInput
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+              className="font-mono"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={34}
+              value={draft.accountNumber}
+              onChange={(event) => {
+                set({ accountNumber: event.target.value.replace(/\D/g, '') });
+              }}
+            />
+          )}
+        </Field>
+      ) : null}
 
       {card ? (
         <div className="grid grid-cols-3 gap-3">
@@ -689,11 +717,13 @@ export function AccountForm({
               {draft.displayName.trim() === '' ? accountTypeLabel(draft.type) : draft.displayName}
             </span>
             <span className="font-mono text-[11px] text-subtle">
-              {draft.type === 'ewallet'
-                ? (maskPhone(draft.phone) ?? account?.phoneMasked ?? '')
-                : draft.last4 === ''
-                  ? ''
-                  : `•• ${draft.last4}`}
+              {draft.type === 'bank' && draft.accountNumber !== ''
+                ? (maskBankAccountNumber(draft.accountNumber) ?? '')
+                : draft.type === 'ewallet'
+                  ? (maskPhone(draft.phone) ?? account?.phoneMasked ?? '')
+                  : draft.last4 === ''
+                    ? ''
+                    : `•• ${draft.last4}`}
             </span>
           </div>
           <Money
