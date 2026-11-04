@@ -8,6 +8,15 @@
 export const ACCOUNT_TYPES = ['bank', 'ewallet', 'cash', 'investment', 'credit_card'] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
+/** Bank account numbers are strings so leading zeroes are preserved. */
+export const BANK_ACCOUNT_NUMBER = /^[0-9]{4,34}$/;
+
+/** Hide every digit except the last three; incomplete/invalid numbers are never exposed. */
+export function maskBankAccountNumber(number: string | null | undefined): string | null {
+  if (number == null || !BANK_ACCOUNT_NUMBER.test(number)) return null;
+  return '*'.repeat(number.length - 3) + number.slice(-3);
+}
+
 /** "Rekening tabungan" can be marked on these types (an investment account is set aside by nature). */
 export function canBeSavings(type: AccountType): boolean {
   return type === 'bank' || type === 'ewallet' || type === 'cash';

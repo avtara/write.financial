@@ -9,7 +9,7 @@ import type { CategoryView } from '@wf/db/categories';
 import { localDateOf } from '@wf/db/ledger-core';
 import { LedgerError } from '@wf/db/ledger-errors';
 import type { TransactionRow } from '@wf/db/transaction-query';
-import { ACCOUNT_TYPES } from '@wf/domain/ledger';
+import { ACCOUNT_TYPES, BANK_ACCOUNT_NUMBER } from '@wf/domain/ledger';
 import { parseLocalDate, type LocalDate } from '@wf/domain/period';
 import { ImageRejectedError, prepareImageUpload } from '@wf/integrations/image';
 import * as z from 'zod';
@@ -39,6 +39,7 @@ const accountFields = z.object({
   providerName: z.string().trim().min(1).max(80),
   catalogId: z.string().trim().min(1).max(80).nullable().optional(),
   displayName: z.string().trim().min(1).max(40),
+  accountNumber: z.string().trim().regex(BANK_ACCOUNT_NUMBER).nullable().optional(),
   currency,
   openingBalanceMinor: z.bigint(),
   openingDate: localDate,

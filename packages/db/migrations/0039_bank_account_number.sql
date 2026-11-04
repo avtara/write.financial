@@ -1,0 +1,2 @@
+ALTER TABLE "accounts" ADD COLUMN "account_number" varchar(34);--> statement-breakpoint
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_number_check" CHECK ("accounts"."account_number" is null or ("accounts"."type" = 'bank' and "accounts"."account_number" ~ '^[0-9]{4,34}$'));

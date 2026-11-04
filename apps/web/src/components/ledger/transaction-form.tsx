@@ -52,6 +52,12 @@ export interface TransactionFormFieldsProps {
   readonly goalUse?: ReactNode;
   /** Receipt proposals have one fixed direction; amount/account/category remain editable. */
   readonly hideKind?: boolean;
+  /** Review proposals keep their original direction while sharing the transaction edit layout. */
+  readonly fixedKind?: EntryKind;
+  /** An extraction without a timestamp must wait for the user to choose one. */
+  readonly dateUnknown?: boolean;
+  /** A review confirms an entry immediately; a future value must not claim it will be scheduled. */
+  readonly recordImmediately?: boolean;
 }
 
 const KIND_ICON_CLASS: Readonly<Record<EntryKind, string>> = {
@@ -71,6 +77,9 @@ export function TransactionFormFields({
   schedule,
   goalUse,
   hideKind = false,
+  fixedKind,
+  dateUnknown = false,
+  recordImmediately = false,
 }: TransactionFormFieldsProps) {
   const id = useId();
   const ids = {
@@ -86,7 +95,7 @@ export function TransactionFormFields({
   const account = data.accounts.find((candidate) => candidate.id === values.accountId);
   const currency = account?.currency ?? data.baseCurrency;
   // A future date is scheduled, not recorded: nothing moves now, so no balance or budget impact.
-  const scheduled = values.date > today;
+  const scheduled = !recordImmediately && values.date > today;
   const short = scheduled ? null : form.shortfall;
   const impact = values.type === 'transfer' ? undefined : balancesAfter(values, data.accounts, figures)[0];
   // FR-T2/T3: the typed amount counts against the budget when it is in the base currency.
@@ -159,9 +168,24 @@ export function TransactionFormFields({
             update({ type, categoryId: null, toAccountId: null, receivedMinor: null });
           }}
           options={[
-            { value: 'expense', label: m.record_type_expense(), icon: ArrowUpRight },
-            { value: 'income', label: m.record_type_income(), icon: ArrowDownLeft },
-            { value: 'transfer', label: m.record_type_transfer(), icon: ArrowLeftRight },
+            {
+              value: 'expense',
+              label: m.record_type_expense(),
+              icon: ArrowUpRight,
+              disabled: fixedKind !== undefined && fixedKind !== 'expense',
+            },
+            {
+              value: 'income',
+              label: m.record_type_income(),
+              icon: ArrowDownLeft,
+              disabled: fixedKind !== undefined && fixedKind !== 'income',
+            },
+            {
+              value: 'transfer',
+              label: m.record_type_transfer(),
+              icon: ArrowLeftRight,
+              disabled: fixedKind !== undefined && fixedKind !== 'transfer',
+            },
           ]}
           className={KIND_ICON_CLASS[values.type]}
         />
@@ -211,6 +235,7 @@ export function TransactionFormFields({
                 id={fieldId}
                 date={values.date}
                 time={values.time}
+                {...(dateUnknown ? { triggerLabel: m.date_field_placeholder() } : {})}
                 onChange={update}
                 today={today}
                 timeZone={timeZone}
@@ -274,6 +299,7 @@ export function TransactionFormFields({
                   id={fieldId}
                   date={values.date}
                   time={values.time}
+                  {...(dateUnknown ? { triggerLabel: m.date_field_placeholder() } : {})}
                   onChange={update}
                   today={today}
                   timeZone={timeZone}

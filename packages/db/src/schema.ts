@@ -477,6 +477,7 @@ export const accounts = pgTable(
     catalogId: text('catalog_id').references(() => referenceCatalog.id),
     logoKey: text('logo_key'),
     displayName: varchar('display_name', { length: 40 }).notNull(),
+    accountNumber: varchar('account_number', { length: 34 }),
     last4: char('last4', { length: 4 }),
     phoneMasked: text('phone_masked'),
     currency: currency('currency').notNull(),
@@ -510,6 +511,10 @@ export const accounts = pgTable(
     }),
     currencyCheck('accounts_currency_check', table.currency),
     check('accounts_last4_check', sql`${table.last4} ~ '^[0-9]{4}$'`),
+    check(
+      'accounts_number_check',
+      sql`${table.accountNumber} is null or (${table.type} = 'bank' and ${table.accountNumber} ~ '^[0-9]{4,34}$')`,
+    ),
     check(
       'accounts_cc_days_check',
       sql`${table.ccStatementDay} between 1 and 31 and ${table.ccDueDay} between 1 and 31`,
