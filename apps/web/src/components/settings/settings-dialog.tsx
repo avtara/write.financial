@@ -306,6 +306,7 @@ export function SettingsDialog({ viewer, data }: { viewer: Viewer; data: Setting
                 </nav>
                 {/* The scroll container, so a section's sticky footer sticks to the dialog's bottom edge. */}
                 <section
+                  data-settings-scroll
                   aria-labelledby="settings-section-title"
                   className="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-7 py-[22px]"
                 >

@@ -53,6 +53,8 @@ export function createGmailProcessor({ db, gmail, now }: ProcessorDeps): (job: P
       for (const message of page.messages) {
         await assertCurrent();
         const verdict = filterEmail(message.from, `${message.subject} ${message.excerpt}`, connection.filters);
+        if (verdict !== 'passed') continue;
+        passed++;
         const recorded = await db.gmail.recordEmail(userId, {
           messageId: message.id,
           fromAddr: message.from,
@@ -62,9 +64,8 @@ export function createGmailProcessor({ db, gmail, now }: ProcessorDeps): (job: P
           filterResult: verdict,
         });
         if (recorded.duplicate) duplicates++;
-        if (verdict === 'passed') passed++;
       }
-      // It is safe to advance now: all work is independently durable and drained on every subsequent poll.
+      // Matching mail is durable; rejected mail leaves no log or dedupe key. Advance past both kinds.
       if (page.historyId !== null) await db.gmail.setHistoryId(userId, page.historyId, connection.grantId);
       for (const { id } of await db.gmail.pending(userId)) {
         await assertCurrent();
