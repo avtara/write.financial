@@ -3,9 +3,9 @@
  * Settings › "AI agent (BYOK)" (FR-AI2, FR-A9, D14; design `MXnjE`, `l1nyC`, `GpdeI`, `OJaxo`): the provider and its
  * own API key (masked to the last four characters, never returned), the model picked from the provider's catalog
  * (which loads by itself and is the only source of prices), the permissions (including the locked "always confirm"),
- * the monthly USD cap with its usage, and the deliberate connection test that may cost a tiny request. "Lihat log"
- * shows the 30-day metadata log with feature/status filters, pages, details, and CSV export — no prompts, responses,
- * or full tool arguments.
+ * the monthly USD cap with its usage, and the deliberate connection test that may cost a tiny request. Persistent
+ * tabs separate connection, permissions/budget, and the 30-day activity table, with metadata details and CSV export.
+ * Logs never contain prompts, responses, or full tool arguments.
  */
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import type {
@@ -43,9 +43,11 @@ import { ConfirmDialog } from '@wf/ui/confirm-dialog';
 import { PageState } from '@wf/ui/page-state';
 import { usePrivacy } from '@wf/ui/privacy';
 import { Switch } from '@wf/ui/switch';
+import { Select } from '@wf/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wf/ui/tabs';
 import { toast } from '@wf/ui/toast';
-import { ChevronsUpDown, CircleAlert, Cloud, Lock } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { ChevronsUpDown, CircleAlert, Cloud, History, KeyRound, Lock, ShieldCheck } from 'lucide-react';
+import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import { needsReauthentication } from '../../lib/auth-errors.ts';
 import { aiErrorMessage } from '../../lib/ai-errors.ts';
 import type { Result } from '../../server/access.ts';
@@ -58,7 +60,7 @@ import {
   saveAiSettings,
   testAiConnection,
 } from '../../server/fn/ai.ts';
-import { Button, Field, FormError, Select, TextInput } from '../form.tsx';
+import { Button, Field, FormError, TextInput } from '../form.tsx';
 import { usePreferences } from '../preferences.tsx';
 import { useReauthentication } from './reauth.tsx';
 import { SettingsGroup, SettingsRow } from './settings-ui.tsx';
@@ -273,12 +275,18 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   const router = useRouter();
   const navigate = useNavigate();
   const { locale } = usePreferences().preferences;
-  const { hidden, hiddenLabel } = usePrivacy();
+  const { hidden } = usePrivacy();
   const { reauthenticate, dialog } = useReauthentication(viewer);
   const limitId = useId();
   const [view, setView] = useState(settings);
   const [draft, setDraft] = useState<Draft>(() => draftFromView(settings));
-  const [mode, setMode] = useState<'settings' | 'logs'>('settings');
+  const [mode, setMode] = useState('settings');
+  const tabs = useRef<HTMLDivElement>(null);
+  const changeMode = (value: string) => {
+    setMode(value);
+    const scroller = tabs.current?.closest<HTMLElement>('[data-settings-scroll]');
+    if (scroller !== null && scroller !== undefined) scroller.scrollTop = 0;
+  };
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
@@ -306,6 +314,7 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
 
   const connectionOf = (provider: AiProvider) => view.connections.find((entry) => entry.provider === provider);
   const connection = connectionOf(draft.provider);
+  const hasSavedKey = connection?.last4 != null;
   const baseline = draftFromView(view);
   const dirty = draft.apiKey.trim() !== '' || comparable(draft) !== comparable(baseline);
   const limitInvalid = fieldErrors.limit ?? null;
@@ -396,7 +405,14 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
     if (!isValidUsd(draft.monthlyLimitUsd)) errors.limit = m.ai_monthly_limit_invalid();
     setFieldErrors(errors);
     setSaveError(null);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      changeMode(
+        errors.model !== undefined || errors.baseUrl !== undefined || errors.apiKey !== undefined
+          ? 'settings'
+          : 'permissions',
+      );
+      return;
+    }
     const input: AiSettingsInput = {
       expectedRevision: view.revision,
       provider: draft.provider,
@@ -431,16 +447,17 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
   };
 
   const remove = async (expectedRevision: string) => {
+    const provider = draft.provider;
     setRemoving(true);
     setDeleting(null);
     setDeleteError(null);
     const first = await removeAiKey({
-      data: { provider: draft.provider, expectedRevision },
+      data: { provider, expectedRevision },
     }).catch(() => null);
     let result = first;
     if (result !== null && !result.ok && needsReauthentication(result.code) && (await reauthenticate())) {
       result = await removeAiKey({
-        data: { provider: draft.provider, expectedRevision },
+        data: { provider, expectedRevision },
       }).catch(() => null);
     }
     setRemoving(false);
@@ -453,9 +470,18 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
       return;
     }
     setView(result.value);
-    setDraft(draftFromView(result.value));
+    const removed = result.value.connections.find((entry) => entry.provider === provider);
+    setDraft({
+      ...draftFromView(result.value),
+      provider,
+      baseUrl: provider === 'custom' ? (removed?.baseUrl ?? '') : '',
+      modelId: removed?.modelId ?? '',
+    });
+    setFieldErrors({});
+    setSaveError(null);
     setLastTest(null);
-    toast({ tone: 'success', title: m.ai_deleted({ provider: PROVIDER_LABEL[draft.provider]() }) });
+    setTestError(null);
+    toast({ tone: 'success', title: m.ai_deleted({ provider: PROVIDER_LABEL[provider]() }) });
     void router.invalidate();
   };
 
@@ -541,32 +567,23 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
         : connectionText(lastTest);
   const month = formatMonth(view.usage.month, locale);
 
-  if (mode === 'logs') {
-    return (
-      <AiLogPanel
-        timeZone={timeZone}
-        usage={view.usage}
-        onBack={() => {
-          setMode('settings');
-        }}
-      />
-    );
-  }
-
   return (
-    <>
+    <Tabs ref={tabs} value={mode} onValueChange={changeMode} className="flex flex-col gap-5">
+      <div className="sticky -top-[22px] z-20 -mx-7 border-b border-border bg-dialog px-7 pt-3 pb-3">
+        <TabsList label={m.ai_settings_tabs()} fill>
+          <TabsTrigger value="settings" icon={KeyRound}>
+            {m.ai_tab_connection()}
+          </TabsTrigger>
+          <TabsTrigger value="permissions" icon={ShieldCheck}>
+            {m.ai_tab_permissions()}
+          </TabsTrigger>
+          <TabsTrigger value="logs" icon={History}>
+            {m.settings_tab_activity()}
+          </TabsTrigger>
+        </TabsList>
+        {dirty ? <p className="mt-2 text-[12px] text-amber-fg">{m.settings_unsaved()}</p> : null}
+      </div>
       <fieldset disabled={busy} className="contents">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setMode('logs');
-            }}
-          >
-            {m.ai_open_log()}
-          </Button>
-        </div>
         {!settings.twoFactorEnabled || twoFactorNotice ? (
           <div
             role="alert"
@@ -590,202 +607,241 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
           </div>
         ) : null}
         {saveError === null ? null : <FormError>{saveError}</FormError>}
-        {deleteError === null ? null : <FormError>{deleteError}</FormError>}
+        <TabsContent value="settings" forceMount className="flex flex-col gap-5 data-[state=inactive]:hidden">
+          {deleteError === null ? null : <FormError>{deleteError}</FormError>}
 
-        <section aria-labelledby="ai-providers-title" className="flex flex-col gap-2">
-          <div className="flex min-h-[26px] items-center">
-            <h3 id="ai-providers-title" className="text-[11px] font-medium text-subtle uppercase">
-              {m.ai_provider_group()}
-            </h3>
-          </div>
-          <div role="group" aria-labelledby="ai-providers-title" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {AI_PROVIDERS.map((provider) => {
-              const saved = connectionOf(provider);
-              const disabled = provider === 'custom' && view.allowedCustomBaseUrls.length === 0;
-              return (
-                <button
-                  key={provider}
-                  type="button"
-                  disabled={disabled}
-                  aria-pressed={draft.provider === provider}
-                  data-provider-chip={provider}
-                  title={disabled ? m.ai_custom_no_origins() : undefined}
-                  onClick={() => {
-                    chooseProvider(provider);
-                  }}
-                  className="flex min-w-0 flex-col items-start gap-0.5 rounded-[9px] border border-border px-3 py-2 text-left text-fg hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-fg aria-pressed:bg-muted disabled:opacity-50"
-                >
-                  <span className="text-[13px] font-medium">{PROVIDER_LABEL[provider]()}</span>
-                  <span className="text-[11.5px] text-subtle">{PROVIDER_NOTE[provider]()}</span>
-                  <span className="text-[11.5px] text-muted-fg">
-                    {saved === undefined ? m.ai_not_connected() : CONNECTION_STATUS[saved.status]()}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <div className="contents" data-provider={draft.provider}>
-          <SettingsGroup label={m.ai_connection_label({ provider: PROVIDER_LABEL[draft.provider]() })}>
-            {connection === undefined ? (
-              <SettingsRow title={m.ai_not_connected()} description={m.ai_no_key()} />
-            ) : (
-              <SettingsRow
-                title={connection.last4 === null ? m.ai_no_key() : m.ai_key_masked({ last4: connection.last4 })}
-                description={[
-                  connectionText(connection),
-                  ...(connection.addedAt === null
-                    ? []
-                    : [m.ai_added_at({ date: formatDate(connection.addedAt, locale, { timeZone }) })]),
-                  ...(connection.testedAt === null
-                    ? []
-                    : [m.ai_tested_at({ date: formatDate(connection.testedAt, locale, { timeZone }) })]),
-                ].join(' · ')}
-              >
-                {connection.last4 === null ? null : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={view.revision === null}
+          <section aria-labelledby="ai-providers-title" className="flex flex-col gap-2">
+            <div className="flex min-h-[26px] items-center">
+              <h3 id="ai-providers-title" className="text-[11px] font-medium text-subtle uppercase">
+                {m.ai_provider_group()}
+              </h3>
+            </div>
+            <div role="group" aria-labelledby="ai-providers-title" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {AI_PROVIDERS.map((provider) => {
+                const saved = connectionOf(provider);
+                const disabled = provider === 'custom' && view.allowedCustomBaseUrls.length === 0;
+                return (
+                  <button
+                    key={provider}
+                    type="button"
+                    disabled={disabled}
+                    aria-pressed={draft.provider === provider}
+                    data-provider-chip={provider}
+                    title={disabled ? m.ai_custom_no_origins() : undefined}
                     onClick={() => {
-                      setDeleting(view.revision);
+                      chooseProvider(provider);
                     }}
+                    className="flex min-w-0 flex-col items-start gap-0.5 rounded-[9px] border border-border px-3 py-2 text-left text-fg hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-fg aria-pressed:bg-muted disabled:opacity-50"
                   >
-                    {m.ai_delete_key()}
-                  </Button>
-                )}
-              </SettingsRow>
-            )}
-            <div className="flex flex-col gap-3 px-3.5 py-3">
-              <Field label={m.ai_api_key()} hint={m.ai_api_key_hint()} error={apiKeyInvalid}>
-                {({ id, describedBy, invalid }) => (
-                  <TextInput
-                    id={id}
-                    size="sm"
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-describedby={describedBy}
-                    aria-invalid={invalid}
-                    placeholder={m.ai_api_key_placeholder()}
-                    value={draft.apiKey}
-                    onChange={(event) => {
-                      const apiKey = event.currentTarget.value;
-                      setDraft((current) => ({ ...current, apiKey }));
-                      clearFieldError('apiKey');
-                    }}
-                  />
-                )}
-              </Field>
-              {draft.provider === 'custom' ? (
-                <Field
-                  label={m.ai_custom_base_url()}
-                  hint={m.ai_custom_base_url_hint()}
-                  error={fieldErrors.baseUrl ?? null}
+                    <span className="text-[13px] font-medium">{PROVIDER_LABEL[provider]()}</span>
+                    <span className="text-[11.5px] text-subtle">{PROVIDER_NOTE[provider]()}</span>
+                    <span className="text-[11.5px] text-muted-fg">
+                      {saved === undefined ? m.ai_not_connected() : CONNECTION_STATUS[saved.status]()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <div className="contents" data-provider={draft.provider}>
+            <SettingsGroup label={m.ai_connection_label({ provider: PROVIDER_LABEL[draft.provider]() })}>
+              {connection === undefined ? (
+                <SettingsRow title={m.ai_not_connected()} description={m.ai_no_key()} />
+              ) : (
+                <SettingsRow
+                  title={connection.last4 === null ? m.ai_no_key() : m.ai_key_masked({ last4: connection.last4 })}
+                  description={[
+                    connectionText(connection),
+                    ...(connection.addedAt === null
+                      ? []
+                      : [m.ai_added_at({ date: formatDate(connection.addedAt, locale, { timeZone }) })]),
+                    ...(connection.testedAt === null
+                      ? []
+                      : [m.ai_tested_at({ date: formatDate(connection.testedAt, locale, { timeZone }) })]),
+                  ].join(' · ')}
                 >
-                  {({ id, describedBy }) =>
-                    view.allowedCustomBaseUrls.length === 0 ? (
-                      <Select id={id} size="sm" defaultValue="" disabled>
-                        <option value="">{m.ai_custom_no_origins()}</option>
-                      </Select>
-                    ) : (
-                      <Select
+                  {connection.last4 === null ? null : (
+                    <button
+                      type="button"
+                      className="shrink-0 border-0 bg-transparent p-0 text-[12.5px] font-medium text-red-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60"
+                      disabled={view.revision === null}
+                      onClick={() => {
+                        setDeleting(view.revision);
+                      }}
+                    >
+                      {m.ai_delete_key()}
+                    </button>
+                  )}
+                </SettingsRow>
+              )}
+              {hasSavedKey ? (
+                <div className="flex flex-col gap-2 px-3.5 py-3">
+                  <dl>
+                    <dt className="text-[12px] text-subtle">{m.ai_model()}</dt>
+                    <dd className="mt-1 break-words text-[13px] font-medium text-fg">
+                      {connection.modelId ?? m.ai_log_detail_none()}
+                    </dd>
+                  </dl>
+                  <p className="text-[12px] text-subtle">{m.ai_connection_reset_hint()}</p>
+                  {fieldErrors.model === undefined ? null : <FormError>{fieldErrors.model}</FormError>}
+                  {fieldErrors.baseUrl === undefined ? null : <FormError>{fieldErrors.baseUrl}</FormError>}
+                  {fieldErrors.apiKey === undefined ? null : <FormError>{fieldErrors.apiKey}</FormError>}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 px-3.5 py-3">
+                  <Field label={m.ai_api_key()} hint={m.ai_api_key_hint()} error={apiKeyInvalid}>
+                    {({ id, describedBy, invalid }) => (
+                      <TextInput
                         id={id}
                         size="sm"
+                        type="password"
+                        autoComplete="off"
+                        spellCheck={false}
                         aria-describedby={describedBy}
-                        value={draft.baseUrl}
+                        aria-invalid={invalid}
+                        placeholder={m.ai_api_key_placeholder()}
+                        value={draft.apiKey}
                         onChange={(event) => {
-                          const baseUrl = event.currentTarget.value;
-                          setDraft((current) => ({ ...current, baseUrl }));
-                          clearFieldError('baseUrl');
+                          const apiKey = event.currentTarget.value;
+                          setDraft((current) => ({ ...current, apiKey }));
+                          clearFieldError('apiKey');
                         }}
-                      >
-                        <option value="">{m.ai_custom_base_url_placeholder()}</option>
-                        {view.allowedCustomBaseUrls.map((origin) => (
-                          <option key={origin} value={origin}>
-                            {origin}
-                          </option>
-                        ))}
-                      </Select>
-                    )
-                  }
-                </Field>
-              ) : null}
-              <Field label={m.ai_model()} hint={m.ai_catalog_public()} error={fieldErrors.model ?? null}>
-                {({ id, describedBy, invalid }) => (
-                  <Combobox
-                    value={selectedModel?.id ?? null}
-                    onValueChange={selectModel}
-                    groups={[{ options: (catalog?.models ?? []).map((model) => modelOption(model, locale, hidden)) }]}
-                    label={m.ai_model_placeholder()}
-                    searchPlaceholder={m.ai_model_search()}
-                    emptyLabel={m.ai_model_search_empty()}
-                  >
-                    <button
-                      id={id}
-                      type="button"
-                      aria-describedby={describedBy}
-                      aria-invalid={invalid}
-                      disabled={catalog === null || catalog.models.length === 0}
-                      className="flex h-[42px] w-full min-w-0 items-center gap-2.5 rounded-[9px] border border-border-input bg-input px-3 text-left text-[14px] text-fg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-red"
+                      />
+                    )}
+                  </Field>
+                  {draft.provider === 'custom' ? (
+                    <Field
+                      label={m.ai_custom_base_url()}
+                      hint={m.ai_custom_base_url_hint()}
+                      error={fieldErrors.baseUrl ?? null}
                     >
-                      <span className={`min-w-0 flex-1 truncate ${draft.modelId === '' ? 'text-subtle' : ''}`}>
-                        {selectedModel?.name ??
-                          (draft.modelId !== ''
-                            ? draft.modelId
-                            : catalogLoading
-                              ? m.ai_loading_models()
-                              : m.ai_model_placeholder())}
-                      </span>
-                      <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-                    </button>
-                  </Combobox>
-                )}
-              </Field>
-              {draft.provider === 'custom' && !catalogReady ? (
-                <p className="text-[12px] text-subtle">{m.ai_custom_models_need_key()}</p>
-              ) : null}
-              {catalogError === null ? null : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <FormError>
-                    {m.ai_models_failed()}{' '}
-                    {catalogError === 'NETWORK' ? m.error_network() : aiErrorMessage(catalogError, locale)}
-                  </FormError>
-                  <Button size="sm" variant="secondary" onClick={() => void retryCatalog()}>
-                    {m.ai_log_retry()}
-                  </Button>
-                </div>
-              )}
-              {catalog === null ? null : catalog.models.length === 0 ? (
-                <p className="text-[12px] text-subtle">{m.ai_models_empty()}</p>
-              ) : (
-                <p className="text-[12px] text-subtle">
-                  {m.ai_models_loaded({ count: formatCount(catalog.models.length, locale) })}
-                </p>
-              )}
-              {selectedModel?.pricing != null && selectedUnsupported === null ? (
-                <>
-                  <p className="text-[12px] text-subtle">{pricingText(selectedModel.pricing, locale, hidden)}</p>
-                  {selectedModel.contextLength === null ? null : (
+                      {({ id, describedBy, invalid }) => (
+                        <Select
+                          id={id}
+                          size="sm"
+                          aria-describedby={describedBy}
+                          aria-invalid={invalid}
+                          value={draft.baseUrl === '' ? null : draft.baseUrl}
+                          disabled={view.allowedCustomBaseUrls.length === 0}
+                          placeholder={
+                            view.allowedCustomBaseUrls.length === 0
+                              ? m.ai_custom_no_origins()
+                              : m.ai_custom_base_url_placeholder()
+                          }
+                          options={view.allowedCustomBaseUrls.map((origin) => ({ value: origin, label: origin }))}
+                          onValueChange={(baseUrl) => {
+                            setDraft((current) => ({ ...current, baseUrl }));
+                            clearFieldError('baseUrl');
+                          }}
+                        />
+                      )}
+                    </Field>
+                  ) : null}
+                  <Field label={m.ai_model()} hint={m.ai_catalog_public()} error={fieldErrors.model ?? null}>
+                    {({ id, describedBy, invalid }) => (
+                      <Combobox
+                        value={selectedModel?.id ?? null}
+                        onValueChange={selectModel}
+                        groups={[
+                          { options: (catalog?.models ?? []).map((model) => modelOption(model, locale, hidden)) },
+                        ]}
+                        label={m.ai_model_placeholder()}
+                        searchPlaceholder={m.ai_model_search()}
+                        emptyLabel={m.ai_model_search_empty()}
+                      >
+                        <button
+                          id={id}
+                          type="button"
+                          aria-describedby={describedBy}
+                          aria-invalid={invalid}
+                          disabled={catalog === null || catalog.models.length === 0}
+                          className="flex h-[42px] w-full min-w-0 items-center gap-2.5 rounded-[9px] border border-border-input bg-input px-3 text-left text-[14px] text-fg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-red"
+                        >
+                          <span className={`min-w-0 flex-1 truncate ${draft.modelId === '' ? 'text-subtle' : ''}`}>
+                            {selectedModel?.name ??
+                              (draft.modelId !== ''
+                                ? draft.modelId
+                                : catalogLoading
+                                  ? m.ai_loading_models()
+                                  : m.ai_model_placeholder())}
+                          </span>
+                          <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+                        </button>
+                      </Combobox>
+                    )}
+                  </Field>
+                  {draft.provider === 'custom' && !catalogReady ? (
+                    <p className="text-[12px] text-subtle">{m.ai_custom_models_need_key()}</p>
+                  ) : null}
+                  {catalogError === null ? null : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <FormError>
+                        {m.ai_models_failed()}{' '}
+                        {catalogError === 'NETWORK' ? m.error_network() : aiErrorMessage(catalogError, locale)}
+                      </FormError>
+                      <Button size="sm" variant="secondary" onClick={() => void retryCatalog()}>
+                        {m.ai_log_retry()}
+                      </Button>
+                    </div>
+                  )}
+                  {catalog === null ? null : catalog.models.length === 0 ? (
+                    <p className="text-[12px] text-subtle">{m.ai_models_empty()}</p>
+                  ) : (
                     <p className="text-[12px] text-subtle">
-                      {m.ai_model_context({ count: formatCount(selectedModel.contextLength, locale) })}
+                      {m.ai_models_loaded({ count: formatCount(catalog.models.length, locale) })}
                     </p>
                   )}
-                </>
-              ) : catalog !== null ? (
-                draft.modelId === '' || fieldErrors.model !== undefined ? null : (
-                  // A saved model the catalog no longer lists, prices, or supports cannot be used for paid requests.
-                  <p className="text-[12px] text-amber-fg">
-                    {aiErrorMessage(AI_UNSUPPORTED_ERRORS[selectedUnsupported ?? 'no_pricing'], locale)}
-                  </p>
-                )
-              ) : connection?.pricing != null && draft.modelId === connection.modelId ? (
-                <p className="text-[12px] text-muted-fg">{pricingText(connection.pricing, locale, hidden)}</p>
-              ) : null}
-            </div>
-          </SettingsGroup>
+                  {selectedModel?.pricing != null && selectedUnsupported === null ? (
+                    <>
+                      <p className="text-[12px] text-subtle">{pricingText(selectedModel.pricing, locale, hidden)}</p>
+                      {selectedModel.contextLength === null ? null : (
+                        <p className="text-[12px] text-subtle">
+                          {m.ai_model_context({ count: formatCount(selectedModel.contextLength, locale) })}
+                        </p>
+                      )}
+                    </>
+                  ) : catalog !== null ? (
+                    draft.modelId === '' || fieldErrors.model !== undefined ? null : (
+                      // A saved model the catalog no longer lists, prices, or supports cannot be used for paid requests.
+                      <p className="text-[12px] text-amber-fg">
+                        {aiErrorMessage(AI_UNSUPPORTED_ERRORS[selectedUnsupported ?? 'no_pricing'], locale)}
+                      </p>
+                    )
+                  ) : connection?.pricing != null && draft.modelId === connection.modelId ? (
+                    <p className="text-[12px] text-muted-fg">{pricingText(connection.pricing, locale, hidden)}</p>
+                  ) : null}
+                </div>
+              )}
+            </SettingsGroup>
 
+            <SettingsGroup label={m.ai_test()}>
+              <div className="flex flex-col gap-2 px-3.5 py-3">
+                <p className="text-[12.5px] text-muted-fg">{m.ai_test_description()}</p>
+                {testDisabledReason === null ? null : <p className="text-[12px] text-subtle">{testDisabledReason}</p>}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    pending={testing}
+                    disabled={!canTest}
+                    onClick={testRevision === null ? undefined : () => void runTest(testRevision)}
+                  >
+                    {testing ? m.ai_testing() : m.ai_test()}
+                  </Button>
+                  <span role="status" className="min-h-[18px] text-[12px] text-muted-fg">
+                    {testNotice}
+                  </span>
+                </div>
+                {testError === null ? null : (
+                  <FormError>
+                    {m.ai_test_failed()} {testError}
+                  </FormError>
+                )}
+              </div>
+            </SettingsGroup>
+          </div>
+        </TabsContent>
+        <TabsContent value="permissions" forceMount className="flex flex-col gap-5 data-[state=inactive]:hidden">
           <SettingsGroup label={m.ai_permissions()}>
             <div className="px-3.5 py-2.5">
               <Switch
@@ -853,77 +909,42 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
                 <FormError>{limitInvalid}</FormError>
               </div>
             )}
-            <div className="flex flex-col gap-1 px-3.5 py-3 text-[12.5px] text-fg">
-              <p className="font-medium">{m.ai_usage_month({ month })}</p>
-              <p className="text-muted-fg">
-                {m.ai_usage_requests({ count: formatCount(view.usage.requests, locale) })}
-              </p>
-              <p className="text-muted-fg">
-                {m.ai_usage_spent({
-                  spent: formatUsd(view.usage.spentUsd, locale, hidden),
-                  limit: formatUsd(view.usage.limitUsd, locale, hidden),
-                })}
-              </p>
-              <p className="text-subtle">
-                {m.ai_usage_estimated({ amount: formatUsd(view.usage.estimatedUsd, locale, hidden) })}
-              </p>
-              <p className="text-subtle">
-                {m.ai_usage_reserved({ amount: formatUsd(view.usage.reservedUsd, locale, hidden) })}
-              </p>
-              <p className="text-subtle">{m.ai_cost_warning()}</p>
-              <p className="text-subtle">{m.ai_cost_unknown_warning()}</p>
-              {hidden ? <span className="sr-only">{hiddenLabel}</span> : null}
+            <div className="px-3.5 py-3">
+              <p className="mb-3 text-[12px] text-subtle">{month}</p>
+              <AiUsageNumbers usage={view.usage} />
             </div>
           </SettingsGroup>
+        </TabsContent>
 
-          <SettingsGroup label={m.ai_test()}>
-            <div className="flex flex-col gap-2 px-3.5 py-3">
-              <p className="text-[12.5px] text-muted-fg">{m.ai_test_description()}</p>
-              {testDisabledReason === null ? null : <p className="text-[12px] text-subtle">{testDisabledReason}</p>}
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  pending={testing}
-                  disabled={!canTest}
-                  onClick={testRevision === null ? undefined : () => void runTest(testRevision)}
-                >
-                  {testing ? m.ai_testing() : m.ai_test()}
-                </Button>
-                <span role="status" className="min-h-[18px] text-[12px] text-muted-fg">
-                  {testNotice}
-                </span>
-              </div>
-              {testError === null ? null : (
-                <FormError>
-                  {m.ai_test_failed()} {testError}
-                </FormError>
-              )}
-            </div>
-          </SettingsGroup>
-        </div>
-
-        {/* Sticky edges sit inside the scroller's 22px padding, so `-bottom-[22px]` puts the bar on the dialog's edge;
+        {mode !== 'logs' ? (
+          <>
+            {/* Sticky edges sit inside the scroller's 22px padding, so `-bottom-[22px]` puts the bar on the dialog's edge;
             `mt-auto` keeps it there when the section is shorter than the dialog. */}
-        <footer className="sticky -bottom-[22px] z-10 -mx-7 mt-auto -mb-[22px] flex flex-wrap items-center gap-2 border-t border-border bg-dialog px-7 py-3">
-          <span
-            role="status"
-            className={`flex flex-1 items-center gap-1.5 text-[12px] ${dirty ? 'text-amber-fg' : 'text-subtle'}`}
-          >
-            {dirty ? (
-              <CircleAlert aria-hidden="true" className="size-3.5" />
-            ) : (
-              <Cloud aria-hidden="true" className="size-3.5" />
-            )}
-            <span className="min-h-[18px]">{dirty ? m.settings_unsaved() : m.settings_synced()}</span>
-          </span>
-          <Button variant="secondary" size="sm" disabled={!dirty || saving} onClick={resetDraft}>
-            {m.settings_cancel()}
-          </Button>
-          <Button size="sm" disabled={!canSave} pending={saving} onClick={() => void save()}>
-            {m.settings_save()}
-          </Button>
-        </footer>
+            <footer className="sticky -bottom-[22px] z-10 -mx-7 mt-auto -mb-[22px] flex flex-wrap items-center gap-2 border-t border-border bg-dialog px-7 py-3">
+              <span
+                role="status"
+                className={`flex flex-1 items-center gap-1.5 text-[12px] ${dirty ? 'text-amber-fg' : 'text-subtle'}`}
+              >
+                {dirty ? (
+                  <CircleAlert aria-hidden="true" className="size-3.5" />
+                ) : (
+                  <Cloud aria-hidden="true" className="size-3.5" />
+                )}
+                <span className="min-h-[18px]">{dirty ? m.settings_unsaved() : m.settings_synced()}</span>
+              </span>
+              <Button variant="secondary" size="sm" disabled={!dirty || saving} onClick={resetDraft}>
+                {m.settings_cancel()}
+              </Button>
+              <Button size="sm" disabled={!canSave} pending={saving} onClick={() => void save()}>
+                {m.settings_save()}
+              </Button>
+            </footer>
+          </>
+        ) : null}
       </fieldset>
+      <TabsContent value="logs">
+        <AiLogPanel usage={view.usage} timeZone={timeZone} />
+      </TabsContent>
 
       {deleting === null ? null : (
         <ConfirmDialog
@@ -943,21 +964,35 @@ export function AiSection({ settings, viewer, timeZone }: AiSectionProps) {
         />
       )}
       {dialog}
-    </>
+    </Tabs>
   );
 }
 
-function AiLogPanel({
-  usage,
-  timeZone,
-  onBack,
-}: {
-  readonly usage: AiUsageSummary;
-  readonly timeZone: string;
-  readonly onBack: () => void;
-}) {
+/** Show the two amounts people need without exposing internal billing bookkeeping. */
+function AiUsageNumbers({ usage }: { readonly usage: AiUsageSummary }) {
   const { locale } = usePreferences().preferences;
   const { hidden, hiddenLabel } = usePrivacy();
+  return (
+    <dl className="grid grid-cols-2 gap-4">
+      <div>
+        <dt className="text-[12px] text-subtle">{m.ai_usage_spent_this_month()}</dt>
+        <dd aria-label={hidden ? hiddenLabel : undefined} className="mt-1 font-mono text-[20px] font-medium text-fg">
+          {formatUsd(usage.spentUsd, locale, hidden)}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-[12px] text-subtle">{m.ai_usage_monthly_cap()}</dt>
+        <dd aria-label={hidden ? hiddenLabel : undefined} className="mt-1 font-mono text-[20px] font-medium text-fg">
+          {formatUsd(usage.limitUsd, locale, hidden)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function AiLogPanel({ usage, timeZone }: { readonly usage: AiUsageSummary; readonly timeZone: string }) {
+  const { locale } = usePreferences().preferences;
+  const { hidden } = usePrivacy();
   const [feature, setFeature] = useState<AiFeature | ''>('');
   const [status, setStatus] = useState<AiLogStatus | ''>('');
   const [page, setPage] = useState(0);
@@ -1027,89 +1062,87 @@ function AiLogPanel({
   return (
     <section aria-labelledby="ai-log-title" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button size="sm" variant="ghost" onClick={onBack}>
-          {m.ai_back()}
-        </Button>
-        <Button size="sm" variant="secondary" pending={exporting} onClick={() => void exportCsv()}>
-          {exporting ? m.ai_log_exporting() : m.ai_log_export()}
-        </Button>
+        <div className="flex flex-col gap-1">
+          <h3 id="ai-log-title" className="text-[14px] font-semibold text-fg">
+            {m.ai_log_title()}
+          </h3>
+          <p className="text-[12px] text-subtle">{m.ai_log_subtitle()}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={loading}
+            onClick={() => {
+              setLoading(true);
+              setReload((current) => current + 1);
+            }}
+          >
+            {m.settings_activity_refresh()}
+          </Button>
+          <Button size="sm" variant="secondary" pending={exporting} onClick={() => void exportCsv()}>
+            {exporting ? m.ai_log_exporting() : m.ai_log_export()}
+          </Button>
+        </div>
       </div>
       <div className="flex flex-col gap-0.5">
-        <h3 id="ai-log-title" className="text-[14px] font-semibold text-fg">
-          {m.ai_log_title()}
-        </h3>
-        <p className="text-[12px] text-subtle">{m.ai_log_subtitle()}</p>
         <p className="text-[12px] text-muted-fg">{m.ai_log_privacy()}</p>
       </div>
       <section
         aria-label={m.ai_usage_month({ month })}
         className="flex flex-col gap-1 rounded-[10px] border border-border bg-surface-sunken px-3.5 py-3 text-[12.5px]"
       >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <p>
-            <span className="block text-[11px] font-medium text-subtle uppercase">{m.ai_log_requests({ month })}</span>
-            <span className="font-mono text-fg">{formatCount(usage.requests, locale)}</span>
-          </p>
-          <p>
-            <span className="block text-[11px] font-medium text-subtle uppercase">{m.ai_log_cost({ month })}</span>
-            <span className="font-mono text-fg">
-              {formatUsd(usage.spentUsd, locale, hidden)} / {formatUsd(usage.limitUsd, locale, hidden)}
-            </span>
-          </p>
-        </div>
-        <p className="text-subtle">{m.ai_usage_estimated({ amount: formatUsd(usage.estimatedUsd, locale, hidden) })}</p>
-        <p className="text-subtle">{m.ai_usage_reserved({ amount: formatUsd(usage.reservedUsd, locale, hidden) })}</p>
-        <p className="min-h-[18px] text-subtle">
-          {failedRatio === null ? null : m.ai_log_failed_summary({ percent: formatPercent(failedRatio, locale) })}
-        </p>
-        <p className="text-subtle">{m.ai_cost_warning()}</p>
-        {hidden ? <span className="sr-only">{hiddenLabel}</span> : null}
+        <p className="mb-3 text-[12px] text-subtle">{month}</p>
+        <AiUsageNumbers usage={usage} />
       </section>
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-1.5 text-[12px] text-subtle">
-          {m.ai_log_feature_filter()}
-          <Select
-            size="sm"
-            value={feature}
-            onChange={(event) => {
-              setLoading(true);
-              setFeature(event.currentTarget.value as AiFeature | '');
-              setPage(0);
-              setExpanded(null);
-            }}
-          >
-            <option value="">{m.ai_log_all_features()}</option>
-            {AI_FEATURES.map((value) => (
-              <option key={value} value={value}>
-                {FEATURE_LABEL[value]()}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="flex items-center gap-1.5 text-[12px] text-subtle">
-          {m.ai_log_status_filter()}
-          <Select
-            size="sm"
-            value={status}
-            onChange={(event) => {
-              setLoading(true);
-              setStatus(event.currentTarget.value as AiLogStatus | '');
-              setPage(0);
-              setExpanded(null);
-            }}
-          >
-            <option value="">{m.ai_log_all_statuses()}</option>
-            {AI_LOG_STATUSES.map((value) => (
-              <option key={value} value={value}>
-                {LOG_STATUS_LABEL[value]()}
-              </option>
-            ))}
-          </Select>
-        </label>
+      <div className="grid grid-cols-2 gap-3 rounded-[10px] border border-border bg-surface-sunken p-3">
+        <Field label={m.ai_log_feature_filter()}>
+          {({ id }) => (
+            <Select<AiFeature | 'all'>
+              id={id}
+              size="sm"
+              value={feature === '' ? 'all' : feature}
+              placeholder={m.ai_log_all_features()}
+              options={[
+                { value: 'all', label: m.ai_log_all_features() },
+                ...AI_FEATURES.map((value) => ({ value, label: FEATURE_LABEL[value]() })),
+              ]}
+              onValueChange={(value) => {
+                setLoading(true);
+                setFeature(value === 'all' ? '' : value);
+                setPage(0);
+                setExpanded(null);
+              }}
+            />
+          )}
+        </Field>
+        <Field label={m.ai_log_status_filter()}>
+          {({ id }) => (
+            <Select<AiLogStatus | 'all'>
+              id={id}
+              size="sm"
+              value={status === '' ? 'all' : status}
+              placeholder={m.ai_log_all_statuses()}
+              options={[
+                { value: 'all', label: m.ai_log_all_statuses() },
+                ...AI_LOG_STATUSES.map((value) => ({ value, label: LOG_STATUS_LABEL[value]() })),
+              ]}
+              onValueChange={(value) => {
+                setLoading(true);
+                setStatus(value === 'all' ? '' : value);
+                setPage(0);
+                setExpanded(null);
+              }}
+            />
+          )}
+        </Field>
       </div>
-      <div className="h-5">
-        {loading && logs !== null ? <PageState kind="refreshing" title={m.ai_log_loading()} /> : null}
-      </div>
+      {failedRatio === null ? null : (
+        <p className="text-[12px] text-subtle">
+          {m.ai_log_failed_summary({ percent: formatPercent(failedRatio, locale) })}
+        </p>
+      )}
+      {loading && logs !== null ? <PageState kind="refreshing" title={m.ai_log_loading()} /> : null}
       {exportError ? <FormError>{m.ai_log_export_failed()}</FormError> : null}
       <div className="flex min-h-[260px] flex-col gap-2">
         {logs === null ? (
@@ -1132,54 +1165,74 @@ function AiLogPanel({
         ) : items.length === 0 ? (
           <PageState kind="empty" title={m.ai_log_empty()} />
         ) : (
-          <ul className="flex flex-col divide-y divide-border rounded-[10px] border border-border">
-            {items.map((entry) => (
-              <li key={entry.id} className="flex flex-col gap-1 px-3.5 py-2.5">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="w-[86px] shrink-0 font-mono text-[11.5px] text-subtle">
-                    {timeOf(entry.createdAt, locale, timeZone)}
-                  </span>
-                  <span className="text-[12.5px] font-medium text-fg">{FEATURE_LABEL[entry.feature]()}</span>
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-muted-fg">
-                    {entry.modelId === null ? m.ai_log_detail_none() : entry.modelId}
-                  </span>
-                  <span className={`text-[12px] font-medium ${LOG_STATUS_TONE[entry.status]}`}>
-                    {LOG_STATUS_LABEL[entry.status]()}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-subtle">
-                  <span className="font-mono">
-                    {entry.inputTokens === null ? m.ai_log_detail_none() : formatCount(entry.inputTokens, locale)}
-                    {' → '}
-                    {entry.outputTokens === null ? m.ai_log_detail_none() : formatCount(entry.outputTokens, locale)}
-                  </span>
-                  <span className="font-mono">
-                    {entry.costUsd === null ? m.ai_log_detail_none() : formatUsd(entry.costUsd, locale, hidden)}
-                  </span>
-                  <span className="font-mono">
-                    {m.ai_duration_ms({ value: formatCount(entry.durationMs, locale) })}
-                  </span>
-                  <button
-                    type="button"
-                    aria-expanded={expanded === entry.id}
-                    aria-controls={`ai-log-detail-${entry.id}`}
-                    aria-label={
-                      expanded === entry.id
-                        ? m.ai_log_hide_detail({ feature: FEATURE_LABEL[entry.feature]() })
-                        : m.ai_log_show_detail({ feature: FEATURE_LABEL[entry.feature]() })
-                    }
-                    className="font-medium text-blue-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    onClick={() => {
-                      setExpanded((current) => (current === entry.id ? null : entry.id));
-                    }}
-                  >
-                    {m.ai_log_detail()}
-                  </button>
-                </div>
-                {expanded === entry.id ? <AiLogDetail entry={entry} locale={locale} hidden={hidden} /> : null}
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto rounded-[10px] border border-border" aria-busy={loading}>
+            <table className="w-full min-w-[540px] text-left text-[12px]">
+              <thead className="border-b border-border bg-surface-sunken text-[11px] text-subtle">
+                <tr>
+                  <th className="px-3 py-2.5 font-medium">{m.gmail_log_time()}</th>
+                  <th className="px-3 py-2.5 font-medium">{m.ai_log_feature_filter()}</th>
+                  <th className="px-3 py-2.5 font-medium">{m.ai_log_status()}</th>
+                  <th className="px-3 py-2.5 text-right font-medium">{m.ai_log_cost_col()}</th>
+                  <th className="px-3 py-2.5">
+                    <span className="sr-only">{m.ai_log_detail()}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {items.map((entry) => (
+                  <Fragment key={entry.id}>
+                    <tr className="align-top text-fg">
+                      <td className="px-3 py-3 whitespace-nowrap text-subtle">
+                        {timeOf(entry.createdAt, locale, timeZone)}
+                      </td>
+                      <td className="max-w-[210px] px-3 py-3">
+                        <p className="font-medium">{FEATURE_LABEL[entry.feature]()}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-subtle" title={entry.modelId ?? undefined}>
+                          {entry.modelId ?? m.ai_log_detail_none()}
+                        </p>
+                        <p className="text-[11px] text-subtle">{PROVIDER_LABEL[entry.provider]()}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={`inline-flex rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium ${LOG_STATUS_TONE[entry.status]}`}
+                        >
+                          {LOG_STATUS_LABEL[entry.status]()}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono whitespace-nowrap">
+                        {entry.costUsd === null ? m.ai_log_detail_none() : formatUsd(entry.costUsd, locale, hidden)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-expanded={expanded === entry.id}
+                          aria-controls={expanded === entry.id ? `ai-log-detail-${entry.id}` : undefined}
+                          aria-label={
+                            expanded === entry.id
+                              ? m.ai_log_hide_detail({ feature: FEATURE_LABEL[entry.feature]() })
+                              : m.ai_log_show_detail({ feature: FEATURE_LABEL[entry.feature]() })
+                          }
+                          onClick={() => {
+                            setExpanded((current) => (current === entry.id ? null : entry.id));
+                          }}
+                        >
+                          {m.ai_log_detail()}
+                        </Button>
+                      </td>
+                    </tr>
+                    {expanded === entry.id ? (
+                      <tr>
+                        <td colSpan={5} className="px-3 pb-3">
+                          <AiLogDetail entry={entry} locale={locale} hidden={hidden} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       {logs?.ok !== true || (items.length === 0 && page === 0) ? null : (

@@ -86,6 +86,9 @@ export interface EmailLogView {
   readonly receivedAt: Date;
   readonly createdAt: Date;
   readonly reviewItemId: string | null;
+  /** Owned display labels for extraction details; deleted references remain unknown. */
+  readonly accountName?: string | null;
+  readonly categoryName?: string | null;
 }
 export interface GmailMonthlyStats {
   readonly received: number;
@@ -140,6 +143,7 @@ export interface GmailRepository {
     sessionId: string,
   ) => Promise<{ verifier: string; grantId: string | null }>;
   targets: (email?: string) => Promise<{ userId: string }[]>;
+  /** Rejected mail returns immediately without storing evidence, a log, or a message key. */
   recordEmail: (userId: string, email: NewEmail) => Promise<{ id: string | null; duplicate: boolean }>;
   claimExtraction: (userId: string, id: string) => Promise<GmailExtractionClaim | null>;
   /** Encrypts the worker's parsed answer (`parseGmailAnswer`) in the stored form `parseGmailExtraction` reads. */
@@ -386,6 +390,7 @@ export function createGmail(
       return rows.map((row) => ({ userId: row.user_id }));
     },
     async recordEmail(userId, email) {
+      if (email.filterResult !== 'passed') return { id: null, duplicate: false };
       const dek = await getDek(userId);
       return withUser(db, userId, async (tx) => {
         const { id } = firstRow(await tx.execute<{ id: string }>(sql`select uuidv7()::text as id`), 'email id');
@@ -412,14 +417,9 @@ export function createGmail(
               subject: email.subject.slice(0, 500),
               quoteEnc: encrypt(dek, email.excerpt.slice(0, QUOTE_MAX), aad(userId, GMAIL_QUOTE_PURPOSE, id)),
               receivedAt: email.receivedAt,
-              filterResult: email.filterResult,
-              outcome:
-                email.filterResult === 'passed'
-                  ? 'pending'
-                  : email.filterResult === 'ignored_keyword'
-                    ? 'ignored'
-                    : 'filtered',
-              processing: email.filterResult === 'passed' ? 'queued' : 'done',
+              filterResult: 'passed',
+              outcome: 'pending',
+              processing: 'queued',
             })
             .returning({ id: emailIngestLogs.id }),
           'email',
@@ -432,7 +432,12 @@ export function createGmail(
         tx
           .select({ id: emailIngestLogs.id })
           .from(emailIngestLogs)
-          .where(inArray(emailIngestLogs.processing, ['queued', 'extracting', 'extracted', 'failed']))
+          .where(
+            and(
+              eq(emailIngestLogs.filterResult, 'passed'),
+              inArray(emailIngestLogs.processing, ['queued', 'extracting', 'extracted', 'failed']),
+            ),
+          )
           .orderBy(asc(emailIngestLogs.createdAt))
           .limit(100),
       ),
@@ -680,14 +685,17 @@ export function createGmail(
           })
           .from(emailIngestLogs)
           .where(
-            options.before === undefined
-              ? undefined
-              : sql`(${emailIngestLogs.createdAt}, ${emailIngestLogs.id}) < (${options.before.at.toISOString()}::timestamptz, ${options.before.id}::uuid)`,
+            and(
+              eq(emailIngestLogs.filterResult, 'passed'),
+              options.before === undefined
+                ? undefined
+                : sql`(${emailIngestLogs.createdAt}, ${emailIngestLogs.id}) < (${options.before.at.toISOString()}::timestamptz, ${options.before.id}::uuid)`,
+            ),
           )
           .orderBy(desc(emailIngestLogs.createdAt), desc(emailIngestLogs.id))
           .limit(Math.min(Math.max(options.limit ?? 500, 1), 500)),
       );
-      return rows.map((row) => ({
+      const logs = rows.map((row) => ({
         id: row.id,
         messageId: row.messageId,
         fromAddr: row.fromAddr,
@@ -705,6 +713,35 @@ export function createGmail(
         createdAt: row.createdAt,
         reviewItemId: row.reviewItemId,
       }));
+      const accountIds = [...new Set(logs.flatMap((row) => row.extraction?.accountId ?? []))];
+      const categoryIds = [...new Set(logs.flatMap((row) => row.extraction?.categoryId ?? []))];
+      if (accountIds.length === 0 && categoryIds.length === 0) return logs;
+      return withUser(db, userId, async (tx) => {
+        const accountNames =
+          accountIds.length === 0
+            ? []
+            : await tx
+                .select({ id: accounts.id, name: accounts.displayName })
+                .from(accounts)
+                .where(inArray(accounts.id, accountIds));
+        const categoryNames =
+          categoryIds.length === 0
+            ? []
+            : await tx
+                .select({ id: categories.id, name: categories.name })
+                .from(categories)
+                .where(and(inArray(categories.id, categoryIds), isNull(categories.deletedAt)));
+        const accountById = new Map(accountNames.map((row) => [row.id, row.name]));
+        const categoryById = new Map(categoryNames.map((row) => [row.id, row]));
+        return logs.map((row) => {
+          const category = categoryById.get(row.extraction?.categoryId ?? '');
+          return {
+            ...row,
+            accountName: accountById.get(row.extraction?.accountId ?? '') ?? null,
+            categoryName: category?.name ?? null,
+          };
+        });
+      });
     },
     monthlyStats: (userId, month) =>
       withUser(db, userId, async (tx) => {
@@ -712,15 +749,23 @@ export function createGmail(
           .select({
             outcome: emailIngestLogs.outcome,
             filter: emailIngestLogs.filterResult,
+            processing: emailIngestLogs.processing,
             total: sql<number>`count(*)::int`.mapWith(Number),
           })
           .from(emailIngestLogs)
-          .where(and(gte(emailIngestLogs.receivedAt, month.from), lt(emailIngestLogs.receivedAt, month.to)))
-          .groupBy(emailIngestLogs.outcome, emailIngestLogs.filterResult);
+          .where(
+            and(
+              eq(emailIngestLogs.filterResult, 'passed'),
+              gte(emailIngestLogs.receivedAt, month.from),
+              lt(emailIngestLogs.receivedAt, month.to),
+            ),
+          )
+          .groupBy(emailIngestLogs.outcome, emailIngestLogs.filterResult, emailIngestLogs.processing);
         const stats = { received: 0, passed: 0, pending: 0, confirmed: 0, ignored: 0, duplicate: 0, filtered: 0 };
         for (const row of rows) {
           stats.received += row.total;
           if (row.filter === 'passed') stats.passed += row.total;
+          if (row.outcome === 'pending' && row.processing !== 'done') continue;
           stats[row.outcome] += row.total;
         }
         return stats;
