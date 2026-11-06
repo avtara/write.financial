@@ -25,12 +25,13 @@ import {
 } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 import type { RecordTransactionInput } from '../../server/fn/transactions-write.ts';
-import { Button, Field, FormError, TextInput } from '../form.tsx';
+import { Button, Field, FormError } from '../form.tsx';
 import { AccountPicker, AccountTrigger } from './account-picker.tsx';
 import { BudgetImpact, budgetNotes } from '../budget/budget-note.tsx';
 import { CategoryPicker } from './category-picker.tsx';
 import { DateTimeField } from './date-time-field.tsx';
 import { TagInput } from './tag-input.tsx';
+import { TransactionTitleInput } from './transaction-title-input.tsx';
 import { balancesAfter, isCrossCurrency, type EntryKind, type TransactionFormValues } from './transaction-draft.ts';
 import { ErrorText, TransferFields } from './transfer-fields.tsx';
 import { useTransactionForm, type LedgerData, type TransactionFormState } from './use-transaction-form.ts';
@@ -314,15 +315,14 @@ export function TransactionFormFields({
       )}
 
       <Field label={m.record_description()}>
-        {({ id: fieldId }) => (
-          <TextInput
+        {({ id: fieldId, describedBy }) => (
+          <TransactionTitleInput
             id={fieldId}
-            type="text"
-            maxLength={200}
+            aria-describedby={describedBy}
+            kind={values.type}
             value={values.description}
-            placeholder={m.record_description_placeholder()}
-            onChange={(event) => {
-              update({ description: event.currentTarget.value });
+            onValueChange={(description) => {
+              update({ description });
             }}
           />
         )}

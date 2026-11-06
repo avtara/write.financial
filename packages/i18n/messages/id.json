@@ -4340,5 +4340,7 @@
   "settings_activity_refresh": "Perbarui",
   "ai_usage_spent_this_month": "Terpakai bulan ini",
   "ai_usage_monthly_cap": "Batas bulanan",
-  "ai_connection_reset_hint": "Untuk mengganti key atau model, hapus key ini terlebih dahulu."
+  "ai_connection_reset_hint": "Untuk mengganti key atau model, hapus key ini terlebih dahulu.",
+  "record_title_suggestions": "Judul dari riwayat",
+  "record_title_autocomplete_hint": "Ketik minimal 2 karakter untuk melihat saran judul. Gunakan panah atas atau bawah dan Enter untuk memilih; Escape untuk menutup."
 }
