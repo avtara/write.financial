@@ -5336,5 +5336,7 @@
   "settings_activity_refresh": "Refresh",
   "ai_usage_spent_this_month": "Spent this month",
   "ai_usage_monthly_cap": "Monthly limit",
-  "ai_connection_reset_hint": "To change the key or model, delete this key first."
+  "ai_connection_reset_hint": "To change the key or model, delete this key first.",
+  "record_title_suggestions": "Titles from your history",
+  "record_title_autocomplete_hint": "Type at least 2 characters to see title suggestions. Use the up or down arrow and Enter to choose; Escape to close."
 }

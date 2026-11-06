@@ -43,6 +43,7 @@ import { Route as ApiGmailLogRouteImport } from './../routes/api/gmail.log.ts';
 import { Route as ApiGmailPushRouteImport } from './../routes/api/gmail.push.ts';
 import { Route as ApiReportsFileIdRouteImport } from './../routes/api/reports.$fileId.ts';
 import { Route as ApiSubscriptionLogoIdRouteImport } from './../routes/api/subscription-logo.$id.ts';
+import { Route as ApiTransactionsTitlesRouteImport } from './../routes/api/transactions.titles.ts';
 import { Route as ApiTransactionsIdAttachmentsAttachmentIdRouteImport } from './../routes/api/transactions.$id.attachments.$attachmentId.ts';
 
 const AppRoute = AppRouteImport.update({
@@ -213,6 +214,11 @@ const ApiSubscriptionLogoIdRoute = ApiSubscriptionLogoIdRouteImport.update({
   path: '/api/subscription-logo/$id',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ApiTransactionsTitlesRoute = ApiTransactionsTitlesRouteImport.update({
+  id: '/api/transactions/titles',
+  path: '/api/transactions/titles',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ApiTransactionsIdAttachmentsAttachmentIdRoute =
   ApiTransactionsIdAttachmentsAttachmentIdRouteImport.update({
     id: '/api/transactions/$id/attachments/$attachmentId',
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/api/gmail/push': typeof ApiGmailPushRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
+  '/api/transactions/titles': typeof ApiTransactionsTitlesRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRoutesByTo {
@@ -288,6 +295,7 @@ export interface FileRoutesByTo {
   '/api/gmail/push': typeof ApiGmailPushRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
+  '/api/transactions/titles': typeof ApiTransactionsTitlesRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRoutesById {
@@ -326,6 +334,7 @@ export interface FileRoutesById {
   '/api/gmail/push': typeof ApiGmailPushRoute;
   '/api/reports/$fileId': typeof ApiReportsFileIdRoute;
   '/api/subscription-logo/$id': typeof ApiSubscriptionLogoIdRoute;
+  '/api/transactions/titles': typeof ApiTransactionsTitlesRoute;
   '/api/transactions/$id/attachments/$attachmentId': typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 export interface FileRouteTypes {
@@ -363,6 +372,7 @@ export interface FileRouteTypes {
     | '/api/gmail/push'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
+    | '/api/transactions/titles'
     | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -398,6 +408,7 @@ export interface FileRouteTypes {
     | '/api/gmail/push'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
+    | '/api/transactions/titles'
     | '/api/transactions/$id/attachments/$attachmentId';
   id:
     | '__root__'
@@ -435,6 +446,7 @@ export interface FileRouteTypes {
     | '/api/gmail/push'
     | '/api/reports/$fileId'
     | '/api/subscription-logo/$id'
+    | '/api/transactions/titles'
     | '/api/transactions/$id/attachments/$attachmentId';
   fileRoutesById: FileRoutesById;
 }
@@ -454,6 +466,7 @@ export interface RootRouteChildren {
   ApiGmailPushRoute: typeof ApiGmailPushRoute;
   ApiReportsFileIdRoute: typeof ApiReportsFileIdRoute;
   ApiSubscriptionLogoIdRoute: typeof ApiSubscriptionLogoIdRoute;
+  ApiTransactionsTitlesRoute: typeof ApiTransactionsTitlesRoute;
   ApiTransactionsIdAttachmentsAttachmentIdRoute: typeof ApiTransactionsIdAttachmentsAttachmentIdRoute;
 }
 
@@ -697,6 +710,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSubscriptionLogoIdRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/api/transactions/titles': {
+      id: '/api/transactions/titles';
+      path: '/api/transactions/titles';
+      fullPath: '/api/transactions/titles';
+      preLoaderRoute: typeof ApiTransactionsTitlesRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/api/transactions/$id/attachments/$attachmentId': {
       id: '/api/transactions/$id/attachments/$attachmentId';
       path: '/api/transactions/$id/attachments/$attachmentId';
@@ -787,6 +807,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGmailPushRoute: ApiGmailPushRoute,
   ApiReportsFileIdRoute: ApiReportsFileIdRoute,
   ApiSubscriptionLogoIdRoute: ApiSubscriptionLogoIdRoute,
+  ApiTransactionsTitlesRoute: ApiTransactionsTitlesRoute,
   ApiTransactionsIdAttachmentsAttachmentIdRoute:
     ApiTransactionsIdAttachmentsAttachmentIdRoute,
 };

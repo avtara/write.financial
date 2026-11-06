@@ -172,6 +172,11 @@ export interface TransactionSummary {
 }
 
 export interface TransactionQueryRepository {
+  /** Unique matching titles from live transactions of this type, preferring prefixes and recent use. */
+  suggestTitles: (
+    userId: string,
+    input: { readonly query: string; readonly type: 'expense' | 'income' | 'transfer' },
+  ) => Promise<string[]>;
   list: (userId: string, filter: TransactionFilter, options?: TransactionListOptions) => Promise<TransactionPage>;
   /** Newest day first. */
   groupByDay: (userId: string, filter: TransactionFilter) => Promise<DayGroup[]>;
@@ -437,6 +442,40 @@ export function createTransactionQuery(
   };
 
   return {
+    suggestTitles: async (userId, input) => {
+      const needle = input.query.trim().slice(0, 200);
+      if (needle.length < 2) return [];
+      const literal = needle.replace(/[\\%_]/g, '\\$&');
+      return withUser(db, userId, async (tx) => {
+        const normalized = sql`lower(btrim(${transactions.description}))`;
+        const matches = tx
+          .selectDistinctOn([normalized], {
+            title: sql<string>`btrim(${transactions.description})`.as('title'),
+            occurredAt: transactions.occurredAt,
+            id: transactions.id,
+          })
+          .from(transactions)
+          .where(
+            and(
+              isNull(transactions.deletedAt),
+              eq(transactions.type, input.type),
+              ilike(transactions.description, `%${literal}%`),
+            ),
+          )
+          .orderBy(normalized, desc(transactions.occurredAt), desc(transactions.id))
+          .as('title_matches');
+        const rows = await tx
+          .select({ title: matches.title })
+          .from(matches)
+          .orderBy(
+            sql`case when ${matches.title} ilike ${`${literal}%`} then 0 else 1 end`,
+            desc(matches.occurredAt),
+            desc(matches.id),
+          )
+          .limit(8);
+        return rows.map((row) => row.title);
+      });
+    },
     list: (userId, filter, { sort = 'date_desc', limit = DEFAULT_LIMIT, offset = 0 } = {}) =>
       query(userId, filter, async (tx, where) => {
         const principal = tx
